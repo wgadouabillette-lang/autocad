@@ -4,9 +4,9 @@ set -e
 cd "$(dirname "$0")/.."
 
 RELEASE_DIR="desktop/release"
-OUT_DIR="landing/downloads"
-MAC_OUT="$OUT_DIR/Lyte-mac.dmg"
-WIN_OUT="$OUT_DIR/Lyte-windows.exe"
+OUT_DIRS=("landing/downloads" "landing/public/downloads")
+MAC_NAME="Lyte-mac.dmg"
+WIN_NAME="Lyte-windows.exe"
 
 if [[ ! -d "$RELEASE_DIR" ]]; then
   echo "Dossier $RELEASE_DIR introuvable."
@@ -16,7 +16,7 @@ if [[ ! -d "$RELEASE_DIR" ]]; then
   exit 1
 fi
 
-mkdir -p "$OUT_DIR"
+mkdir -p "${OUT_DIRS[@]}"
 
 MAC_SRC="$(find "$RELEASE_DIR" -maxdepth 1 -name '*.dmg' -type f | head -1)"
 WIN_SRC="$(find "$RELEASE_DIR" -maxdepth 1 -name '*.exe' -type f | head -1)"
@@ -26,22 +26,27 @@ if [[ -z "$MAC_SRC" && -z "$WIN_SRC" ]]; then
   exit 1
 fi
 
-if [[ -n "$MAC_SRC" ]]; then
-  cp "$MAC_SRC" "$MAC_OUT"
-  if [[ "$(uname)" == "Darwin" ]]; then
-    xattr -cr "$MAC_OUT" 2>/dev/null || true
-  fi
-  echo "macOS  → $MAC_OUT  (depuis $(basename "$MAC_SRC"))"
-else
-  echo "macOS  → aucun .dmg trouvé (ignoré)"
-fi
+for OUT_DIR in "${OUT_DIRS[@]}"; do
+  MAC_OUT="$OUT_DIR/$MAC_NAME"
+  WIN_OUT="$OUT_DIR/$WIN_NAME"
 
-if [[ -n "$WIN_SRC" ]]; then
-  cp "$WIN_SRC" "$WIN_OUT"
-  echo "Windows → $WIN_OUT (depuis $(basename "$WIN_SRC"))"
-else
-  echo "Windows → aucun .exe trouvé (ignoré)"
-fi
+  if [[ -n "$MAC_SRC" ]]; then
+    cp "$MAC_SRC" "$MAC_OUT"
+    if [[ "$(uname)" == "Darwin" ]]; then
+      xattr -cr "$MAC_OUT" 2>/dev/null || true
+    fi
+    echo "macOS  → $MAC_OUT  (depuis $(basename "$MAC_SRC"))"
+  else
+    echo "macOS  → aucun .dmg trouvé (ignoré)"
+  fi
+
+  if [[ -n "$WIN_SRC" ]]; then
+    cp "$WIN_SRC" "$WIN_OUT"
+    echo "Windows → $WIN_OUT (depuis $(basename "$WIN_SRC"))"
+  else
+    echo "Windows → aucun .exe trouvé (ignoré)"
+  fi
+done
 
 echo ""
 echo "Déployez le dossier landing/ sur votre hébergeur (Netlify, Vercel, S3, nginx…)."

@@ -19,6 +19,8 @@ desktop/build-resources/
 desktop/release/
 landing/downloads/*.dmg
 landing/downloads/*.exe
+landing/public/downloads/*.dmg
+landing/public/downloads/*.exe
 desktop/secrets/
 
 # Divers

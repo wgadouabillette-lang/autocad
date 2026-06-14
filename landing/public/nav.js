@@ -5,6 +5,11 @@
   if (!placeholder) return;
   const active = placeholder.getAttribute("data-active") || "";
 
+  const MAC_URL = "downloads/Lyte-mac.dmg";
+  const MAC_NAME = "Lyte-mac.dmg";
+  const WIN_URL = "downloads/Lyte-windows.exe";
+  const WIN_NAME = "Lyte-windows.exe";
+
   const tabs = [
     { id: "tarifs", label: "Tarifs", href: "tarifs.html" },
     { id: "careers", label: "Careers", href: "careers.html" },
@@ -40,8 +45,8 @@
         <a
           class="nav__cta"
           id="nav-download"
-          href="downloads/Lyte-mac.dmg"
-          download="Lyte-mac.dmg"
+          href="#"
+          aria-disabled="true"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" width="11" height="11" aria-hidden="true">
             <path d="M12 4v12m0 0 5-5m-5 5-5-5M5 20h14" />
@@ -52,49 +57,71 @@
     </nav>
   `;
 
-  // Platform-aware download button.
-  const MAC_URL = "downloads/Lyte-mac.dmg";
-  const WIN_URL = "downloads/Lyte-windows.exe";
   const navBtn = document.getElementById("nav-download");
   const navLabel = document.getElementById("nav-download-label");
   if (!navBtn || !navLabel) return;
 
-  const platform = (() => {
+  function detectPlatform() {
     const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes("mac")) return "mac";
-    if (ua.includes("win")) return "win";
+    const platform = (navigator.platform || "").toLowerCase();
+    if (ua.includes("mac") || platform.includes("mac")) return "mac";
+    if (ua.includes("win") || platform.includes("win")) return "win";
     return "other";
-  })();
+  }
 
-  function applyMac() {
-    navBtn.href = MAC_URL;
-    navBtn.setAttribute("download", "Lyte-mac.dmg");
+  function setDownload(url, filename, label) {
+    navBtn.href = url;
+    navBtn.setAttribute("download", filename);
     navBtn.removeAttribute("aria-disabled");
-    navLabel.textContent = "Télécharger pour macOS";
+    navLabel.textContent = label;
   }
-  function applyWinReady() {
-    navBtn.href = WIN_URL;
-    navBtn.setAttribute("download", "Lyte-windows.exe");
-    navBtn.removeAttribute("aria-disabled");
-    navLabel.textContent = "Télécharger pour Windows";
-  }
-  function applyWinSoon() {
+
+  function setUnavailable(platformLabel) {
     navBtn.removeAttribute("href");
     navBtn.removeAttribute("download");
     navBtn.setAttribute("aria-disabled", "true");
-    navLabel.textContent = "Windows — Bientôt disponible";
+    navLabel.textContent = `${platformLabel} — Bientôt disponible`;
   }
 
-  if (platform === "win") {
-    applyWinSoon();
-    fetch(WIN_URL, { method: "HEAD" })
-      .then((res) => {
-        if (res.ok) applyWinReady();
-      })
-      .catch(() => {});
-  } else {
-    applyMac();
+  async function fileExists(url) {
+    try {
+      const response = await fetch(url, { method: "HEAD" });
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
+
+  async function initDownloadButton() {
+    const platform = detectPlatform();
+    const target =
+      platform === "win"
+        ? { url: WIN_URL, name: WIN_NAME, label: "Télécharger pour Windows" }
+        : { url: MAC_URL, name: MAC_NAME, label: "Télécharger pour macOS" };
+
+    const available = await fileExists(target.url);
+    if (available) {
+      setDownload(target.url, target.name, target.label);
+      return;
+    }
+
+    if (platform === "other") {
+      const fallback =
+        (await fileExists(MAC_URL))
+          ? { url: MAC_URL, name: MAC_NAME, label: "Télécharger pour macOS" }
+          : (await fileExists(WIN_URL))
+            ? { url: WIN_URL, name: WIN_NAME, label: "Télécharger pour Windows" }
+            : null;
+      if (fallback) {
+        setDownload(fallback.url, fallback.name, fallback.label);
+        return;
+      }
+    }
+
+    setUnavailable(platform === "win" ? "Windows" : "macOS");
+  }
+
+  void initDownloadButton();
 
   navBtn.addEventListener("click", (event) => {
     if (navBtn.getAttribute("aria-disabled") === "true") event.preventDefault();
