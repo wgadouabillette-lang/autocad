@@ -1,0 +1,80 @@
+name: Release Windows Desktop
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Forma Setup (.exe)
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Create backend virtualenv
+        working-directory: backend
+        run: |
+          python -m venv .venv
+          .venv\Scripts\python -m pip install --upgrade pip
+          .venv\Scripts\pip install -r requirements.txt
+
+      - name: Generate app icon
+        run: |
+          python -m pip install pillow
+          python scripts/generate-app-icon.py
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Prepare desktop resources
+        run: node scripts/prepare-desktop-resources.cjs
+
+      - name: Build Windows installer
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --win nsis
+
+      - name: List build output
+        run: dir desktop\release
+
+      - name: Upload installer to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop/release/*.exe
+          fail_on_unmatched_files: true
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Forma-windows-installer
+          path: desktop/release/*.exe
+          if-no-files-found: error
+          retention-days: 30

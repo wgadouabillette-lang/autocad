@@ -1,0 +1,64 @@
+{
+  "name": "forma-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lyte — application bureau (macOS / Windows)",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "prepare-resources": "node ../scripts/prepare-desktop-resources.cjs",
+    "dist:mac": "npm run prepare-resources && electron-builder --mac dmg",
+    "dist:win": "npm run prepare-resources && electron-builder --win nsis",
+    "dist": "npm run prepare-resources && electron-builder --mac dmg --win nsis"
+  },
+  "build": {
+    "appId": "com.forma.cad",
+    "productName": "Lyte",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs"
+    ],
+    "extraResources": [
+      {
+        "from": "build-resources/frontend-dist",
+        "to": "frontend-dist"
+      },
+      {
+        "from": "build-resources/backend",
+        "to": "backend",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "build-resources/backend-venv",
+        "to": "backend-venv",
+        "filter": ["**/*"]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": ["dmg"],
+      "icon": "build/icon.png",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "dmg": {
+      "title": "Lyte"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  }
+}

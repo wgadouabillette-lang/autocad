@@ -1,0 +1,469 @@
+:root {
+  --bg: #0a0a0a;
+  --surface: #161616;
+  --surface-elevated: #1e1e1e;
+  --border: rgb(255 255 255 / 0.08);
+  --border-strong: rgb(255 255 255 / 0.16);
+  --text: #f5f5f5;
+  --text-muted: #8a8a8a;
+  --accent: #ffffff;
+  --shadow: 0 24px 80px -32px rgb(0 0 0 / 0.75);
+  --radius: 1.25rem;
+  --nav-height: 64px;
+  --font: "SF Pro Text", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  font-family: var(--font);
+  background:
+    radial-gradient(ellipse 90% 60% at 50% -10%, rgb(255 255 255 / 0.06), transparent 70%),
+    var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+/* ---------- Navbar ---------- */
+
+.nav {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+  height: var(--nav-height);
+  padding: 0 150px;
+  background: transparent;
+  border: 0;
+}
+
+.nav__logo {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.nav__logo-icon {
+  display: block;
+  border-radius: 0.4rem;
+}
+
+.nav__tabs {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: transparent;
+  border: 0;
+}
+
+.nav__tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.nav__tab:hover {
+  color: var(--text);
+}
+
+.nav__tab--active {
+  color: var(--text);
+}
+
+.nav__actions {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.4rem;
+  background: #222222;
+  border: 1px solid #404040;
+  color: #e0e0e0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.nav__cta:hover {
+  color: #f0f0f0;
+  border-color: #4a4a4a;
+}
+
+.nav__cta svg {
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+.nav__cta[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nav__cta[aria-disabled="true"]:hover {
+  color: #e0e0e0;
+  border-color: #404040;
+}
+
+@media (max-width: 720px) {
+  .nav {
+    grid-template-columns: auto 1fr auto;
+  }
+  .nav__tabs {
+    display: none;
+  }
+}
+
+/* ---------- Hero ---------- */
+
+.hero {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: clamp(4rem, 12vh, 8rem) 150px 0;
+  text-align: left;
+}
+
+.hero__text {
+  max-width: none;
+}
+
+.hero__title {
+  margin: 0;
+  font-size: clamp(1.75rem, 4.5vw, 3rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.hero__lead {
+  margin: 1rem 0 0;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.hero__product {
+  margin-top: clamp(1.5rem, 4vh, 2.5rem);
+}
+
+.product-window {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 1.25rem 1.25rem 0 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  background: #0e0e0e;
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.06) inset,
+    0 30px 80px -20px rgb(0 0 0 / 0.6),
+    0 60px 140px -40px rgb(0 0 0 / 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.product-window__chrome {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 34px;
+  padding: 0 0.85rem;
+  background: #1a1a1a;
+  border-bottom: 1px solid rgb(255 255 255 / 0.06);
+  flex-shrink: 0;
+}
+
+.product-window__dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.18);
+}
+
+.product-window__dot--red {
+  background: #ff5f57;
+}
+
+.product-window__dot--yellow {
+  background: #febc2e;
+}
+
+.product-window__dot--green {
+  background: #28c840;
+}
+
+.product-window__title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  pointer-events: none;
+  user-select: none;
+}
+
+.product-window__screen {
+  position: relative;
+  flex: 1;
+  background: #0e0e0e;
+  overflow: hidden;
+}
+
+.product-window__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #0e0e0e;
+  color-scheme: dark;
+  pointer-events: none;
+}
+
+.product-window__shield {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
+  cursor: default;
+  user-select: none;
+}
+
+/* ---------- Legal pages (privacy / terms) ---------- */
+
+.page {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.legal {
+  max-width: 36rem;
+  margin: 0 auto;
+}
+
+.legal h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.legal__updated {
+  margin: 0 0 1.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.legal p {
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.legal__back {
+  display: inline-block;
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.legal__back:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Auth page ---------- */
+
+.auth-body {
+  min-height: 100vh;
+}
+
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 1.5rem;
+}
+
+.auth-shell__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.auth-shell__main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-card {
+  width: min(100%, 22rem);
+}
+
+.auth-card__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.auth-card__lead {
+  margin: 0.75rem 0 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.auth-card__lead--compact {
+  margin-top: 1rem;
+  font-size: 0.95rem;
+}
+
+.auth-card__error {
+  margin: 1rem 0 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgb(239 68 68 / 0.35);
+  background: rgb(127 29 29 / 0.25);
+  color: #fecaca;
+  font-size: 0.85rem;
+}
+
+.auth-providers {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.auth-provider-btn {
+  appearance: none;
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.auth-provider-btn:hover {
+  background: var(--surface-elevated);
+  border-color: rgb(255 255 255 / 0.16);
+}
+
+.auth-email-form {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.auth-email-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.auth-email-input {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.auth-email-submit {
+  appearance: none;
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 0.35rem;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-shell__footer {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+  padding-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.auth-shell__legal {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.auth-shell__legal:hover {
+  color: var(--text);
+}

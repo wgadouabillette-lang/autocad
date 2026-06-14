@@ -1,0 +1,26 @@
+# Recommande : Python 3.11+ (Windows). Compatible 3.9+ en best-effort.
+# --- API ---
+fastapi>=0.115,<0.130
+uvicorn[standard]>=0.30
+pydantic>=2.7
+python-multipart>=0.0.9
+
+# --- Noyau geometrique (CSG reel, sans compilation native) ---
+numpy>=1.26,<3
+scipy>=1.11
+trimesh>=4.4
+shapely>=2.0
+manifold3d>=2.3        # moteur booleen ; repli auto si indisponible
+mapbox-earcut>=1.0
+networkx>=3.1
+
+# --- Vision / import dessins (PDF, image, scan) ---
+opencv-python-headless>=4.9
+pillow>=10
+PyMuPDF>=1.24
+
+# --- Agent IA (LLM optionnel: marche aussi sans cle) ---
+httpx>=0.27
+python-dotenv>=1.0
+firebase-admin>=6.6
+stripe>=11,<14

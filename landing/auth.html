@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Sign in to Lyte" />
+    <title>Lyte — Sign in</title>
+    <link rel="icon" type="image/png" href="icon.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="auth-body">
+    <div class="auth-shell">
+      <header class="auth-shell__brand">
+        <img src="icon.png" alt="" width="24" height="24" />
+        <span>Lyte</span>
+      </header>
+
+      <main class="auth-shell__main">
+        <div class="auth-card" id="auth-card">
+          <h1 class="auth-card__title" id="auth-title">Welcome to Lyte</h1>
+          <p class="auth-card__lead" id="auth-lead">
+            Connectez-vous pour synchroniser vos projets et clés API.
+          </p>
+          <p class="auth-card__error" id="auth-error" hidden></p>
+          <div class="auth-providers" id="auth-providers"></div>
+          <form class="auth-email-form" id="auth-email-form">
+            <label class="auth-email-label" for="auth-email">Email address</label>
+            <input
+              id="auth-email"
+              type="email"
+              class="auth-email-input"
+              placeholder="you@company.com"
+              autocomplete="email"
+            />
+            <button type="submit" class="auth-email-submit" id="auth-email-submit">Continue with email</button>
+          </form>
+        </div>
+      </main>
+
+      <footer class="auth-shell__footer">
+        <a href="/terms" class="auth-shell__legal">Terms of Service</a>
+        <span aria-hidden> and </span>
+        <a href="/privacy" class="auth-shell__legal">privacy policy</a>
+      </footer>
+    </div>
+    <script type="module" src="/auth.js"></script>
+  </body>
+</html>

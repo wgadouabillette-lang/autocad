@@ -1,0 +1,63 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "eur3",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ],
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Lyte",
+        "supportEmail": "wgadouabillette@gmail.com",
+        "authorizedRedirectUris": [
+          "https://forma-cad-dev.web.app",
+          "https://forma-cad-dev.firebaseapp.com",
+          "https://forma.app"
+        ]
+      }
+    }
+  },
+  "hosting": {
+    "public": "landing",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "package.json",
+      "package-lock.json",
+      "vite.config.js",
+      "downloads/**"
+    ],
+    "rewrites": [
+      { "source": "/auth", "destination": "/auth.html" },
+      { "source": "/terms", "destination": "/terms.html" },
+      { "source": "/privacy", "destination": "/privacy.html" }
+    ],
+    "headers": [
+      {
+        "source": "/downloads/**",
+        "headers": [
+          { "key": "Content-Disposition", "value": "attachment" },
+          { "key": "Cache-Control", "value": "public, max-age=3600" }
+        ]
+      }
+    ]
+  }
+}

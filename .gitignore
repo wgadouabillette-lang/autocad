@@ -1,0 +1,29 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+backend/.env
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+functions/node_modules/
+functions/lib/
+
+# Desktop (Electron)
+desktop/node_modules/
+desktop/.npm-cache/
+desktop/.electron-cache/
+desktop/build-resources/
+desktop/release/
+landing/downloads/*.dmg
+landing/downloads/*.exe
+desktop/secrets/
+
+# Divers
+.DS_Store
+*.log
+.vscode/
+.idea/
+frontend/tsconfig.tsbuildinfo
