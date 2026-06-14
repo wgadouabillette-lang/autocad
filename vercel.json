@@ -1,9 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "experimentalServices": {
+    "landing": {
+      "root": "landing",
+      "routePrefix": "/",
+      "framework": "vite"
+    },
     "frontend": {
       "root": "frontend",
-      "routePrefix": "/",
+      "routePrefix": "/app",
       "framework": "vite"
     },
     "backend": {
@@ -17,6 +22,22 @@
     {
       "source": "/api/(.*)",
       "destination": "/_/backend/api/$1"
+    },
+    {
+      "source": "/auth",
+      "destination": "/auth.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/terms.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/app",
+      "destination": "/app/"
     }
   ]
 }

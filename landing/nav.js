@@ -30,7 +30,7 @@
       <ul class="nav__tabs" role="list">${tabsHtml}</ul>
 
       <div class="nav__actions">
-        <a class="nav__cta" id="nav-signin" href="http://localhost:5173/">
+        <a class="nav__cta" id="nav-signin" href="/app/">
           <span>Sign in</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" width="11" height="11" aria-hidden="true">
             <path d="M7 17 17 7M9 7h8v8" />
