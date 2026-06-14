@@ -29,3 +29,4 @@ desktop/secrets/
 .vscode/
 .idea/
 frontend/tsconfig.tsbuildinfo
+.vercel

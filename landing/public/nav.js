@@ -96,31 +96,32 @@
 
   async function initDownloadButton() {
     const platform = detectPlatform();
-    const target =
-      platform === "win"
-        ? { url: WIN_URL, name: WIN_NAME, label: "Télécharger pour Windows" }
-        : { url: MAC_URL, name: MAC_NAME, label: "Télécharger pour macOS" };
 
-    const available = await fileExists(target.url);
-    if (available) {
-      setDownload(target.url, target.name, target.label);
+    if (platform === "mac") {
+      setDownload(MAC_URL, MAC_NAME, "Télécharger pour macOS");
       return;
     }
 
-    if (platform === "other") {
-      const fallback =
-        (await fileExists(MAC_URL))
-          ? { url: MAC_URL, name: MAC_NAME, label: "Télécharger pour macOS" }
-          : (await fileExists(WIN_URL))
-            ? { url: WIN_URL, name: WIN_NAME, label: "Télécharger pour Windows" }
-            : null;
-      if (fallback) {
-        setDownload(fallback.url, fallback.name, fallback.label);
-        return;
+    if (platform === "win") {
+      if (await fileExists(WIN_URL)) {
+        setDownload(WIN_URL, WIN_NAME, "Télécharger pour Windows");
+      } else {
+        setUnavailable("Windows");
       }
+      return;
     }
 
-    setUnavailable(platform === "win" ? "Windows" : "macOS");
+    if (await fileExists(MAC_URL)) {
+      setDownload(MAC_URL, MAC_NAME, "Télécharger pour macOS");
+      return;
+    }
+
+    if (await fileExists(WIN_URL)) {
+      setDownload(WIN_URL, WIN_NAME, "Télécharger pour Windows");
+      return;
+    }
+
+    setUnavailable("macOS");
   }
 
   void initDownloadButton();
