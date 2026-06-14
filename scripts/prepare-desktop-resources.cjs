@@ -16,9 +16,12 @@ const backendOut = path.join(out, "backend");
 const frontendOut = path.join(out, "frontend-dist");
 
 function run(cmd, args, opts = {}) {
+  const shell =
+    opts.shell ??
+    (process.platform === "win32" && !/[\\/]/.test(cmd) && !cmd.toLowerCase().endsWith(".exe"));
   const r = spawnSync(cmd, args, {
     stdio: "inherit",
-    shell: process.platform === "win32",
+    shell,
     ...opts,
   });
   if (r.status !== 0) process.exit(r.status ?? 1);
