@@ -1,4 +1,5 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "experimentalServices": {
     "frontend": {
       "root": "frontend",
@@ -7,7 +8,17 @@
     },
     "backend": {
       "root": "backend",
-      "routePrefix": "/_/backend"
+      "entrypoint": "app/main.py",
+      "routePrefix": "/_/backend",
+      "framework": "fastapi",
+      "maxDuration": 60,
+      "memory": 1024
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/_/backend/api/$1"
+    }
+  ]
 }
