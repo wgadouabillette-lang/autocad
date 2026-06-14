@@ -32,6 +32,12 @@ def upload(path: Path, dest: str) -> str:
 
 def main() -> int:
     if not firebase_admin._apps:
+        cred_path = Path.home() / ".config/firebase"
+        adc_files = sorted(cred_path.glob("*_application_default_credentials.json"))
+        if adc_files:
+            import os
+
+            os.environ.setdefault("GOOGLE_APPLICATION_CREDENTIALS", str(adc_files[0]))
         firebase_admin.initialize_app(credentials.ApplicationDefault(), {"storageBucket": BUCKET})
 
     if not MAC_SRC.is_file():
