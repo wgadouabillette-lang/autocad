@@ -71,11 +71,18 @@
     return "other";
   }
 
+  function compactLabel(label) {
+    if (!window.matchMedia("(max-width: 420px)").matches) return label;
+    if (label.includes("macOS")) return "macOS";
+    if (label.includes("Windows")) return "Windows";
+    return label;
+  }
+
   function setDownload(url, filename, label) {
     navBtn.href = url;
     navBtn.setAttribute("download", filename);
     navBtn.removeAttribute("aria-disabled");
-    navLabel.textContent = label;
+    navLabel.textContent = compactLabel(label);
   }
 
   function setUnavailable(platformLabel) {

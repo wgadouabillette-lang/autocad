@@ -428,6 +428,52 @@ body {
   .auth-page__legal-sep {
     @apply text-muted-500;
   }
+
+  @media (max-width: 767px) {
+    .auth-page {
+      min-height: 100dvh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .auth-page__brand {
+      @apply px-4 py-4;
+      padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+    }
+
+    .auth-page__main {
+      @apply items-start px-4 py-10;
+      padding-top: 4.25rem;
+      padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    .auth-page__card {
+      @apply max-w-none;
+    }
+
+    .auth-page__title {
+      @apply text-[1.25rem];
+    }
+
+    .auth-page__subtitle {
+      @apply text-[0.95rem] leading-relaxed;
+    }
+
+    .auth-page__provider-btn {
+      @apply h-10 text-[12px];
+    }
+
+    .auth-page__email-input,
+    .auth-page__continue-btn {
+      @apply h-10;
+    }
+
+    .auth-page__footer {
+      @apply flex-wrap justify-center gap-1 px-4 pb-8 text-center leading-relaxed;
+      padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
   .app-shell {
     @apply relative flex h-full flex-col overflow-hidden;
     background-color: var(--forma-shell-bg);
