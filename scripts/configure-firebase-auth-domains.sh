@@ -9,6 +9,7 @@ DOMAINS=(
   "forma-cad-dev.web.app"
   "forma-cad-dev.firebaseapp.com"
   "forma.app"
+  "autocad-blue.vercel.app"
 )
 
 echo "Projet Firebase : $PROJECT_ID"

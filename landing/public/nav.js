@@ -5,9 +5,11 @@
   if (!placeholder) return;
   const active = placeholder.getAttribute("data-active") || "";
 
-  const MAC_URL = "downloads/Lyte-mac.dmg";
+  const MAC_URL =
+    "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FLyte-mac.dmg?alt=media";
   const MAC_NAME = "Lyte-mac.dmg";
-  const WIN_URL = "downloads/Lyte-windows.exe";
+  const WIN_URL =
+    "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FLyte-windows.exe?alt=media";
   const WIN_NAME = "Lyte-windows.exe";
 
   const tabs = [

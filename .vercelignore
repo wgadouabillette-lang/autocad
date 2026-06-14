@@ -1,0 +1,8 @@
+# Installers (hébergés sur Firebase Storage)
+landing/downloads/
+landing/public/downloads/*.dmg
+landing/public/downloads/*.exe
+desktop/release/
+desktop/.electron-cache/
+desktop/.npm-cache/
+backend/.venv/
