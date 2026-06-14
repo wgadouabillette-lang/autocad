@@ -114,8 +114,8 @@ const python =
     ? path.join(venvOut, "Scripts", "python.exe")
     : path.join(venvOut, "bin", "python");
 
-run(pip, ["install", "--upgrade", "pip"]);
-run(pip, ["install", "-r", path.join(backendOut, "requirements.txt")]);
+run(python, ["-m", "pip", "install", "--upgrade", "pip"]);
+run(python, ["-m", "pip", "install", "-r", path.join(backendOut, "requirements.txt")]);
 
 function materializeSymlinks(dir) {
   if (!fs.existsSync(dir)) return;
