@@ -11,6 +11,8 @@
   const WIN_URL =
     "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FLyte-windows.exe?alt=media";
   const WIN_NAME = "Lyte-windows.exe";
+  // macOS download disabled until Apple signing/notarization is ready.
+  const MAC_DOWNLOAD_ENABLED = false;
 
   const tabs = [
     { id: "tarifs", label: "Tarifs", href: "tarifs.html" },
@@ -92,46 +94,27 @@
     navLabel.textContent = `${platformLabel} — Bientôt disponible`;
   }
 
-  async function fileExists(url) {
-    try {
-      const response = await fetch(url, { method: "HEAD" });
-      return response.ok;
-    } catch {
-      return false;
-    }
-  }
-
-  async function initDownloadButton() {
+  function initDownloadButton() {
     const platform = detectPlatform();
 
-    if (platform === "mac") {
-      setDownload(MAC_URL, MAC_NAME, "Télécharger pour macOS");
-      return;
-    }
-
     if (platform === "win") {
-      if (await fileExists(WIN_URL)) {
-        setDownload(WIN_URL, WIN_NAME, "Télécharger pour Windows");
-      } else {
-        setUnavailable("Windows");
-      }
-      return;
-    }
-
-    if (await fileExists(MAC_URL)) {
-      setDownload(MAC_URL, MAC_NAME, "Télécharger pour macOS");
-      return;
-    }
-
-    if (await fileExists(WIN_URL)) {
       setDownload(WIN_URL, WIN_NAME, "Télécharger pour Windows");
       return;
     }
 
-    setUnavailable("macOS");
+    if (platform === "mac") {
+      if (MAC_DOWNLOAD_ENABLED) {
+        setDownload(MAC_URL, MAC_NAME, "Télécharger pour macOS");
+      } else {
+        setUnavailable("macOS");
+      }
+      return;
+    }
+
+    setDownload(WIN_URL, WIN_NAME, "Télécharger pour Windows");
   }
 
-  void initDownloadButton();
+  initDownloadButton();
 
   navBtn.addEventListener("click", (event) => {
     if (navBtn.getAttribute("aria-disabled") === "true") event.preventDefault();

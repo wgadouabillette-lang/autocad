@@ -45,7 +45,7 @@ def main() -> None:
     draw_icon(512).save(OUT_DIR / "icon-512.png")
     draw_icon(256).save(OUT_DIR / "icon-256.png")
     draw_icon(128).save(LANDING_ICON)
-    print(f"✓ Icônes générées dans {OUT_DIR}")
+    print(f"Icons generated in {OUT_DIR}")
 
 
 if __name__ == "__main__":

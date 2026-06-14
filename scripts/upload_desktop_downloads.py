@@ -40,16 +40,17 @@ def main() -> int:
             os.environ.setdefault("GOOGLE_APPLICATION_CREDENTIALS", str(adc_files[0]))
         firebase_admin.initialize_app(credentials.ApplicationDefault(), {"storageBucket": BUCKET})
 
-    if not MAC_SRC.is_file():
-        print(f"macOS installer missing: {MAC_SRC}", file=sys.stderr)
+    if not MAC_SRC.is_file() and not WIN_SRC.is_file():
+        print("No installers found in landing/public/downloads/", file=sys.stderr)
         print("Run: ./scripts/prepare-landing-downloads.sh", file=sys.stderr)
         return 1
 
-    mac_url = upload(MAC_SRC, "downloads/Lyte-mac.dmg")
+    mac_url = upload(MAC_SRC, "downloads/Lyte-mac.dmg") if MAC_SRC.is_file() else ""
     win_url = upload(WIN_SRC, "downloads/Lyte-windows.exe") if WIN_SRC.is_file() else ""
 
     print("\nPublic URLs:")
-    print(f"  macOS   : {mac_url}")
+    if mac_url:
+        print(f"  macOS   : {mac_url}")
     if win_url:
         print(f"  Windows : {win_url}")
     return 0
