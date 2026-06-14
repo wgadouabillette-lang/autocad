@@ -9,10 +9,8 @@
     "backend": {
       "root": "backend",
       "entrypoint": "app/main.py",
-      "routePrefix": "/_/backend",
       "framework": "fastapi",
-      "maxDuration": 60,
-      "memory": 1024
+      "routePrefix": "/_/backend"
     }
   },
   "rewrites": [
