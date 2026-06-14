@@ -154,5 +154,19 @@ service cloud.firestore {
     allow read, delete: if true;
     allow update: if false;
   }
+
+  match /workspacesShared/{workspaceId}/presence/{uid} {
+    allow read: if isSignedIn();
+    allow create, update: if isOwner(uid)
+      && request.resource.data.uid == uid
+      && request.resource.data.displayName is string
+      && request.resource.data.displayName.size() >= 1
+      && request.resource.data.displayName.size() <= 120
+      && request.resource.data.lastSeen is timestamp
+      && (!('photoURL' in request.resource.data)
+        || request.resource.data.photoURL == null
+        || request.resource.data.photoURL is string);
+    allow delete: if isOwner(uid);
+  }
 }
 }

@@ -5,7 +5,6 @@ import {
   Calendar,
   Circle,
   BarChart3,
-  Dices,
   Hand,
   MessageSquare,
   Mic,
@@ -32,7 +31,6 @@ import { useAiNotesStore } from "../store/useAiNotesStore";
 import { useFollowUpCaptureStore } from "../store/useFollowUpCaptureStore";
 import { useActiveVoicePoll } from "../hooks/useActiveVoicePoll";
 import { useVoicePollStore } from "../store/useVoicePollStore";
-import { useCasinoStore } from "../store/useCasinoStore";
 import { useStore } from "../store/useStore";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
@@ -108,9 +106,6 @@ export default function BottomHeader() {
         );
   const inGroupCall = inCall && participantCount >= 2;
   const showPollControl = viewMode === "blocks";
-  const gameModeEnabled = useStore((s) => s.gameModeEnabled);
-  const rouletteOpen = useCasinoStore((s) => s.rouletteOpen);
-  const toggleRoulette = useCasinoStore((s) => s.toggleRoulette);
   const showAssistButtons =
     inGroupCall &&
     hasAiNotesAccess(subscriptionPlan) &&
@@ -173,16 +168,6 @@ export default function BottomHeader() {
           active={raiseHand}
         >
           <Hand size={ICON_SIZE} />
-        </BottomBarButton>
-      )}
-
-      {gameModeEnabled && !screenSharing && (
-        <BottomBarButton
-          label={rouletteOpen ? "Close roulette" : "Roulette"}
-          onClick={toggleRoulette}
-          active={rouletteOpen}
-        >
-          <Dices size={ICON_SIZE} />
         </BottomBarButton>
       )}
 
@@ -314,7 +299,10 @@ export default function BottomHeader() {
           ref={notificationsAnchorRef}
           className="bottom-bar-capsule-anchor app-bottom-header__unified"
         >
-          <NotificationsPanel anchorRef={notificationsAnchorRef} />
+          <NotificationsPanel
+            anchorRef={notificationsAnchorRef}
+            underChatPanel={chatPanelOpen}
+          />
           <BottomBarCapsule>
             {notificationButton}
             {callControls}
@@ -331,7 +319,7 @@ export default function BottomHeader() {
         ref={notificationsAnchorRef}
         className="bottom-bar-capsule-anchor app-bottom-header__cluster"
       >
-        <NotificationsPanel anchorRef={notificationsAnchorRef} />
+        <NotificationsPanel anchorRef={notificationsAnchorRef} underChatPanel={false} />
         <BottomBarCapsule>{notificationButton}</BottomBarCapsule>
       </div>
 

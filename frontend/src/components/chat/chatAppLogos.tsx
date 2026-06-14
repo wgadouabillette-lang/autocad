@@ -1,9 +1,4 @@
-const CONNECTOR_ICONS = {
-  calendar: "/icons/connectors/google-calendar.png",
-  gmail: "/icons/connectors/gmail.svg",
-  notion: "/icons/connectors/notion.png",
-  figma: "/icons/connectors/figma.svg",
-} as const;
+import { CONNECTOR_ICON_FILES, connectorIconPath } from "../../lib/connectorIcons";
 
 function LogoFrame({ src }: { src: string }) {
   return (
@@ -13,24 +8,29 @@ function LogoFrame({ src }: { src: string }) {
   );
 }
 
-/** Google Calendar — icône produit Google (gstatic) */
+/** Google Calendar */
 export function GoogleCalendarLogo() {
-  return <LogoFrame src={CONNECTOR_ICONS.calendar} />;
+  return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.calendar)} />;
 }
 
-/** Gmail — icône produit Google */
+/** Gmail */
 export function GmailLogo() {
-  return <LogoFrame src={CONNECTOR_ICONS.gmail} />;
+  return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.gmail)} />;
 }
 
-/** Notion — logo app officiel */
+/** Outlook */
+export function OutlookLogo() {
+  return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.outlook)} />;
+}
+
+/** Notion */
 export function NotionLogo() {
-  return <LogoFrame src={CONNECTOR_ICONS.notion} />;
+  return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.notion)} />;
 }
 
-/** Figma — logo officiel */
+/** Figma */
 export function FigmaLogo() {
-  return <LogoFrame src={CONNECTOR_ICONS.figma} />;
+  return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.figma)} />;
 }
 
 export type ChatAppLogoComponent = () => JSX.Element;
@@ -38,6 +38,7 @@ export type ChatAppLogoComponent = () => JSX.Element;
 export const CHAT_APP_LOGOS = {
   calendar: GoogleCalendarLogo,
   gmail: GmailLogo,
+  outlook: OutlookLogo,
   notion: NotionLogo,
   figma: FigmaLogo,
 } as const;

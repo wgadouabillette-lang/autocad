@@ -14,6 +14,12 @@ export const CHAT_CONNECTORS = [
     Logo: CHAT_APP_LOGOS.gmail,
   },
   {
+    id: "outlook",
+    label: "Outlook",
+    slash: "/outlook",
+    Logo: CHAT_APP_LOGOS.outlook,
+  },
+  {
     id: "notion",
     label: "Notion",
     slash: "/notion",

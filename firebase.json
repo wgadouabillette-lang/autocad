@@ -30,7 +30,8 @@
         "authorizedRedirectUris": [
           "https://forma-cad-dev.web.app",
           "https://forma-cad-dev.firebaseapp.com",
-          "https://forma.app"
+          "https://forma.app",
+          "https://autocad-blue.vercel.app"
         ]
       }
     }

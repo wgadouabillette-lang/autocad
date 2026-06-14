@@ -10,7 +10,7 @@ echo "Backend  → http://127.0.0.1:8000/docs"
 (cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8000) &
 
 sleep 2
-echo "Frontend → http://localhost:5173"
+echo "Frontend → http://localhost:5173/app/"
 (cd frontend && npm run dev) &
 
 wait

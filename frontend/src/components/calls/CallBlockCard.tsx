@@ -33,6 +33,7 @@ interface CallBlockCardProps {
   participantLayout?: "avatars" | "tiles" | "theater";
   audienceParticipants?: CallUser[];
   showHandRaise?: boolean;
+  standby?: boolean;
 }
 
 export default function CallBlockCard({
@@ -53,6 +54,7 @@ export default function CallBlockCard({
   participantLayout = "avatars",
   audienceParticipants = [],
   showHandRaise = false,
+  standby = false,
 }: CallBlockCardProps) {
   const activeRoomId = useStore((s) => s.activeRoomId);
   const speakingByParticipant = useCallsStore((s) => s.speakingByParticipant);
@@ -119,12 +121,17 @@ export default function CallBlockCard({
       <div className="call-block__row call-block__row--header">
         {titleContent ?? <p className="call-block__title">{title}</p>}
         <div className="call-block__header-trailing">
-          {showActivity && (
+          {showActivity && !standby && (
             <PresenceActivityButton
               roomId={activeRoomId}
               userId={activityUserId}
               isLocal={activityIsLocal}
             />
+          )}
+          {standby && (
+            <span className="call-block__standby-badge" aria-label="Hors ligne">
+              Hors ligne
+            </span>
           )}
           {trailing}
         </div>
@@ -187,6 +194,7 @@ export default function CallBlockCard({
   if (!onMainClick) {
     return (
       <article className={blockClassName} style={style}>
+        {standby && <span className="call-block__standby-veil" aria-hidden />}
         <div className="call-block__main">{body}</div>
       </article>
     );
@@ -194,6 +202,7 @@ export default function CallBlockCard({
 
   return (
     <article className={blockClassName} style={style}>
+      {standby && <span className="call-block__standby-veil" aria-hidden />}
       <button
         type="button"
         className="call-block__main"

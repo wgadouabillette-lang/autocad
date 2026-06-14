@@ -8,7 +8,12 @@ from typing import Any
 
 import httpx
 
-from app.connectors.registry import CONNECTORS, build_authorize_url, callback_url
+from app.connectors.registry import (
+    CONNECTORS,
+    build_authorize_url,
+    callback_url,
+    microsoft_oauth_tenant,
+)
 from app.connectors.store import set_connection
 
 _PENDING_STATES: dict[str, dict[str, Any]] = {}
@@ -49,6 +54,8 @@ async def exchange_code(connector_id: str, code: str) -> dict[str, Any]:
         tokens = await _exchange_notion(code)
     elif spec.provider == "figma":
         tokens = await _exchange_figma(code)
+    elif spec.provider == "microsoft":
+        tokens = await _exchange_microsoft(code)
     else:
         raise ValueError(f"Unsupported provider: {spec.provider}")
 
@@ -108,6 +115,32 @@ async def _exchange_notion(code: str) -> dict[str, Any]:
         "workspace_id": data.get("workspace_id"),
         "workspace_name": data.get("workspace_name"),
         "bot_id": data.get("bot_id"),
+    }
+
+
+async def _exchange_microsoft(code: str) -> dict[str, Any]:
+    import os
+
+    tenant = microsoft_oauth_tenant()
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token",
+            data={
+                "client_id": os.getenv("MICROSOFT_OAUTH_CLIENT_ID", ""),
+                "client_secret": os.getenv("MICROSOFT_OAUTH_CLIENT_SECRET", ""),
+                "code": code,
+                "redirect_uri": callback_url(),
+                "grant_type": "authorization_code",
+            },
+        )
+        r.raise_for_status()
+        data = r.json()
+    return {
+        "access_token": data.get("access_token"),
+        "refresh_token": data.get("refresh_token"),
+        "expires_in": data.get("expires_in"),
+        "token_type": data.get("token_type"),
+        "scope": data.get("scope"),
     }
 
 

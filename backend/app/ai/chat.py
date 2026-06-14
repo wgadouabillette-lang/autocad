@@ -30,6 +30,13 @@ Use one @handle: line per recipient. Handles are lowercase (e.g. @marie.dupont).
 The dispatch block is stripped from the chat UI — only the lines inside are sent as direct messages."""
 
 
+def _build_chat_system(custom_instructions: Optional[str] = None) -> str:
+    extra = (custom_instructions or "").strip()
+    if not extra:
+        return CHAT_SYSTEM
+    return f"{CHAT_SYSTEM}\n\nAdditional instructions from the user:\n{extra}"
+
+
 def _rules_reply(prompt: str) -> str:
     text = prompt.strip()
     low = text.lower()
@@ -51,6 +58,7 @@ def run(
     prompt: str,
     messages: Optional[List[ChatMessage]] = None,
     ai_model: str = "auto",
+    chat_instructions: str = "",
 ) -> ChatResponse:
     if not prompt.strip():
         return ChatResponse(message="Say something and I'll reply.", source="rules")
@@ -65,8 +73,9 @@ def run(
         model_id = models.resolve_model(
             ai_model, prompt, has_images=False, work_mode="agent", chat_only=True
         )
+        chat_system = _build_chat_system(chat_instructions)
         result = llm.complete_text(
-            system=CHAT_SYSTEM,
+            system=chat_system,
             history=history,
             user_prompt=prompt.strip(),
             model_id=model_id,
@@ -75,7 +84,7 @@ def run(
             ai_model,
             result,
             lambda: llm.complete_text(
-                system=CHAT_SYSTEM,
+                system=chat_system,
                 history=history,
                 user_prompt=prompt.strip(),
                 model_id=quota.resolve_auto_model_id(prompt, work_mode="agent", chat_only=True),

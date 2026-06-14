@@ -61,9 +61,13 @@ function notificationVisualClass(item: AppNotification): string {
 
 interface NotificationsPanelProps {
   anchorRef: RefObject<HTMLElement | null>;
+  underChatPanel?: boolean;
 }
 
-export default function NotificationsPanel({ anchorRef }: NotificationsPanelProps) {
+export default function NotificationsPanel({
+  anchorRef,
+  underChatPanel = false,
+}: NotificationsPanelProps) {
   const items = useNotificationsStore((s) => s.items);
   const panelOpen = useNotificationsStore((s) => s.panelOpen);
   const currentIndex = useNotificationsStore((s) => s.currentIndex);
@@ -85,10 +89,12 @@ export default function NotificationsPanel({ anchorRef }: NotificationsPanelProp
     const anchor = anchorRef.current;
     if (!anchor) return;
     const rect = anchor.getBoundingClientRect();
-    const left = Math.max(8, Math.min(rect.left - 4, window.innerWidth - PANEL_WIDTH - 8));
+    const left = underChatPanel
+      ? 12
+      : Math.max(8, Math.min(rect.left - 4, window.innerWidth - PANEL_WIDTH - 8));
     const bottom = window.innerHeight - rect.top + PANEL_GAP_PX;
     setPanelPos({ left, bottom });
-  }, [anchorRef]);
+  }, [anchorRef, underChatPanel]);
 
   useEffect(() => {
     if (!panelOpen) {
@@ -183,12 +189,18 @@ export default function NotificationsPanel({ anchorRef }: NotificationsPanelProp
     <>
       <button
         type="button"
-        className="bottom-overlay__backdrop bottom-overlay__backdrop--left"
+        className={clsx(
+          "bottom-overlay__backdrop bottom-overlay__backdrop--left",
+          underChatPanel && "notifications-panel__backdrop--under-chat",
+        )}
         aria-label="Fermer les notifications"
         onClick={closePanel}
       />
       <div
-        className="notifications-panel notifications-panel--floating notifications-panel--popup-left"
+        className={clsx(
+          "notifications-panel notifications-panel--floating notifications-panel--popup-left",
+          underChatPanel && "notifications-panel--under-chat",
+        )}
         role="dialog"
         aria-label="Notifications"
         style={{

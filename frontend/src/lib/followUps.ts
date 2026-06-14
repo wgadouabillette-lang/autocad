@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { useStore } from "../store/useStore";
 import { toDateKey } from "./daySchedule";
 import { isLocalInGroupCall } from "./calls";
 import { useCallsStore } from "../store/useCallsStore";
@@ -218,6 +219,13 @@ export async function generateFollowUpDraft(ctx: CallFollowUpInput): Promise<Fol
       "emails : uniquement si une adresse ou un envoi est mentionné.",
       "Langue : français.",
       "",
+      ...(useStore.getState().agentFollowUpInstructions.trim()
+        ? [
+            "Instructions supplémentaires :",
+            useStore.getState().agentFollowUpInstructions.trim(),
+            "",
+          ]
+        : []),
       `Workspace : ${workspaceLabel(ctx.roomId)}`,
       `Participants : ${ctx.participantCount}`,
       "",

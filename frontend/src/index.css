@@ -429,6 +429,77 @@ body {
     @apply text-muted-500;
   }
 
+  .workspace-onboarding {
+    @apply fixed inset-0 z-[250] flex items-center justify-center px-4 py-8;
+    background-color: rgb(0 0 0 / 0.88);
+    padding-top: calc(2rem + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  }
+  .workspace-onboarding__card {
+    @apply w-full max-w-md rounded-2xl border border-ink-700 bg-ink-900 p-6 shadow-2xl;
+  }
+  .workspace-onboarding__title {
+    @apply text-[1.35rem] font-semibold tracking-tight text-muted-100;
+  }
+  .workspace-onboarding__subtitle {
+    @apply mt-2 text-[0.95rem] leading-relaxed text-muted-400;
+  }
+  .workspace-onboarding__choices {
+    @apply mt-6 grid gap-3;
+  }
+  .workspace-onboarding__choice {
+    @apply flex w-full items-start gap-3 rounded-xl border border-ink-700 bg-ink-850 px-4 py-3.5 text-left
+      transition-colors hover:border-ink-600 hover:bg-ink-800;
+  }
+  .workspace-onboarding__choice-icon {
+    @apply mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink-800 text-muted-200;
+  }
+  .workspace-onboarding__choice-copy {
+    @apply min-w-0 flex flex-col gap-1;
+  }
+  .workspace-onboarding__choice-title {
+    @apply text-[13px] font-semibold text-muted-100;
+  }
+  .workspace-onboarding__choice-hint {
+    @apply text-[12px] leading-relaxed text-muted-500;
+  }
+  .workspace-onboarding__back {
+    @apply mb-4 inline-flex items-center gap-1.5 text-[12px] font-medium text-muted-400 transition-colors
+      hover:text-muted-200;
+  }
+  .workspace-onboarding__list {
+    @apply mt-5 max-h-[min(18rem,42dvh)] space-y-1 overflow-y-auto;
+  }
+  .workspace-onboarding__row {
+    @apply flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-ink-800;
+  }
+  .workspace-onboarding__row-icon {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold text-white;
+  }
+  .workspace-onboarding__row-copy {
+    @apply min-w-0 flex flex-col;
+  }
+  .workspace-onboarding__row-name {
+    @apply truncate text-[13px] font-semibold text-muted-100;
+  }
+  .workspace-onboarding__row-meta {
+    @apply truncate text-[11px] text-muted-500;
+  }
+  .workspace-onboarding__empty {
+    @apply mt-5 rounded-xl border border-dashed border-ink-700 px-4 py-6 text-center text-[12px] leading-relaxed
+      text-muted-500;
+  }
+  .workspace-onboarding__create {
+    @apply mt-5 flex flex-col gap-3;
+  }
+  .workspace-onboarding__input {
+    @apply h-10 w-full rounded-lg border border-ink-700 bg-ink-850 px-3 text-[13px] text-muted-100 outline-none
+      transition-colors placeholder:text-muted-500 focus:border-ink-500;
+  }
+  .workspace-onboarding__submit {
+    @apply w-full justify-center;
+  }
+
   @media (max-width: 767px) {
     .auth-page {
       min-height: 100dvh;
@@ -903,6 +974,38 @@ body {
   }
   .settings-section__stack {
     @apply mt-3 flex max-w-md flex-col gap-1;
+  }
+  .settings-agents {
+    @apply flex max-w-lg flex-col gap-4;
+  }
+  .settings-friends {
+    @apply flex max-w-lg flex-col gap-4;
+  }
+  .settings-friends-list {
+    @apply mt-3 flex flex-col gap-1.5;
+  }
+  .settings-friends-list__row {
+    @apply flex items-center justify-between gap-3 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2.5;
+  }
+  .settings-friends-list__main {
+    @apply flex min-w-0 flex-col;
+  }
+  .settings-friends-list__name {
+    @apply truncate text-sm font-medium text-muted-100;
+  }
+  .settings-friends-list__meta {
+    @apply truncate text-[11px] text-muted-500;
+  }
+  .settings-friends-list__badge {
+    @apply shrink-0 text-[11px] font-medium text-muted-500;
+  }
+  .settings-agent-field {
+    @apply mt-4 first:mt-3;
+  }
+  .settings-textarea {
+    @apply mt-2 w-full resize-y rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm leading-relaxed
+      text-muted-200 placeholder:text-muted-500 focus:border-ink-600 focus:outline-none;
+    min-height: 6.5rem;
   }
   .settings-section__inline-form {
     @apply mt-3 flex max-w-md gap-2;
@@ -1765,6 +1868,42 @@ body {
   }
   .call-block--connected {
     @apply opacity-95;
+  }
+  .call-block--offline {
+    @apply overflow-hidden opacity-100;
+    filter: saturate(0.42) brightness(0.78);
+    box-shadow:
+      var(--forma-composer-shadow),
+      inset 0 0 0 1px rgb(255 255 255 / 0.04),
+      inset 0 8px 24px rgb(0 0 0 / 0.28);
+  }
+  .call-block--offline .call-block__title,
+  .call-block--offline .call-block__avatar {
+    @apply opacity-80;
+  }
+  .call-block__standby-veil {
+    @apply pointer-events-none absolute inset-0 z-[3] rounded-[inherit];
+    background: linear-gradient(
+      165deg,
+      rgb(0 0 0 / 0.08) 0%,
+      rgb(0 0 0 / 0.22) 48%,
+      rgb(0 0 0 / 0.34) 100%
+    );
+    animation: call-block-standby-breathe 4.5s ease-in-out infinite;
+  }
+  .call-block__standby-badge {
+    @apply shrink-0 rounded-full px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-500;
+    background: rgb(255 255 255 / 0.05);
+    border: 1px solid rgb(255 255 255 / 0.06);
+  }
+  @keyframes call-block-standby-breathe {
+    0%,
+    100% {
+      opacity: 0.72;
+    }
+    50% {
+      opacity: 0.92;
+    }
   }
   .call-block--clickable {
     @apply transition-[opacity,box-shadow] duration-200 ease-out;
@@ -3020,8 +3159,18 @@ body {
   .chat-connectors-row__slash:hover .chat-connectors-row__slash-cmd {
     @apply text-muted-100;
   }
+  .chat-connectors-row__slash--preview {
+    @apply cursor-default;
+  }
   .chat-connectors-list--from-bottom .chat-connectors-row {
     animation-name: chat-connectors-cascade-from-bottom;
+  }
+  .chat-connectors-list--settings {
+    @apply mt-1 max-w-lg gap-1.5;
+  }
+  .chat-connectors-list--settings .chat-connectors-row {
+    @apply rounded-lg border border-ink-700 bg-ink-850 px-3 py-2.5 opacity-100;
+    animation: none;
   }
   @keyframes chat-connectors-cascade-from-bottom {
     from {
@@ -4241,6 +4390,24 @@ body {
       padding-bottom: env(safe-area-inset-bottom, 0px);
     }
 
+    .app-layout--mobile.app-layout--chat-open .chat-panel--mobile-drawer.chat-panel--dock-left {
+      right: auto;
+      left: 0;
+      border-left: none !important;
+      border-right: var(--forma-divider-width) solid var(--forma-divider) !important;
+      box-shadow: 10px 0 36px rgba(0, 0, 0, 0.28);
+      animation: chat-panel-mobile-drawer-in-left 0.34s cubic-bezier(0.32, 0.72, 0, 1) both;
+    }
+
+    @keyframes chat-panel-mobile-drawer-in-left {
+      from {
+        transform: translateX(-100%);
+      }
+      to {
+        transform: translateX(0);
+      }
+    }
+
     @keyframes chat-panel-mobile-drawer-in {
       from {
         transform: translateX(100%);
@@ -4253,9 +4420,19 @@ body {
     .app-layout--mobile .chat-panel--mobile-drawer.chat-panel--expanded {
       inset: auto;
       top: 0;
-      right: 0;
       bottom: 0;
+    }
+
+    .app-layout--mobile .chat-panel--mobile-drawer.chat-panel--dock-right.chat-panel--expanded {
+      right: 0;
       left: auto;
+      width: min(22rem, 86vw) !important;
+      max-width: min(22rem, 86vw) !important;
+    }
+
+    .app-layout--mobile .chat-panel--mobile-drawer.chat-panel--dock-left.chat-panel--expanded {
+      right: auto;
+      left: 0;
       width: min(22rem, 86vw) !important;
       max-width: min(22rem, 86vw) !important;
     }
@@ -4447,6 +4624,17 @@ body {
       max-height: 55dvh;
     }
 
+    .notifications-panel--under-chat {
+      z-index: 55 !important;
+      width: calc(100vw - min(22rem, 86vw) - 1.5rem) !important;
+      min-width: 0;
+      max-width: calc(100vw - min(22rem, 86vw) - 1.5rem);
+    }
+
+    .notifications-panel__backdrop--under-chat {
+      z-index: 54;
+    }
+
     .join-knock {
       width: min(22rem, calc(100vw - 2rem));
     }
@@ -4583,145 +4771,3 @@ body {
       inset 0 0 36px rgb(250 204 21 / 0.1);
   }
 }
-
-  .casino-roulette-anchor {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    pointer-events: none;
-  }
-  .casino-roulette-dock {
-    position: absolute;
-    left: 50%;
-    bottom: 0;
-    display: flex;
-    align-items: flex-end;
-    gap: 0.65rem;
-    transform: translateX(-50%) translateY(50%);
-    pointer-events: none;
-    animation: casino-roulette-dock-rise 0.42s cubic-bezier(0.175, 0.885, 0.32, 1.08) both;
-  }
-  @keyframes casino-roulette-dock-rise {
-    0% {
-      opacity: 0;
-      transform: translateX(-50%) translateY(58%);
-    }
-    100% {
-      opacity: 1;
-      transform: translateX(-50%) translateY(50%);
-    }
-  }
-  .casino-roulette {
-    position: relative;
-    flex-shrink: 0;
-    width: min(15rem, 28vw);
-    aspect-ratio: 1;
-    pointer-events: none;
-  }
-  .casino-roulette__bet {
-    flex-shrink: 0;
-    align-self: center;
-    margin-bottom: calc(min(15rem, 28vw) * 0.22);
-    border-radius: 0.55rem;
-    border: 1px solid rgb(255 255 255 / 0.14);
-    padding: 0.45rem 0.8rem;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    color: rgb(245 245 245);
-    cursor: pointer;
-    pointer-events: auto;
-    appearance: none;
-    -webkit-appearance: none;
-    transition:
-      transform 0.16s ease,
-      box-shadow 0.16s ease,
-      border-color 0.16s ease,
-      opacity 0.16s ease;
-  }
-  .casino-roulette__bet:hover:not(:disabled) {
-    transform: translateY(-1px);
-  }
-  .casino-roulette__bet:disabled {
-    cursor: wait;
-    opacity: 0.55;
-  }
-  .casino-roulette__bet--red {
-    background: linear-gradient(180deg, rgb(185 28 28) 0%, rgb(127 29 29) 100%);
-    box-shadow: 0 4px 14px -8px rgb(185 28 28 / 0.8);
-  }
-  .casino-roulette__bet--black {
-    background: linear-gradient(180deg, rgb(38 38 38) 0%, rgb(10 10 10) 100%);
-    box-shadow: 0 4px 14px -8px rgb(0 0 0 / 0.8);
-  }
-  .casino-roulette__pointer {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    z-index: 2;
-    height: 0;
-    width: 0;
-    transform: translate(-50%, -95%);
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-top: 10px solid rgb(250 204 21 / 0.92);
-    filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.4));
-    pointer-events: none;
-  }
-  .casino-roulette__outcome {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    z-index: 3;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin: 0;
-    transform: translate(-50%, -155%);
-    border-radius: 9999px;
-    border: 1px solid rgb(255 255 255 / 0.1);
-    background-color: rgb(30 30 30 / 0.92);
-    padding: 0.2rem 0.55rem;
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: rgb(245 245 245);
-    pointer-events: none;
-    white-space: nowrap;
-  }
-  .casino-roulette__outcome--won {
-    color: rgb(74 222 128);
-  }
-  .casino-roulette__outcome--lost {
-    color: rgb(248 113 113);
-  }
-  .casino-roulette__wheel-wrap {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
-  .casino-roulette__wheel {
-    width: 100%;
-    height: 100%;
-    border-radius: 9999px;
-    border: 2px solid rgb(250 204 21 / 0.42);
-    box-shadow:
-      0 0 0 1px rgb(0 0 0 / 0.4),
-      0 8px 22px -10px rgb(0 0 0 / 0.5);
-    transition: transform 4.2s cubic-bezier(0.12, 0.8, 0.2, 1);
-    will-change: transform;
-  }
-  .casino-roulette__wheel--spinning {
-    filter: brightness(1.04);
-  }
-  .casino-roulette__wheel-svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-  .casino-roulette__segment-label {
-    fill: rgb(245 245 245 / 0.92);
-    font-size: 6px;
-    font-weight: 700;
-    pointer-events: none;
-  }

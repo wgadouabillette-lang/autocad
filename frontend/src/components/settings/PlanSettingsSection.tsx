@@ -4,9 +4,7 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useBilling } from "../../hooks/useBilling";
 import {
   SUBSCRIPTION_PLANS,
-  billingModeLabel,
   canEnableOnDemandUsage,
-  planLabel,
   type SubscriptionPlan,
 } from "../../lib/subscriptionPlans";
 
@@ -66,38 +64,26 @@ export default function PlanSettingsSection() {
 
   return (
     <>
-      <section className="settings-section">
-        <h3 className="settings-section__label">Forfait actuel</h3>
-        <p className="settings-section__hint">
-          Forfait sélectionné :{" "}
-          <span className="text-muted-200">{planLabel(subscriptionPlan)}</span>
-          {subscriptionPlan === "pro" && (
-            <>
-              {" "}
-              ·{" "}
-              <span className="text-muted-300">
-                {billingModeLabel(subscriptionPlan, onDemandUsageEnabled)}
-              </span>
-            </>
+      {(stripeEnabled || !isAuthenticated || billingManaged || error) && (
+        <section className="settings-section">
+          {stripeEnabled && (
+            <p className="settings-section__hint">
+              Pro : {proPriceLabel} — le clic ouvre Stripe Checkout pour payer en ligne.
+            </p>
           )}
-        </p>
-        {stripeEnabled && (
-          <p className="settings-section__hint">
-            Pro : {proPriceLabel} — le clic ouvre Stripe Checkout pour payer en ligne.
-          </p>
-        )}
-        {!isAuthenticated && stripeEnabled && (
-          <p className="settings-section__hint text-amber-300">
-            Connectez-vous pour souscrire à Pro et ouvrir la page de paiement.
-          </p>
-        )}
-        {billingManaged && (
-          <p className="settings-section__hint">
-            Abonnement géré par Stripe — modifications via le portail client.
-          </p>
-        )}
-        {error && <p className="settings-section__hint text-red-400">{error}</p>}
-      </section>
+          {!isAuthenticated && stripeEnabled && (
+            <p className="settings-section__hint text-amber-300">
+              Connectez-vous pour souscrire à Pro et ouvrir la page de paiement.
+            </p>
+          )}
+          {billingManaged && (
+            <p className="settings-section__hint">
+              Abonnement géré par Stripe — modifications via le portail client.
+            </p>
+          )}
+          {error && <p className="settings-section__hint text-red-400">{error}</p>}
+        </section>
+      )}
 
       <div className="settings-plan-grid">
         {SUBSCRIPTION_PLANS.map((plan) => (

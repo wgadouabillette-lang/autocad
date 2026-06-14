@@ -23,6 +23,8 @@ export interface UserProfileDoc extends UserPreferences {
   email: string;
   photoURL?: string;
   aiModel?: string;
+  workspaceSetupCompleted?: boolean;
+  dashboardOnboardingCompleted?: boolean;
   updatedAt?: unknown;
 }
 

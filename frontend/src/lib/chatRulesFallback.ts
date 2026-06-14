@@ -1,14 +1,41 @@
+const GREETINGS = ["hey", "hi", "hello", "yo", "salut", "bonjour", "coucou", "hola"];
+const THANKS = ["thanks", "thank you", "merci", "thx"];
+const GOODBYES = ["bye", "goodbye", "à bientôt", "a bientot", "au revoir"];
+
+const FREE_PLAN_UPGRADE =
+  "Passez au plan **Pro** dans **Paramètres → Facturation** pour débloquer l'assistant IA.";
+
+/** Réponse affichée aux utilisateurs du plan Gratuit (sans appel réseau). */
+export function freePlanAiReply(prompt: string): string {
+  const low = prompt.trim().toLowerCase();
+  if (GREETINGS.includes(low)) {
+    return `Salut ! L'assistant IA est réservé au plan **Pro**.\n\n${FREE_PLAN_UPGRADE}`;
+  }
+  if (THANKS.includes(low)) {
+    return "Avec plaisir !";
+  }
+  if (GOODBYES.includes(low)) {
+    return "À bientôt !";
+  }
+  return (
+    "L'assistant IA n'est pas inclus dans le plan **Gratuit**.\n\n" +
+    "Le plan gratuit inclut le workspace, les appels et la messagerie entre amis — " +
+    "sans chat IA, Agent ni Render.\n\n" +
+    FREE_PLAN_UPGRADE
+  );
+}
+
 /** Réponses hors-ligne quand le backend ou le LLM est indisponible. */
 export function localRulesReply(prompt: string): string {
   const text = prompt.trim();
   const low = text.toLowerCase();
-  if (low === "hey" || low === "hi" || low === "hello" || low === "yo" || low === "salut" || low === "bonjour" || low === "coucou" || low === "hola") {
+  if (GREETINGS.includes(low)) {
     return "Hey! How can I help you?";
   }
-  if (low === "thanks" || low === "thank you" || low === "merci" || low === "thx") {
+  if (THANKS.includes(low)) {
     return "You're welcome!";
   }
-  if (low === "bye" || low === "goodbye" || low === "à bientôt" || low === "a bientot" || low === "au revoir") {
+  if (GOODBYES.includes(low)) {
     return "See you later!";
   }
   return (

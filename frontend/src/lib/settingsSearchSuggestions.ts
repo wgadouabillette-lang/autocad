@@ -7,7 +7,6 @@ export type SettingsTab =
   | "agents"
   | "models"
   | "plugins"
-  | "skills"
   | "workspace";
 
 /** Anciens identifiants conservés pour la recherche et les liens profonds. */
@@ -16,7 +15,8 @@ export type LegacySettingsTab =
   | "account"
   | "plan"
   | "billing"
-  | "recording";
+  | "recording"
+  | "skills";
 
 export type AnySettingsTab = SettingsTab | LegacySettingsTab;
 
@@ -27,7 +27,6 @@ const SETTINGS_TABS: SettingsTab[] = [
   "agents",
   "models",
   "plugins",
-  "skills",
   "workspace",
 ];
 
@@ -37,6 +36,7 @@ const LEGACY_TAB_MAP: Record<LegacySettingsTab, SettingsTab> = {
   plan: "usage",
   billing: "usage",
   recording: "general",
+  skills: "plugins",
 };
 
 export function normalizeSettingsTab(tab: string | null | undefined): SettingsTab {
@@ -62,6 +62,27 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
   {
     id: "chat-mode",
     tab: "agents",
+    label: "Instructions chat",
+    hint: "Personnaliser le comportement de l'assistant",
+    keywords: "agents chat assistant instructions comportement agent render",
+  },
+  {
+    id: "follow-up-agent",
+    tab: "agents",
+    label: "Instructions follow-up",
+    hint: "Personnaliser récaps et e-mails après appel",
+    keywords: "agents follow-up récap e-mail instructions appel",
+  },
+  {
+    id: "ai-notes-agent",
+    tab: "agents",
+    label: "Instructions AI Notes",
+    hint: "Personnaliser la prise de notes live",
+    keywords: "agents ai notes transcription instructions appel",
+  },
+  {
+    id: "chat-mode-auto",
+    tab: "agents",
     label: "Mode assistant",
     hint: "Bascule automatique Agent / Render",
     keywords: "chat assistant agent render automatique agents",
@@ -70,15 +91,8 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     id: "models",
     tab: "models",
     label: "Modèle IA",
-    hint: "Choisir Opus, Claude ou Auto",
-    keywords: "models modèle ia opus claude génération",
-  },
-  {
-    id: "recording-camera",
-    tab: "general",
-    label: "Aperçu caméra",
-    hint: "Webcam pendant l'enregistrement",
-    keywords: "enregistrement caméra webcam écran general",
+    hint: "GPT, Grok, Claude",
+    keywords: "models modèle ia gpt grok claude opus génération",
   },
   {
     id: "audio-devices",
@@ -90,9 +104,9 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
   {
     id: "friends",
     tab: "friends",
-    label: "Liste d'amis",
+    label: "Amis",
     hint: "Ajouter et gérer vos amis",
-    keywords: "amis friends demandes email messages",
+    keywords: "amis friends ajouter email liste messages",
   },
   {
     id: "plan-free",
@@ -105,8 +119,8 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     id: "plan-pro",
     tab: "usage",
     label: "Forfait Pro",
-    hint: "IA et connecteurs inclus",
-    keywords: "forfait pro usage abonnement ia connecteurs plan",
+    hint: "IA incluse",
+    keywords: "forfait pro usage abonnement ia plan",
   },
   {
     id: "billing",
@@ -128,20 +142,6 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     label: "Email",
     hint: "Adresse de votre compte",
     keywords: "compte email adresse general account",
-  },
-  {
-    id: "account-panel",
-    tab: "general",
-    label: "Panneau latéral",
-    hint: "Position gauche ou droite",
-    keywords: "interface panneau latéral gauche droite general",
-  },
-  {
-    id: "skills",
-    tab: "skills",
-    label: "Skills",
-    hint: "Compétences et automatisations",
-    keywords: "skills compétences automatisations agents",
   },
   {
     id: "workspace",

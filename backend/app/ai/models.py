@@ -56,6 +56,13 @@ def resolve_model(
 
     if key in {"grok", "grok-4.3", "grok-best", "xai", "grok-vision"}:
         return settings.xai_vision_model if has_images else settings.xai_model
+    if key in {"grok-mini", "grok-3-mini"}:
+        mini = os.getenv("XAI_MINI_MODEL", "grok-3-mini")
+        return mini
+    if key in {"gpt-4.1-nano", "gpt-4-1-nano"}:
+        return settings.openai_auto_chat_model
+    if key in {"gpt-4o-mini"}:
+        return settings.openai_model
     if key in {"claude-opus-4-7", "opus-4.7", "opus_47", "opus47"}:
         return OPUS_47
     if key in {"claude-opus-4-8", "opus-4.8", "opus_48", "opus48"}:

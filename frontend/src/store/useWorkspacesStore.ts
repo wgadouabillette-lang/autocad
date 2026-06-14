@@ -38,6 +38,7 @@ interface WorkspacesState extends PersistedState {
   ) => boolean;
   joinWorkspace: (workspaceId: string, userId?: string) => boolean;
   leaveWorkspace: (workspaceId: string, userId?: string) => void;
+  resetLocalMemberships: () => void;
 }
 
 function slugify(name: string): string {
@@ -301,6 +302,15 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       );
       writePersisted({ customServers: state.customServers, memberships });
       return { memberships };
+    });
+  },
+
+  resetLocalMemberships: () => {
+    writePersisted({ customServers: [], memberships: [] });
+    set({
+      customServers: [],
+      memberships: [],
+      hydrated: true,
     });
   },
 }));

@@ -7,6 +7,7 @@ import {
   type AiModelDisplay,
   type AiModelSpeed,
 } from "../../lib/aiModels";
+import { AiModelIcon } from "./aiModelLogos";
 
 type AiModelSelectorLabelProps = AiModelDisplay & {
   className?: string;
@@ -25,7 +26,7 @@ const SPEED_LAYOUT_LABEL: Record<AiModelSpeed, string> = {
 export default function AiModelSelectorLabel({
   name,
   speed,
-  iconSrc,
+  icon,
   compact = false,
   hideSpeedSlot = false,
   className,
@@ -39,14 +40,14 @@ export default function AiModelSelectorLabel({
   return (
     <span
       className={clsx(
-        "inline-flex h-3.5 items-center justify-start leading-none",
+        "inline-flex min-h-4 items-center justify-start leading-none",
         MODEL_SELECTOR_GAP_CLASS,
         className,
       )}
     >
-      {iconSrc ? (
-        <span className={clsx("inline-block shrink-0", iconClassName)}>
-          <img src={iconSrc} alt="" className="h-full w-full object-contain" draggable={false} />
+      {icon ? (
+        <span className={clsx("inline-flex shrink-0 items-center justify-center", iconClassName)}>
+          <AiModelIcon icon={icon} />
         </span>
       ) : null}
       <span className={clsx("shrink-0", nameClassName)}>{name}</span>

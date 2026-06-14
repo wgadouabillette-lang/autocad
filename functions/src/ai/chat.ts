@@ -1,4 +1,5 @@
 import { HttpsError } from "firebase-functions/v2/https";
+import { getFirestore } from "firebase-admin/firestore";
 import { hasAnyLlmKey, loadLlmKeys, pickProvider } from "./keys";
 import { completeChatText, type ChatMessage } from "./llm";
 import { resolveChatModel, resolveProviderForModel } from "./models";
@@ -25,10 +26,17 @@ then append a dispatch block on its own lines:
 Use one @handle: line per recipient. Handles are lowercase (e.g. @marie.dupont).
 The dispatch block is stripped from the chat UI — only the lines inside are sent as direct messages.`;
 
+function buildChatSystem(customInstructions?: string): string {
+  const extra = customInstructions?.trim();
+  if (!extra) return CHAT_SYSTEM;
+  return `${CHAT_SYSTEM}\n\nAdditional instructions from the user:\n${extra}`;
+}
+
 export interface AiChatRequest {
   prompt?: string;
   ai_model?: string;
   messages?: Array<{ role?: string; content?: string }>;
+  chat_instructions?: string;
 }
 
 export interface AiChatResponse {
@@ -56,6 +64,33 @@ function rulesReply(prompt: string): string {
   );
 }
 
+const FREE_PLAN_UPGRADE =
+  "Passez au plan **Pro** dans **Paramètres → Facturation** pour débloquer l'assistant IA.";
+
+function freePlanReply(prompt: string): string {
+  const low = prompt.trim().toLowerCase();
+  if (["hey", "hi", "hello", "yo", "salut", "bonjour", "coucou", "hola"].includes(low)) {
+    return `Salut ! L'assistant IA est réservé au plan **Pro**.\n\n${FREE_PLAN_UPGRADE}`;
+  }
+  if (["thanks", "thank you", "merci", "thx"].includes(low)) {
+    return "Avec plaisir !";
+  }
+  if (["bye", "goodbye", "à bientôt", "a bientot", "au revoir"].includes(low)) {
+    return "À bientôt !";
+  }
+  return (
+    "L'assistant IA n'est pas inclus dans le plan **Gratuit**.\n\n" +
+    "Le plan gratuit inclut le workspace, les appels et la messagerie entre amis — " +
+    "sans chat IA, Agent ni Render.\n\n" +
+    FREE_PLAN_UPGRADE
+  );
+}
+
+async function loadSubscriptionPlan(uid: string): Promise<"free" | "pro"> {
+  const snap = await getFirestore().doc(`users/${uid}`).get();
+  return snap.data()?.subscriptionPlan === "pro" ? "pro" : "free";
+}
+
 function parseHistory(raw: AiChatRequest["messages"]): ChatMessage[] {
   const history: ChatMessage[] = [];
   for (const item of raw ?? []) {
@@ -69,12 +104,25 @@ function parseHistory(raw: AiChatRequest["messages"]): ChatMessage[] {
 export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiChatResponse> {
   const prompt = typeof data.prompt === "string" ? data.prompt.trim() : "";
   const aiModel = typeof data.ai_model === "string" ? data.ai_model : "auto";
+  const chatInstructions =
+    typeof data.chat_instructions === "string" ? data.chat_instructions : "";
+  const chatSystem = buildChatSystem(chatInstructions);
   const history = parseHistory(data.messages);
 
   if (!prompt) {
     return {
       message: "Say something and I'll reply.",
       source: "rules",
+      ai_model_fallback: false,
+      effective_ai_model: aiModel,
+    };
+  }
+
+  const plan = await loadSubscriptionPlan(uid);
+  if (plan !== "pro") {
+    return {
+      message: freePlanReply(prompt),
+      source: "free_plan",
       ai_model_fallback: false,
       effective_ai_model: aiModel,
     };
@@ -105,9 +153,12 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
     keys,
     provider,
     model: modelId,
-    system: CHAT_SYSTEM,
+    system: chatSystem,
     history,
     userPrompt: prompt,
+  }).catch((err: unknown) => {
+    console.error("completeChatText failed", err);
+    return { message: null, error: String(err), rateLimited: false };
   });
 
   if (result.message) {
@@ -128,9 +179,12 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
         keys,
         provider: fallbackProvider,
         model: fallbackModel,
-        system: CHAT_SYSTEM,
+        system: chatSystem,
         history,
         userPrompt: prompt,
+      }).catch((err: unknown) => {
+        console.error("completeChatText retry failed", err);
+        return { message: null, error: String(err), rateLimited: false };
       });
       if (retry.message) {
         return {

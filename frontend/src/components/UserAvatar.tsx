@@ -22,12 +22,15 @@ export default function UserAvatar({
   ...rest
 }: UserAvatarProps) {
   const localPhotoURL = useStore((s) => s.photoURL);
-  const photoURL = photoURLProp ?? (isLocal ? localPhotoURL : null);
+  const photoURL = isLocal
+    ? (localPhotoURL ?? photoURLProp ?? null)
+    : (photoURLProp ?? null);
   const shapeClass = shape === "fill" ? "user-avatar--fill" : undefined;
 
   if (photoURL) {
     return (
       <img
+        key={photoURL}
         src={photoURL}
         alt=""
         className={clsx("user-avatar", shapeClass, className)}

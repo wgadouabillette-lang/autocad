@@ -681,7 +681,7 @@ export default function ChatPanel() {
                 type="button"
                 onClick={() => setModelOpen((v) => !v)}
                 className={clsx(
-                  "inline-flex h-3.5 items-center justify-start bg-transparent px-0 py-0 text-[11px] font-medium leading-none hover:text-muted-200",
+                  "inline-flex min-h-[24px] items-center justify-start bg-transparent px-0 py-0 text-[11px] font-medium leading-none hover:text-muted-200",
                   aiModel === "auto" && "-translate-y-[3px]",
                   MODEL_SELECTOR_CHEVRON_GAP_CLASS,
                 )}

@@ -11,9 +11,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.billing import router as billing_router
@@ -54,20 +54,35 @@ def _mount_frontend() -> None:
     if not static.is_dir():
         return
     assets = static / "assets"
+    icons = static / "icons"
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=assets), name="assets")
+        app.mount("/app/assets", StaticFiles(directory=assets), name="app-assets")
+    if icons.is_dir():
+        app.mount("/icons", StaticFiles(directory=icons), name="icons")
+        app.mount("/app/icons", StaticFiles(directory=icons), name="app-icons")
 
     @app.get("/")
     def spa_index():
+        return RedirectResponse(url="/app/", status_code=302)
+
+    @app.get("/app")
+    def spa_app_redirect():
+        return RedirectResponse(url="/app/", status_code=302)
+
+    @app.get("/app/")
+    def spa_app_index():
         return FileResponse(static / "index.html")
 
     @app.get("/{full_path:path}")
     def spa_fallback(full_path: str):
         if full_path.startswith("api/"):
-            return {"detail": "Not Found"}
+            raise HTTPException(status_code=404, detail="Not Found")
         candidate = static / full_path
         if candidate.is_file():
             return FileResponse(candidate)
+        if full_path == "app" or full_path.startswith("app/"):
+            return FileResponse(static / "index.html")
         return FileResponse(static / "index.html")
 
 

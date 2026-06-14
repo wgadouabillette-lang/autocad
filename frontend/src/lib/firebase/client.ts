@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
+  getRedirectResult,
   GoogleAuthProvider,
   OAuthProvider,
   isSignInWithEmailLink,
@@ -8,12 +9,14 @@ import {
   sendSignInLinkToEmail,
   signInWithEmailLink,
   signInWithPopup,
+  signInWithRedirect,
   signOut as firebaseSignOut,
   type User,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getStorage } from "firebase/storage";
+import { shouldFallbackToOAuthRedirect } from "./authErrors";
 import { firebaseConfig, functionsRegion } from "./config";
 
 const app = initializeApp(firebaseConfig);
@@ -30,9 +33,18 @@ const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
 const microsoftProvider = new OAuthProvider("microsoft.com");
-microsoftProvider.setCustomParameters({ prompt: "select_account" });
+microsoftProvider.setCustomParameters({
+  prompt: "select_account",
+  tenant: import.meta.env.VITE_MICROSOFT_OAUTH_TENANT?.trim() || "common",
+});
+microsoftProvider.addScope("email");
+microsoftProvider.addScope("profile");
+microsoftProvider.addScope("openid");
+microsoftProvider.addScope("User.Read");
 
 const appleProvider = new OAuthProvider("apple.com");
+appleProvider.addScope("email");
+appleProvider.addScope("name");
 
 export type FirebaseAuthProvider = "google" | "microsoft" | "apple";
 
@@ -42,6 +54,8 @@ const OAUTH_POPUP_HOSTS = [
   "accounts.google.com",
   "appleid.apple.com",
   "login.microsoftonline.com",
+  "live.com",
+  "microsoft.com",
   "firebaseapp.com",
 ];
 
@@ -60,10 +74,30 @@ export function providerForId(id: FirebaseAuthProvider) {
   return appleProvider;
 }
 
+export class OAuthRedirectStartedError extends Error {
+  constructor() {
+    super("oauth-redirect-started");
+    this.name = "OAuthRedirectStartedError";
+  }
+}
+
 export async function signInWithOAuthProvider(id: FirebaseAuthProvider): Promise<User> {
   const provider = providerForId(id);
-  const result = await signInWithPopup(auth, provider);
-  return result.user;
+  try {
+    const result = await signInWithPopup(auth, provider);
+    return result.user;
+  } catch (error) {
+    if (shouldFallbackToOAuthRedirect(error)) {
+      await signInWithRedirect(auth, provider);
+      throw new OAuthRedirectStartedError();
+    }
+    throw error;
+  }
+}
+
+export async function completeOAuthRedirectIfPresent(): Promise<User | null> {
+  const result = await getRedirectResult(auth);
+  return result?.user ?? null;
 }
 
 export function isFirebaseOAuthPopupUrl(url: string): boolean {

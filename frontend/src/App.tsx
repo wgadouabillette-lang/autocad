@@ -6,10 +6,10 @@ import ChatPanelShell from "./components/ChatPanelShell";
 import BottomHeader from "./components/BottomHeader";
 import CallsView from "./components/calls/CallsView";
 import SettingsPage from "./components/SettingsPage";
-import CasinoRoulette from "./components/casino/CasinoRoulette";
 import RecordingCameraPreview from "./components/calls/RecordingCameraPreview";
 import AuthPage from "./components/auth/AuthPage";
 import { useCallVoiceActivity } from "./hooks/useCallVoiceActivity";
+import { useWorkspacePresence } from "./hooks/useWorkspacePresence";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useDesktopUpdater } from "./hooks/useDesktopUpdater";
 import { useMobileLayout } from "./hooks/useMobileLayout";
@@ -22,6 +22,8 @@ import { useCallsStore } from "./store/useCallsStore";
 import { useStore } from "./store/useStore";
 import { useNotificationsStore } from "./store/useNotificationsStore";
 import { usePeopleStore } from "./store/usePeopleStore";
+import WorkspaceOnboardingDialog from "./components/workspace/WorkspaceOnboardingDialog";
+import { useWorkspaceOnboardingStore } from "./store/useWorkspaceOnboardingStore";
 import { debugLog } from "./lib/debugLog";
 
 let appRenderCount = 0;
@@ -63,6 +65,7 @@ export default function App() {
   const authEmail = useAuthStore((s) => s.authEmail);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const hydrateAuth = useAuthStore((s) => s.hydrate);
+  const workspaceOnboardingOpen = useWorkspaceOnboardingStore((s) => s.open);
 
   const runBoot = useCallback(async () => {
     setBootStatus("loading");
@@ -73,6 +76,7 @@ export default function App() {
   useAppKeyboardShortcuts();
   useDesktopUpdater();
   useCallVoiceActivity(inVoiceCall);
+  useWorkspacePresence();
 
   useEffect(() => {
     if (!isMobileLayout) return;
@@ -126,6 +130,7 @@ export default function App() {
     const prefs = readUserPreferences();
     useStore.setState({
       chatPanelOpen: prefs.chatPanelOpen,
+      sidePanelSide: prefs.sidePanelSide,
       showChatHistory: false,
       chatPanelMode: "agent",
     });
@@ -171,9 +176,11 @@ export default function App() {
   }, [isAuthenticated, firebaseUid]);
 
   useEffect(() => {
-    if (bootStatus !== "ready" || !isAuthenticated || !authEmail) return;
-    runDashboardOnboardingIfNeeded(authEmail);
-  }, [bootStatus, isAuthenticated, authEmail]);
+    if (bootStatus !== "ready" || !isAuthenticated || !authEmail || workspaceOnboardingOpen) {
+      return;
+    }
+    void runDashboardOnboardingIfNeeded(authEmail, firebaseUid);
+  }, [bootStatus, isAuthenticated, authEmail, firebaseUid, workspaceOnboardingOpen]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -238,6 +245,7 @@ export default function App() {
     <div className="app-shell">
       {recording && <div className="app-recording-frame" aria-hidden />}
       <RecordingCameraPreview />
+      <WorkspaceOnboardingDialog />
       <div
         className={clsx(
           "app-layout",
@@ -248,16 +256,12 @@ export default function App() {
         )}
         style={layoutStyle}
       >
-        {panelOnLeft && chatPanelOpen && <ChatPanelShell />}
         <AppChromeRow />
         <main className="app-layout__main">
           {activePage === "settings" ? <SettingsPage /> : <CallsView />}
-          <div className="casino-roulette-anchor">
-            <CasinoRoulette />
-          </div>
         </main>
         <BottomHeader />
-        {!panelOnLeft && chatPanelOpen && <ChatPanelShell />}
+        {chatPanelOpen && <ChatPanelShell key={sidePanelSide} />}
       </div>
     </div>
   );

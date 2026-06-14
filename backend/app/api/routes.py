@@ -111,7 +111,7 @@ def api_chat(req: ChatRequest, user: Optional[FirebaseUser] = Depends(optional_f
     if not req.prompt.strip():
         raise HTTPException(400, "Empty prompt.")
     with run_with_user_llm_keys(user):
-        return chat.run(req.prompt, req.messages, req.ai_model)
+        return chat.run(req.prompt, req.messages, req.ai_model, req.chat_instructions)
 
 
 @router.post("/analyze", response_model=AnalysisResponse)

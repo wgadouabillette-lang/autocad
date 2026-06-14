@@ -13,6 +13,9 @@ import {
   syncOpenChannelVacancy,
   findLocalBlock,
   mergeCallBlocks,
+  mergePresenceMemberBlocks,
+  memberBlocksSignature,
+  removeDuplicateRemoteSelfBlocks,
   splitLocalFromBlock,
   syncRoomCallsWithMembers,
   type JoinRequest,
@@ -36,6 +39,7 @@ import {
   playVoiceUnmuteSound,
 } from "../lib/voiceChannelSounds";
 import { useWorkspacesStore } from "./useWorkspacesStore";
+import { useAuthStore } from "./useAuthStore";
 import { DEFAULT_WORKSPACE_ID } from "../lib/workspaces";
 import { debugLog } from "../lib/debugLog";
 import { useAiNotesStore } from "./useAiNotesStore";
@@ -80,6 +84,15 @@ interface CallsState extends CallControls {
   speakingByParticipant: Record<string, boolean>;
 
   ensureRoom: (workspaceId: string) => void;
+  syncPresenceMembers: (
+    workspaceId: string,
+    members: Array<{ id: string; name: string; photoURL?: string }>,
+    localFirebaseUid?: string | null,
+  ) => void;
+  syncLocalParticipantProfile: (profile: {
+    photoURL?: string | null;
+    displayName?: string;
+  }) => void;
   startOpenChannelDraft: (roomId: string) => void;
   confirmOpenChannel: (roomId: string, channelId: string, name: string) => void;
   removeOpenChannel: (roomId: string, channelId: string) => void;
@@ -227,10 +240,15 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       );
     }
     // #endregion
+    const localFirebaseUid = useAuthStore.getState().firebaseUid;
     set((s) => ({
       callsByRoom: {
         ...s.callsByRoom,
-        [workspaceId]: syncRoomCallsWithMembers(workspaceId, s.callsByRoom[workspaceId]),
+        [workspaceId]: syncRoomCallsWithMembers(
+          workspaceId,
+          s.callsByRoom[workspaceId],
+          localFirebaseUid,
+        ),
       },
       theaterByWorkspace: {
         ...s.theaterByWorkspace,
@@ -240,6 +258,65 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         ),
       },
     }));
+  },
+
+  syncPresenceMembers: (workspaceId, members, localFirebaseUid) => {
+    set((s) => {
+      const current = s.callsByRoom[workspaceId] ?? createRoomCallsState(workspaceId);
+      const blocks = removeDuplicateRemoteSelfBlocks(
+        mergePresenceMemberBlocks(
+          workspaceId,
+          current.blocks,
+          members,
+          localFirebaseUid,
+        ),
+        localFirebaseUid,
+      );
+      if (memberBlocksSignature(current.blocks) === memberBlocksSignature(blocks)) {
+        return s;
+      }
+      return {
+        callsByRoom: {
+          ...s.callsByRoom,
+          [workspaceId]: { ...current, blocks },
+        },
+      };
+    });
+  },
+
+  syncLocalParticipantProfile: (profile) => {
+    set((s) => {
+      let changed = false;
+      const callsByRoom = { ...s.callsByRoom };
+      for (const [roomId, state] of Object.entries(s.callsByRoom)) {
+        let roomChanged = false;
+        const blocks = state.blocks.map((block) => {
+          if (!block.participants.some((participant) => participant.isLocal)) return block;
+          roomChanged = true;
+          return {
+            ...block,
+            participants: block.participants.map((participant) =>
+              participant.isLocal
+                ? {
+                    ...participant,
+                    ...(profile.displayName !== undefined
+                      ? { name: profile.displayName }
+                      : {}),
+                    ...(profile.photoURL !== undefined
+                      ? { photoURL: profile.photoURL ?? undefined }
+                      : {}),
+                  }
+                : participant,
+            ),
+          };
+        });
+        if (roomChanged) {
+          changed = true;
+          callsByRoom[roomId] = { ...state, blocks };
+        }
+      }
+      return changed ? { ...s, callsByRoom } : s;
+    });
   },
 
   startOpenChannelDraft: (roomId) => {

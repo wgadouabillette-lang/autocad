@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ChatConnectorId } from "../components/chat/chatConnectors";
+import { CHAT_CONNECTORS } from "../components/chat/chatConnectors";
 import {
   disconnectConnector,
   fetchConnectorStatuses,
@@ -9,14 +10,28 @@ import {
 } from "../lib/connectorsApi";
 import { useNotificationsStore } from "../store/useNotificationsStore";
 
+/** Connectors are display-only until OAuth/backend wiring is ready. */
+export const CONNECTORS_VISUAL_ONLY = true;
+
+const VISUAL_STATUSES: ConnectorStatus[] = CHAT_CONNECTORS.map(({ id, label }) => ({
+  id,
+  label,
+  provider: id,
+  connected: false,
+  configured: false,
+}));
+
 export function useConnectors() {
-  const [statuses, setStatuses] = useState<ConnectorStatus[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [statuses, setStatuses] = useState<ConnectorStatus[]>(
+    CONNECTORS_VISUAL_ONLY ? VISUAL_STATUSES : [],
+  );
+  const [loading, setLoading] = useState(!CONNECTORS_VISUAL_ONLY);
   const [error, setError] = useState<string | null>(null);
   const [connectingId, setConnectingId] = useState<ChatConnectorId | null>(null);
   const pushNotification = useNotificationsStore((s) => s.push);
 
   const refresh = useCallback(async () => {
+    if (CONNECTORS_VISUAL_ONLY) return;
     try {
       const items = await fetchConnectorStatuses();
       setStatuses(items);
@@ -29,10 +44,12 @@ export function useConnectors() {
   }, []);
 
   useEffect(() => {
+    if (CONNECTORS_VISUAL_ONLY) return;
     void refresh();
   }, [refresh]);
 
   useEffect(() => {
+    if (CONNECTORS_VISUAL_ONLY) return;
     const onDone = () => void refresh();
     window.addEventListener("forma-connector-oauth-done", onDone);
     window.addEventListener("forma-connector-disconnect-done", onDone);
@@ -43,6 +60,7 @@ export function useConnectors() {
   }, [refresh]);
 
   useEffect(() => {
+    if (CONNECTORS_VISUAL_ONLY) return;
     const onMessage = (event: MessageEvent) => {
       if (!isConnectorOAuthMessage(event.data)) return;
       setConnectingId(null);
@@ -69,6 +87,7 @@ export function useConnectors() {
 
   const connect = useCallback(
     async (id: ChatConnectorId) => {
+      if (CONNECTORS_VISUAL_ONLY) return;
       setConnectingId(id);
       setError(null);
       try {
@@ -95,6 +114,7 @@ export function useConnectors() {
 
   const disconnect = useCallback(
     async (id: ChatConnectorId) => {
+      if (CONNECTORS_VISUAL_ONLY) return;
       try {
         await disconnectConnector(id);
         await refresh();
@@ -115,6 +135,7 @@ export function useConnectors() {
   );
 
   return {
+    visualOnly: CONNECTORS_VISUAL_ONLY,
     statuses,
     connectedIds,
     loading,

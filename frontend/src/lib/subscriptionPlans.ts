@@ -10,7 +10,7 @@ export interface PlanDefinition {
   features: string[];
 }
 
-const PRO_CONNECTOR_LABELS = CHAT_CONNECTORS.map((c) => c.label);
+const CONNECTOR_LABELS = CHAT_CONNECTORS.map((c) => c.label);
 
 export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
   {
@@ -22,14 +22,14 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
       "Workspace et appels",
       "Liste d'amis et messages",
       "Mode règles (sans IA)",
-      "Pas d'accès aux connecteurs",
+      `Connecteurs : ${CONNECTOR_LABELS.join(", ")}`,
     ],
   },
   {
     id: "pro",
     label: "Pro",
     price: "$30 / mois",
-    description: "Assistant IA et connecteurs — 30 $/mois via Stripe Checkout.",
+    description: "Assistant IA — 30 $/mois via Stripe Checkout.",
     features: [
       "Assistant IA (Agent & Render)",
       "AI Notes — transcription live en appel vocal",
@@ -38,7 +38,6 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
       "Bascule automatique en mode Auto si limite API",
       "Usage à la demande disponible en complément (add-on)",
       "Bascule automatique Agent / Render",
-      `Connecteurs : ${PRO_CONNECTOR_LABELS.join(", ")}`,
     ],
   },
 ];
@@ -59,8 +58,8 @@ export function hasFollowUpAccess(plan: SubscriptionPlan): boolean {
   return plan === "pro";
 }
 
-export function hasConnectorAccess(plan: SubscriptionPlan): boolean {
-  return plan === "pro";
+export function hasConnectorAccess(_plan: SubscriptionPlan): boolean {
+  return true;
 }
 
 /** L'usage à la demande nécessite un abonnement Pro actif. */

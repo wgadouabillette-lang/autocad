@@ -1,11 +1,15 @@
-export type AiModel = "auto" | "grok" | "claude-opus-4-7" | "claude-opus-4-8";
+export type AiModel =
+  | "auto"
+  | "gpt-4.1-nano"
+  | "gpt-4o-mini"
+  | "grok-mini"
+  | "grok"
+  | "claude-opus-4-7"
+  | "claude-opus-4-8";
 
 export type AiModelSpeed = "fast" | "medium" | "reasoning";
 
-export const AI_MODEL_ICONS = {
-  claude: "/icons/ai/claude.svg",
-  grok: "/icons/ai/xai.svg",
-} as const;
+export type AiModelIconKey = "openai" | "grok" | "claude";
 
 /** Modèle chat économique utilisé en mode Auto (aligné sur FORMA_AUTO_CHAT_MODEL). */
 export const AUTO_CHAT_MODEL_NAME = "GPT 4.1 nano";
@@ -15,7 +19,7 @@ export interface AiModelDef {
   label: string;
   short: string;
   speed: AiModelSpeed;
-  iconSrc?: string;
+  icon?: AiModelIconKey;
 }
 
 export const AI_MODEL_SPEED_LABELS: Record<AiModelSpeed, string> = {
@@ -25,7 +29,7 @@ export const AI_MODEL_SPEED_LABELS: Record<AiModelSpeed, string> = {
 };
 
 /** Taille fixe des logos modèle (alignée sur Claude). */
-export const MODEL_SELECTOR_ICON_CLASS = "h-3.5 w-3.5";
+export const MODEL_SELECTOR_ICON_CLASS = "h-4 w-4";
 
 /** Largeur fixe colonne vitesse — évite le décalage Auto ↔ modèle avec logo. */
 export const MODEL_SELECTOR_SPEED_CLASS = "w-[3.35rem] shrink-0 text-left";
@@ -44,32 +48,62 @@ export const AI_MODELS: AiModelDef[] = [
     speed: "fast",
   },
   {
+    id: "gpt-4.1-nano",
+    label: "GPT 4.1 nano",
+    short: "GPT 4.1 nano",
+    speed: "fast",
+    icon: "openai",
+  },
+  {
+    id: "gpt-4o-mini",
+    label: "GPT 4o mini",
+    short: "GPT 4o mini",
+    speed: "fast",
+    icon: "openai",
+  },
+  {
+    id: "grok-mini",
+    label: "Grok 3 Mini",
+    short: "Grok 3 Mini",
+    speed: "fast",
+    icon: "grok",
+  },
+  {
     id: "grok",
     label: "Grok 4.1",
     short: "Grok 4.1",
     speed: "fast",
-    iconSrc: AI_MODEL_ICONS.grok,
+    icon: "grok",
   },
   {
     id: "claude-opus-4-7",
     label: "Claude Opus 4.7",
     short: "Opus 4.7",
     speed: "medium",
-    iconSrc: AI_MODEL_ICONS.claude,
+    icon: "claude",
   },
   {
     id: "claude-opus-4-8",
     label: "Claude Opus 4.8",
     short: "Opus 4.8",
     speed: "reasoning",
-    iconSrc: AI_MODEL_ICONS.claude,
+    icon: "claude",
   },
 ];
+
+/** Modèles affichés dans Paramètres → Models (sans Auto). */
+export const SETTINGS_AI_MODELS = AI_MODELS.filter((m) => m.id !== "auto");
+
+const AI_MODEL_IDS = new Set<AiModel>(AI_MODELS.map((m) => m.id));
+
+export function isValidAiModel(value: unknown): value is AiModel {
+  return typeof value === "string" && AI_MODEL_IDS.has(value as AiModel);
+}
 
 export interface AiModelDisplay {
   name: string;
   speed: AiModelSpeed;
-  iconSrc?: string;
+  icon?: AiModelIconKey;
   /** Bouton composeur Auto : texte seul, sans vitesse ni logo. */
   compact?: boolean;
   /** Masque la colonne vitesse (ex. Auto dans le bouton — chevron à 8px du texte). */
@@ -88,7 +122,7 @@ function toModelDisplay(model: AiModelDef): AiModelDisplay {
   return {
     name: model.short,
     speed: model.speed,
-    ...(model.iconSrc ? { iconSrc: model.iconSrc } : {}),
+    ...(model.icon ? { icon: model.icon } : {}),
   };
 }
 

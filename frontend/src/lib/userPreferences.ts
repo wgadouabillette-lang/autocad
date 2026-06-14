@@ -5,6 +5,10 @@ const KEY = "forma-user-preferences";
 
 export type SidePanelSide = "left" | "right";
 
+export function normalizeSidePanelSide(value: unknown): SidePanelSide {
+  return value === "left" ? "left" : "right";
+}
+
 export interface UserPreferences {
   chatWorkMode: SelectableWorkMode;
   autoWorkModeSwitch: boolean;
@@ -20,7 +24,9 @@ export interface UserPreferences {
   sidePanelSide: SidePanelSide;
   subscriptionPlan: SubscriptionPlan;
   onDemandUsageEnabled: boolean;
-  gameModeEnabled: boolean;
+  agentChatInstructions: string;
+  agentFollowUpInstructions: string;
+  agentAiNotesInstructions: string;
 }
 
 const DEFAULTS: UserPreferences = {
@@ -37,7 +43,9 @@ const DEFAULTS: UserPreferences = {
   sidePanelSide: "right",
   subscriptionPlan: "free",
   onDemandUsageEnabled: false,
-  gameModeEnabled: false,
+  agentChatInstructions: "",
+  agentFollowUpInstructions: "",
+  agentAiNotesInstructions: "",
 };
 
 export function readUserPreferences(): UserPreferences {
@@ -66,11 +74,16 @@ export function readUserPreferences(): UserPreferences {
       audioEchoCancellation: data.audioEchoCancellation !== false,
       audioNoiseSuppression: data.audioNoiseSuppression !== false,
       chatPanelOpen: data.chatPanelOpen !== false,
-      sidePanelSide: data.sidePanelSide === "left" ? "left" : "right",
+      sidePanelSide: normalizeSidePanelSide(data.sidePanelSide),
       subscriptionPlan: data.subscriptionPlan === "pro" ? "pro" : "free",
       onDemandUsageEnabled:
         data.subscriptionPlan === "pro" && Boolean(data.onDemandUsageEnabled),
-      gameModeEnabled: Boolean(data.gameModeEnabled),
+      agentChatInstructions:
+        typeof data.agentChatInstructions === "string" ? data.agentChatInstructions : "",
+      agentFollowUpInstructions:
+        typeof data.agentFollowUpInstructions === "string" ? data.agentFollowUpInstructions : "",
+      agentAiNotesInstructions:
+        typeof data.agentAiNotesInstructions === "string" ? data.agentAiNotesInstructions : "",
     };
   } catch {
     return { ...DEFAULTS };

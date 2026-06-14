@@ -3,12 +3,15 @@ import type { User } from "firebase/auth";
 import {
   auth,
   completeEmailLinkSignInIfPresent,
+  completeOAuthRedirectIfPresent,
+  OAuthRedirectStartedError,
   sendEmailSignInLink,
   signInWithOAuthProvider,
   signOutUser,
   watchAuthState,
   type FirebaseAuthProvider,
 } from "../lib/firebase/client";
+import { formatAuthError } from "../lib/firebase/authErrors";
 import {
   loadChatSessions,
   loadLatestProjectSnapshot,
@@ -20,12 +23,18 @@ import {
   type UserProfileDoc,
 } from "../lib/firebase/userData";
 import { removeProfilePhoto, uploadProfilePhoto } from "../lib/firebase/profilePhoto";
-import { writeUserPreferences, type UserPreferences } from "../lib/userPreferences";
+import { pushProfileToJoinedWorkspaces } from "../lib/firebase/workspacePresence";
+import { writeUserPreferences, normalizeSidePanelSide, type SidePanelSide, type UserPreferences } from "../lib/userPreferences";
 import type { AiModel } from "../lib/aiModels";
+import { isValidAiModel } from "../lib/aiModels";
 import { normalizeWorkspaceId } from "../lib/workspaces";
 import { useStore, type AutosavePayload } from "./useStore";
 import { useWorkspacesStore } from "./useWorkspacesStore";
 import { useCallsStore } from "./useCallsStore";
+import { useWorkspaceOnboardingStore } from "./useWorkspaceOnboardingStore";
+import {
+  applyDashboardOnboardingFromProfile,
+} from "../lib/dashboardOnboarding";
 
 export type AuthProvider = FirebaseAuthProvider;
 
@@ -45,6 +54,8 @@ interface AuthState {
   signOut: () => Promise<void>;
   syncProfileToCloud: () => Promise<void>;
   syncWorkspacesToCloud: () => Promise<void>;
+  markWorkspaceSetupCompleted: () => Promise<void>;
+  markDashboardOnboardingCompleted: () => Promise<void>;
   uploadAndSyncProfilePhoto: (file: File) => Promise<void>;
   removeAndSyncProfilePhoto: () => Promise<void>;
 }
@@ -68,9 +79,7 @@ function applyFirebaseUser(user: User) {
   const email = user.email?.trim().toLowerCase() ?? "";
   useStore.getState().setUserEmail(email || useStore.getState().userEmail);
   useStore.getState().setUserDisplayName(displayNameFromUser(user));
-  if (user.photoURL && !useStore.getState().photoURL) {
-    useStore.getState().setPhotoURL(user.photoURL);
-  }
+  useStore.getState().setPhotoURL(user.photoURL ?? null);
   return {
     isAuthenticated: true,
     authEmail: email || null,
@@ -82,15 +91,18 @@ function applyFirebaseUser(user: User) {
 }
 
 function isAiModel(value: unknown): value is AiModel {
-  return (
-    value === "auto" ||
-    value === "grok" ||
-    value === "claude-opus-4-7" ||
-    value === "claude-opus-4-8"
-  );
+  return isValidAiModel(value);
+}
+
+function resolveProfileSidePanelSide(profile: UserProfileDoc): SidePanelSide {
+  if (profile.sidePanelSide === "left" || profile.sidePanelSide === "right") {
+    return profile.sidePanelSide;
+  }
+  return normalizeSidePanelSide(useStore.getState().sidePanelSide);
 }
 
 function applyLocalProfile(profile: UserProfileDoc) {
+  const sidePanelSide = resolveProfileSidePanelSide(profile);
   useStore.setState({
     chatWorkMode: profile.chatWorkMode,
     autoWorkModeSwitch: profile.autoWorkModeSwitch,
@@ -103,10 +115,12 @@ function applyLocalProfile(profile: UserProfileDoc) {
     audioEchoCancellation: profile.audioEchoCancellation !== false,
     audioNoiseSuppression: profile.audioNoiseSuppression !== false,
     chatPanelOpen: profile.chatPanelOpen,
-    sidePanelSide: profile.sidePanelSide,
+    sidePanelSide,
     subscriptionPlan: profile.subscriptionPlan,
     onDemandUsageEnabled: profile.onDemandUsageEnabled,
-    gameModeEnabled: profile.gameModeEnabled ?? false,
+    agentChatInstructions: profile.agentChatInstructions ?? "",
+    agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
+    agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
     aiModel: isAiModel(profile.aiModel) ? profile.aiModel : useStore.getState().aiModel,
   });
   writeUserPreferences({
@@ -121,10 +135,16 @@ function applyLocalProfile(profile: UserProfileDoc) {
     audioEchoCancellation: profile.audioEchoCancellation !== false,
     audioNoiseSuppression: profile.audioNoiseSuppression !== false,
     chatPanelOpen: profile.chatPanelOpen,
-    sidePanelSide: profile.sidePanelSide,
+    sidePanelSide,
     subscriptionPlan: profile.subscriptionPlan,
     onDemandUsageEnabled: profile.onDemandUsageEnabled,
-    gameModeEnabled: profile.gameModeEnabled ?? false,
+    agentChatInstructions: profile.agentChatInstructions ?? "",
+    agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
+    agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
+  });
+  useCallsStore.getState().syncLocalParticipantProfile({
+    photoURL: profile.photoURL ?? null,
+    displayName: profile.userDisplayName,
   });
 }
 
@@ -143,10 +163,12 @@ function profileFromStore(user: User): UserProfileDoc {
     audioEchoCancellation: state.audioEchoCancellation,
     audioNoiseSuppression: state.audioNoiseSuppression,
     chatPanelOpen: state.chatPanelOpen,
-    sidePanelSide: state.sidePanelSide,
+    sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
     subscriptionPlan: state.subscriptionPlan,
     onDemandUsageEnabled: state.onDemandUsageEnabled,
-    gameModeEnabled: state.gameModeEnabled,
+    agentChatInstructions: state.agentChatInstructions,
+    agentFollowUpInstructions: state.agentFollowUpInstructions,
+    agentAiNotesInstructions: state.agentAiNotesInstructions,
   };
 }
 
@@ -160,6 +182,8 @@ async function saveUserAccountProfile(uid: string, profile: UserProfileDoc): Pro
 function profileSyncKey(profile: UserProfileDoc): string {
   return JSON.stringify({
     photoURL: profile.photoURL ?? null,
+    workspaceSetupCompleted: profile.workspaceSetupCompleted === true,
+    dashboardOnboardingCompleted: profile.dashboardOnboardingCompleted === true,
     chatWorkMode: profile.chatWorkMode,
     autoWorkModeSwitch: profile.autoWorkModeSwitch,
     userDisplayName: profile.userDisplayName,
@@ -169,7 +193,9 @@ function profileSyncKey(profile: UserProfileDoc): string {
     sidePanelSide: profile.sidePanelSide,
     subscriptionPlan: profile.subscriptionPlan,
     onDemandUsageEnabled: profile.onDemandUsageEnabled,
-    gameModeEnabled: profile.gameModeEnabled,
+    agentChatInstructions: profile.agentChatInstructions ?? "",
+    agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
+    agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
     aiModel: profile.aiModel ?? null,
   });
 }
@@ -215,7 +241,6 @@ function startProfileAutosync(
       state.sidePanelSide === previousState.sidePanelSide &&
       state.subscriptionPlan === previousState.subscriptionPlan &&
       state.onDemandUsageEnabled === previousState.onDemandUsageEnabled &&
-      state.gameModeEnabled === previousState.gameModeEnabled &&
       state.aiModel === previousState.aiModel
     ) {
       return;
@@ -251,9 +276,19 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
     return false;
   }
 
-  if (profile) applyLocalProfile(profile);
+  if (profile) {
+    applyLocalProfile(profile);
+    applyDashboardOnboardingFromProfile(
+      profile.email || auth.currentUser?.email || useStore.getState().userEmail,
+      profile.dashboardOnboardingCompleted,
+    );
+  }
 
-  if (workspaces.customServers.length || workspaces.memberships.length) {
+  const hasCloudWorkspaces =
+    workspaces.customServers.length > 0 || workspaces.memberships.length > 0;
+  const needsWorkspaceSetup = !profile?.workspaceSetupCompleted && !hasCloudWorkspaces;
+
+  if (hasCloudWorkspaces) {
     useWorkspacesStore.setState({
       customServers: workspaces.customServers,
       memberships: workspaces.memberships,
@@ -268,6 +303,15 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
     if (!hasAccess && joined.length > 0) {
       useStore.getState().setActiveRoom(joined[0].id);
     }
+    if (profile && !profile.workspaceSetupCompleted) {
+      await saveUserAccountProfile(uid, {
+        ...profileFromStore(auth.currentUser!),
+        workspaceSetupCompleted: true,
+      });
+    }
+  } else if (needsWorkspaceSetup) {
+    useWorkspacesStore.getState().resetLocalMemberships();
+    useWorkspaceOnboardingStore.getState().openOnboarding();
   }
 
   if (chatSessions.length) {
@@ -307,8 +351,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     void completeEmailLinkSignInIfPresent()
       .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : "Connexion impossible.";
-        set({ authError: message, ready: true });
+        const message = formatAuthError(error);
+        if (message) set({ authError: message, ready: true });
+      });
+
+    void completeOAuthRedirectIfPresent()
+      .then((user) => {
+        if (user) set(applyFirebaseUser(user));
+      })
+      .catch((error: unknown) => {
+        const message = formatAuthError(error);
+        if (message) set({ authError: message, ready: true });
       });
 
     const unsubscribe = watchAuthState((user) => {
@@ -350,7 +403,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } finally {
           if (!disposed && loadId === authLoadId && auth.currentUser?.uid === user.uid) {
             set({ ready: true });
-            useStore.getState().openAgentPanel();
+            if (!useWorkspaceOnboardingStore.getState().open) {
+              useStore.getState().openAgentPanel();
+            }
           }
         }
       })();
@@ -383,13 +438,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await signInWithOAuthProvider(provider);
       set(applyFirebaseUser(user));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Connexion impossible.";
-      set({ authError: message });
+      if (error instanceof OAuthRedirectStartedError) return;
+      set({ authError: formatAuthError(error) });
     }
   },
 
   signOut: async () => {
     await signOutUser();
+    useStore.getState().setPhotoURL(null);
+    useWorkspaceOnboardingStore.getState().closeOnboarding();
     set({
       isAuthenticated: false,
       authEmail: null,
@@ -413,6 +470,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await saveUserWorkspaces(uid, { customServers, memberships });
   },
 
+  markWorkspaceSetupCompleted: async () => {
+    const uid = get().firebaseUid;
+    const user = auth.currentUser;
+    if (!uid || !user) return;
+    await saveUserAccountProfile(uid, {
+      ...profileFromStore(user),
+      workspaceSetupCompleted: true,
+    });
+  },
+
+  markDashboardOnboardingCompleted: async () => {
+    const uid = get().firebaseUid;
+    const user = auth.currentUser;
+    if (!uid || !user) return;
+    await saveUserAccountProfile(uid, {
+      ...profileFromStore(user),
+      dashboardOnboardingCompleted: true,
+    });
+  },
+
   uploadAndSyncProfilePhoto: async (file) => {
     const uid = get().firebaseUid;
     const user = auth.currentUser;
@@ -421,6 +498,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     const url = await uploadProfilePhoto(uid, file);
     useStore.getState().setPhotoURL(url);
+    useCallsStore.getState().syncLocalParticipantProfile({ photoURL: url });
+    await pushProfileToJoinedWorkspaces(uid, {
+      displayName: useStore.getState().userDisplayName,
+      photoURL: url,
+    });
     await saveUserAccountProfile(uid, profileFromStore(user));
   },
 
@@ -432,6 +514,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     await removeProfilePhoto(uid);
     useStore.getState().setPhotoURL(null);
+    useCallsStore.getState().syncLocalParticipantProfile({ photoURL: null });
+    await pushProfileToJoinedWorkspaces(uid, {
+      displayName: useStore.getState().userDisplayName,
+      photoURL: null,
+    });
     await saveUserAccountProfile(uid, profileFromStore(user));
   },
 }));
@@ -450,9 +537,11 @@ export function currentUserPreferencesSnapshot(): UserPreferences {
     audioEchoCancellation: state.audioEchoCancellation,
     audioNoiseSuppression: state.audioNoiseSuppression,
     chatPanelOpen: state.chatPanelOpen,
-    sidePanelSide: state.sidePanelSide,
+    sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
     subscriptionPlan: state.subscriptionPlan,
     onDemandUsageEnabled: state.onDemandUsageEnabled,
-    gameModeEnabled: state.gameModeEnabled,
+    agentChatInstructions: state.agentChatInstructions,
+    agentFollowUpInstructions: state.agentFollowUpInstructions,
+    agentAiNotesInstructions: state.agentAiNotesInstructions,
   };
 }

@@ -98,7 +98,7 @@ class AgentRequest(BaseModel):
     document: Document
     prompt: str
     material: str = "aluminium"
-    ai_model: str = "auto"  # auto | grok | claude-opus-4-7 | claude-opus-4-8
+    ai_model: str = "auto"  # auto | gpt-4.1-nano | gpt-4o-mini | grok-mini | grok | claude-opus-4-7 | claude-opus-4-8
     work_mode: str = "agent"  # agent | render | plan | interrogation | multitask
     images: List[AgentImage] = Field(default_factory=list)
 
@@ -135,6 +135,7 @@ class ChatRequest(BaseModel):
     prompt: str
     messages: List[ChatMessage] = Field(default_factory=list)
     ai_model: str = "auto"
+    chat_instructions: str = ""
 
 
 class ChatResponse(BaseModel):

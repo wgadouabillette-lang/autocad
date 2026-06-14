@@ -8,7 +8,6 @@ import {
   Server,
   Settings,
   Users,
-  Wand2,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
@@ -23,7 +22,6 @@ import GeneralSettingsSection from "./settings/GeneralSettingsSection";
 import ModelsSettingsSection from "./settings/ModelsSettingsSection";
 import PluginsSettingsSection from "./settings/PluginsSettingsSection";
 import AgentsSettingsSection from "./settings/AgentsSettingsSection";
-import SkillsSettingsSection from "./settings/SkillsSettingsSection";
 import UsageSettingsSection from "./settings/UsageSettingsSection";
 import { useAuthStore } from "../store/useAuthStore";
 import SettingsProfileHeader from "./settings/SettingsProfileHeader";
@@ -40,18 +38,16 @@ const TAB_TITLES: Record<SettingsTab, string> = {
   agents: "Agents",
   models: "Models",
   plugins: "Plugins",
-  skills: "Skills",
   workspace: "Workspace",
 };
 
 const TAB_DESCRIPTIONS: Record<SettingsTab, string> = {
   general: "Profil, interface, apparence et enregistrement.",
-  friends: "Liste d'amis et demandes en attente.",
+  friends: "Amis et invitations.",
   usage: "Forfait, facturation et consommation.",
-  agents: "Comportement de l'assistant dans le chat.",
+  agents: "Personnalisation du chat, des follow-ups et des AI Notes.",
   models: "Choix du modèle IA pour la génération.",
-  plugins: "API et connecteurs utilisables dans le chat.",
-  skills: "Compétences et automatisations pour vos agents.",
+  plugins: "Connecteurs utilisables dans le chat.",
   workspace: "Paramètres du workspace actif — réservés au propriétaire.",
 };
 
@@ -63,7 +59,6 @@ const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
   agents: Bot,
   models: Cpu,
   plugins: Plug,
-  skills: Wand2,
 };
 
 const TAB_PANELS: Record<SettingsTab, () => JSX.Element> = {
@@ -73,7 +68,6 @@ const TAB_PANELS: Record<SettingsTab, () => JSX.Element> = {
   agents: AgentsSettingsSection,
   models: ModelsSettingsSection,
   plugins: PluginsSettingsSection,
-  skills: SkillsSettingsSection,
   workspace: WorkspaceSettingsSection,
 };
 
@@ -92,7 +86,6 @@ function buildNav(isWorkspaceOwner: boolean): NavItem[] {
     { kind: "tab", id: "models", label: "Models" },
     { kind: "separator" },
     { kind: "tab", id: "plugins", label: "Plugins" },
-    { kind: "tab", id: "skills", label: "Skills" },
   );
   return items;
 }

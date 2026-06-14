@@ -115,7 +115,7 @@ export default function BillingSettingsSection() {
             >
               <span className="settings-option__title">Abonnement Pro</span>
               <span className="settings-option__subtitle">
-                Forfait mensuel — requis pour l&apos;IA et les connecteurs.
+                Forfait mensuel — requis pour l&apos;IA.
               </span>
             </button>
           )}

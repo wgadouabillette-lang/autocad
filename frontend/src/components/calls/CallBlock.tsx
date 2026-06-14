@@ -11,6 +11,7 @@ import {
 import { useUserAiStroke } from "../../hooks/useAiBlockStroke";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
+import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import CallBlockCard from "./CallBlockCard";
 
@@ -49,8 +50,19 @@ export default function CallBlock({
   const outgoing = requests.find(
     (r) => r.status === "pending" && r.fromBlockId === block.id,
   );
+  const remoteUserId = block.participants.find((p) => !p.isLocal)?.id ?? null;
+  const presenceLoaded = useWorkspacePresenceStore((s) => s.isLoaded(activeRoomId));
+  const presenceTick = useWorkspacePresenceStore((s) => s.presenceTick);
+  const isMemberOnline = useWorkspacePresenceStore((s) => s.isOnline);
+  const isOffline =
+    !isLocal &&
+    !!remoteUserId &&
+    presenceLoaded &&
+    !isMemberOnline(activeRoomId, remoteUserId);
+  void presenceTick;
   const canRequestJoin =
     !isLocal &&
+    !isOffline &&
     blockActive &&
     !isMerged &&
     localBlock?.participants.length === 1 &&
@@ -64,7 +76,7 @@ export default function CallBlock({
   const isActionable = canRequestJoin;
   const { userId: activityUserId, isLocal: activityIsLocal } = blockActivityUser(block);
   const aiStrokeRaw = useUserAiStroke(activeRoomId, activityUserId, activityIsLocal);
-  const aiStroke = isLocal && inOpenChannelOnly ? null : aiStrokeRaw;
+  const aiStroke = isLocal && inOpenChannelOnly ? null : isOffline ? null : aiStrokeRaw;
   const canKick = canManageWorkspace && !isLocal;
 
   return (
@@ -75,9 +87,10 @@ export default function CallBlock({
         layout === "side" && "call-block--side",
         isLocal && blockActive && "call-block--local",
         isLocal && !blockActive && "call-block--idle",
-        !isLocal && !blockActive && "call-block--connected",
+        !isLocal && !blockActive && !isOffline && "call-block--connected",
+        !isLocal && isOffline && "call-block--offline",
         isMerged && "call-block--merged",
-        isActionable && "call-block--clickable",
+        isActionable && !isOffline && "call-block--clickable",
         (incoming || outgoing) && "call-block--pending",
       )}
       style={{ animationDelay: `${index * 20}ms` }}
@@ -86,14 +99,17 @@ export default function CallBlock({
       activityUserId={activityUserId}
       activityIsLocal={activityIsLocal}
       aiStroke={aiStroke}
+      standby={isOffline}
       mainDisabled={!isActionable}
       onMainClick={
         canRequestJoin ? () => onRequestJoin(block.id) : undefined
       }
       mainAriaLabel={
-        canRequestJoin
-          ? `Demander à rejoindre ${blockHeaderTitle(block)}`
-          : blockHeaderTitle(block)
+        isOffline
+          ? `${blockHeaderTitle(block)} — hors ligne`
+          : canRequestJoin
+            ? `Demander à rejoindre ${blockHeaderTitle(block)}`
+            : blockHeaderTitle(block)
       }
       trailing={
         canKick ? (

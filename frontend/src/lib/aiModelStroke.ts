@@ -4,13 +4,13 @@ import type { PresenceActivityId } from "./presenceActivity";
 export type AiStrokeVariant = "claude" | "grok" | "auto";
 
 export function aiStrokeVariantFromModel(model: AiModel): AiStrokeVariant {
-  if (model === "grok") return "grok";
+  if (model === "grok" || model === "grok-mini") return "grok";
   if (model.startsWith("claude")) return "claude";
   return "auto";
 }
 
 export function presenceActivityFromModel(model: AiModel): PresenceActivityId {
-  if (model === "grok") return "grok";
+  if (model === "grok" || model === "grok-mini") return "grok";
   if (model.startsWith("claude")) return "claude";
   return "auto";
 }

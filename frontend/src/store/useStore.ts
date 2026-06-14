@@ -24,12 +24,13 @@ import {
   type WorkMode,
 } from "../lib/workModes";
 import {
+  normalizeSidePanelSide,
   readUserPreferences,
   writeUserPreferences,
   type SidePanelSide,
   type UserPreferences,
 } from "../lib/userPreferences";
-import type { SubscriptionPlan } from "../lib/subscriptionPlans";
+import { hasAiAccess, type SubscriptionPlan } from "../lib/subscriptionPlans";
 import type { AnySettingsTab, SettingsTab } from "../lib/settingsSearchSuggestions";
 import { normalizeSettingsTab } from "../lib/settingsSearchSuggestions";
 import { sameFaceReference, type FaceReference } from "../lib/faceReference";
@@ -45,9 +46,12 @@ import {
   stripDispatchBlock,
 } from "../lib/promptPeopleMentions";
 import { useCallsStore } from "./useCallsStore";
-import { useCasinoStore } from "./useCasinoStore";
 import { usePeopleStore } from "./usePeopleStore";
-import { isBackendUnavailableError, localRulesReply } from "../lib/chatRulesFallback";
+import {
+  freePlanAiReply,
+  isBackendUnavailableError,
+  localRulesReply,
+} from "../lib/chatRulesFallback";
 import { waitMinChatProcessing } from "../lib/chatProcessing";
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -233,7 +237,9 @@ interface State {
   sidePanelSide: SidePanelSide;
   subscriptionPlan: SubscriptionPlan;
   onDemandUsageEnabled: boolean;
-  gameModeEnabled: boolean;
+  agentChatInstructions: string;
+  agentFollowUpInstructions: string;
+  agentAiNotesInstructions: string;
   aiRun: AiRun | null;
   activePage: MainPageId | null;
   openPages: MainPageId[];
@@ -255,7 +261,9 @@ interface State {
   setSubscriptionPlan: (plan: SubscriptionPlan) => void;
   setOnDemandUsageEnabled: (enabled: boolean) => void;
   toggleOnDemandUsage: () => void;
-  setGameModeEnabled: (enabled: boolean) => void;
+  setAgentChatInstructions: (value: string) => void;
+  setAgentFollowUpInstructions: (value: string) => void;
+  setAgentAiNotesInstructions: (value: string) => void;
   select: (id: string | null) => void;
   /** additive=true : ⌘/Ctrl+clic pour ajouter ou retirer une face de la sélection. */
   selectFace: (face: FaceReference, opts?: { additive?: boolean }) => void;
@@ -392,7 +400,9 @@ function userPreferencesSnapshot(state: {
   sidePanelSide: SidePanelSide;
   subscriptionPlan: SubscriptionPlan;
   onDemandUsageEnabled: boolean;
-  gameModeEnabled: boolean;
+  agentChatInstructions: string;
+  agentFollowUpInstructions: string;
+  agentAiNotesInstructions: string;
 }): UserPreferences {
   return {
     chatWorkMode: state.chatWorkMode,
@@ -406,11 +416,13 @@ function userPreferencesSnapshot(state: {
     audioEchoCancellation: state.audioEchoCancellation,
     audioNoiseSuppression: state.audioNoiseSuppression,
     chatPanelOpen: state.chatPanelOpen,
-    sidePanelSide: state.sidePanelSide,
+    sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
     subscriptionPlan: state.subscriptionPlan,
     onDemandUsageEnabled:
       state.subscriptionPlan === "pro" ? state.onDemandUsageEnabled : false,
-    gameModeEnabled: state.gameModeEnabled,
+    agentChatInstructions: state.agentChatInstructions,
+    agentFollowUpInstructions: state.agentFollowUpInstructions,
+    agentAiNotesInstructions: state.agentAiNotesInstructions,
   };
 }
 
@@ -520,8 +532,9 @@ export const useStore = create<State>((set, get) => ({
   },
 
   setSidePanelSide: (side) => {
-    set({ sidePanelSide: side });
-    writeUserPreferences(userPreferencesSnapshot({ ...get(), sidePanelSide: side }));
+    const normalized = normalizeSidePanelSide(side);
+    set({ sidePanelSide: normalized });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), sidePanelSide: normalized }));
   },
 
   setUserDisplayName: (name) => {
@@ -540,6 +553,7 @@ export const useStore = create<State>((set, get) => ({
     const photoURL = url?.trim() || null;
     set({ photoURL });
     writeUserPreferences(userPreferencesSnapshot({ ...get(), photoURL }));
+    useCallsStore.getState().syncLocalParticipantProfile({ photoURL });
   },
 
   setSubscriptionPlan: (plan) => {
@@ -563,10 +577,19 @@ export const useStore = create<State>((set, get) => ({
     writeUserPreferences(userPreferencesSnapshot({ ...get(), onDemandUsageEnabled }));
   },
 
-  setGameModeEnabled: (enabled) => {
-    set({ gameModeEnabled: enabled });
-    writeUserPreferences(userPreferencesSnapshot({ ...get(), gameModeEnabled: enabled }));
-    if (!enabled) useCasinoStore.getState().closeRoulette();
+  setAgentChatInstructions: (value) => {
+    set({ agentChatInstructions: value });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), agentChatInstructions: value }));
+  },
+
+  setAgentFollowUpInstructions: (value) => {
+    set({ agentFollowUpInstructions: value });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), agentFollowUpInstructions: value }));
+  },
+
+  setAgentAiNotesInstructions: (value) => {
+    set({ agentAiNotesInstructions: value });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), agentAiNotesInstructions: value }));
   },
 
   select: (id) => set({ selectedFeatureId: id }),
@@ -731,7 +754,7 @@ export const useStore = create<State>((set, get) => ({
   sendChat: async (prompt, userChatText) => {
     const displayText = userChatText ?? prompt;
 
-    const { aiModel, chat, activeRoomId } = get();
+    const { aiModel, chat, activeRoomId, agentChatInstructions } = get();
     const peopleState = usePeopleStore.getState();
     const roomCalls = useCallsStore.getState().getRoomCalls(activeRoomId);
     const mentionable = mentionablePeopleForWorkspace(
@@ -760,11 +783,33 @@ export const useStore = create<State>((set, get) => ({
         await waitUntilAborted(signal);
         return;
       }
+      if (!hasAiAccess(get().subscriptionPlan)) {
+        const assistantText = freePlanAiReply(displayText);
+        await waitMinChatProcessing(processingStartedAt, signal);
+        set((s) => ({
+          ...patchChatState(
+            [...s.chat, { role: "assistant", text: assistantText, source: "free_plan" }],
+            s.openChatTabs,
+            s.activeChatTabId,
+          ),
+          aiRun: {
+            ...run,
+            status: "done",
+            finishedAt: Date.now(),
+            summary: assistantText.slice(0, 140),
+            message: assistantText,
+            source: "free_plan",
+            steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+          },
+        }));
+        writeAutosave(get());
+        return;
+      }
       const history = chatWithoutLastUserPrompt(get().chat, displayText)
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role, content: m.text }));
       get().tickAiRunStep();
-      const res = await api.chat(apiPrompt, aiModel, history, signal);
+      const res = await api.chat(apiPrompt, aiModel, history, signal, agentChatInstructions);
       handleAiModelFallback(res, get().setAiModel);
 
       let assistantText = stripDispatchBlock(res.message) || res.message;
@@ -912,6 +957,27 @@ export const useStore = create<State>((set, get) => ({
     try {
       if (AI_STUB_INFINITE_LOADING) {
         await waitUntilAborted(signal);
+        return;
+      }
+      if (!hasAiAccess(get().subscriptionPlan)) {
+        const assistantText = freePlanAiReply(displayText);
+        set((s) => ({
+          ...patchChatState(
+            [...s.chat, { role: "assistant", text: assistantText, source: "free_plan" }],
+            s.openChatTabs,
+            s.activeChatTabId,
+          ),
+          aiRun: {
+            ...run,
+            status: "done",
+            finishedAt: Date.now(),
+            summary: assistantText.slice(0, 140),
+            message: assistantText,
+            source: "free_plan",
+            steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+          },
+        }));
+        writeAutosave(get());
         return;
       }
       const { filesToAgentImages, validateAgentImages } = await import("../lib/agentImages");

@@ -118,23 +118,50 @@ export function createRoomCallsState(roomId: string): RoomCallsState {
   };
 }
 
-/** Réaligne l'état vocal sur les membres réels — retire les personnages fictifs obsolètes. */
+/** Réaligne l'état vocal sur les membres réels — conserve les blocs offline. */
 export function syncRoomCallsWithMembers(
   roomId: string,
   existing?: RoomCallsState,
+  localFirebaseUid?: string | null,
 ): RoomCallsState {
   const fresh = createRoomCallsState(roomId);
-  if (!existing) return fresh;
+  if (!existing) {
+    return {
+      ...fresh,
+      blocks: removeDuplicateRemoteSelfBlocks(fresh.blocks, localFirebaseUid),
+    };
+  }
 
-  const validBlockIds = new Set(fresh.blocks.map((block) => block.id));
+  const freshRemoteIds = new Set(
+    fresh.blocks
+      .filter((block) => block.participants.every((participant) => !participant.isLocal))
+      .map((block) => block.id),
+  );
+
+  const preservedRemoteBlocks = existing.blocks
+    .filter(
+      (block) =>
+        block.participants.every((participant) => !participant.isLocal) &&
+        !block.participants.some((participant) => isLegacyMockMemberId(participant.id)) &&
+        !freshRemoteIds.has(block.id) &&
+        (!localFirebaseUid || !isDuplicateRemoteSelfBlock(block, localFirebaseUid)),
+    )
+    .map((block) => ({ ...block, inCall: false }));
+
+  const mergedBlocks = removeDuplicateRemoteSelfBlocks(
+    withoutLegacyMockBlocks([...fresh.blocks, ...preservedRemoteBlocks]),
+    localFirebaseUid,
+  );
+
+  const validBlockIds = new Set(mergedBlocks.map((block) => block.id));
   const validUserIds = new Set(
-    fresh.blocks.flatMap((block) => block.participants.map((participant) => participant.id)),
+    mergedBlocks.flatMap((block) => block.participants.map((participant) => participant.id)),
   );
   const existingLocal = existing.blocks.find((block) =>
     block.participants.some((participant) => participant.isLocal),
   );
 
-  const blocks = fresh.blocks.map((block) => {
+  const blocks = mergedBlocks.map((block) => {
     if (!block.participants.some((participant) => participant.isLocal)) return block;
     if (!existingLocal) return block;
     return { ...block, inCall: existingLocal.inCall };
@@ -174,6 +201,108 @@ export function syncRoomCallsWithMembers(
       validUserIds.has(request.userId),
     ),
   };
+}
+
+export function memberBlocksSignature(blocks: CallBlock[]): string {
+  return blocks
+    .map((block) =>
+      [
+        block.id,
+        block.inCall ? "1" : "0",
+        ...block.participants.map(
+          (participant) =>
+            `${participant.id}:${participant.name}:${participant.photoURL ?? ""}:${participant.isLocal ? "1" : "0"}`,
+        ),
+      ].join("|"),
+    )
+    .sort()
+    .join(";");
+}
+
+function isDuplicateRemoteSelfBlock(
+  block: CallBlock,
+  localFirebaseUid: string,
+): boolean {
+  return (
+    block.participants.length === 1 &&
+    !block.participants[0]?.isLocal &&
+    block.participants[0]?.id === localFirebaseUid
+  );
+}
+
+/** Retire le bloc distant dupliqué du compte local — on garde uniquement « Vous ». */
+export function removeDuplicateRemoteSelfBlocks(
+  blocks: CallBlock[],
+  localFirebaseUid?: string | null,
+): CallBlock[] {
+  if (!localFirebaseUid) return blocks;
+  return blocks.filter((block) => !isDuplicateRemoteSelfBlock(block, localFirebaseUid));
+}
+
+/** Ajoute ou met à jour les blocs membres vus via la présence workspace. */
+export function mergePresenceMemberBlocks(
+  roomId: string,
+  blocks: CallBlock[],
+  members: Array<{ id: string; name: string; photoURL?: string }>,
+  localFirebaseUid?: string | null,
+): CallBlock[] {
+  if (members.length === 0) return blocks;
+
+  const selfMember =
+    localFirebaseUid != null
+      ? members.find((member) => member.id === localFirebaseUid)
+      : undefined;
+
+  const next = blocks
+    .filter(
+      (block) =>
+        !localFirebaseUid || !isDuplicateRemoteSelfBlock(block, localFirebaseUid),
+    )
+    .map((block) => ({
+      ...block,
+      participants: block.participants.map((participant) => {
+        if (participant.isLocal && selfMember) {
+          return {
+            ...participant,
+            photoURL: selfMember.photoURL,
+          };
+        }
+        const remoteMember = members.find((member) => member.id === participant.id);
+        if (!remoteMember || participant.isLocal) return participant;
+        return {
+          ...participant,
+          name: remoteMember.name,
+          photoURL: remoteMember.photoURL,
+        };
+      }),
+    }));
+
+  const seenUserIds = new Set(
+    next.flatMap((block) => block.participants.map((participant) => participant.id)),
+  );
+
+  for (const member of members) {
+    if (!member.id || member.id === "local" || isLegacyMockMemberId(member.id)) continue;
+    if (localFirebaseUid && member.id === localFirebaseUid) continue;
+    if (seenUserIds.has(member.id)) continue;
+    seenUserIds.add(member.id);
+    next.push({
+      id: `${roomId}-${member.id}`,
+      roomId,
+      participants: [
+        {
+          id: member.id,
+          name: member.name,
+          photoURL: member.photoURL,
+        },
+      ],
+      inCall: false,
+    });
+  }
+
+  return withoutLegacyMockBlocks(
+    removeDuplicateRemoteSelfBlocks(next, localFirebaseUid),
+  );
 }
 
 export function pendingVoiceHandRaises(handRaises: HandRaiseRequest[]): HandRaiseRequest[] {

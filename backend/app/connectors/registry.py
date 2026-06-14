@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import urlencode
 
-ProviderId = Literal["google", "notion", "figma"]
+ProviderId = Literal["google", "microsoft", "notion", "figma"]
 
-CONNECTOR_IDS = ("calendar", "gmail", "notion", "figma")
+CONNECTOR_IDS = ("calendar", "gmail", "outlook", "notion", "figma")
 
 
 @dataclass(frozen=True)
@@ -38,6 +38,19 @@ CONNECTORS: dict[str, ConnectorDef] = {
             "https://www.googleapis.com/auth/userinfo.email",
         ),
     ),
+    "outlook": ConnectorDef(
+        id="outlook",
+        label="Outlook",
+        provider="microsoft",
+        scopes=(
+            "openid",
+            "profile",
+            "offline_access",
+            "User.Read",
+            "Mail.Read",
+            "Calendars.ReadWrite",
+        ),
+    ),
     "notion": ConnectorDef(
         id="notion",
         label="Notion",
@@ -65,9 +78,17 @@ def callback_url() -> str:
     return f"{oauth_redirect_base()}/api/connectors/oauth/callback"
 
 
+def microsoft_oauth_tenant() -> str:
+    return os.getenv("MICROSOFT_OAUTH_TENANT", "common").strip() or "common"
+
+
 def provider_configured(provider: ProviderId) -> bool:
     if provider == "google":
         return bool(os.getenv("GOOGLE_CLIENT_ID") and os.getenv("GOOGLE_CLIENT_SECRET"))
+    if provider == "microsoft":
+        return bool(
+            os.getenv("MICROSOFT_OAUTH_CLIENT_ID") and os.getenv("MICROSOFT_OAUTH_CLIENT_SECRET")
+        )
     if provider == "notion":
         return bool(os.getenv("NOTION_CLIENT_ID") and os.getenv("NOTION_CLIENT_SECRET"))
     if provider == "figma":
@@ -106,6 +127,20 @@ def notion_authorize_url(state: str) -> str:
     return f"https://api.notion.com/v1/oauth/authorize?{urlencode(params)}"
 
 
+def microsoft_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
+    tenant = microsoft_oauth_tenant()
+    params = {
+        "client_id": os.getenv("MICROSOFT_OAUTH_CLIENT_ID", ""),
+        "redirect_uri": callback_url(),
+        "response_type": "code",
+        "scope": " ".join(scopes),
+        "response_mode": "query",
+        "prompt": "consent",
+        "state": state,
+    }
+    return f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize?{urlencode(params)}"
+
+
 def figma_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
     params = {
         "client_id": os.getenv("FIGMA_CLIENT_ID", ""),
@@ -121,6 +156,8 @@ def build_authorize_url(connector_id: str, state: str) -> str:
     spec = CONNECTORS[connector_id]
     if spec.provider == "google":
         return google_authorize_url(state, spec.scopes)
+    if spec.provider == "microsoft":
+        return microsoft_authorize_url(state, spec.scopes)
     if spec.provider == "notion":
         return notion_authorize_url(state)
     if spec.provider == "figma":

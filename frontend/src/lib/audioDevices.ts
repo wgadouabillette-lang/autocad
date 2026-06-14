@@ -29,6 +29,17 @@ export async function ensureAudioDevicePermission(): Promise<void> {
   stream.getTracks().forEach((track) => track.stop());
 }
 
+/** True when the browser hides device names until mic permission is granted. */
+export async function audioDeviceLabelsHidden(): Promise<boolean> {
+  if (!navigator.mediaDevices?.enumerateDevices) return false;
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const audio = devices.filter(
+    (device) => device.kind === "audioinput" || device.kind === "audiooutput",
+  );
+  if (audio.length === 0) return false;
+  return audio.every((device) => !device.label?.trim());
+}
+
 export async function listAudioInputDevices(): Promise<MediaDeviceOption[]> {
   if (!navigator.mediaDevices?.enumerateDevices) return [DEFAULT_INPUT];
   const devices = await navigator.mediaDevices.enumerateDevices();

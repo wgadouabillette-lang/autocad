@@ -1,5 +1,11 @@
 import { closePanelsOnSide } from "./bottomPanelCoordination";
-import { finalizeNotifications } from "./notificationsPersistence";
+import { loadUserProfile } from "./firebase/userData";
+import {
+  finalizeNotifications,
+  loadPersistedNotifications,
+  persistNotifications,
+} from "./notificationsPersistence";
+import { useAuthStore } from "../store/useAuthStore";
 import {
   useNotificationsStore,
   type AppNotification,
@@ -42,7 +48,7 @@ function storageKey(email: string): string {
   return `${STORAGE_PREFIX}${email.trim().toLowerCase()}`;
 }
 
-export function hasSeenDashboardOnboarding(email: string): boolean {
+function hasSeenDashboardOnboardingLocally(email: string): boolean {
   try {
     return localStorage.getItem(storageKey(email)) === "1";
   } catch {
@@ -50,7 +56,7 @@ export function hasSeenDashboardOnboarding(email: string): boolean {
   }
 }
 
-function markDashboardOnboardingSeen(email: string): void {
+function markDashboardOnboardingSeenLocally(email: string): void {
   try {
     localStorage.setItem(storageKey(email), "1");
   } catch {
@@ -58,9 +64,63 @@ function markDashboardOnboardingSeen(email: string): void {
   }
 }
 
-export function runDashboardOnboardingIfNeeded(email: string): void {
+export function hasSeenDashboardOnboarding(email: string): boolean {
+  return hasSeenDashboardOnboardingLocally(email);
+}
+
+function purgeOnboardingNotifications(email: string): void {
+  const normalized = email.trim().toLowerCase();
+  const items = loadPersistedNotifications(normalized).filter((item) => item.kind !== "onboarding");
+  persistNotifications(normalized, items);
+
+  const store = useNotificationsStore.getState();
+  if (store.persistedEmail?.trim().toLowerCase() === normalized) {
+    const nextItems = store.items.filter((item) => item.kind !== "onboarding");
+    useNotificationsStore.setState({
+      items: nextItems,
+      currentIndex:
+        nextItems.length === 0 ? 0 : Math.min(store.currentIndex, nextItems.length - 1),
+      panelOpen: nextItems.length > 0 ? store.panelOpen : false,
+    });
+  }
+}
+
+async function markDashboardOnboardingCompletedForAccount(uid: string | null): Promise<void> {
+  if (!uid) return;
+  await useAuthStore.getState().markDashboardOnboardingCompleted();
+}
+
+export function applyDashboardOnboardingFromProfile(
+  email: string,
+  completed: boolean | undefined,
+): void {
   const trimmed = email.trim().toLowerCase();
-  if (!trimmed || hasSeenDashboardOnboarding(trimmed)) return;
+  if (!trimmed || !completed) return;
+  markDashboardOnboardingSeenLocally(trimmed);
+  purgeOnboardingNotifications(trimmed);
+}
+
+export async function runDashboardOnboardingIfNeeded(
+  email: string,
+  uid: string | null,
+): Promise<void> {
+  const trimmed = email.trim().toLowerCase();
+  if (!trimmed) return;
+
+  if (uid) {
+    const profile = await loadUserProfile(uid);
+    if (profile?.dashboardOnboardingCompleted) {
+      markDashboardOnboardingSeenLocally(trimmed);
+      purgeOnboardingNotifications(trimmed);
+      return;
+    }
+  }
+
+  if (hasSeenDashboardOnboardingLocally(trimmed)) {
+    await markDashboardOnboardingCompletedForAccount(uid);
+    purgeOnboardingNotifications(trimmed);
+    return;
+  }
 
   const items: AppNotification[] = ONBOARDING_TEMPLATES.map((item, index) => ({
     ...item,
@@ -71,12 +131,19 @@ export function runDashboardOnboardingIfNeeded(email: string): void {
 
   closePanelsOnSide("left", "notifications");
   const activeItems = finalizeNotifications(trimmed, items);
-  if (activeItems.length === 0) return;
+  if (activeItems.length === 0) {
+    markDashboardOnboardingSeenLocally(trimmed);
+    await markDashboardOnboardingCompletedForAccount(uid);
+    return;
+  }
+
   useNotificationsStore.setState({
     persistedEmail: trimmed,
     items: activeItems,
     currentIndex: 0,
     panelOpen: true,
   });
-  markDashboardOnboardingSeen(trimmed);
+
+  markDashboardOnboardingSeenLocally(trimmed);
+  await markDashboardOnboardingCompletedForAccount(uid);
 }

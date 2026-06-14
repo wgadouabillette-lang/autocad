@@ -50,7 +50,14 @@ function providerForId(id) {
   }
   if (id === "microsoft") {
     const provider = new OAuthProvider("microsoft.com");
-    provider.setCustomParameters({ prompt: "select_account" });
+    provider.setCustomParameters({
+      prompt: "select_account",
+      tenant: "common",
+    });
+    provider.addScope("email");
+    provider.addScope("profile");
+    provider.addScope("openid");
+    provider.addScope("User.Read");
     return provider;
   }
   return new OAuthProvider("apple.com");

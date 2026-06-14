@@ -3,8 +3,9 @@ import type { LlmKeySet, LlmProvider } from "./keys";
 const OPUS_47 = process.env.FORMA_OPUS_47_MODEL ?? "claude-opus-4-20250514";
 const OPUS_48 = process.env.FORMA_OPUS_48_MODEL ?? "claude-opus-4-20250514";
 const XAI_MODEL = process.env.XAI_MODEL ?? "grok-3-mini";
+const XAI_MINI_MODEL = process.env.XAI_MINI_MODEL ?? "grok-3-mini";
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-const OPENAI_AUTO_CHAT = process.env.OPENAI_AUTO_CHAT_MODEL ?? "gpt-4o-mini";
+const OPENAI_AUTO_CHAT = process.env.OPENAI_AUTO_CHAT_MODEL ?? "gpt-4.1-nano";
 
 const COMPLEX_RE =
   /analys|optimis|génér|convert|complex|ingénier|simul|calcul|contrainte|trou|perçag|pattern|réseau|miroir|symétri|plusieurs|paramétr/i;
@@ -16,6 +17,9 @@ function providerForModelId(modelId: string, keys: LlmKeySet): LlmProvider | nul
   }
   if (id.includes("gpt") || id.includes("openai")) {
     return keys.openai ? "openai" : null;
+  }
+  if (id.includes("grok")) {
+    return keys.xai ? "xai" : null;
   }
   return keys.xai ? "xai" : keys.openai ? "openai" : keys.anthropic ? "anthropic" : null;
 }
@@ -44,6 +48,15 @@ export function resolveChatModel(aiModel: string, prompt: string, keys: LlmKeySe
   if (key === "auto") return autoChatModel(keys);
   if (key === "grok" || key === "xai" || key === "grok-4.3" || key === "grok-best") {
     return keys.xai ? XAI_MODEL : autoModel(prompt, keys);
+  }
+  if (key === "grok-mini" || key === "grok-3-mini") {
+    return keys.xai ? XAI_MINI_MODEL : autoModel(prompt, keys);
+  }
+  if (key === "gpt-4.1-nano" || key === "gpt-4-1-nano") {
+    return keys.openai ? OPENAI_AUTO_CHAT : autoModel(prompt, keys);
+  }
+  if (key === "gpt-4o-mini") {
+    return keys.openai ? OPENAI_MODEL : autoModel(prompt, keys);
   }
   if (key === "claude-opus-4-7" || key === "opus-4.7" || key === "opus47") {
     return OPUS_47;

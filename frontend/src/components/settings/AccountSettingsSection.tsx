@@ -1,4 +1,3 @@
-import clsx from "clsx";
 import { useRef, useState } from "react";
 import UserAvatar from "../UserAvatar";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -13,10 +12,6 @@ export default function AccountSettingsSection() {
   const userEmail = useStore((s) => s.userEmail);
   const setUserEmail = useStore((s) => s.setUserEmail);
   const photoURL = useStore((s) => s.photoURL);
-  const sidePanelSide = useStore((s) => s.sidePanelSide);
-  const setSidePanelSide = useStore((s) => s.setSidePanelSide);
-  const gameModeEnabled = useStore((s) => s.gameModeEnabled);
-  const setGameModeEnabled = useStore((s) => s.setGameModeEnabled);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const uploadAndSyncProfilePhoto = useAuthStore((s) => s.uploadAndSyncProfilePhoto);
   const removeAndSyncProfilePhoto = useAuthStore((s) => s.removeAndSyncProfilePhoto);
@@ -153,54 +148,6 @@ export default function AccountSettingsSection() {
             Enregistrer
           </button>
         </form>
-      </section>
-
-      <section className="settings-section">
-        <h3 className="settings-section__label">Panneau latéral</h3>
-        <p className="settings-section__hint">
-          Position du panneau agent / calendrier dans l&apos;interface.
-        </p>
-        <div className="settings-section__stack">
-          {(
-            [
-              { id: "right", label: "À droite" },
-              { id: "left", label: "À gauche" },
-            ] as const
-          ).map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => setSidePanelSide(option.id)}
-              className={clsx(
-                "settings-option",
-                sidePanelSide === option.id && "settings-option--active",
-              )}
-            >
-              <span className="settings-option__title">{option.label}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="settings-section settings-section--game-mode">
-        <h3 className="settings-section__label">Game Mode</h3>
-        <p className="settings-section__hint">
-          Une option un peu secrète. Activez-la pour découvrir un extra dans l&apos;interface.
-        </p>
-        <label className="settings-toggle">
-          <input
-            type="checkbox"
-            checked={gameModeEnabled}
-            onChange={(e) => setGameModeEnabled(e.target.checked)}
-            className="settings-toggle__input"
-          />
-          <span className="settings-toggle__text">
-            <span className="settings-toggle__title">Game Mode</span>
-            <span className="settings-toggle__desc">
-              Ajoute une roulette au bas de l&apos;écran. Cliquez dessus pour la lancer.
-            </span>
-          </span>
-        </label>
       </section>
 
       <SettingsComingSoon detail="Thème et personnalisation visuelle." />

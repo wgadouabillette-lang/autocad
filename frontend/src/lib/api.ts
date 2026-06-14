@@ -45,34 +45,29 @@ async function chatViaCloudOrBackend(
   aiModel: string,
   messages: { role: string; content: string }[],
   signal?: AbortSignal,
+  chatInstructions?: string,
 ): Promise<ChatResponse> {
   const token = await getAuthIdToken();
+  const payload = {
+    prompt,
+    ai_model: aiModel,
+    messages,
+    ...(chatInstructions?.trim() ? { chat_instructions: chatInstructions.trim() } : {}),
+  };
   if (token) {
     try {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-      return await callAiChat({
-        prompt,
-        ai_model: aiModel,
-        messages,
-      });
+      return await callAiChat(payload);
     } catch (err) {
       if (signal?.aborted) throw err;
       // Local desktop dev: fallback to FastAPI when Cloud Functions are unavailable.
       if (import.meta.env.DEV) {
-        return jsonPost<ChatResponse>(
-          "/chat",
-          { prompt, ai_model: aiModel, messages },
-          signal,
-        );
+        return jsonPost<ChatResponse>("/chat", payload, signal);
       }
       throw err;
     }
   }
-  return jsonPost<ChatResponse>(
-    "/chat",
-    { prompt, ai_model: aiModel, messages },
-    signal,
-  );
+  return jsonPost<ChatResponse>("/chat", payload, signal);
 }
 
 export interface UserLookupResponse {
@@ -138,8 +133,9 @@ export const api = {
     aiModel: string,
     messages: { role: string; content: string }[],
     signal?: AbortSignal,
+    chatInstructions?: string,
   ) {
-    return chatViaCloudOrBackend(prompt, aiModel, messages, signal);
+    return chatViaCloudOrBackend(prompt, aiModel, messages, signal, chatInstructions);
   },
 
   analyze(document: CadDocument, material: string, load_n: number, min_wall_mm: number) {
