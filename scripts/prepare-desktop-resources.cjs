@@ -16,7 +16,11 @@ const backendOut = path.join(out, "backend");
 const frontendOut = path.join(out, "frontend-dist");
 
 function run(cmd, args, opts = {}) {
-  const r = spawnSync(cmd, args, { stdio: "inherit", ...opts });
+  const r = spawnSync(cmd, args, {
+    stdio: "inherit",
+    shell: process.platform === "win32",
+    ...opts,
+  });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 
@@ -196,7 +200,7 @@ function ensureDarwinPythonRuntime(venvDir) {
     }
   }
 
-  console.warn("⚠ Runtime Python3 introuvable — le venv portable peut être invalide.");
+  console.warn("Warning: Python3 runtime not found — portable venv may be invalid.");
 }
 
 ensureDarwinPythonRuntime(venvOut);
@@ -207,4 +211,4 @@ run(python, ["-c", "import uvicorn; from app.main import app"], {
   env: { ...process.env, PYTHONPATH: backendOut },
 });
 
-console.log("✓ Ressources prêtes dans desktop/build-resources/");
+console.log("Desktop resources ready in desktop/build-resources/");
