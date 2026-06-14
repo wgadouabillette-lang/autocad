@@ -1,7 +1,9 @@
 # Installers (hébergés sur Firebase Storage)
+**/*.dmg
+**/*.exe
+landing/dist/
 landing/downloads/
-landing/public/downloads/*.dmg
-landing/public/downloads/*.exe
+landing/public/downloads/
 desktop/release/
 desktop/.electron-cache/
 desktop/.npm-cache/
