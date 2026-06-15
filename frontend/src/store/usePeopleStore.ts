@@ -21,6 +21,7 @@ import {
   partnerUidFromChatId,
   sendFriendChatMessage,
   watchInboxFriendMessages,
+  watchFriendChatMessages,
   type CloudFriendMessage,
 } from "../lib/firebase/friendChats";
 import type { Unsubscribe } from "firebase/firestore";
@@ -37,6 +38,45 @@ function isCloudCapableFriend(personId: string): boolean {
   if (!personId) return false;
   if (personId.startsWith("email:")) return false;
   return true;
+}
+
+function collectCloudChatPartners(state: PeopleState, uid: string): Person[] {
+  const byId = new Map<string, Person>();
+
+  for (const friend of state.friends) {
+    if (friend.id !== uid && isCloudCapableFriend(friend.id)) {
+      byId.set(friend.id, friend);
+    }
+  }
+
+  for (const threads of Object.values(state.colleagueThreadsByWorkspace)) {
+    for (const thread of threads) {
+      if (
+        thread.personId !== uid &&
+        isCloudCapableFriend(thread.personId) &&
+        !byId.has(thread.personId)
+      ) {
+        byId.set(thread.personId, {
+          id: thread.personId,
+          name: thread.personName,
+          handle: thread.personId,
+        });
+      }
+    }
+  }
+
+  for (const members of Object.values(useWorkspacePresenceStore.getState().membersByWorkspace)) {
+    for (const [memberUid, entry] of Object.entries(members)) {
+      if (memberUid === uid || !isCloudCapableFriend(memberUid) || byId.has(memberUid)) continue;
+      byId.set(memberUid, {
+        id: memberUid,
+        name: entry.displayName.trim() || "Membre",
+        handle: memberUid,
+      });
+    }
+  }
+
+  return [...byId.values()];
 }
 
 function ensureColleagueThreadsForPartner(
@@ -79,8 +119,11 @@ function ensureColleagueThreadsForPartner(
 
 const inboxState = {
   unsub: null as Unsubscribe | null,
+  partnerUnsubs: new Map<string, Unsubscribe>(),
   uid: null as string | null,
   initialized: false,
+  mode: null as "inbox" | "partners" | null,
+  errorNotified: false,
 };
 const seenMessageIdsByFriend = new Map<string, Set<string>>();
 const pendingCloudMessages = new Map<
@@ -454,6 +497,79 @@ function syncInboxChat(
       isViewingThread,
     );
   });
+}
+
+function clearPartnerSubscriptions() {
+  for (const unsub of inboxState.partnerUnsubs.values()) unsub();
+  inboxState.partnerUnsubs.clear();
+}
+
+type PeopleStoreApi = {
+  set: (fn: (state: PeopleState) => Partial<PeopleState>) => void;
+  get: () => PeopleState;
+};
+
+function startPartnerSubscriptions({ set, get }: PeopleStoreApi, uid: string) {
+  const cloudPartners = collectCloudChatPartners(get(), uid);
+  const activeIds = new Set(cloudPartners.map((partner) => partner.id));
+
+  for (const [key, unsub] of inboxState.partnerUnsubs.entries()) {
+    if (!activeIds.has(key)) {
+      unsub();
+      inboxState.partnerUnsubs.delete(key);
+    }
+  }
+
+  for (const partner of cloudPartners) {
+    if (inboxState.partnerUnsubs.has(partner.id)) continue;
+    const chatId = friendChatId(uid, partner.id);
+    void ensureFriendChat(uid, partner.id).catch(() => {});
+    const unsub = watchFriendChatMessages(
+      chatId,
+      (cloudMessages) => {
+        syncInboxChat(set, get, uid, chatId, cloudMessages, inboxState.initialized);
+      },
+      (error) => {
+        console.error(`Friend chat ${chatId} unavailable`, error);
+      },
+    );
+    inboxState.partnerUnsubs.set(partner.id, unsub);
+  }
+}
+
+function startInboxSubscription(store: PeopleStoreApi, uid: string) {
+  inboxState.unsub?.();
+  inboxState.unsub = watchInboxFriendMessages(
+    uid,
+    (messagesByChatId) => {
+      inboxState.mode = "inbox";
+      clearPartnerSubscriptions();
+      const notifyIncoming = inboxState.initialized;
+      inboxState.initialized = true;
+      for (const [chatId, cloudMessages] of Object.entries(messagesByChatId)) {
+        syncInboxChat(store.set, store.get, uid, chatId, cloudMessages, notifyIncoming);
+      }
+    },
+    (error) => {
+      console.error("Friend chat inbox unavailable, falling back to per-partner listen", error);
+      inboxState.unsub?.();
+      inboxState.unsub = null;
+      if (inboxState.mode !== "partners") {
+        inboxState.mode = "partners";
+        startPartnerSubscriptions(store, uid);
+        inboxState.initialized = true;
+        return;
+      }
+      if (!inboxState.errorNotified) {
+        inboxState.errorNotified = true;
+        useNotificationsStore.getState().push({
+          kind: "message",
+          title: "Messages indisponibles",
+          body: error.message,
+        });
+      }
+    },
+  );
 }
 
 function syncFriendRequestNotifications(requests: FriendRequest[]) {
@@ -862,37 +978,34 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     if (!uid) {
       inboxState.unsub?.();
       inboxState.unsub = null;
+      clearPartnerSubscriptions();
       inboxState.uid = null;
       inboxState.initialized = false;
+      inboxState.mode = null;
+      inboxState.errorNotified = false;
       seenMessageIdsByFriend.clear();
       pendingCloudMessages.clear();
       return;
     }
 
-    if (inboxState.uid === uid && inboxState.unsub) return;
+    if (inboxState.uid === uid && inboxState.mode === "partners") {
+      startPartnerSubscriptions({ set, get }, uid);
+      return;
+    }
+
+    if (inboxState.uid === uid && inboxState.mode === "inbox" && inboxState.unsub) {
+      return;
+    }
 
     inboxState.unsub?.();
+    clearPartnerSubscriptions();
     inboxState.uid = uid;
     inboxState.initialized = false;
+    inboxState.mode = null;
+    inboxState.errorNotified = false;
     seenMessageIdsByFriend.clear();
 
-    inboxState.unsub = watchInboxFriendMessages(
-      uid,
-      (messagesByChatId) => {
-        const notifyIncoming = inboxState.initialized;
-        inboxState.initialized = true;
-        for (const [chatId, cloudMessages] of Object.entries(messagesByChatId)) {
-          syncInboxChat(set, get, uid, chatId, cloudMessages, notifyIncoming);
-        }
-      },
-      (error) => {
-        useNotificationsStore.getState().push({
-          kind: "message",
-          title: "Messages indisponibles",
-          body: error.message,
-        });
-      },
-    );
+    startInboxSubscription({ set, get }, uid);
   },
 
   openMessageFromNotification: (personId, personName) => {

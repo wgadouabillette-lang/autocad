@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { debugLog } from "../lib/debugLog";
 
 type AppErrorBoundaryProps = {
   children: ReactNode;
@@ -20,26 +21,15 @@ export default class AppErrorBoundary extends Component<
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("Forma render error", error, info.componentStack);
-    // #region agent log
-    fetch("http://127.0.0.1:7941/ingest/bf77dbb7-04a4-446f-817c-db0d19c43744", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "2a4736",
+    debugLog(
+      "AppErrorBoundary.tsx:componentDidCatch",
+      "React error caught",
+      {
+        errorMessage: error.message,
+        componentStack: info.componentStack?.slice(0, 500) ?? null,
       },
-      body: JSON.stringify({
-        sessionId: "2a4736",
-        location: "AppErrorBoundary.tsx:componentDidCatch",
-        message: "React error caught",
-        data: {
-          errorMessage: error.message,
-          componentStack: info.componentStack?.slice(0, 500) ?? null,
-        },
-        hypothesisId: "ALL",
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
+      "ALL",
+    );
   }
 
   render() {
