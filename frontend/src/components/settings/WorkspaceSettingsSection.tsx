@@ -5,6 +5,7 @@ import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import SettingsComingSoon from "./SettingsComingSoon";
+import WorkspaceInviteIdBlock from "../workspace/WorkspaceInviteIdBlock";
 
 export default function WorkspaceSettingsSection() {
   const activeRoomId = useStore((s) => s.activeRoomId);
@@ -41,6 +42,15 @@ export default function WorkspaceSettingsSection() {
 
   return (
     <>
+      <section className="settings-section settings-section--card">
+        <h3 className="settings-section__label">Identifiant du workspace</h3>
+        <WorkspaceInviteIdBlock
+          workspaceId={activeRoomId}
+          workspaceName={workspace?.name}
+          variant="settings"
+        />
+      </section>
+
       <section className="settings-section">
         <h3 className="settings-section__label">Nom du workspace</h3>
         <p className="settings-section__hint">

@@ -9,6 +9,7 @@ import {
   type ServerRole,
   type Workspace,
 } from "../lib/workspaces";
+import { generateWorkspaceInviteId } from "../lib/workspaceInvite";
 import {
   fetchSharedWorkspace,
   publishSharedWorkspace,
@@ -16,6 +17,7 @@ import {
   respondWorkspaceJoinRequest,
   type WorkspaceJoinRequestDoc,
 } from "../lib/firebase/workspaceRegistry";
+import { parseWorkspaceInviteInput } from "../lib/workspaceInvite";
 import { useCallsStore } from "./useCallsStore";
 import { useStore } from "./useStore";
 
@@ -30,7 +32,10 @@ interface WorkspacesState extends PersistedState {
   hydrated: boolean;
   pendingJoinRequests: string[];
   incomingJoinRequests: WorkspaceJoinRequestDoc[];
+  pendingInviteWorkspaceId: string | null;
   hydrate: () => void;
+  setPendingInviteWorkspaceId: (workspaceId: string | null) => void;
+  consumePendingInviteWorkspaceId: () => string | null;
   addPendingJoinRequest: (workspaceId: string) => void;
   removePendingJoinRequest: (workspaceId: string) => void;
   findWorkspace: (id: string) => Workspace | undefined;
@@ -58,16 +63,6 @@ interface WorkspacesState extends PersistedState {
   leaveWorkspace: (workspaceId: string, userId?: string) => void;
   resetLocalMemberships: () => void;
   stripLegacyPublicWorkspaces: () => void;
-}
-
-function slugify(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 function readPersisted(): PersistedState {
@@ -148,6 +143,17 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   hydrated: false,
   pendingJoinRequests: [],
   incomingJoinRequests: [],
+  pendingInviteWorkspaceId: null,
+
+  setPendingInviteWorkspaceId: (workspaceId) => {
+    set({ pendingInviteWorkspaceId: workspaceId?.trim().toLowerCase() || null });
+  },
+
+  consumePendingInviteWorkspaceId: () => {
+    const value = get().pendingInviteWorkspaceId;
+    if (value) set({ pendingInviteWorkspaceId: null });
+    return value;
+  },
 
   hydrate: () => {
     if (get().hydrated) return;
@@ -216,13 +222,10 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
 
   createWorkspace: (name, ownerName, userId = LOCAL_USER_ID) => {
     const trimmed = name.trim();
-    const base = slugify(trimmed) || `server-${Date.now()}`;
     const existing = new Set(get().customServers.map((server) => server.id));
-    let id = base;
-    let suffix = 2;
+    let id = generateWorkspaceInviteId();
     while (existing.has(id)) {
-      id = `${base}-${suffix}`;
-      suffix += 1;
+      id = generateWorkspaceInviteId();
     }
 
     const server: Workspace = {
@@ -311,7 +314,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   },
 
   requestJoinWorkspace: async (workspaceId, profile) => {
-    const normalized = normalizeWorkspaceId(workspaceId.trim());
+    const normalized = parseWorkspaceInviteInput(workspaceId);
     if (!normalized) {
       throw new Error("Indiquez l'identifiant du workspace.");
     }

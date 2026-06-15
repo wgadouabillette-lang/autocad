@@ -72,7 +72,7 @@ export async function publishSharedWorkspace(workspace: Workspace): Promise<void
 }
 
 export async function fetchSharedWorkspace(workspaceId: string): Promise<Workspace | null> {
-  const trimmed = workspaceId.trim();
+  const trimmed = workspaceId.trim().toLowerCase();
   if (!trimmed) return null;
   const snap = await getDoc(sharedWorkspaceRef(trimmed));
   if (!snap.exists()) return null;
@@ -83,7 +83,7 @@ export async function requestWorkspaceJoin(
   workspaceId: string,
   profile: { uid: string; displayName: string; email: string },
 ): Promise<void> {
-  const trimmed = workspaceId.trim();
+  const trimmed = workspaceId.trim().toLowerCase();
   if (!trimmed || !profile.uid) {
     throw new Error("Workspace invalide.");
   }

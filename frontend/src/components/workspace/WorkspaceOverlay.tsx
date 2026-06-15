@@ -265,7 +265,7 @@ export default function WorkspaceOverlay() {
                 <input
                   type="text"
                   className="workspace-overlay__create-input"
-                  placeholder="Identifiant du workspace…"
+                  placeholder="ws-k7m2p9xq"
                   value={joinId}
                   disabled={joinBusy}
                   onChange={(e) => {

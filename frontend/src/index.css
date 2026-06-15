@@ -1035,6 +1035,21 @@ body {
   .settings-workspaces-list__action--accept {
     @apply text-emerald-300;
   }
+  .settings-workspace-invite {
+    @apply mt-2;
+  }
+  .settings-workspace-invite__row {
+    @apply mt-2 flex items-center gap-2;
+  }
+  .settings-workspace-invite__input {
+    @apply min-w-0 flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 font-mono text-sm text-muted-100;
+  }
+  .settings-workspace-invite__copy {
+    @apply inline-flex shrink-0 items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-[11px] font-medium text-muted-200 transition-colors hover:bg-ink-800;
+  }
+  .settings-workspace-invite__copy--done {
+    @apply text-emerald-300;
+  }
   .settings-agent-field {
     @apply mt-4 first:mt-3;
   }

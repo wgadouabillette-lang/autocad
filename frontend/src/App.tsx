@@ -196,6 +196,22 @@ export default function App() {
   }, [bootStatus, isAuthenticated, authEmail, firebaseUid]);
 
   useEffect(() => {
+    if (bootStatus !== "ready" || !isAuthenticated) return;
+    const params = new URLSearchParams(window.location.search);
+    const workspaceInvite = params.get("workspace")?.trim().toLowerCase();
+    if (!workspaceInvite) return;
+
+    useWorkspacesStore.getState().setPendingInviteWorkspaceId(workspaceInvite);
+    useStore.getState().openSettingsPage();
+    useStore.getState().openSettingsTab("workspaces");
+
+    params.delete("workspace");
+    const next = params.toString();
+    const url = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;
+    window.history.replaceState(null, "", url);
+  }, [bootStatus, isAuthenticated]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const oauth = params.get("connector_oauth");
     if (!oauth) return;

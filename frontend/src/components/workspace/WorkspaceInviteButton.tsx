@@ -1,28 +1,23 @@
 import clsx from "clsx";
-import { ArrowUpRight, Check, Copy, Link2, UserPlus } from "lucide-react";
+import { ArrowUpRight, Check, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { avatarColor, userInitials } from "../../lib/calls";
+import { buildWorkspaceJoinUrl } from "../../lib/workspaceInvite";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
+import WorkspaceInviteIdBlock from "./WorkspaceInviteIdBlock";
 
 const MENU_WIDTH = 320;
-const INVITE_BASE_URL = "https://lyte.app/join";
 
 interface MenuPosition {
   top: number;
   left: number;
 }
 
-function buildInviteLink(workspaceId: string): string {
-  const url = new URL(INVITE_BASE_URL);
-  url.searchParams.set("workspace", workspaceId);
-  return url.toString();
-}
-
 function buildFriendInviteMessage(workspaceName: string, workspaceId: string, link: string): string {
-  return `Rejoins-moi sur « ${workspaceName} » (id: ${workspaceId}) : ${link}`;
+  return `Rejoins-moi sur « ${workspaceName} ».\nIdentifiant : ${workspaceId}\n${link}`;
 }
 
 export default function WorkspaceInviteButton() {
@@ -32,15 +27,12 @@ export default function WorkspaceInviteButton() {
   const sendMessage = usePeopleStore((s) => s.sendMessage);
 
   const workspace = findWorkspace(activeRoomId);
+  const workspaceId = workspace?.id ?? activeRoomId;
   const workspaceName = workspace?.name ?? "ce serveur";
-  const inviteLink = useMemo(
-    () => buildInviteLink(workspace?.id ?? activeRoomId),
-    [workspace?.id, activeRoomId],
-  );
+  const inviteLink = useMemo(() => buildWorkspaceJoinUrl(workspaceId), [workspaceId]);
 
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -86,31 +78,19 @@ export default function WorkspaceInviteButton() {
   useEffect(() => {
     if (open) return;
     setInvitedIds(new Set());
-    setLinkCopied(false);
   }, [open]);
-
-  const handleCopyLink = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setLinkCopied(true);
-      window.setTimeout(() => setLinkCopied(false), 2000);
-    } catch {
-      // fallback : sélection manuelle
-      setLinkCopied(false);
-    }
-  }, [inviteLink]);
 
   const handleInviteFriend = useCallback(
     (friendId: string) => {
       const threadId = `friend-${friendId}`;
-      sendMessage(threadId, buildFriendInviteMessage(workspaceName, workspace?.id ?? activeRoomId, inviteLink));
+      sendMessage(threadId, buildFriendInviteMessage(workspaceName, workspaceId, inviteLink));
       setInvitedIds((prev) => {
         const next = new Set(prev);
         next.add(friendId);
         return next;
       });
     },
-    [sendMessage, workspaceName, inviteLink],
+    [sendMessage, workspaceName, workspaceId, inviteLink],
   );
 
   const menu =
@@ -130,16 +110,27 @@ export default function WorkspaceInviteButton() {
               aria-label={`Inviter dans ${workspaceName}`}
             >
               <header className="workspace-invite__header">
-                <p className="workspace-invite__eyebrow">Inviter dans</p>
+                <p className="workspace-invite__eyebrow">Inviter des collègues</p>
                 <p className="workspace-invite__title" title={workspaceName}>
                   {workspaceName}
                 </p>
               </header>
 
               <section className="workspace-invite__section">
+                <WorkspaceInviteIdBlock
+                  workspaceId={workspaceId}
+                  variant="menu"
+                  showLink
+                />
+                <p className="workspace-invite__empty mt-2">
+                  Vos collègues saisissent l&apos;identifiant dans Paramètres → Workspaces.
+                </p>
+              </section>
+
+              <section className="workspace-invite__section">
                 {sortedFriends.length === 0 ? (
                   <p className="workspace-invite__empty">
-                    Ajoutez des amis depuis les paramètres pour les inviter directement.
+                    Ajoutez des amis depuis les paramètres pour leur envoyer l&apos;invitation.
                   </p>
                 ) : (
                   <ul className="workspace-invite__friends">
@@ -184,61 +175,6 @@ export default function WorkspaceInviteButton() {
                   </ul>
                 )}
               </section>
-
-              <section className="workspace-invite__section">
-                <div className="workspace-invite__section-head">
-                  <Link2 size={12} strokeWidth={2.25} aria-hidden />
-                  <span>Identifiant du workspace</span>
-                </div>
-                <div className="workspace-invite__link-row">
-                  <input
-                    type="text"
-                    className="workspace-invite__link-input"
-                    value={workspace?.id ?? activeRoomId}
-                    readOnly
-                    onFocus={(event) => event.currentTarget.select()}
-                    aria-label="Identifiant du workspace"
-                  />
-                </div>
-              </section>
-
-              <section className="workspace-invite__section">
-                <div className="workspace-invite__section-head">
-                  <Link2 size={12} strokeWidth={2.25} aria-hidden />
-                  <span>Lien d'invitation</span>
-                </div>
-                <div className="workspace-invite__link-row">
-                  <input
-                    type="text"
-                    className="workspace-invite__link-input"
-                    value={inviteLink}
-                    readOnly
-                    onFocus={(event) => event.currentTarget.select()}
-                    aria-label="Lien d'invitation"
-                  />
-                  <button
-                    type="button"
-                    className={clsx(
-                      "workspace-invite__friend-action",
-                      linkCopied && "workspace-invite__friend-action--done",
-                    )}
-                    onClick={handleCopyLink}
-                    aria-label={linkCopied ? "Lien copié" : "Copier le lien"}
-                  >
-                    {linkCopied ? (
-                      <>
-                        Copié
-                        <Check size={11} strokeWidth={2.5} className="shrink-0 opacity-80" aria-hidden />
-                      </>
-                    ) : (
-                      <>
-                        Copier
-                        <Copy size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
-                      </>
-                    )}
-                  </button>
-                </div>
-              </section>
             </div>
           </>,
           document.body,
@@ -256,7 +192,7 @@ export default function WorkspaceInviteButton() {
           open && "is-active",
         )}
         onClick={() => setOpen((value) => !value)}
-        title={`Inviter dans ${workspaceName}`}
+        title={`Inviter dans ${workspaceName} (${workspaceId})`}
         aria-label={`Inviter dans ${workspaceName}`}
         aria-expanded={open}
       >

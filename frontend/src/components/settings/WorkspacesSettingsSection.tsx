@@ -16,6 +16,7 @@ import {
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
+import WorkspaceInviteIdBlock from "../workspace/WorkspaceInviteIdBlock";
 
 interface IncomingRequestRow {
   workspaceId: string;
@@ -56,6 +57,7 @@ function WorkspacePickerRow({
           <span className="settings-workspaces-list__name">{workspace.name}</span>
           <span className="settings-workspaces-list__meta">
             {serverRoleLabel(role)}
+            {role === "owner" ? ` · ID ${workspace.id}` : ""}
             {active ? " · Actif" : ""}
           </span>
         </span>
@@ -81,6 +83,8 @@ export default function WorkspacesSettingsSection() {
   const respondJoinRequest = useWorkspacesStore((s) => s.respondJoinRequest);
   const pendingJoinRequests = useWorkspacesStore((s) => s.pendingJoinRequests);
 
+  const pendingInviteWorkspaceId = useWorkspacesStore((s) => s.pendingInviteWorkspaceId);
+
   const ownerUserId = firebaseUid ?? LOCAL_USER_ID;
 
   const joined = useMemo(
@@ -93,6 +97,8 @@ export default function WorkspacesSettingsSection() {
     [joined, roleIn, ownerUserId],
   );
 
+  const activeOwnedWorkspace = owned.find((workspace) => workspace.id === activeRoomId);
+
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequestRow[]>([]);
   const [pendingLabels, setPendingLabels] = useState<Record<string, string>>({});
   const [joinId, setJoinId] = useState("");
@@ -100,6 +106,12 @@ export default function WorkspacesSettingsSection() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinSent, setJoinSent] = useState(false);
   const [respondBusyKey, setRespondBusyKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pendingInviteWorkspaceId) return;
+    setJoinId(pendingInviteWorkspaceId);
+    useWorkspacesStore.getState().setPendingInviteWorkspaceId(null);
+  }, [pendingInviteWorkspaceId]);
 
   useEffect(() => {
     if (!firebaseUid || owned.length === 0) {
@@ -201,6 +213,17 @@ export default function WorkspacesSettingsSection() {
 
   return (
     <div className="settings-workspaces">
+      {activeOwnedWorkspace ? (
+        <section className="settings-section settings-section--card">
+          <h3 className="settings-section__label">Partager ce workspace</h3>
+          <WorkspaceInviteIdBlock
+            workspaceId={activeOwnedWorkspace.id}
+            workspaceName={activeOwnedWorkspace.name}
+            variant="settings"
+          />
+        </section>
+      ) : null}
+
       {incomingRequests.length > 0 && (
         <section className="settings-section settings-section--card">
           <h3 className="settings-section__label">Invitations reçues</h3>
@@ -298,13 +321,13 @@ export default function WorkspacesSettingsSection() {
       <section className="settings-section settings-section--card">
         <h3 className="settings-section__label">Rejoindre un workspace</h3>
         <p className="settings-section__hint">
-          Saisissez l&apos;identifiant partagé par le propriétaire.
+          Collez l&apos;identifiant (ex. ws-k7m2p9xq) ou le lien reçu d&apos;un collègue.
         </p>
         <form onSubmit={(event) => void onRequestJoin(event)} className="settings-section__inline-form mt-3">
           <input
             type="text"
             className="input min-w-0 flex-1"
-            placeholder="Identifiant du workspace…"
+            placeholder="ws-k7m2p9xq"
             value={joinId}
             disabled={joinBusy}
             onChange={(event) => {
