@@ -69,6 +69,30 @@ service cloud.firestore {
         && request.resource.data.toUid == request.auth.uid;
     }
 
+    function isFriendChatMember(chatId) {
+      let chat = get(/databases/$(database)/documents/friendChats/$(chatId));
+      return chat.data.participants is list
+        && request.auth.uid in chat.data.participants;
+    }
+
+    function canReadFriendChatMessage(chatId) {
+      return isSignedIn()
+        && (
+          ('participants' in resource.data
+            && resource.data.participants is list
+            && request.auth.uid in resource.data.participants)
+          || isFriendChatMember(chatId)
+        );
+    }
+
+    function isFriendChatMessagesPath(path) {
+      return path.matches('friendChats/[^/]+');
+    }
+
+    function friendChatIdFromMessagesPath(path) {
+      return path.split('/')[1];
+    }
+
     function isValidSharedWorkspaceCreate(workspaceId) {
       let data = request.resource.data;
       return data.keys().hasAll(['id', 'name', 'accent', 'ownerId', 'ownerName', 'createdAt'])
@@ -289,9 +313,8 @@ service cloud.firestore {
     }
 
     match /{path=**}/messages/{messageId} {
-      allow read: if isSignedIn()
-        && resource.data.participants is list
-        && request.auth.uid in resource.data.participants;
+      allow read: if isFriendChatMessagesPath(path)
+        && canReadFriendChatMessage(friendChatIdFromMessagesPath(path));
       allow create, update, delete: if false;
     }
 
@@ -309,10 +332,9 @@ service cloud.firestore {
       allow delete: if false;
 
       match /messages/{messageId} {
-        allow read: if isSignedIn()
-          && resource.data.participants is list
-          && request.auth.uid in resource.data.participants;
+        allow read: if canReadFriendChatMessage(chatId);
         allow create: if isSignedIn()
+          && isFriendChatMember(chatId)
           && request.resource.data.authorUid == request.auth.uid
           && request.resource.data.participants is list
           && request.resource.data.participants.size() == 2

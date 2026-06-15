@@ -523,17 +523,22 @@ function startPartnerSubscriptions({ set, get }: PeopleStoreApi, uid: string) {
   for (const partner of cloudPartners) {
     if (inboxState.partnerUnsubs.has(partner.id)) continue;
     const chatId = friendChatId(uid, partner.id);
-    void ensureFriendChat(uid, partner.id).catch(() => {});
-    const unsub = watchFriendChatMessages(
-      chatId,
-      (cloudMessages) => {
-        syncInboxChat(set, get, uid, chatId, cloudMessages, inboxState.initialized);
-      },
-      (error) => {
-        console.error(`Friend chat ${chatId} unavailable`, error);
-      },
-    );
-    inboxState.partnerUnsubs.set(partner.id, unsub);
+    void ensureFriendChat(uid, partner.id)
+      .catch(() => {})
+      .finally(() => {
+        if (inboxState.mode !== "partners" || inboxState.uid !== uid) return;
+        if (inboxState.partnerUnsubs.has(partner.id)) return;
+        const unsub = watchFriendChatMessages(
+          chatId,
+          (cloudMessages) => {
+            syncInboxChat(set, get, uid, chatId, cloudMessages, inboxState.initialized);
+          },
+          (error) => {
+            console.error(`Friend chat ${chatId} unavailable`, error);
+          },
+        );
+        inboxState.partnerUnsubs.set(partner.id, unsub);
+      });
   }
 }
 
