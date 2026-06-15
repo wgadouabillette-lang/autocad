@@ -1129,19 +1129,17 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const localBlock = findLocalSoloBlock(state.blocks) ?? findLocalBlock(state.blocks);
     if (!localBlock) return;
 
-    const toBlock = state.blocks.find((block) => block.id === toBlockId);
-    const toUid = participantUidFromBlock(toBlock ?? { participants: [] });
-    const remoteInPrivateCall =
-      !!toUid && useWorkspacePresenceStore.getState().isInPrivateCall(roomId, toUid);
-
     if (
       !canRequestJoin(state.blocks, state.requests, localBlock.id, toBlockId, {
-        remoteInPrivateCall,
         localInCall: get().isLocalInCall(roomId),
+        localInOpenChannel: !!get().localOpenChannelByRoom[roomId],
       })
     ) {
       return;
     }
+
+    const toBlock = state.blocks.find((block) => block.id === toBlockId);
+    const toUid = participantUidFromBlock(toBlock ?? { participants: [] });
 
     if (!toBlock) return;
     const firebaseUid = useAuthStore.getState().firebaseUid;
