@@ -16,7 +16,7 @@ export default function ChatPanelModeTabs() {
   );
   const unreadPeopleMessages = usePeopleStore((s) => s.peopleMessagesUnreadCount());
   const hasUnreadPeopleMessages = unreadPeopleMessages > 0;
-  const tabs = chatPanelModeTabs(subscriptionPlan, inTheaterView, hasUnreadPeopleMessages);
+  const tabs = chatPanelModeTabs(subscriptionPlan, inTheaterView);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [fadeRight, setFadeRight] = useState(false);
 
@@ -65,7 +65,11 @@ export default function ChatPanelModeTabs() {
                   key={tab.id}
                   type="button"
                   role="tab"
-                  className={clsx("chat-panel-mode-tabs__btn", active && "is-active")}
+                  className={clsx(
+                    "chat-panel-mode-tabs__btn",
+                    active && "is-active",
+                    showUnreadDot && "chat-panel-mode-tabs__btn--with-dot",
+                  )}
                   onClick={() => selectTab(tab.id)}
                   aria-selected={active}
                   aria-pressed={active}
@@ -77,9 +81,9 @@ export default function ChatPanelModeTabs() {
                 >
                   <span className="chat-panel-mode-tabs__icon-wrap">
                     <Icon size={11} aria-hidden />
-                    {showUnreadDot && <span className="forma-unread-dot" aria-hidden />}
                   </span>
                   <span>{tab.label}</span>
+                  {showUnreadDot && <span className="forma-unread-dot" aria-hidden />}
                 </button>
               );
             })}

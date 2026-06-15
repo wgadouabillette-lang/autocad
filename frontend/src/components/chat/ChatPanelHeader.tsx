@@ -2,7 +2,6 @@ import clsx from "clsx";
 import { Calendar, History, Maximize2, Minimize2, Plus, Users } from "lucide-react";
 import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { isVoiceAssistPanelMode } from "../../lib/voiceAssistPanel";
-import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
 
 export default function ChatPanelHeader() {
@@ -14,8 +13,6 @@ export default function ChatPanelHeader() {
   const toggleFriendsChatMode = useStore((s) => s.toggleFriendsChatMode);
   const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
   const toggleChatPanelExpanded = useStore((s) => s.toggleChatPanelExpanded);
-  const unreadPeopleMessages = usePeopleStore((s) => s.peopleMessagesUnreadCount());
-  const hasUnreadPeopleMessages = unreadPeopleMessages > 0;
   const friendsMode = chatPanelMode === "friends";
   const theaterMode = chatPanelMode === "theater";
   const calendarMode = chatPanelMode === "calendar";
@@ -71,31 +68,13 @@ export default function ChatPanelHeader() {
       <div className="flex items-center gap-0.5 justify-self-end">
         <button
           type="button"
-          className={clsx(
-            "toolbar-btn toolbar-btn--with-dot",
-            friendsMode && "is-active",
-          )}
+          className={clsx("toolbar-btn", friendsMode && "is-active")}
           onClick={() => toggleFriendsChatMode()}
-          title={
-            friendsMode
-              ? "Retour à l'agent"
-              : hasUnreadPeopleMessages
-                ? `Messages (${unreadPeopleMessages} non lu${unreadPeopleMessages > 1 ? "s" : ""})`
-                : "Messages amis et collègues"
-          }
-          aria-label={
-            friendsMode
-              ? "Retour à l'agent"
-              : hasUnreadPeopleMessages
-                ? `Messages, ${unreadPeopleMessages} non lu${unreadPeopleMessages > 1 ? "s" : ""}`
-                : "Messages amis et collègues"
-          }
+          title={friendsMode ? "Retour à l'agent" : "Messages amis et collègues"}
+          aria-label={friendsMode ? "Retour à l'agent" : "Messages amis et collègues"}
           aria-pressed={friendsMode}
         >
           <Users size={14} />
-          {hasUnreadPeopleMessages && (
-            <span className="forma-unread-dot" aria-hidden />
-          )}
         </button>
         {!isMobileLayout && (
           <button

@@ -20,27 +20,12 @@ export interface ChatPanelModeTab {
 export function chatPanelModeTabs(
   plan: SubscriptionPlan,
   inTheaterView: boolean,
-  hasUnreadPeopleMessages: boolean,
 ): ChatPanelModeTab[] {
-  const chatTab: ChatPanelModeTab = { id: "agent", label: "Chat", icon: MessageSquare };
-  const calendarTab: ChatPanelModeTab = {
-    id: "calendar",
-    label: "Calendrier",
-    icon: Calendar,
-  };
-  const friendsTab: ChatPanelModeTab = { id: "friends", label: "Messages", icon: Users };
-
-  const tabs: ChatPanelModeTab[] = [chatTab];
-
-  if (hasUnreadPeopleMessages) {
-    tabs.push(friendsTab);
-  }
-
-  tabs.push(calendarTab);
-
-  if (!hasUnreadPeopleMessages) {
-    tabs.push(friendsTab);
-  }
+  const tabs: ChatPanelModeTab[] = [
+    { id: "agent", label: "Chat", icon: MessageSquare },
+    { id: "calendar", label: "Calendrier", icon: Calendar },
+    { id: "friends", label: "Messages", icon: Users },
+  ];
 
   if (inTheaterView) {
     tabs.push({ id: "theater", label: "Théâtre", icon: Theater });

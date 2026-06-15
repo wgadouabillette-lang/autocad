@@ -327,10 +327,6 @@ function personFromCloudRequest(request: CloudFriendRequestDoc): Person {
   };
 }
 
-function notificationIdForMessage(messageId: string): string {
-  return `people-message-${messageId}`;
-}
-
 function workspaceIdForPartner(partnerId: string): string | null {
   const presence = useWorkspacePresenceStore.getState().membersByWorkspace;
   for (const [workspaceId, members] of Object.entries(presence)) {
@@ -378,26 +374,6 @@ function resolvePartnerPerson(
   };
 }
 
-function pushIncomingMessageNotifications(
-  partner: Person,
-  messages: CloudFriendMessage[],
-  localUid: string,
-) {
-  for (const message of messages) {
-    if (message.authorUid === localUid) continue;
-    useNotificationsStore.getState().push({
-      id: notificationIdForMessage(message.id),
-      kind: "message",
-      category: "Messages",
-      title: partner.name,
-      body: message.text.slice(0, 160),
-      messageThreadId: threadIdForFriend(partner.id),
-      messagePersonId: partner.id,
-      messagePersonName: partner.name,
-    });
-  }
-}
-
 function notificationIdForFriendRequest(requestId: string): string {
   return `friend-request-${requestId}`;
 }
@@ -425,7 +401,6 @@ function syncInboxChat(
   uid: string,
   chatId: string,
   cloudMessages: CloudFriendMessage[],
-  notifyIncoming: boolean,
 ) {
   const partnerId = partnerUidFromChatId(chatId, uid);
   if (!partnerId) return;
@@ -450,11 +425,6 @@ function syncInboxChat(
   );
   for (const m of cloudMessages) friendSeen.add(m.id);
   seenMessageIdsByFriend.set(partnerId, friendSeen);
-
-  if (notifyIncoming && !isInitialLoad && newIncomingMessages.length > 0) {
-    const partner = resolvePartnerPerson(get(), partnerId, cloudMessages);
-    pushIncomingMessageNotifications(partner, newIncomingMessages, uid);
-  }
 
   set((state) => {
     const partner = resolvePartnerPerson(state, partnerId, cloudMessages);
@@ -550,7 +520,7 @@ function startPartnerSubscriptions({ set, get }: PeopleStoreApi, uid: string) {
         const unsub = watchFriendChatMessages(
           chatId,
           (cloudMessages) => {
-            syncInboxChat(set, get, uid, chatId, cloudMessages, inboxState.initialized);
+            syncInboxChat(set, get, uid, chatId, cloudMessages);
           },
           (error) => {
             console.error(`Friend chat ${chatId} unavailable`, error);
@@ -568,10 +538,9 @@ function startInboxSubscription(store: PeopleStoreApi, uid: string) {
     (messagesByChatId) => {
       inboxState.mode = "inbox";
       clearPartnerSubscriptions();
-      const notifyIncoming = inboxState.initialized;
       inboxState.initialized = true;
       for (const [chatId, cloudMessages] of Object.entries(messagesByChatId)) {
-        syncInboxChat(store.set, store.get, uid, chatId, cloudMessages, notifyIncoming);
+        syncInboxChat(store.set, store.get, uid, chatId, cloudMessages);
       }
     },
     (error) => {
