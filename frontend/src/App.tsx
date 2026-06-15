@@ -182,20 +182,30 @@ export default function App() {
       return;
     }
     usePeopleStore.getState().subscribeFriendChats(firebaseUid);
-    const unsubscribe = usePeopleStore.subscribe((state, prev) => {
-      if (state.friends === prev.friends) return;
+    const unsubscribePeople = usePeopleStore.subscribe((state, prev) => {
+      if (
+        state.friends === prev.friends &&
+        state.colleagueThreadsByWorkspace === prev.colleagueThreadsByWorkspace
+      ) {
+        return;
+      }
       // #region agent log
       debugLog(
         "App.tsx:peopleSubscribe",
-        "friends changed, resubscribe chats",
+        "people chat partners changed, resubscribe chats",
         { friendCount: state.friends.length },
         "E",
       );
       // #endregion
       usePeopleStore.getState().subscribeFriendChats(firebaseUid);
     });
+    const unsubscribePresence = useWorkspacePresenceStore.subscribe((state, prev) => {
+      if (state.membersByWorkspace === prev.membersByWorkspace) return;
+      usePeopleStore.getState().subscribeFriendChats(firebaseUid);
+    });
     return () => {
-      unsubscribe();
+      unsubscribePeople();
+      unsubscribePresence();
       usePeopleStore.getState().subscribeFriendChats(null);
     };
   }, [isAuthenticated, firebaseUid]);
