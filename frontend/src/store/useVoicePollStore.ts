@@ -7,9 +7,15 @@ import {
   type VoicePoll,
   type VoicePollOption,
 } from "../lib/voicePoll";
+import {
+  closeWorkspacePoll,
+  deleteWorkspacePoll,
+  publishWorkspacePoll,
+  voteWorkspacePoll,
+} from "../lib/firebase/workspacePolls";
 import { notifyWorkspaceOfPoll } from "../lib/voicePollNotifications";
-import { LOCAL_USER } from "../lib/theater";
 import { useStore } from "./useStore";
+import { useAuthStore } from "./useAuthStore";
 
 interface VoicePollState {
   activePollByWorkspace: Record<string, VoicePoll | null>;
@@ -39,6 +45,14 @@ interface VoicePollState {
 }
 
 const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function currentUserId(): string {
+  return useAuthStore.getState().firebaseUid ?? "local";
+}
+
+function currentUserName(): string {
+  return useStore.getState().userDisplayName.trim() || "Membre";
+}
 
 function normalizeOptions(labels: string[]): VoicePollOption[] {
   return labels
@@ -180,6 +194,11 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
       return { ok: false, error: "Remplissez au moins deux choix." };
     }
 
+    const firebaseUid = useAuthStore.getState().firebaseUid;
+    if (!firebaseUid) {
+      return { ok: false, error: "Connectez-vous pour publier un sondage." };
+    }
+
     const createdAt = Date.now();
     const poll: VoicePoll = {
       id: `poll-${createdAt}`,
@@ -188,8 +207,8 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
       subtitle: trimmedSubtitle,
       options,
       votesByUserId: {},
-      createdByUserId: LOCAL_USER.id,
-      createdByName: LOCAL_USER.name,
+      createdByUserId: firebaseUid,
+      createdByName: currentUserName(),
       status: "open",
       createdAt,
       expiresAt: pollExpiresAt(createdAt),
@@ -204,13 +223,18 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
       votePanelOpenByWorkspace: { ...state.votePanelOpenByWorkspace, [workspaceId]: true },
     }));
 
+    void publishWorkspacePoll(poll).catch(() => {
+      get().resetPoll(workspaceId);
+    });
+
     return { ok: true };
   },
 
   vote: (workspaceId, optionId) => {
     const poll = get().getActivePoll(workspaceId);
+    const voterUid = currentUserId();
     if (!poll || poll.status !== "open") return;
-    if (poll.votesByUserId[LOCAL_USER.id]) return;
+    if (poll.votesByUserId[voterUid]) return;
     if (!poll.options.some((option) => option.id === optionId)) return;
 
     set((state) => ({
@@ -218,10 +242,14 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
         ...state.activePollByWorkspace,
         [workspaceId]: {
           ...poll,
-          votesByUserId: { ...poll.votesByUserId, [LOCAL_USER.id]: optionId },
+          votesByUserId: { ...poll.votesByUserId, [voterUid]: optionId },
         },
       },
     }));
+
+    if (useAuthStore.getState().firebaseUid) {
+      void voteWorkspacePoll(workspaceId, voterUid, optionId).catch(() => {});
+    }
   },
 
   closePoll: (workspaceId) => {
@@ -234,6 +262,8 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
         [workspaceId]: { ...poll, status: "closed" },
       },
     }));
+
+    void closeWorkspacePoll(workspaceId).catch(() => {});
   },
 
   resetPoll: (workspaceId) => {
@@ -242,6 +272,7 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
       activePollByWorkspace: { ...state.activePollByWorkspace, [workspaceId]: null },
       votePanelOpenByWorkspace: { ...state.votePanelOpenByWorkspace, [workspaceId]: false },
     }));
+    void deleteWorkspacePoll(workspaceId).catch(() => {});
   },
 
   expirePoll: (workspaceId) => {
@@ -251,6 +282,7 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
       votePanelOpenByWorkspace: { ...state.votePanelOpenByWorkspace, [workspaceId]: false },
       composerOpenByWorkspace: { ...state.composerOpenByWorkspace, [workspaceId]: false },
     }));
+    void deleteWorkspacePoll(workspaceId).catch(() => {});
   },
 
   clearWorkspace: (workspaceId) => {

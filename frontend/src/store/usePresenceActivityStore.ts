@@ -10,6 +10,7 @@ interface PresenceActivityState {
   byKey: Record<string, PresenceActivityId>;
   getActivity: (roomId: string, userId: string, isLocal?: boolean) => PresenceActivityId;
   setActivity: (roomId: string, userId: string, activity: PresenceActivityId) => void;
+  syncRemoteActivity: (roomId: string, userId: string, activity: PresenceActivityId | null) => void;
 }
 
 export const usePresenceActivityStore = create<PresenceActivityState>((set, get) => ({
@@ -25,6 +26,22 @@ export const usePresenceActivityStore = create<PresenceActivityState>((set, get)
 
   setActivity: (roomId, userId, activity) => {
     const key = presenceActivityKey(roomId, userId);
+    set((state) => ({
+      byKey: { ...state.byKey, [key]: activity },
+    }));
+  },
+
+  syncRemoteActivity: (roomId, userId, activity) => {
+    const key = presenceActivityKey(roomId, userId);
+    if (!activity || activity === "none") {
+      set((state) => {
+        if (!(key in state.byKey)) return state;
+        const byKey = { ...state.byKey };
+        delete byKey[key];
+        return { byKey };
+      });
+      return;
+    }
     set((state) => ({
       byKey: { ...state.byKey, [key]: activity },
     }));

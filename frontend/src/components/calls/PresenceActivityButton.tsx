@@ -12,7 +12,9 @@ import {
 import { useAiComposerStore } from "../../store/useAiComposerStore";
 import { useCallsStore } from "../../store/useCallsStore";
 import { usePresenceActivityStore } from "../../store/usePresenceActivityStore";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
+import { pushWorkspacePresenceActivity } from "../../lib/firebase/workspacePresence";
 
 interface PresenceActivityButtonProps {
   roomId: string;
@@ -72,6 +74,9 @@ export default function PresenceActivityButton({
 }: PresenceActivityButtonProps) {
   const storedActivity = usePresenceActivityStore((s) => s.getActivity(roomId, userId, isLocal));
   const setActivity = usePresenceActivityStore((s) => s.setActivity);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
+  const userDisplayName = useStore((s) => s.userDisplayName);
+  const photoURL = useStore((s) => s.photoURL);
   const aiComposerEngaged = useAiComposerStore((s) => s.engaged);
   const aiModel = useStore((s) => s.aiModel);
   const aiRun = useStore((s) => s.aiRun);
@@ -168,6 +173,17 @@ export default function PresenceActivityButton({
                   onClick={(event) => {
                     event.stopPropagation();
                     setActivity(roomId, userId, option.id);
+                    if (firebaseUid) {
+                      void pushWorkspacePresenceActivity(
+                        roomId,
+                        firebaseUid,
+                        {
+                          displayName: userDisplayName.trim() || "Membre",
+                          photoURL: photoURL ?? undefined,
+                        },
+                        option.id,
+                      );
+                    }
                     setOpen(false);
                   }}
                 >

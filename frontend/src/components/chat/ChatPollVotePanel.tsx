@@ -2,12 +2,14 @@ import clsx from "clsx";
 import { X } from "lucide-react";
 import { useMemo } from "react";
 import { localPollVote, pollVotePercent } from "../../lib/voicePoll";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useActiveVoicePoll } from "../../hooks/useActiveVoicePoll";
 import { useVoicePollStore } from "../../store/useVoicePollStore";
 import { useStore } from "../../store/useStore";
 
 export default function ChatPollVotePanel() {
   const workspaceId = useStore((s) => s.activeRoomId);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const activePoll = useActiveVoicePoll(workspaceId);
   const closeVotePanel = useVoicePollStore((s) => s.closeVotePanel);
   const vote = useVoicePollStore((s) => s.vote);
@@ -16,13 +18,13 @@ export default function ChatPollVotePanel() {
   const openComposer = useVoicePollStore((s) => s.openComposer);
 
   const localVote = useMemo(
-    () => (activePoll ? localPollVote(activePoll) : null),
-    [activePoll],
+    () => (activePoll ? localPollVote(activePoll, firebaseUid ?? "local") : null),
+    [activePoll, firebaseUid],
   );
 
   if (!activePoll) return null;
 
-  const isCreator = activePoll.createdByUserId === "local";
+  const isCreator = !!firebaseUid && activePoll.createdByUserId === firebaseUid;
   const hasVoted = localVote !== null;
 
   return (

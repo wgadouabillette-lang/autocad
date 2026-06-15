@@ -15,7 +15,6 @@ import { createTheaterState } from "../../lib/theater";
 import { debugLog } from "../../lib/debugLog";
 import GroupCallActionsBar from "./GroupCallActionsBar";
 import HandRaiseOverlay from "./HandRaiseOverlay";
-import JoinKnockOverlay from "./JoinKnockOverlay";
 import MiniChatPopover from "../messages/MiniChatPopover";
 import OpenVoiceInCallView from "./OpenVoiceInCallView";
 import TheaterView from "./TheaterView";
@@ -169,7 +168,6 @@ export default function CallsView() {
       )}
 
       <GroupCallActionsBar />
-      {viewMode === "blocks" && <JoinKnockOverlay />}
       {viewMode === "theater" && <HandRaiseOverlay theater={theaterState} />}
       <MiniChatPopover />
         </>

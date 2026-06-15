@@ -133,7 +133,53 @@ service cloud.firestore {
         && (!('voiceInPrivateCall' in data) || data.voiceInPrivateCall is bool)
         && (!('voiceOpenChannelId' in data)
           || data.voiceOpenChannelId == null
-          || data.voiceOpenChannelId is string);
+          || data.voiceOpenChannelId is string)
+        && (!('presenceActivity' in data)
+          || data.presenceActivity == null
+          || (data.presenceActivity is string && data.presenceActivity.size() <= 32));
+    }
+
+    function isValidOpenVoiceChannelWrite(workspaceId, channelId) {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'workspaceId', 'name'])
+        && data.id == channelId
+        && data.workspaceId == workspaceId
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 120;
+    }
+
+    function isValidVoicePollWrite() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'workspaceId', 'question', 'options', 'status', 'createdAt', 'expiresAt', 'createdByUserId', 'createdByName'])
+        && data.id is string
+        && data.workspaceId is string
+        && data.question is string
+        && data.question.size() >= 1
+        && data.question.size() <= 500
+        && data.options is list
+        && data.status in ['open', 'closed']
+        && data.createdAt is number
+        && data.expiresAt is number
+        && data.createdByUserId is string
+        && data.createdByName is string
+        && data.createdByName.size() >= 1
+        && data.createdByName.size() <= 120;
+    }
+
+    function isValidVoicePollPatch() {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+      return changed.hasOnly(['votesByUserId', 'updatedAt'])
+        || changed.hasOnly(['status', 'updatedAt']);
+    }
+
+    function isVoiceKnockReopen(fromUid) {
+      return fromUid == request.auth.uid
+        && resource.data.fromUid == request.auth.uid
+        && resource.data.status in ['declined', 'accepted']
+        && request.resource.data.status == 'pending'
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid == resource.data.toUid;
     }
 
     function isValidVoiceKnockCreate(fromUid) {
@@ -326,8 +372,24 @@ service cloud.firestore {
         allow update: if isSignedIn() && (
           isVoiceKnockResponse(resource.data.toUid)
           || isVoiceKnockCancel(resource.data.fromUid)
+          || isVoiceKnockReopen(resource.data.fromUid)
         );
-        allow delete: if false;
+        allow delete: if isSignedIn() && resource.data.fromUid == request.auth.uid;
+      }
+
+      match /openVoiceChannels/{channelId} {
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn() && isValidOpenVoiceChannelWrite(workspaceId, channelId);
+        allow delete: if isSignedIn();
+      }
+
+      match /voicePoll/{pollId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && isValidVoicePollWrite()
+          && request.resource.data.createdByUserId == request.auth.uid;
+        allow update: if isSignedIn() && isValidVoicePollPatch();
+        allow delete: if isSignedIn();
       }
 
       match /voiceRtc/{sessionId} {

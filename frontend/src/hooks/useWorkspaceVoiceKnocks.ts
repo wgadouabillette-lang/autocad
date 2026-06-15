@@ -50,6 +50,8 @@ export function useWorkspaceVoiceKnocks() {
     const workspaceIds = workspaceIdsFromKey(workspaceIdsKey);
     if (!isAuthenticated || !firebaseUid || workspaceIds.length === 0) return;
 
+    handledResponsesRef.current.clear();
+
     const unsubs = workspaceIds.map((workspaceId) =>
       watchVoiceKnocks(
         workspaceId,

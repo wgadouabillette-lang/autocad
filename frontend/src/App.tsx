@@ -14,6 +14,9 @@ import { useWorkspacePresence } from "./hooks/useWorkspacePresence";
 import { useWorkspaceJoinRequests } from "./hooks/useWorkspaceJoinRequests";
 import { useWorkspaceVoiceKnocks } from "./hooks/useWorkspaceVoiceKnocks";
 import { useWorkspaceVoiceRtc } from "./hooks/useWorkspaceVoiceRtc";
+import { useWorkspacePolls } from "./hooks/useWorkspacePolls";
+import { useWorkspaceOpenVoiceChannels } from "./hooks/useWorkspaceOpenVoiceChannels";
+import JoinKnockOverlay from "./components/calls/JoinKnockOverlay";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useDesktopUpdater } from "./hooks/useDesktopUpdater";
 import { useMobileLayout } from "./hooks/useMobileLayout";
@@ -89,6 +92,8 @@ export default function App() {
   useWorkspaceJoinRequests();
   useWorkspaceVoiceKnocks();
   useWorkspaceVoiceRtc();
+  useWorkspacePolls();
+  useWorkspaceOpenVoiceChannels();
 
   useEffect(() => {
     if (!workspaceSwitching) return;
@@ -280,6 +285,7 @@ export default function App() {
       {recording && <div className="app-recording-frame" aria-hidden />}
       <RecordingCameraPreview />
       <VoiceRemoteAudioSink />
+      <JoinKnockOverlay />
       {workspaceSwitching ? (
         <AppLoadingScreen connectionError={false} label="Chargement du workspace…" />
       ) : null}

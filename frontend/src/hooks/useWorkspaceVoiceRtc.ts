@@ -4,6 +4,7 @@ import { WorkspaceVoiceRtcSession } from "../lib/webrtc/workspaceVoiceRtc";
 import { useAuthStore } from "../store/useAuthStore";
 import { useCallsStore } from "../store/useCallsStore";
 import { useStore } from "../store/useStore";
+import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
 
 export function useWorkspaceVoiceRtc() {
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
@@ -12,6 +13,7 @@ export function useWorkspaceVoiceRtc() {
   const inCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
   const localOpenChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
   const roomCalls = useCallsStore((s) => s.callsByRoom[activeRoomId]);
+  const presenceMembers = useWorkspacePresenceStore((s) => s.membersByWorkspace[activeRoomId]);
   const localStream = useCallsStore((s) => s.localStream);
   const screenShareStream = useCallsStore((s) => s.screenShareStream);
   const muted = useCallsStore((s) => s.muted);
@@ -20,13 +22,20 @@ export function useWorkspaceVoiceRtc() {
 
   const rtcContext = useMemo(() => {
     if (!isAuthenticated || !firebaseUid || !inCall) return null;
-    return resolveVoiceRtcContext({
+    const base = resolveVoiceRtcContext({
       workspaceId: activeRoomId,
       roomCalls,
       localInCall: inCall,
       localOpenChannelId: localOpenChannelId ?? null,
       localFirebaseUid: firebaseUid,
     });
+    if (!base) return null;
+    if (!localOpenChannelId) return base;
+    const presencePeers = useWorkspacePresenceStore
+      .getState()
+      .peerUidsInOpenChannel(activeRoomId, localOpenChannelId, firebaseUid);
+    const peerUids = [...new Set([...base.peerUids, ...presencePeers])];
+    return { ...base, peerUids };
   }, [
     isAuthenticated,
     firebaseUid,
@@ -35,6 +44,7 @@ export function useWorkspaceVoiceRtc() {
     localOpenChannelId,
     roomCalls?.blocks,
     roomCalls?.openChannels,
+    presenceMembers,
   ]);
 
   const sessionRef = useRef<WorkspaceVoiceRtcSession | null>(null);

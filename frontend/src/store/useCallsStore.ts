@@ -31,9 +31,16 @@ import {
   sendVoiceKnock,
 } from "../lib/firebase/workspaceVoiceKnocks";
 import {
-  pushWorkspaceVoiceState,
+  touchWorkspacePresence,
   type WorkspaceVoicePresence,
 } from "../lib/firebase/workspacePresence";
+import {
+  removeOpenVoiceChannel,
+  upsertOpenVoiceChannel,
+  type OpenVoiceChannelDoc,
+} from "../lib/firebase/workspaceOpenVoiceChannels";
+import { presenceActivityKey } from "../lib/presenceActivity";
+import { usePresenceActivityStore } from "./usePresenceActivityStore";
 import type { RemoteParticipantStreams } from "../lib/webrtc/workspaceVoiceRtc";
 import {
   acquireLocalMedia,
@@ -111,6 +118,10 @@ interface CallsState extends CallControls {
     localFirebaseUid?: string | null,
   ) => void;
   syncRemoteJoinRequests: (workspaceId: string, pending: JoinRequest[]) => void;
+  syncRemoteOpenVoiceChannels: (
+    workspaceId: string,
+    remoteChannels: OpenVoiceChannelDoc[],
+  ) => void;
   completeRemoteKnockJoin: (workspaceId: string, partnerUid: string) => Promise<void>;
   clearJoinRequest: (workspaceId: string, requestId: string) => void;
   syncLocalParticipantProfile: (profile: {
@@ -199,11 +210,14 @@ function voiceProfile() {
 function pushVoicePresence(get: () => CallsState, workspaceId: string) {
   const firebaseUid = useAuthStore.getState().firebaseUid;
   if (!firebaseUid || !workspaceId) return;
-  void pushWorkspaceVoiceState(
+  const activity =
+    usePresenceActivityStore.getState().byKey[presenceActivityKey(workspaceId, "local")] ?? null;
+  void touchWorkspacePresence(
     workspaceId,
     firebaseUid,
     voiceProfile(),
     localVoicePresence(get, workspaceId),
+    activity,
   ).catch(() => {});
 }
 
@@ -324,6 +338,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     }
     // #endregion
     const localFirebaseUid = useAuthStore.getState().firebaseUid;
+    const hadRoom = Boolean(get().callsByRoom[workspaceId]);
     set((s) => ({
       callsByRoom: {
         ...s.callsByRoom,
@@ -341,6 +356,13 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         ),
       },
     }));
+    if (!hadRoom) {
+      const room = get().callsByRoom[workspaceId];
+      for (const channel of room?.openChannels ?? []) {
+        if (channel.isDraft) continue;
+        void upsertOpenVoiceChannel(workspaceId, channel.id, channel.name);
+      }
+    }
   },
 
   syncPresenceMembers: (workspaceId, members, localFirebaseUid) => {
@@ -380,6 +402,43 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         callsByRoom: {
           ...s.callsByRoom,
           [workspaceId]: { ...current, blocks, openChannels },
+        },
+      };
+    });
+  },
+
+  syncRemoteOpenVoiceChannels: (workspaceId, remoteChannels) => {
+    set((s) => {
+      const current = s.callsByRoom[workspaceId];
+      if (!current) return s;
+      const byId = new Map(current.openChannels.map((channel) => [channel.id, channel]));
+      for (const remote of remoteChannels) {
+        if (!remote.id) continue;
+        const existing = byId.get(remote.id);
+        if (existing) {
+          byId.set(remote.id, {
+            ...existing,
+            name: remote.name?.trim() || existing.name,
+            isDraft: false,
+          });
+        } else {
+          byId.set(remote.id, {
+            id: remote.id,
+            roomId: workspaceId,
+            name: remote.name?.trim() || "Salon vocal",
+            participants: [],
+            inCall: false,
+          });
+        }
+      }
+      const openChannels = mapOpenChannelsVacancy([...byId.values()]);
+      if (openChannelsSignature(current.openChannels) === openChannelsSignature(openChannels)) {
+        return s;
+      }
+      return {
+        callsByRoom: {
+          ...s.callsByRoom,
+          [workspaceId]: { ...current, openChannels },
         },
       };
     });
@@ -528,6 +587,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         },
       };
     });
+    void upsertOpenVoiceChannel(roomId, channelId, trimmedName);
   },
 
   removeOpenChannel: (roomId, channelId) => {
@@ -551,6 +611,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         },
       };
     });
+    void removeOpenVoiceChannel(roomId, channelId);
   },
 
   purgeIdleOpenChannels: () => {

@@ -182,7 +182,7 @@ export class WorkspaceVoiceRtcSession {
       if (pc.connectionState === "failed") {
         pc.restartIce();
       }
-      if (pc.connectionState === "closed" || pc.connectionState === "disconnected") {
+      if (pc.connectionState === "closed") {
         this.onRemoteMediaClear(remoteUid);
       }
     };

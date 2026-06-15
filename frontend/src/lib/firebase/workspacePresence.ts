@@ -10,6 +10,8 @@ import {
 import { db } from "./client";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 
+import type { PresenceActivityId } from "../presenceActivity";
+
 export interface WorkspaceVoicePresence {
   inPrivateCall: boolean;
   openChannelId: string | null;
@@ -22,6 +24,7 @@ export interface WorkspacePresenceDoc {
   lastSeen?: { seconds: number; nanoseconds: number };
   voiceInPrivateCall?: boolean;
   voiceOpenChannelId?: string | null;
+  presenceActivity?: string | null;
 }
 
 export interface WorkspacePresenceMember {
@@ -30,6 +33,13 @@ export interface WorkspacePresenceMember {
   photoURL?: string;
   lastSeenMs: number;
   voice: WorkspaceVoicePresence;
+  presenceActivity: PresenceActivityId | null;
+}
+
+function activityFromDoc(data: WorkspacePresenceDoc): PresenceActivityId | null {
+  const value = data.presenceActivity;
+  if (typeof value !== "string" || !value || value === "none") return null;
+  return value as PresenceActivityId;
 }
 
 function voiceFromDoc(data: WorkspacePresenceDoc): WorkspaceVoicePresence {
@@ -75,6 +85,7 @@ export function watchWorkspacePresence(
           photoURL: data.photoURL,
           lastSeenMs: lastSeenToMs(data.lastSeen),
           voice: voiceFromDoc(data),
+          presenceActivity: activityFromDoc(data),
         };
       });
       onChange(members);
@@ -88,6 +99,7 @@ export async function touchWorkspacePresence(
   uid: string,
   profile: { displayName: string; photoURL?: string | null },
   voice?: WorkspaceVoicePresence,
+  presenceActivity?: PresenceActivityId | null,
 ): Promise<void> {
   if (!workspaceId || !uid) return;
   const payload: Record<string, unknown> = {
@@ -100,7 +112,20 @@ export async function touchWorkspacePresence(
     payload.voiceInPrivateCall = voice.inPrivateCall;
     payload.voiceOpenChannelId = voice.openChannelId ?? deleteField();
   }
+  if (presenceActivity !== undefined) {
+    payload.presenceActivity =
+      presenceActivity && presenceActivity !== "none" ? presenceActivity : deleteField();
+  }
   await setDoc(presenceRef(workspaceId, uid), payload, { merge: true });
+}
+
+export async function pushWorkspacePresenceActivity(
+  workspaceId: string,
+  uid: string,
+  profile: { displayName: string; photoURL?: string | null },
+  presenceActivity: PresenceActivityId | null,
+): Promise<void> {
+  await touchWorkspacePresence(workspaceId, uid, profile, undefined, presenceActivity);
 }
 
 export async function pushWorkspaceVoiceState(

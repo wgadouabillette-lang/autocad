@@ -31,6 +31,11 @@ interface WorkspacePresenceState {
   clearWorkspacePresence: (workspaceId: string) => void;
   isOnline: (workspaceId: string, userId: string) => boolean;
   isInPrivateCall: (workspaceId: string, userId: string) => boolean;
+  peerUidsInOpenChannel: (
+    workspaceId: string,
+    channelId: string,
+    localFirebaseUid: string,
+  ) => string[];
   isLoaded: (workspaceId: string) => boolean;
   tickPresence: () => void;
 }
@@ -102,6 +107,18 @@ export const useWorkspacePresenceStore = create<WorkspacePresenceState>((set, ge
   isInPrivateCall: (workspaceId, userId) => {
     if (!workspaceId || !userId || userId === "local") return false;
     return get().membersByWorkspace[workspaceId]?.[userId]?.voice.inPrivateCall === true;
+  },
+
+  peerUidsInOpenChannel: (workspaceId, channelId, localFirebaseUid) => {
+    if (!workspaceId || !channelId) return [];
+    const members = get().membersByWorkspace[workspaceId] ?? {};
+    return Object.entries(members)
+      .filter(
+        ([uid, entry]) =>
+          uid !== localFirebaseUid &&
+          entry.voice.openChannelId === channelId,
+      )
+      .map(([uid]) => uid);
   },
 
   tickPresence: () => {

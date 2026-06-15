@@ -249,6 +249,25 @@ export interface RemoteVoiceMember {
 }
 
 /** Applique l'état vocal distant (présence Firestore) aux blocs et salons ouverts. */
+function mergeOpenChannelsFromRemotePresence(
+  roomId: string,
+  openChannels: OpenVoiceChannel[],
+  remoteMembers: RemoteVoiceMember[],
+): OpenVoiceChannel[] {
+  const byId = new Map(openChannels.map((channel) => [channel.id, channel]));
+  for (const member of remoteMembers) {
+    if (!member.openChannelId || byId.has(member.openChannelId)) continue;
+    byId.set(member.openChannelId, {
+      id: member.openChannelId,
+      roomId,
+      name: member.openChannelId.endsWith("-open-main") ? "Salon vocal" : "Salon vocal",
+      participants: [],
+      inCall: false,
+    });
+  }
+  return [...byId.values()];
+}
+
 export function applyRemoteVoiceFromPresence(
   roomId: string,
   blocks: CallBlock[],
@@ -259,6 +278,12 @@ export function applyRemoteVoiceFromPresence(
 ): { blocks: CallBlock[]; openChannels: OpenVoiceChannel[] } {
   const remoteMembers = members.filter(
     (member) => member.id && member.id !== localFirebaseUid && !isLegacyMockMemberId(member.id),
+  );
+
+  const mergedOpenChannels = mergeOpenChannelsFromRemotePresence(
+    roomId,
+    openChannels,
+    remoteMembers,
   );
 
   const nextBlocks = blocks.map((block) => {
@@ -278,7 +303,7 @@ export function applyRemoteVoiceFromPresence(
     remoteByChannel.set(member.openChannelId, bucket);
   }
 
-  const nextOpenChannels = openChannels.map((channel) => {
+  const nextOpenChannels = mergedOpenChannels.map((channel) => {
     const remoteParticipants = (remoteByChannel.get(channel.id) ?? []).map((member) => ({
       id: member.id,
       name: member.name,
