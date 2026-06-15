@@ -809,18 +809,109 @@ export function mergeCallBlocks(blocks: CallBlock[], fromBlockId: string, toBloc
   return blocks.filter((b) => b.id !== fromBlockId).map((b) => (b.id === toBlockId ? merged : b));
 }
 
+function soloBlockForParticipant(roomId: string, user: CallUser, inCall: boolean): CallBlock {
+  return {
+    id: memberBlockId(roomId, user.isLocal ? "local" : user.id),
+    roomId,
+    participants: [user],
+    inCall,
+  };
+}
+
+/** Retire un participant distant d'un bloc fusionné et recrée des blocs solo. */
+export function splitRemoteParticipantFromBlock(
+  blocks: CallBlock[],
+  mergedBlockId: string,
+  remoteUserId: string,
+): CallBlock[] {
+  const block = blocks.find((candidate) => candidate.id === mergedBlockId);
+  if (!block) return blocks;
+
+  const remote = block.participants.find(
+    (participant) => participant.id === remoteUserId && !participant.isLocal,
+  );
+  if (!remote) return blocks;
+
+  const remaining = block.participants.filter((participant) => participant.id !== remoteUserId);
+  const withoutMerged = blocks.filter((candidate) => candidate.id !== mergedBlockId);
+  const remoteSolo = soloBlockForParticipant(block.roomId, remote, false);
+
+  if (remaining.length === 0) {
+    return [...withoutMerged, remoteSolo];
+  }
+
+  if (remaining.length === 1) {
+    const solo = remaining[0]!;
+    return [
+      ...withoutMerged,
+      soloBlockForParticipant(block.roomId, solo, false),
+      remoteSolo,
+    ];
+  }
+
+  return [
+    ...withoutMerged,
+    { ...block, participants: remaining },
+    remoteSolo,
+  ];
+}
+
+/** Scinde les blocs fusionnés quand un participant distant quitte l'appel privé. */
+export function splitDepartedRemotesFromMergedBlocks(
+  blocks: CallBlock[],
+  members: RemoteVoiceMember[],
+): CallBlock[] {
+  const membersById = new Map(members.map((member) => [member.id, member]));
+  let result = blocks;
+
+  for (const block of blocks) {
+    if (block.participants.length <= 1) continue;
+
+    const departedRemotes = block.participants.filter(
+      (participant) =>
+        !participant.isLocal &&
+        membersById.get(participant.id)?.inPrivateCall === false,
+    );
+
+    for (const remote of departedRemotes) {
+      const merged = result.find(
+        (candidate) =>
+          candidate.participants.length > 1 &&
+          candidate.participants.some((participant) => participant.id === remote.id),
+      );
+      if (!merged) continue;
+      result = splitRemoteParticipantFromBlock(result, merged.id, remote.id);
+    }
+  }
+
+  return result;
+}
+
 /** Conserve les blocs fusionnés en appel après une resynchronisation présence / membres. */
 export function reconcileBlocksAfterPresenceSync(
   previousBlocks: CallBlock[],
   nextBlocks: CallBlock[],
+  voiceMembers: RemoteVoiceMember[] = [],
 ): CallBlock[] {
+  const membersById = new Map(voiceMembers.map((member) => [member.id, member]));
+
   const activeMerged = previousBlocks.filter(
-    (block) =>
-      block.participants.length > 1 &&
-      block.inCall === true &&
-      block.participants.every(
-        (participant) => participant.isLocal || !isLegacyMockMemberId(participant.id),
-      ),
+    (block) => {
+      if (block.participants.length <= 1 || block.inCall !== true) return false;
+      if (
+        !block.participants.every(
+          (participant) => participant.isLocal || !isLegacyMockMemberId(participant.id),
+        )
+      ) {
+        return false;
+      }
+      return block.participants.every((participant) => {
+        if (participant.isLocal) return true;
+        const voice = membersById.get(participant.id);
+        if (!voice) return true;
+        return voice.inPrivateCall === true;
+      });
+    },
   );
   if (activeMerged.length === 0) return nextBlocks;
 
@@ -867,7 +958,7 @@ export function splitLocalFromBlock(blocks: CallBlock[], mergedBlockId: string):
     id: blockId(block.roomId, user.id),
     roomId: block.roomId,
     participants: [user],
-    inCall: true,
+    inCall: false,
   }));
 
   return [...withoutMerged, localBlock, ...remoteBlocks];

@@ -21,6 +21,7 @@ import {
   openChannelsSignature,
   reconcileBlocksAfterPresenceSync,
   removeDuplicateRemoteSelfBlocks,
+  splitDepartedRemotesFromMergedBlocks,
   splitLocalFromBlock,
   syncRoomCallsWithMembers,
   type JoinRequest,
@@ -385,7 +386,14 @@ export const useCallsStore = create<CallsState>((set, get) => ({
           localFirebaseUid,
           s.localOpenChannelByRoom[workspaceId] ?? null,
         );
-        room = { ...room, blocks: applied.blocks, openChannels: applied.openChannels };
+        const previousBlocks = s.callsByRoom[workspaceId]?.blocks ?? room.blocks;
+        let blocks = reconcileBlocksAfterPresenceSync(
+          previousBlocks,
+          applied.blocks,
+          voiceMembers,
+        );
+        blocks = splitDepartedRemotesFromMergedBlocks(blocks, voiceMembers);
+        room = { ...room, blocks, openChannels: applied.openChannels };
       }
 
       return {
@@ -412,6 +420,28 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   },
 
   syncPresenceMembers: (workspaceId, members, localFirebaseUid) => {
+    const currentBefore = get().callsByRoom[workspaceId];
+    const voiceMembers = members.map((member) => ({
+      id: member.id,
+      name: member.name,
+      photoURL: member.photoURL,
+      inPrivateCall: member.voice?.inPrivateCall ?? false,
+      openChannelId: member.voice?.openChannelId ?? null,
+    }));
+    const partnerLeftMergedCall =
+      !!get().localInCallByRoom[workspaceId] &&
+      !get().localOpenChannelByRoom[workspaceId] &&
+      (currentBefore?.blocks ?? []).some(
+        (block) =>
+          block.participants.length > 1 &&
+          block.participants.some((participant) => participant.isLocal) &&
+          block.participants.some(
+            (participant) =>
+              !participant.isLocal &&
+              voiceMembers.find((member) => member.id === participant.id)?.inPrivateCall === false,
+          ),
+      );
+
     set((s) => {
       const current = s.callsByRoom[workspaceId] ?? createRoomCallsState(workspaceId);
       const mergedBlocks = removeDuplicateRemoteSelfBlocks(
@@ -423,13 +453,6 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         ),
         localFirebaseUid,
       );
-      const voiceMembers = members.map((member) => ({
-        id: member.id,
-        name: member.name,
-        photoURL: member.photoURL,
-        inPrivateCall: member.voice?.inPrivateCall ?? false,
-        openChannelId: member.voice?.openChannelId ?? null,
-      }));
       const { blocks: presenceBlocks, openChannels } = applyRemoteVoiceFromPresence(
         workspaceId,
         mergedBlocks,
@@ -438,20 +461,43 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         localFirebaseUid,
         s.localOpenChannelByRoom[workspaceId] ?? null,
       );
-      const blocks = reconcileBlocksAfterPresenceSync(current.blocks, presenceBlocks);
+      let blocks = reconcileBlocksAfterPresenceSync(
+        current.blocks,
+        presenceBlocks,
+        voiceMembers,
+      );
+      blocks = splitDepartedRemotesFromMergedBlocks(blocks, voiceMembers);
+
       if (
+        !partnerLeftMergedCall &&
         memberBlocksSignature(current.blocks) === memberBlocksSignature(blocks) &&
         openChannelsSignature(current.openChannels) === openChannelsSignature(openChannels)
       ) {
         return s;
       }
+
       return {
         callsByRoom: {
           ...s.callsByRoom,
           [workspaceId]: { ...current, blocks, openChannels },
         },
+        ...(partnerLeftMergedCall
+          ? {
+              localInCallByRoom: { ...s.localInCallByRoom, [workspaceId]: false },
+              speakingByParticipant: {},
+              remoteMediaByUid: {},
+              lastSpokeAtByParticipant: { ...DEFAULT_LAST_SPOKE_AT },
+            }
+          : {}),
       };
     });
+
+    if (partnerLeftMergedCall) {
+      get().stopLocalMediaTracks();
+      stopScreenShare();
+      playVoiceLeaveSound();
+      pushVoicePresence(get, workspaceId);
+    }
   },
 
   syncRemoteOpenVoiceChannels: (workspaceId, remoteChannels) => {
