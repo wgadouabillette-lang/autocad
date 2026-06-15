@@ -167,6 +167,26 @@ service cloud.firestore {
         && resource.data.status == 'pending';
     }
 
+    function isRtcSignalParticipant() {
+      return isSignedIn() && (
+        request.auth.uid == resource.data.fromUid
+        || request.auth.uid == resource.data.toUid
+      );
+    }
+
+    function isValidRtcSignalCreate() {
+      let data = request.resource.data;
+      return isSignedIn()
+        && data.fromUid == request.auth.uid
+        && data.toUid is string
+        && data.toUid.size() >= 1
+        && data.toUid != request.auth.uid
+        && data.type in ['offer', 'answer', 'candidate']
+        && data.createdAt is timestamp
+        && (!('sdp' in data) || data.sdp == null || data.sdp is string)
+        && (!('candidate' in data) || data.candidate == null || data.candidate is map);
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create: if isOwner(uid) && isValidProfile();
@@ -308,6 +328,16 @@ service cloud.firestore {
           || isVoiceKnockCancel(resource.data.fromUid)
         );
         allow delete: if false;
+      }
+
+      match /voiceRtc/{sessionId} {
+        allow read: if isSignedIn();
+
+        match /signals/{signalId} {
+          allow read: if isRtcSignalParticipant();
+          allow create: if isValidRtcSignalCreate();
+          allow update, delete: if isRtcSignalParticipant();
+        }
       }
     }
   }

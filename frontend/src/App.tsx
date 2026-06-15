@@ -12,6 +12,7 @@ import { useCallVoiceActivity } from "./hooks/useCallVoiceActivity";
 import { useWorkspacePresence } from "./hooks/useWorkspacePresence";
 import { useWorkspaceJoinRequests } from "./hooks/useWorkspaceJoinRequests";
 import { useWorkspaceVoiceKnocks } from "./hooks/useWorkspaceVoiceKnocks";
+import { useWorkspaceVoiceRtc } from "./hooks/useWorkspaceVoiceRtc";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useDesktopUpdater } from "./hooks/useDesktopUpdater";
 import { useMobileLayout } from "./hooks/useMobileLayout";
@@ -86,6 +87,7 @@ export default function App() {
   useWorkspacePresence();
   useWorkspaceJoinRequests();
   useWorkspaceVoiceKnocks();
+  useWorkspaceVoiceRtc();
 
   useEffect(() => {
     if (!workspaceSwitching) return;

@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { participantHasHandRaised, type CallUser } from "../../lib/calls";
+import { participantVideoStream } from "../../lib/webrtc/workspaceVoiceRtc";
 import {
   voiceParticipantGridLayout,
   voiceParticipantTilePlacement,
@@ -25,6 +26,8 @@ export default function VoiceParticipantsInCallGrid({
   const screenSharing = useCallsStore((s) => s.screenSharing);
   const localStream = useCallsStore((s) => s.localStream);
   const screenShareStream = useCallsStore((s) => s.screenShareStream);
+  const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
+  const muteOthers = useCallsStore((s) => s.muteOthers);
   const handRaises = useCallsStore((s) => s.callsByRoom[workspaceId]?.handRaises ?? []);
 
   const participantCount = participants.length;
@@ -54,7 +57,9 @@ export default function VoiceParticipantsInCallGrid({
         }
         aria-label={ariaLabel}
       >
-        {participants.map((participant, index) => (
+        {participants.map((participant, index) => {
+          const remoteMedia = remoteMediaByUid[participant.id];
+          return (
           <VoiceParticipantTile
             key={participant.id}
             participant={participant}
@@ -66,9 +71,16 @@ export default function VoiceParticipantsInCallGrid({
             fill
             shape={layout.tileShape}
             style={voiceParticipantTilePlacement(participantCount, index)}
-            videoStream={participant.isLocal ? localVideoStream : null}
+            videoStream={
+              participant.isLocal
+                ? localVideoStream
+                : participantVideoStream(remoteMedia)
+            }
+            audioStream={participant.isLocal ? null : remoteMedia?.audioStream ?? null}
+            audioMuted={muteOthers}
           />
-        ))}
+          );
+        })}
       </div>
     </div>
   );

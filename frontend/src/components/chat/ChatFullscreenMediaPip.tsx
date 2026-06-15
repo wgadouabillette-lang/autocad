@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import { useEffect, useMemo, useRef } from "react";
 import { buildCallMediaFeeds, selectPipFeeds, type CallMediaFeed } from "../../lib/callMediaFeeds";
+import { avatarColor, inCallParticipants, userInitials } from "../../lib/calls";
+import { buildRemoteMediaFeeds } from "../../lib/webrtc/workspaceVoiceRtc";
 import VoiceMuteBadge from "../calls/VoiceMuteBadge";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
@@ -65,6 +67,9 @@ export default function ChatFullscreenMediaPip() {
   const screenShareStream = useCallsStore((s) => s.screenShareStream);
   const cameraOn = useCallsStore((s) => s.cameraOn);
   const localStream = useCallsStore((s) => s.localStream);
+  const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
+  const roomCalls = useCallsStore((s) => s.callsByRoom[activeRoomId]);
+  const localOpenChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
   const lastSpokeAtByParticipant = useCallsStore((s) => s.lastSpokeAtByParticipant);
   const speakingByParticipant = useCallsStore((s) => s.speakingByParticipant);
   const muted = useCallsStore((s) => s.muted);
@@ -72,14 +77,46 @@ export default function ChatFullscreenMediaPip() {
   const inCall = viewMode === "theater" ? inTheaterCall : inBlockCall;
 
   const feeds = useMemo(() => {
+    const participantNames: Record<string, string> = {};
+    if (roomCalls && inBlockCall) {
+      for (const participant of inCallParticipants(
+        roomCalls.blocks,
+        roomCalls.openChannels,
+        inBlockCall,
+        localOpenChannelId ?? null,
+      )) {
+        if (!participant.isLocal) {
+          participantNames[participant.id] = participant.name;
+        }
+      }
+    }
+    const remoteFeeds: CallMediaFeed[] = buildRemoteMediaFeeds(
+      remoteMediaByUid,
+      participantNames,
+    ).map((feed) => ({
+      ...feed,
+      avatarColor: avatarColor(feed.participantId),
+      initials: userInitials(feed.participantName),
+    }));
     const allFeeds = buildCallMediaFeeds({
       cameraOn,
       screenSharing,
       localStream,
       screenShareStream,
+      remoteFeeds,
     });
     return selectPipFeeds(allFeeds, lastSpokeAtByParticipant);
-  }, [cameraOn, screenSharing, localStream, screenShareStream, lastSpokeAtByParticipant]);
+  }, [
+    cameraOn,
+    screenSharing,
+    localStream,
+    screenShareStream,
+    lastSpokeAtByParticipant,
+    remoteMediaByUid,
+    roomCalls,
+    inBlockCall,
+    localOpenChannelId,
+  ]);
 
   const visible = chatPanelExpanded && inCall && feeds.length > 0;
 

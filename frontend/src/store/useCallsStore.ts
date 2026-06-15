@@ -33,6 +33,7 @@ import {
   pushWorkspaceVoiceState,
   type WorkspaceVoicePresence,
 } from "../lib/firebase/workspacePresence";
+import type { RemoteParticipantStreams } from "../lib/webrtc/workspaceVoiceRtc";
 import {
   acquireLocalMedia,
   disableCamera,
@@ -91,6 +92,7 @@ interface CallsState extends CallControls {
   theaterByWorkspace: Record<string, TheaterState>;
   callsViewModeByWorkspace: Record<string, CallsViewMode>;
   participantMediaById: Record<string, ParticipantMediaState>;
+  remoteMediaByUid: Record<string, RemoteParticipantStreams>;
   lastSpokeAtByParticipant: Record<string, number>;
   speakingByParticipant: Record<string, boolean>;
 
@@ -153,6 +155,9 @@ interface CallsState extends CallControls {
   handleRecordingCaptureLost: () => Promise<void>;
   getRoomCalls: (roomId: string) => RoomCallsState;
   markParticipantVoiceActivity: (participantId: string, speaking: boolean) => void;
+  setRemoteParticipantMedia: (uid: string, media: RemoteParticipantStreams) => void;
+  removeRemoteParticipantMedia: (uid: string) => void;
+  clearAllRemoteMedia: () => void;
 }
 
 function roomState(get: () => CallsState, roomId: string): RoomCallsState {
@@ -261,6 +266,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   localStream: null,
   screenShareStream: null,
   participantMediaById: { ...DEFAULT_PARTICIPANT_MEDIA },
+  remoteMediaByUid: {},
   lastSpokeAtByParticipant: { ...DEFAULT_LAST_SPOKE_AT },
   speakingByParticipant: {},
 
@@ -278,6 +284,27 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
       return { speakingByParticipant, lastSpokeAtByParticipant };
     });
+  },
+
+  setRemoteParticipantMedia: (uid, media) => {
+    if (!uid || uid === "local") return;
+    set((s) => ({
+      remoteMediaByUid: { ...s.remoteMediaByUid, [uid]: media },
+    }));
+  },
+
+  removeRemoteParticipantMedia: (uid) => {
+    if (!uid) return;
+    set((s) => {
+      if (!s.remoteMediaByUid[uid]) return s;
+      const remoteMediaByUid = { ...s.remoteMediaByUid };
+      delete remoteMediaByUid[uid];
+      return { remoteMediaByUid };
+    });
+  },
+
+  clearAllRemoteMedia: () => {
+    set({ remoteMediaByUid: {} });
   },
 
   ensureRoom: (workspaceId) => {
@@ -1105,6 +1132,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       muteOthers: false,
       lastSpokeAtByParticipant: { ...DEFAULT_LAST_SPOKE_AT },
       speakingByParticipant: {},
+      remoteMediaByUid: {},
     });
     if (wasInCall) playVoiceLeaveSound();
     pushVoicePresence(get, workspaceId);

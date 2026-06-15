@@ -11,6 +11,8 @@ interface VoiceParticipantTileProps {
   workspaceId: string;
   speaking?: boolean;
   videoStream?: MediaStream | null;
+  audioStream?: MediaStream | null;
+  audioMuted?: boolean;
   /** Désactive la vidéo (aperçus publics visibles par tout le groupe). */
   allowVideo?: boolean;
   compact?: boolean;
@@ -26,6 +28,8 @@ export default function VoiceParticipantTile({
   workspaceId,
   speaking = false,
   videoStream = null,
+  audioStream = null,
+  audioMuted = false,
   allowVideo = true,
   compact = false,
   fill = false,
@@ -35,6 +39,7 @@ export default function VoiceParticipantTile({
   handRaised = false,
 }: VoiceParticipantTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const localMuted = useCallsStore((s) => s.muted);
   const openColleagueChat = useMiniChatStore((s) => s.openForColleague);
   const canMessage = !participant.isLocal;
@@ -47,8 +52,18 @@ export default function VoiceParticipantTile({
     video.srcObject = showVideo ? videoStream : null;
   }, [showVideo, videoStream]);
 
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || participant.isLocal) return;
+    audio.srcObject = audioStream;
+    audio.muted = audioMuted;
+  }, [audioStream, audioMuted, participant.isLocal]);
+
   const body = (
     <>
+      {!participant.isLocal && (
+        <audio ref={audioRef} autoPlay playsInline className="sr-only" aria-hidden />
+      )}
       {showVideo ? (
         <video
           ref={videoRef}

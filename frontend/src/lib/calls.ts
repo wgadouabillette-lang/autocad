@@ -588,16 +588,32 @@ export function findLocalSoloBlock(blocks: CallBlock[]): CallBlock | undefined {
   );
 }
 
-/** Masque le bloc solo local quand l'utilisateur est dans un autre vocal (salon ouvert, etc.). */
+/** Masque les blocs solo dont le membre est dans un salon vocal ouvert. */
+export function participantIdsInOpenChannels(
+  openChannels: OpenVoiceChannel[],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const channel of openChannels) {
+    for (const participant of channel.participants) {
+      ids.add(participant.id);
+    }
+  }
+  return ids;
+}
+
 export function memberBlocksForVoiceGrid(
   blocks: CallBlock[],
-  localOpenChannelId: string | null,
+  openChannels: OpenVoiceChannel[],
 ): CallBlock[] {
-  if (!localOpenChannelId) return blocks;
-  return blocks.filter(
-    (block) =>
-      !block.participants.some((p) => p.isLocal) || block.participants.length > 1,
-  );
+  const inOpenChannel = participantIdsInOpenChannels(openChannels);
+  if (inOpenChannel.size === 0) return blocks;
+
+  return blocks.filter((block) => {
+    if (block.participants.length > 1) return true;
+    const participant = block.participants[0];
+    if (!participant) return false;
+    return !inOpenChannel.has(participant.id);
+  });
 }
 
 /** Participants actifs dans l'appel vocal (bloc local, blocs distants ou salon ouvert). */

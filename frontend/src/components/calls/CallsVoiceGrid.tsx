@@ -9,8 +9,6 @@ import {
 } from "../../lib/calls";
 import { callsGridColumnCount, type CallsGridColumnCount } from "../../lib/callsLayout";
 import type { TheaterState } from "../../lib/theater";
-import { useCallsStore } from "../../store/useCallsStore";
-import { useStore } from "../../store/useStore";
 import AddVoiceChannelButton from "./AddVoiceChannelButton";
 import CallBlock from "./CallBlock";
 import OpenVoiceChannelBlock from "./OpenVoiceChannelBlock";
@@ -129,9 +127,7 @@ export default function CallsVoiceGrid({
   onOpenTheater,
   onStartOpenChannelDraft,
 }: CallsVoiceGridProps) {
-  const activeRoomId = useStore((s) => s.activeRoomId);
-  const localOpenChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
-  const gridBlocks = memberBlocksForVoiceGrid(blocks, localOpenChannelId ?? null);
+  const gridBlocks = memberBlocksForVoiceGrid(blocks, openChannels);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const [columnCount, setColumnCount] = useState<CallsGridColumnCount>(5);
