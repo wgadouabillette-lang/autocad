@@ -1,7 +1,7 @@
-import { inCallParticipants } from "./calls";
-import { workspaceMembers } from "./workspaceMembers";
 import type { VoicePoll } from "./voicePoll";
-import { useCallsStore } from "../store/useCallsStore";
+import { shouldShowPollToUser } from "./voicePoll";
+import { loadSeenNotificationIds } from "./notificationsPersistence";
+import { useAuthStore } from "../store/useAuthStore";
 import { useNotificationsStore } from "../store/useNotificationsStore";
 import { useVoicePollStore } from "../store/useVoicePollStore";
 
@@ -9,55 +9,67 @@ function pollBody(poll: VoicePoll): string {
   return poll.subtitle ? `${poll.question} — ${poll.subtitle}` : poll.question;
 }
 
-function groupPollTargets(workspaceId: string): { id: string; name: string }[] {
-  const callsState = useCallsStore.getState();
-  const roomCalls = callsState.callsByRoom[workspaceId];
-  const localInCall = callsState.isLocalInCall(workspaceId);
-  const localOpenChannelId = callsState.localOpenChannelByRoom[workspaceId] ?? null;
-
-  if (roomCalls && localInCall) {
-    const inCall = inCallParticipants(
-      roomCalls.blocks ?? [],
-      roomCalls.openChannels ?? [],
-      localInCall,
-      localOpenChannelId,
-    ).filter((participant) => !participant.isLocal);
-
-    if (inCall.length > 0) return inCall;
-  }
-
-  return workspaceMembers(workspaceId);
+export function pollMemberNotificationId(pollId: string): string {
+  return `poll-member-${pollId}`;
 }
 
+export function pollCreatorNotificationId(pollId: string): string {
+  return `poll-creator-${pollId}`;
+}
+
+function hasPollNotification(pollNotificationId: string): boolean {
+  const email = useNotificationsStore.getState().persistedEmail;
+  if (loadSeenNotificationIds(email).has(pollNotificationId)) return true;
+  return useNotificationsStore
+    .getState()
+    .items.some((item) => item.kind === "poll" && item.id === pollNotificationId);
+}
+
+/** Confirmation locale pour l'auteur du sondage. */
 export function notifyWorkspaceOfPoll(poll: VoicePoll): void {
   const push = useNotificationsStore.getState().push;
   const ingestPoll = useVoicePollStore.getState().ingestPoll;
-  const body = pollBody(poll);
-  const targets = groupPollTargets(poll.workspaceId);
-  const names = targets.map((target) => target.name);
+  const notificationId = pollCreatorNotificationId(poll.id);
 
   ingestPoll(poll);
 
+  if (hasPollNotification(notificationId)) return;
+
   push({
+    id: notificationId,
     kind: "poll",
     category: "Sondage",
     title: "Sondage publié au groupe",
     pollWorkspaceId: poll.workspaceId,
     pollSnapshot: poll,
-    body:
-      names.length > 0
-        ? `${body} · ${names.length} membre${names.length > 1 ? "s" : ""} notifié${names.length > 1 ? "s" : ""} (${names.join(", ")})`
-        : body,
+    body: pollBody(poll),
   });
+}
 
-  for (const target of targets) {
-    push({
-      kind: "poll",
-      category: "Sondage",
-      title: `${poll.createdByName} a lancé un sondage`,
-      pollWorkspaceId: poll.workspaceId,
-      pollSnapshot: poll,
-      body: `${target.name} · ${body}`,
-    });
-  }
+/** Notification pour chaque membre du workspace qui reçoit le sondage via Firebase. */
+export function notifyMemberOfIncomingPoll(poll: VoicePoll): void {
+  const firebaseUid = useAuthStore.getState().firebaseUid;
+  if (!firebaseUid || poll.createdByUserId === firebaseUid) return;
+  if (poll.status !== "open") return;
+  if (!shouldShowPollToUser(poll, firebaseUid)) return;
+
+  const notificationId = pollMemberNotificationId(poll.id);
+  if (hasPollNotification(notificationId)) return;
+
+  useNotificationsStore.getState().push({
+    id: notificationId,
+    kind: "poll",
+    category: "Sondage",
+    title: `${poll.createdByName} a lancé un sondage`,
+    pollWorkspaceId: poll.workspaceId,
+    pollSnapshot: poll,
+    body: pollBody(poll),
+  });
+}
+
+export function dismissPollMemberNotification(pollId: string): void {
+  const notificationId = pollMemberNotificationId(pollId);
+  const items = useNotificationsStore.getState().items;
+  if (!items.some((item) => item.id === notificationId)) return;
+  useNotificationsStore.getState().removeNotification(notificationId);
 }

@@ -27,7 +27,6 @@ import { selectedFacesStillInText, stripFaceReferenceFromText } from "../lib/fac
 import ChatAppIntegrations from "./chat/ChatAppIntegrations";
 import ChatConnectorsList from "./chat/ChatConnectorsList";
 import ChatShortcutsHint from "./chat/ChatShortcutsHint";
-import ChatMobileQuickActions from "./chat/ChatMobileQuickActions";
 import HighlightedPromptInput from "./chat/HighlightedPromptInput";
 import { useConnectors } from "../hooks/useConnectors";
 import { useMobileLayout } from "../hooks/useMobileLayout";
@@ -38,6 +37,7 @@ import StructuredAssistantMessage, {
 } from "./chat/StructuredAssistantMessage";
 import ChatPollComposer from "./chat/ChatPollComposer";
 import ChatPollVotePanel from "./chat/ChatPollVotePanel";
+import { useActiveVoicePoll } from "../hooks/useActiveVoicePoll";
 import { useVoicePollStore } from "../store/useVoicePollStore";
 import { debugLog } from "../lib/debugLog";
 
@@ -196,9 +196,11 @@ export default function ChatPanel() {
   const pollComposerOpen = useVoicePollStore(
     (s) => s.composerOpenByWorkspace[activeRoomId] ?? false,
   );
-  const pollVoteOpen = useVoicePollStore(
+  const pollVoteOpenRaw = useVoicePollStore(
     (s) => s.votePanelOpenByWorkspace[activeRoomId] ?? false,
   );
+  const activePoll = useActiveVoicePoll(activeRoomId);
+  const pollVoteOpen = pollVoteOpenRaw && !!activePoll;
   const pollMorphActive = pollComposerOpen || pollVoteOpen;
   const {
     connectedIds: connectedConnectors,
@@ -753,14 +755,9 @@ export default function ChatPanel() {
 
   return (
     <div className="chat-panel-layout relative overflow-hidden">
-      {chatIsEmpty && (
-        <div
-          className={clsx(
-            "chat-shortcuts-hint-anchor",
-            isMobileLayout && "chat-shortcuts-hint-anchor--mobile",
-          )}
-        >
-          {isMobileLayout ? <ChatMobileQuickActions /> : <ChatShortcutsHint />}
+      {chatIsEmpty && !isMobileLayout && (
+        <div className="chat-shortcuts-hint-anchor">
+          <ChatShortcutsHint />
         </div>
       )}
 

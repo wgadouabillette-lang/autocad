@@ -1307,9 +1307,14 @@ body {
     padding: clamp(0px, calc(33vh - var(--forma-calls-lift)), calc(14rem - var(--forma-calls-lift))) 0
       12px;
   }
-  .calls-view__stage--with-open-channel {
-    @apply flex-col items-center gap-3;
-    padding-top: 0.75rem;
+  .calls-view__stage--open-channel-only {
+    @apply min-h-0 flex-1 flex-col items-stretch justify-center;
+    padding: 0.75rem 0 12px;
+  }
+  .calls-view--open-channel .calls-view__open-channel-panel {
+    @apply flex min-h-0 flex-1 flex-col;
+    max-width: min(56rem, 100%);
+    margin-inline: auto;
   }
   .calls-view__open-channel-panel {
     @apply w-full max-w-4xl shrink-0;
@@ -1640,6 +1645,27 @@ body {
   }
   .open-voice-in-call {
     @apply relative z-[1] flex h-full min-h-0 w-full max-w-none flex-1 flex-col gap-2 px-1;
+  }
+  .open-voice-in-call__grid > .voice-participant-tile {
+    opacity: 0;
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    animation: call-block-cascade-in 0.14s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+  }
+  .open-voice-in-call__grid > .voice-participant-tile:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .open-voice-in-call__grid > .voice-participant-tile:nth-child(2) {
+    animation-delay: 20ms;
+  }
+  .open-voice-in-call__grid > .voice-participant-tile:nth-child(3) {
+    animation-delay: 40ms;
+  }
+  .open-voice-in-call__grid > .voice-participant-tile:nth-child(4) {
+    animation-delay: 60ms;
+  }
+  .open-voice-in-call__grid > .voice-participant-tile:nth-child(n + 5) {
+    animation-delay: 80ms;
   }
   .open-voice-in-call__grid {
     @apply grid min-h-0 w-full flex-1 gap-3;
@@ -3084,38 +3110,6 @@ body {
     appearance: none;
     -webkit-appearance: none;
     font-family: inherit;
-  }
-  .chat-shortcuts-hint-anchor--mobile {
-    pointer-events: auto;
-    top: 38%;
-    padding-inline: 0.75rem;
-  }
-  .chat-mobile-quick-actions {
-    @apply w-full max-w-full;
-  }
-  .chat-mobile-quick-actions__list {
-    @apply m-0 flex list-none flex-col gap-2 p-0;
-  }
-  .chat-mobile-quick-actions__btn {
-    @apply forma-capsule flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-muted-300 transition-colors;
-    background-color: var(--forma-chat-composer-bg);
-    border-color: var(--forma-chat-composer-stroke);
-  }
-  .chat-mobile-quick-actions__btn.is-active,
-  .chat-mobile-quick-actions__btn:active {
-    border-color: var(--forma-border-strong);
-    background-color: var(--forma-control-bg);
-  }
-  .chat-mobile-quick-actions__icon {
-    @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg;
-    background-color: var(--forma-control-hover-bg);
-    color: theme(colors.muted.200);
-  }
-  .chat-mobile-quick-actions__btn.is-active .chat-mobile-quick-actions__icon {
-    color: theme(colors.muted.100);
-  }
-  .chat-mobile-quick-actions__label {
-    @apply min-w-0 text-[11px] font-medium leading-snug text-muted-300;
   }
   .chat-apps-capsule {
     @apply inline-flex shrink-0 cursor-pointer items-center rounded-full border py-0.5 px-2.5 transition-colors;

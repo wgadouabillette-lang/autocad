@@ -1,5 +1,10 @@
 import { useEffect } from "react";
 import { watchWorkspacePoll } from "../lib/firebase/workspacePolls";
+import {
+  dismissPollMemberNotification,
+  notifyMemberOfIncomingPoll,
+} from "../lib/voicePollNotifications";
+import { shouldShowPollToUser } from "../lib/voicePoll";
 import { LOCAL_USER_ID } from "../lib/workspaces";
 import { useAuthStore } from "../store/useAuthStore";
 import { useVoicePollStore } from "../store/useVoicePollStore";
@@ -34,8 +39,15 @@ export function useWorkspacePolls() {
             return;
           }
           const previous = useVoicePollStore.getState().getActivePoll(workspaceId);
+          const isNewPoll = !previous || previous.id !== poll.id;
           useVoicePollStore.getState().ingestPoll(poll);
-          if (!previous && poll.status === "open") {
+          if (!shouldShowPollToUser(poll, firebaseUid)) {
+            dismissPollMemberNotification(poll.id);
+            useVoicePollStore.getState().closeVotePanel(workspaceId);
+            return;
+          }
+          if (isNewPoll && poll.status === "open") {
+            notifyMemberOfIncomingPoll(poll);
             useVoicePollStore.getState().openVotePanel(workspaceId);
           }
         },

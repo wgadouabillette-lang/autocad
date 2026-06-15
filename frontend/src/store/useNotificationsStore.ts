@@ -53,7 +53,7 @@ interface NotificationsState {
   togglePanel: () => void;
   openPanel: () => void;
   closePanel: () => void;
-  push: (item: Omit<AppNotification, "id" | "createdAt" | "read">) => void;
+  push: (item: Omit<AppNotification, "id" | "createdAt" | "read"> & { id?: string }) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
   removeNotification: (id: string) => void;
@@ -152,10 +152,15 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
   push: (item) =>
     set((s) => {
+      const { id: stableId, ...rest } = item;
+      const id = stableId ?? `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      if (s.items.some((existing) => existing.id === id)) {
+        return s;
+      }
       const items = commitItems(s.persistedEmail, [
         {
-          ...item,
-          id: `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          ...rest,
+          id,
           createdAt: Date.now(),
           read: false,
         },

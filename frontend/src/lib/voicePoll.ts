@@ -46,6 +46,16 @@ export function localPollVote(poll: VoicePoll, localUserId = "local"): string | 
   return poll.votesByUserId[localUserId] ?? null;
 }
 
+/** Le sondage reste visible pour le créateur ; les autres ne le revoient plus après avoir voté. */
+export function shouldShowPollToUser(
+  poll: VoicePoll,
+  userId: string | null | undefined,
+): boolean {
+  if (!userId) return false;
+  if (poll.createdByUserId === userId) return true;
+  return !poll.votesByUserId[userId];
+}
+
 export function pollExpiresAt(createdAt: number): number {
   return createdAt + VOICE_POLL_TTL_MS;
 }

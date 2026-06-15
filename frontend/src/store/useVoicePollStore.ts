@@ -3,6 +3,7 @@ import {
   createPollOptionId,
   isPollExpired,
   pollExpiresAt,
+  shouldShowPollToUser,
   VOICE_POLL_MIN_OPTIONS,
   type VoicePoll,
   type VoicePollOption,
@@ -13,7 +14,7 @@ import {
   publishWorkspacePoll,
   voteWorkspacePoll,
 } from "../lib/firebase/workspacePolls";
-import { notifyWorkspaceOfPoll } from "../lib/voicePollNotifications";
+import { notifyWorkspaceOfPoll, dismissPollMemberNotification } from "../lib/voicePollNotifications";
 import { useStore } from "./useStore";
 import { useAuthStore } from "./useAuthStore";
 
@@ -131,6 +132,11 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
     }
 
     schedulePollExpiry(workspaceId, poll.expiresAt);
+
+    const userId = useAuthStore.getState().firebaseUid;
+    if (userId && !shouldShowPollToUser(poll, userId)) {
+      get().closeVotePanel(workspaceId);
+    }
   },
 
   openComposer: (workspaceId) => {
@@ -149,7 +155,8 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
 
   openVotePanel: (workspaceId) => {
     const poll = get().getActivePoll(workspaceId);
-    if (!poll) return;
+    const userId = useAuthStore.getState().firebaseUid;
+    if (!poll || !shouldShowPollToUser(poll, userId)) return;
     ensureChatPanelOpen();
     set((state) => ({
       votePanelOpenByWorkspace: { ...state.votePanelOpenByWorkspace, [workspaceId]: true },
@@ -165,6 +172,9 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
 
   togglePollExperience: (workspaceId) => {
     const poll = get().getActivePoll(workspaceId);
+    const userId = useAuthStore.getState().firebaseUid;
+    const visiblePoll =
+      poll && shouldShowPollToUser(poll, userId) ? poll : null;
     const composing = get().isComposerOpen(workspaceId);
     const voting = get().isVotePanelOpen(workspaceId);
 
@@ -174,7 +184,7 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
       return;
     }
 
-    if (poll) {
+    if (visiblePoll) {
       get().openVotePanel(workspaceId);
       return;
     }
@@ -246,6 +256,11 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
         },
       },
     }));
+
+    if (poll.createdByUserId !== voterUid) {
+      get().closeVotePanel(workspaceId);
+      dismissPollMemberNotification(poll.id);
+    }
 
     if (useAuthStore.getState().firebaseUid) {
       void voteWorkspacePoll(workspaceId, voterUid, optionId).catch(() => {});

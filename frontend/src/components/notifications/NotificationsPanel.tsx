@@ -10,6 +10,8 @@ import {
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useVoicePollStore } from "../../store/useVoicePollStore";
 import { hasFormaDesktop } from "../../lib/formaDesktop";
+import { shouldShowPollToUser } from "../../lib/voicePoll";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 
 const PANEL_WIDTH = 268; // 16.75rem
@@ -81,6 +83,7 @@ export default function NotificationsPanel({
   const acceptFriendRequest = usePeopleStore((s) => s.acceptFriendRequest);
   const declineFriendRequest = usePeopleStore((s) => s.declineFriendRequest);
   const workspaceId = useStore((s) => s.activeRoomId);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const openPollVotePanel = useVoicePollStore((s) => s.openVotePanel);
   const ingestPoll = useVoicePollStore((s) => s.ingestPoll);
   const [panelPos, setPanelPos] = useState<PanelPosition | null>(null);
@@ -124,8 +127,10 @@ export default function NotificationsPanel({
     if (item.kind === "poll") {
       if (item.pollSnapshot) {
         ingestPoll(item.pollSnapshot);
+        if (shouldShowPollToUser(item.pollSnapshot, firebaseUid)) {
+          openPollVotePanel(item.pollWorkspaceId ?? workspaceId);
+        }
       }
-      openPollVotePanel(item.pollWorkspaceId ?? workspaceId);
     }
     if (isLast) {
       closePanel();

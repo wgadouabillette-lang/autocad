@@ -59,12 +59,13 @@ export default function BottomHeader() {
   const pollComposerOpen = useVoicePollStore(
     (s) => s.composerOpenByWorkspace[activeRoomId] ?? false,
   );
-  const pollVoteOpen = useVoicePollStore(
+  const pollVoteOpenRaw = useVoicePollStore(
     (s) => s.votePanelOpenByWorkspace[activeRoomId] ?? false,
   );
-  const pollExperienceOpen = pollComposerOpen || pollVoteOpen;
   const ingestPoll = useVoicePollStore((s) => s.ingestPoll);
   const activePoll = useActiveVoicePoll(activeRoomId);
+  const pollVoteOpen = pollVoteOpenRaw && !!activePoll;
+  const pollExperienceOpen = pollComposerOpen || pollVoteOpen;
   const cameraOn = useCallsStore((s) => s.cameraOn);
   const mediaError = useCallsStore((s) => s.mediaError);
   const screenSharing = useCallsStore((s) => s.screenSharing);

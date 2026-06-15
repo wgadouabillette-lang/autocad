@@ -142,7 +142,7 @@ export default function CallsView() {
           ref={stageRef}
           className={clsx(
             "calls-view__stage",
-            inOpenChannel && "calls-view__stage--with-open-channel",
+            inOpenChannel && "calls-view__stage--open-channel-only",
           )}
         >
           {inOpenChannel && localOpenChannelId ? (
@@ -152,18 +152,19 @@ export default function CallsView() {
                 openChannels={openChannels}
               />
             </div>
-          ) : null}
-          <CallsVoiceGrid
-            key={activeRoomId}
-            measureRef={stageRef}
-            blocks={blocks}
-            openChannels={openChannels}
-            requests={requests}
-            theater={theaterState}
-            onRequestJoin={(blockId) => requestJoin(activeRoomId, blockId)}
-            onOpenTheater={() => openTheaterView(activeRoomId)}
-            onStartOpenChannelDraft={() => startOpenChannelDraft(activeRoomId)}
-          />
+          ) : (
+            <CallsVoiceGrid
+              key={activeRoomId}
+              measureRef={stageRef}
+              blocks={blocks}
+              openChannels={openChannels}
+              requests={requests}
+              theater={theaterState}
+              onRequestJoin={(blockId) => requestJoin(activeRoomId, blockId)}
+              onOpenTheater={() => openTheaterView(activeRoomId)}
+              onStartOpenChannelDraft={() => startOpenChannelDraft(activeRoomId)}
+            />
+          )}
         </div>
       )}
 
