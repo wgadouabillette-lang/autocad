@@ -1,9 +1,12 @@
 import { useState } from "react";
-import clsx from "clsx";
 import { Send, X } from "lucide-react";
 import type { PeopleMessage } from "../../lib/peopleChat";
+import { resolvePersonPhotoURL } from "../../lib/peopleChat";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
+import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
+import UserAvatar from "../UserAvatar";
+import PeopleChatThreadMessages from "../chat/PeopleChatThreadMessages";
 
 const EMPTY_MESSAGES: PeopleMessage[] = [];
 
@@ -25,9 +28,12 @@ export default function MiniChatPopover() {
     return EMPTY_MESSAGES;
   });
   const sendMessage = usePeopleStore((s) => s.sendMessage);
+  const membersByWorkspace = useWorkspacePresenceStore((s) => s.membersByWorkspace);
   const [draft, setDraft] = useState("");
 
   if (!open || !threadId || !thread) return null;
+
+  const partnerPhotoURL = resolvePersonPhotoURL(thread.personId, membersByWorkspace);
 
   return (
     <>
@@ -39,6 +45,12 @@ export default function MiniChatPopover() {
       />
       <div className="mini-chat" role="dialog" aria-label={`Message à ${personName}`}>
         <div className="mini-chat__header">
+          <UserAvatar
+            userId={thread.personId}
+            name={personName}
+            photoURL={partnerPhotoURL}
+            className="mini-chat__header-avatar"
+          />
           <h3 className="mini-chat__title">{personName}</h3>
           <button
             type="button"
@@ -50,33 +62,18 @@ export default function MiniChatPopover() {
           </button>
         </div>
 
-        <ul className="mini-chat__thread">
-          {messages.length === 0 ? (
-            <li className="mini-chat__empty">Dites bonjour à {personName}.</li>
-          ) : (
-            messages.map((msg) => (
-              <li
-                key={msg.id}
-                className={clsx(
-                  "mini-chat__bubble-row",
-                  msg.mine && "mini-chat__bubble-row--mine",
-                )}
-              >
-                <div
-                  className={clsx(
-                    "mini-chat__bubble",
-                    msg.mine && "mini-chat__bubble--mine",
-                  )}
-                >
-                  {!msg.mine && (
-                    <span className="mini-chat__bubble-author">{msg.author}</span>
-                  )}
-                  <p>{msg.text}</p>
-                </div>
-              </li>
-            ))
-          )}
-        </ul>
+        {messages.length === 0 ? (
+          <p className="mini-chat__empty">Dites bonjour à {personName}.</p>
+        ) : (
+          <PeopleChatThreadMessages
+            partnerName={personName}
+            partnerId={thread.personId}
+            partnerPhotoURL={partnerPhotoURL}
+            messages={messages}
+            className="mini-chat__thread"
+            compact
+          />
+        )}
 
         <form
           className="mini-chat__compose"

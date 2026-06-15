@@ -3,12 +3,14 @@ import clsx from "clsx";
 import { ArrowLeft, ArrowUp, FileImage, Mic, Paperclip, X } from "lucide-react";
 import { avatarColor, userInitials } from "../../lib/calls";
 import type { PeopleMessage, Person } from "../../lib/peopleChat";
-import { buildMessagePanelThreads } from "../../lib/peopleChat";
+import { buildMessagePanelThreads, resolvePersonPhotoURL } from "../../lib/peopleChat";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
+import UserAvatar from "../UserAvatar";
+import PeopleChatThreadMessages from "./PeopleChatThreadMessages";
 
 function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
   if (typeof window === "undefined") return null;
@@ -65,6 +67,7 @@ export default function FriendsChatPanel() {
   const presenceMembers = useWorkspacePresenceStore(
     (s) => s.membersByWorkspace[activeRoomId],
   );
+  const membersByWorkspace = useWorkspacePresenceStore((s) => s.membersByWorkspace);
   const ensureColleagueThread = usePeopleStore((s) => s.ensureColleagueThread);
   const ensureFriendThread = usePeopleStore((s) => s.ensureFriendThread);
   const sendMessage = usePeopleStore((s) => s.sendMessage);
@@ -283,6 +286,7 @@ export default function FriendsChatPanel() {
   };
 
   if (thread) {
+    const partnerPhotoURL = resolvePersonPhotoURL(thread.personId, membersByWorkspace);
     const canSubmit = draft.trim().length > 0 || attachments.length > 0;
     return (
       <div className="chat-panel-layout relative overflow-hidden">
@@ -296,35 +300,23 @@ export default function FriendsChatPanel() {
             >
               <ArrowLeft size={14} aria-hidden />
             </button>
+            <UserAvatar
+              userId={thread.personId}
+              name={thread.personName}
+              photoURL={partnerPhotoURL}
+              className="friends-chat-panel__thread-avatar"
+            />
             <span className="friends-chat-panel__thread-name">{thread.personName}</span>
           </div>
 
-          <ul
-            ref={messagesScrollRef}
-            className="chat-messages-scroll min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3"
-          >
-            {messages.map((msg) => (
-              <li
-                key={msg.id}
-                className={clsx(
-                  "messages-overlay__bubble-row",
-                  msg.mine && "messages-overlay__bubble-row--mine",
-                )}
-              >
-                <div
-                  className={clsx(
-                    "messages-overlay__bubble",
-                    msg.mine && "messages-overlay__bubble--mine",
-                  )}
-                >
-                  {!msg.mine && (
-                    <span className="messages-overlay__bubble-author">{msg.author}</span>
-                  )}
-                  <p>{msg.text}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <PeopleChatThreadMessages
+            partnerName={thread.personName}
+            partnerId={thread.personId}
+            partnerPhotoURL={partnerPhotoURL}
+            messages={messages}
+            listRef={messagesScrollRef}
+            className="chat-messages-scroll min-h-0 flex-1"
+          />
         </div>
 
         <div className="chat-panel-footer pointer-events-none shrink-0 px-3 pb-3 pt-0">

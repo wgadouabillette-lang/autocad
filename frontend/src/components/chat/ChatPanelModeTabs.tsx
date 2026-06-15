@@ -14,15 +14,7 @@ export default function ChatPanelModeTabs() {
   const inTheaterView = useCallsStore(
     (s) => s.getCallsViewMode(activeRoomId) === "theater",
   );
-  const unreadPeopleMessages = usePeopleStore((s) => {
-    const friends = s.friendThreads.reduce((sum, thread) => sum + thread.unread, 0);
-    const colleagues = (s.colleagueThreadsByWorkspace[activeRoomId] ?? []).reduce(
-      (sum, thread) => sum + thread.unread,
-      0,
-    );
-    return friends + colleagues;
-  });
-
+  const unreadPeopleMessages = usePeopleStore((s) => s.peopleMessagesUnreadCount());
   const hasUnreadPeopleMessages = unreadPeopleMessages > 0;
   const tabs = chatPanelModeTabs(subscriptionPlan, inTheaterView, hasUnreadPeopleMessages);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -59,44 +51,40 @@ export default function ChatPanelModeTabs() {
           <div className="chat-panel-mode-tabs__fade chat-panel-mode-tabs__fade--right" aria-hidden />
         )}
         <div ref={scrollRef} className="chat-panel-mode-tabs__scroll">
-        <nav
-          className="chat-panel-mode-tabs__nav"
-          role="tablist"
-          aria-label="Vues du panneau"
-        >
-          {tabs.map((tab) => {
-            const active = chatPanelMode === tab.id;
-            const Icon = tab.icon;
-            const showUnreadDot = tab.id === "friends" && hasUnreadPeopleMessages;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                className={clsx(
-                  "chat-panel-mode-tabs__btn",
-                  active && "is-active",
-                  showUnreadDot && "chat-panel-mode-tabs__btn--with-dot",
-                )}
-                onClick={() => selectTab(tab.id)}
-                aria-selected={active}
-                aria-pressed={active}
-                aria-label={
-                  tab.id === "friends" && hasUnreadPeopleMessages
-                    ? `Messages, ${unreadPeopleMessages} non lu${unreadPeopleMessages > 1 ? "s" : ""}`
-                    : tab.label
-                }
-              >
-                <Icon size={11} aria-hidden />
-                <span>{tab.label}</span>
-                {showUnreadDot && (
-                  <span className="chat-panel-mode-tabs__dot" aria-hidden />
-                )}
-              </button>
-            );
-          })}
-          <span className="chat-panel-mode-tabs__tail" aria-hidden />
-        </nav>
+          <nav
+            className="chat-panel-mode-tabs__nav"
+            role="tablist"
+            aria-label="Vues du panneau"
+          >
+            {tabs.map((tab) => {
+              const active = chatPanelMode === tab.id;
+              const Icon = tab.icon;
+              const showUnreadDot = tab.id === "friends" && hasUnreadPeopleMessages;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  className={clsx("chat-panel-mode-tabs__btn", active && "is-active")}
+                  onClick={() => selectTab(tab.id)}
+                  aria-selected={active}
+                  aria-pressed={active}
+                  aria-label={
+                    tab.id === "friends" && hasUnreadPeopleMessages
+                      ? `Messages, ${unreadPeopleMessages} non lu${unreadPeopleMessages > 1 ? "s" : ""}`
+                      : tab.label
+                  }
+                >
+                  <span className="chat-panel-mode-tabs__icon-wrap">
+                    <Icon size={11} aria-hidden />
+                    {showUnreadDot && <span className="forma-unread-dot" aria-hidden />}
+                  </span>
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+            <span className="chat-panel-mode-tabs__tail" aria-hidden />
+          </nav>
         </div>
       </div>
     </div>

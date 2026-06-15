@@ -215,6 +215,7 @@ interface PeopleState {
   friendThreadsList: () => PeopleThread[];
   colleagueThreadsForWorkspace: (workspaceId: string) => PeopleThread[];
   unreadCount: (workspaceId: string) => number;
+  peopleMessagesUnreadCount: () => number;
   threadById: (id: string) => PeopleThread | undefined;
 
   hydrateFriendRequests: (uid: string | null, email: string | null) => () => void;
@@ -401,6 +402,23 @@ function notificationIdForFriendRequest(requestId: string): string {
   return `friend-request-${requestId}`;
 }
 
+function peopleMessagesUnreadTotal(state: PeopleState): number {
+  const byPerson = new Map<string, number>();
+
+  const track = (thread: PeopleThread) => {
+    if (thread.unread <= 0) return;
+    const prev = byPerson.get(thread.personId) ?? 0;
+    byPerson.set(thread.personId, Math.max(prev, thread.unread));
+  };
+
+  for (const thread of state.friendThreads) track(thread);
+  for (const threads of Object.values(state.colleagueThreadsByWorkspace)) {
+    for (const thread of threads) track(thread);
+  }
+
+  return [...byPerson.values()].reduce((sum, count) => sum + count, 0);
+}
+
 function syncInboxChat(
   set: (fn: (state: PeopleState) => Partial<PeopleState>) => void,
   get: () => PeopleState,
@@ -418,6 +436,7 @@ function syncInboxChat(
     cloudMessages.map((m) => ({
       id: m.id,
       author: m.authorName,
+      authorUid: m.authorUid,
       text: m.text,
       at: cloudMessageTimestamp(m),
       mine: m.authorUid === uid,
@@ -683,6 +702,8 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     ).reduce((s, t) => s + t.unread, 0);
     return friends + colleagues;
   },
+
+  peopleMessagesUnreadCount: () => peopleMessagesUnreadTotal(get()),
 
   threadById: (id) => {
     const friend = get().friendThreads.find((t) => t.id === id);

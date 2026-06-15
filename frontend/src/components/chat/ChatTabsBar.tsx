@@ -46,7 +46,7 @@ export default function ChatTabsBar() {
               onClick={() => switchChatTab(tab.id)}
               title={tab.title}
               className={clsx(
-                "chat-tab-btn max-w-[9.5rem] truncate",
+                "chat-tab-btn",
                 active ? "chat-tab-btn--active" : "chat-tab-btn--idle",
               )}
             >

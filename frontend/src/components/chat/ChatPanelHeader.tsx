@@ -14,15 +14,7 @@ export default function ChatPanelHeader() {
   const toggleFriendsChatMode = useStore((s) => s.toggleFriendsChatMode);
   const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
   const toggleChatPanelExpanded = useStore((s) => s.toggleChatPanelExpanded);
-  const activeRoomId = useStore((s) => s.activeRoomId);
-  const unreadPeopleMessages = usePeopleStore((s) => {
-    const friends = s.friendThreads.reduce((sum, thread) => sum + thread.unread, 0);
-    const colleagues = (s.colleagueThreadsByWorkspace[activeRoomId] ?? []).reduce(
-      (sum, thread) => sum + thread.unread,
-      0,
-    );
-    return friends + colleagues;
-  });
+  const unreadPeopleMessages = usePeopleStore((s) => s.peopleMessagesUnreadCount());
   const hasUnreadPeopleMessages = unreadPeopleMessages > 0;
   const friendsMode = chatPanelMode === "friends";
   const theaterMode = chatPanelMode === "theater";

@@ -9,6 +9,7 @@ export interface Person {
 export interface PeopleMessage {
   id: string;
   author: string;
+  authorUid?: string;
   text: string;
   at: number;
   mine?: boolean;
@@ -96,4 +97,15 @@ export function buildMessagePanelThreads(opts: {
   }
 
   return sortMessagePanelThreads(entries);
+}
+
+export function resolvePersonPhotoURL(
+  personId: string,
+  membersByWorkspace: Record<string, Record<string, { photoURL?: string }>>,
+): string | undefined {
+  for (const members of Object.values(membersByWorkspace)) {
+    const photoURL = members[personId]?.photoURL;
+    if (photoURL) return photoURL;
+  }
+  return undefined;
 }
