@@ -1,11 +1,12 @@
 import clsx from "clsx";
-import { Check, Crown, X } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Check, Copy, Crown, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   fetchSharedWorkspace,
   watchPendingJoinRequests,
   type WorkspaceJoinRequestDoc,
 } from "../../lib/firebase/workspaceRegistry";
+import { buildWorkspaceJoinUrl } from "../../lib/workspaceInvite";
 import {
   LOCAL_USER_ID,
   serverRoleLabel,
@@ -16,7 +17,6 @@ import {
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
-import WorkspaceInviteIdBlock from "../workspace/WorkspaceInviteIdBlock";
 
 interface IncomingRequestRow {
   workspaceId: string;
@@ -28,21 +28,28 @@ function WorkspacePickerRow({
   workspace,
   role,
   active,
+  copied,
   onSelect,
+  onCopyLink,
 }: {
   workspace: Workspace;
   role: ServerRole;
   active: boolean;
+  copied: boolean;
   onSelect: (id: string) => void;
+  onCopyLink: (id: string) => void;
 }) {
   return (
-    <li>
+    <li
+      className={clsx(
+        "settings-workspaces-list__row",
+        "settings-workspaces-list__row--static",
+        active && "settings-workspaces-list__row--active",
+      )}
+    >
       <button
         type="button"
-        className={clsx(
-          "settings-workspaces-list__row",
-          active && "settings-workspaces-list__row--active",
-        )}
+        className="settings-workspaces-list__select"
         onClick={() => onSelect(workspace.id)}
         aria-current={active ? "true" : undefined}
       >
@@ -57,7 +64,6 @@ function WorkspacePickerRow({
           <span className="settings-workspaces-list__name">{workspace.name}</span>
           <span className="settings-workspaces-list__meta">
             {serverRoleLabel(role)}
-            {role === "owner" ? ` · ID ${workspace.id}` : ""}
             {active ? " · Actif" : ""}
           </span>
         </span>
@@ -65,6 +71,33 @@ function WorkspacePickerRow({
           <Crown size={12} className="shrink-0 text-amber-300/90" aria-hidden />
         ) : null}
       </button>
+      {role === "owner" ? (
+        <button
+          type="button"
+          className={clsx(
+            "settings-workspaces-list__copy",
+            copied && "settings-workspaces-list__copy--done",
+          )}
+          onClick={() => onCopyLink(workspace.id)}
+          aria-label={
+            copied
+              ? `Lien copié pour ${workspace.name}`
+              : `Copier le lien d'invitation pour ${workspace.name}`
+          }
+        >
+          {copied ? (
+            <>
+              <Check size={12} strokeWidth={2.5} aria-hidden />
+              Copié
+            </>
+          ) : (
+            <>
+              <Copy size={12} strokeWidth={2.25} aria-hidden />
+              Copier
+            </>
+          )}
+        </button>
+      ) : null}
     </li>
   );
 }
@@ -82,7 +115,6 @@ export default function WorkspacesSettingsSection() {
   const requestJoinWorkspace = useWorkspacesStore((s) => s.requestJoinWorkspace);
   const respondJoinRequest = useWorkspacesStore((s) => s.respondJoinRequest);
   const pendingJoinRequests = useWorkspacesStore((s) => s.pendingJoinRequests);
-
   const pendingInviteWorkspaceId = useWorkspacesStore((s) => s.pendingInviteWorkspaceId);
 
   const ownerUserId = firebaseUid ?? LOCAL_USER_ID;
@@ -97,8 +129,6 @@ export default function WorkspacesSettingsSection() {
     [joined, roleIn, ownerUserId],
   );
 
-  const activeOwnedWorkspace = owned.find((workspace) => workspace.id === activeRoomId);
-
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequestRow[]>([]);
   const [pendingLabels, setPendingLabels] = useState<Record<string, string>>({});
   const [joinId, setJoinId] = useState("");
@@ -106,10 +136,11 @@ export default function WorkspacesSettingsSection() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinSent, setJoinSent] = useState(false);
   const [respondBusyKey, setRespondBusyKey] = useState<string | null>(null);
+  const [copiedWorkspaceId, setCopiedWorkspaceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!pendingInviteWorkspaceId) return;
-    setJoinId(pendingInviteWorkspaceId);
+    setJoinId(buildWorkspaceJoinUrl(pendingInviteWorkspaceId));
     useWorkspacesStore.getState().setPendingInviteWorkspaceId(null);
   }, [pendingInviteWorkspaceId]);
 
@@ -175,6 +206,18 @@ export default function WorkspacesSettingsSection() {
     };
   }, [pendingJoinRequests]);
 
+  const onCopyInviteLink = useCallback(async (workspaceId: string) => {
+    try {
+      await navigator.clipboard.writeText(buildWorkspaceJoinUrl(workspaceId));
+      setCopiedWorkspaceId(workspaceId);
+      window.setTimeout(() => {
+        setCopiedWorkspaceId((current) => (current === workspaceId ? null : current));
+      }, 2000);
+    } catch {
+      setCopiedWorkspaceId(null);
+    }
+  }, []);
+
   const onRequestJoin = async (event: FormEvent) => {
     event.preventDefault();
     if (joinBusy || !joinId.trim()) return;
@@ -213,17 +256,6 @@ export default function WorkspacesSettingsSection() {
 
   return (
     <div className="settings-workspaces">
-      {activeOwnedWorkspace ? (
-        <section className="settings-section settings-section--card">
-          <h3 className="settings-section__label">Partager ce workspace</h3>
-          <WorkspaceInviteIdBlock
-            workspaceId={activeOwnedWorkspace.id}
-            workspaceName={activeOwnedWorkspace.name}
-            variant="settings"
-          />
-        </section>
-      ) : null}
-
       {incomingRequests.length > 0 && (
         <section className="settings-section settings-section--card">
           <h3 className="settings-section__label">Invitations reçues</h3>
@@ -284,7 +316,7 @@ export default function WorkspacesSettingsSection() {
                   <span className="settings-workspaces-list__name">
                     {pendingLabels[workspaceId] ?? workspaceId}
                   </span>
-                  <span className="settings-workspaces-list__meta">En attente · {workspaceId}</span>
+                  <span className="settings-workspaces-list__meta">En attente</span>
                 </span>
               </li>
             ))}
@@ -295,7 +327,8 @@ export default function WorkspacesSettingsSection() {
       <section className="settings-section settings-section--card">
         <h3 className="settings-section__label">Mes workspaces</h3>
         <p className="settings-section__hint">
-          Cliquez sur un workspace pour basculer dessus.
+          Cliquez sur un workspace pour basculer dessus. Propriétaires : bouton Copier à droite
+          pour partager le lien d&apos;invitation.
         </p>
         {joined.length === 0 ? (
           <p className="settings-section__meta mt-4">Aucun workspace pour le moment.</p>
@@ -310,7 +343,9 @@ export default function WorkspacesSettingsSection() {
                   workspace={workspace}
                   role={role}
                   active={activeRoomId === workspace.id}
+                  copied={copiedWorkspaceId === workspace.id}
                   onSelect={switchWorkspace}
+                  onCopyLink={(id) => void onCopyInviteLink(id)}
                 />
               );
             })}
@@ -321,13 +356,13 @@ export default function WorkspacesSettingsSection() {
       <section className="settings-section settings-section--card">
         <h3 className="settings-section__label">Rejoindre un workspace</h3>
         <p className="settings-section__hint">
-          Collez l&apos;identifiant (ex. ws-k7m2p9xq) ou le lien reçu d&apos;un collègue.
+          Collez le lien d&apos;invitation reçu d&apos;un collègue.
         </p>
         <form onSubmit={(event) => void onRequestJoin(event)} className="settings-section__inline-form mt-3">
           <input
             type="text"
             className="input min-w-0 flex-1"
-            placeholder="ws-k7m2p9xq"
+            placeholder="https://…?workspace=ws-…"
             value={joinId}
             disabled={joinBusy}
             onChange={(event) => {

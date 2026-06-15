@@ -41,7 +41,3 @@ export function buildWorkspaceJoinUrl(workspaceId: string): string {
   url.searchParams.set("workspace", workspaceId.trim().toLowerCase());
   return url.toString();
 }
-
-export function workspaceInviteHint(workspaceId: string): string {
-  return `Partagez l'identifiant ${workspaceId} — vos collègues le saisissent dans Paramètres → Workspaces pour demander à rejoindre.`;
-}

@@ -1006,10 +1006,13 @@ body {
     @apply flex flex-col gap-1.5;
   }
   .settings-workspaces-list__row {
-    @apply flex w-full items-center gap-3 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2.5 text-left transition-colors;
+    @apply flex w-full items-center gap-2 rounded-lg border border-ink-700 bg-ink-900 px-2 py-2 text-left transition-colors;
   }
   .settings-workspaces-list__row--static {
     @apply cursor-default;
+  }
+  .settings-workspaces-list__select {
+    @apply flex min-w-0 flex-1 items-center gap-3 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-ink-850;
   }
   button.settings-workspaces-list__row:hover {
     @apply border-ink-600 bg-ink-850;
@@ -1035,19 +1038,10 @@ body {
   .settings-workspaces-list__action--accept {
     @apply text-emerald-300;
   }
-  .settings-workspace-invite {
-    @apply mt-2;
-  }
-  .settings-workspace-invite__row {
-    @apply mt-2 flex items-center gap-2;
-  }
-  .settings-workspace-invite__input {
-    @apply min-w-0 flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 font-mono text-sm text-muted-100;
-  }
-  .settings-workspace-invite__copy {
+  .settings-workspaces-list__copy {
     @apply inline-flex shrink-0 items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-[11px] font-medium text-muted-200 transition-colors hover:bg-ink-800;
   }
-  .settings-workspace-invite__copy--done {
+  .settings-workspaces-list__copy--done {
     @apply text-emerald-300;
   }
   .settings-agent-field {

@@ -259,13 +259,13 @@ export default function WorkspaceOverlay() {
             <h4 className="workspace-overlay__section-title">Rejoindre un serveur</h4>
             <form className="workspace-overlay__create" onSubmit={(e) => void onRequestJoin(e)}>
               <p className="workspace-overlay__create-label">
-                Entrez l&apos;identifiant partagé par le propriétaire.
+                Collez le lien d&apos;invitation partagé par le propriétaire.
               </p>
               <div className="workspace-overlay__create-row">
                 <input
                   type="text"
                   className="workspace-overlay__create-input"
-                  placeholder="ws-k7m2p9xq"
+                  placeholder="https://…?workspace=ws-…"
                   value={joinId}
                   disabled={joinBusy}
                   onChange={(e) => {
