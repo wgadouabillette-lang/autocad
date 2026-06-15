@@ -230,6 +230,22 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      match /members/{memberUid} {
+        allow read: if isSignedIn() && (
+          request.auth.uid == memberUid
+          || isSharedWorkspaceOwner(workspaceId)
+        );
+        allow create, update: if isSharedWorkspaceOwner(workspaceId)
+          && request.resource.data.uid == memberUid
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() >= 1
+          && request.resource.data.displayName.size() <= 120
+          && request.resource.data.email is string
+          && request.resource.data.email.size() <= 320
+          && request.resource.data.joinedAt is timestamp;
+        allow delete: if isSharedWorkspaceOwner(workspaceId);
+      }
+
       match /presence/{uid} {
         allow read: if isSignedIn();
         allow create, update: if isOwner(uid)

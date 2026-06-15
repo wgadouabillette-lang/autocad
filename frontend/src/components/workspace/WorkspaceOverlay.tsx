@@ -132,11 +132,19 @@ export default function WorkspaceOverlay() {
     }
   };
 
-  const onRespond = async (requesterUid: string, accept: boolean) => {
+  const onRespond = async (
+    requesterUid: string,
+    accept: boolean,
+    requester?: { requesterName: string; requesterEmail: string },
+  ) => {
     if (respondBusyUid) return;
     setRespondBusyUid(requesterUid);
     try {
-      await respondJoinRequest(activeRoomId, requesterUid, accept);
+      await respondJoinRequest(activeRoomId, requesterUid, accept, requester);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Impossible de répondre à la demande.";
+      window.alert(message);
     } finally {
       setRespondBusyUid(null);
     }
@@ -234,7 +242,12 @@ export default function WorkspaceOverlay() {
                         type="button"
                         className="workspace-overlay__create-btn"
                         disabled={respondBusyUid === request.requesterUid}
-                        onClick={() => void onRespond(request.requesterUid, true)}
+                        onClick={() =>
+                          void onRespond(request.requesterUid, true, {
+                            requesterName: request.requesterName,
+                            requesterEmail: request.requesterEmail,
+                          })
+                        }
                         aria-label={`Accepter ${request.requesterName}`}
                       >
                         <Check size={14} aria-hidden />
@@ -243,7 +256,12 @@ export default function WorkspaceOverlay() {
                         type="button"
                         className="workspace-overlay__create-btn"
                         disabled={respondBusyUid === request.requesterUid}
-                        onClick={() => void onRespond(request.requesterUid, false)}
+                        onClick={() =>
+                          void onRespond(request.requesterUid, false, {
+                            requesterName: request.requesterName,
+                            requesterEmail: request.requesterEmail,
+                          })
+                        }
                         aria-label={`Refuser ${request.requesterName}`}
                       >
                         <X size={14} aria-hidden />

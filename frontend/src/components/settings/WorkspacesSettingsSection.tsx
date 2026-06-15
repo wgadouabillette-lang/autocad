@@ -243,12 +243,21 @@ export default function WorkspacesSettingsSection() {
     }
   };
 
-  const onRespond = async (workspaceId: string, requesterUid: string, accept: boolean) => {
+  const onRespond = async (
+    workspaceId: string,
+    requesterUid: string,
+    accept: boolean,
+    requester?: { requesterName: string; requesterEmail: string },
+  ) => {
     const key = `${workspaceId}:${requesterUid}`;
     if (respondBusyKey) return;
     setRespondBusyKey(key);
     try {
-      await respondJoinRequest(workspaceId, requesterUid, accept);
+      await respondJoinRequest(workspaceId, requesterUid, accept, requester);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Impossible de répondre à la demande.";
+      window.alert(message);
     } finally {
       setRespondBusyKey(null);
     }
@@ -278,7 +287,12 @@ export default function WorkspacesSettingsSection() {
                       type="button"
                       className="settings-workspaces-list__action settings-workspaces-list__action--accept"
                       disabled={respondBusyKey === key}
-                      onClick={() => void onRespond(workspaceId, request.requesterUid, true)}
+                      onClick={() =>
+                        void onRespond(workspaceId, request.requesterUid, true, {
+                          requesterName: request.requesterName,
+                          requesterEmail: request.requesterEmail,
+                        })
+                      }
                       aria-label={`Accepter ${request.requesterName}`}
                     >
                       <Check size={14} aria-hidden />
@@ -287,7 +301,12 @@ export default function WorkspacesSettingsSection() {
                       type="button"
                       className="settings-workspaces-list__action"
                       disabled={respondBusyKey === key}
-                      onClick={() => void onRespond(workspaceId, request.requesterUid, false)}
+                      onClick={() =>
+                        void onRespond(workspaceId, request.requesterUid, false, {
+                          requesterName: request.requesterName,
+                          requesterEmail: request.requesterEmail,
+                        })
+                      }
                       aria-label={`Refuser ${request.requesterName}`}
                     >
                       <X size={14} aria-hidden />

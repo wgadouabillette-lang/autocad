@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { watchJoinRequestForUser, watchPendingJoinRequests } from "../lib/firebase/workspaceRegistry";
 import { useAuthStore } from "../store/useAuthStore";
 import { useNotificationsStore } from "../store/useNotificationsStore";
@@ -15,7 +15,14 @@ export function useWorkspaceJoinRequests() {
   const isOwner = useWorkspacesStore((s) => s.isWorkspaceOwner(activeRoomId));
   const pendingJoinRequests = useWorkspacesStore((s) => s.pendingJoinRequests);
   const removePendingJoinRequest = useWorkspacesStore((s) => s.removePendingJoinRequest);
+  const reconcilePendingJoinRequests = useWorkspacesStore((s) => s.reconcilePendingJoinRequests);
   const pushNotification = useNotificationsStore((s) => s.push);
+  const handledAcceptanceRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!isAuthenticated || !firebaseUid) return;
+    void reconcilePendingJoinRequests(firebaseUid);
+  }, [firebaseUid, isAuthenticated, reconcilePendingJoinRequests]);
 
   useEffect(() => {
     if (!isAuthenticated || !firebaseUid || !activeRoomId || !isOwner) return;
@@ -47,7 +54,10 @@ export function useWorkspaceJoinRequests() {
     const unsubs = pendingJoinRequests.map((workspaceId) =>
       watchJoinRequestForUser(workspaceId, firebaseUid, async (request) => {
         if (!request) return;
+        const key = `${workspaceId}:${request.status}`;
         if (request.status === "accepted") {
+          if (handledAcceptanceRef.current.has(key)) return;
+          handledAcceptanceRef.current.add(key);
           const added = await acceptSharedWorkspaceJoin(workspaceId, firebaseUid);
           removePendingJoinRequest(workspaceId);
           if (added) {

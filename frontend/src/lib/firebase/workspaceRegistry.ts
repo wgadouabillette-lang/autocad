@@ -45,6 +45,10 @@ function joinRequestsCol(workspaceId: string) {
   return collection(db, "workspacesShared", workspaceId, "joinRequests");
 }
 
+function workspaceMemberRef(workspaceId: string, memberUid: string) {
+  return doc(db, "workspacesShared", workspaceId, "members", memberUid);
+}
+
 export function toSharedWorkspaceDoc(workspace: Workspace): SharedWorkspaceDoc {
   return {
     id: workspace.id,
@@ -111,6 +115,31 @@ export async function respondWorkspaceJoinRequest(
   await updateDoc(joinRequestRef(workspaceId, requesterUid), {
     status: accept ? "accepted" : "declined",
     respondedAt: serverTimestamp(),
+  });
+}
+
+export async function fetchJoinRequestForUser(
+  workspaceId: string,
+  uid: string,
+): Promise<WorkspaceJoinRequestDoc | null> {
+  const trimmed = workspaceId.trim().toLowerCase();
+  if (!trimmed || !uid) return null;
+  const snap = await getDoc(joinRequestRef(trimmed, uid));
+  if (!snap.exists()) return null;
+  return snap.data() as WorkspaceJoinRequestDoc;
+}
+
+export async function grantWorkspaceMember(
+  workspaceId: string,
+  member: { uid: string; displayName: string; email: string },
+): Promise<void> {
+  const trimmed = workspaceId.trim().toLowerCase();
+  if (!trimmed || !member.uid) return;
+  await setDoc(workspaceMemberRef(trimmed, member.uid), {
+    uid: member.uid,
+    displayName: member.displayName.trim() || "Membre",
+    email: member.email.trim().toLowerCase(),
+    joinedAt: serverTimestamp(),
   });
 }
 

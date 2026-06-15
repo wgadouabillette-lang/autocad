@@ -340,6 +340,8 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
     });
   }
 
+  await useWorkspacesStore.getState().reconcilePendingJoinRequests(uid);
+
   if (chatSessions.length) {
     useStore.setState({ chatSessions });
   }

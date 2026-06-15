@@ -11,17 +11,25 @@ import {
 } from "../lib/workspaces";
 import { generateWorkspaceInviteId } from "../lib/workspaceInvite";
 import {
+  fetchJoinRequestForUser,
   fetchSharedWorkspace,
+  grantWorkspaceMember,
   publishSharedWorkspace,
   requestWorkspaceJoin,
   respondWorkspaceJoinRequest,
   type WorkspaceJoinRequestDoc,
 } from "../lib/firebase/workspaceRegistry";
 import { parseWorkspaceInviteInput } from "../lib/workspaceInvite";
+import { auth } from "../lib/firebase/client";
 import { useCallsStore } from "./useCallsStore";
 import { useStore } from "./useStore";
 
 const STORAGE_KEY = "forma-server-memberships";
+const PENDING_JOINS_KEY = "forma-pending-join-requests";
+
+function currentMembershipUserId(): string {
+  return auth.currentUser?.uid ?? LOCAL_USER_ID;
+}
 
 interface PersistedState {
   customServers: Workspace[];
@@ -59,7 +67,9 @@ interface WorkspacesState extends PersistedState {
     workspaceId: string,
     requesterUid: string,
     accept: boolean,
+    requester?: Pick<WorkspaceJoinRequestDoc, "requesterName" | "requesterEmail">,
   ) => Promise<void>;
+  reconcilePendingJoinRequests: (userId: string) => Promise<void>;
   leaveWorkspace: (workspaceId: string, userId?: string) => void;
   resetLocalMemberships: () => void;
   stripLegacyPublicWorkspaces: () => void;
@@ -87,6 +97,22 @@ function sanitizePersisted(state: PersistedState): PersistedState {
     (entry) => !isLegacyPublicWorkspaceId(entry.workspaceId),
   );
   return { customServers, memberships };
+}
+
+function writePendingJoinRequests(ids: string[]) {
+  localStorage.setItem(PENDING_JOINS_KEY, JSON.stringify(ids));
+}
+
+function readPendingJoinRequests(): string[] {
+  try {
+    const raw = localStorage.getItem(PENDING_JOINS_KEY);
+    if (!raw) return [];
+    const data = JSON.parse(raw) as unknown;
+    if (!Array.isArray(data)) return [];
+    return data.filter((entry): entry is string => typeof entry === "string");
+  } catch {
+    return [];
+  }
 }
 
 function writePersisted(state: PersistedState) {
@@ -160,19 +186,22 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     const persisted = sanitizePersisted(readPersisted());
     const customServers = normalizeCustomServers(persisted.customServers);
     const memberships = normalizeMemberships(persisted.memberships);
+    const pendingJoinRequests = readPendingJoinRequests();
 
     writePersisted({ customServers, memberships });
     set({
       customServers,
       memberships,
+      pendingJoinRequests,
       hydrated: true,
     });
     get().stripLegacyPublicWorkspaces();
-    if (get().joinedWorkspaces().length === 0) {
+    const memberUid = currentMembershipUserId();
+    if (get().joinedWorkspaces(memberUid).length === 0 && memberUid === LOCAL_USER_ID) {
       const ownerName = useStore.getState().userDisplayName;
       get().createPersonalWorkspace(ownerName, LOCAL_USER_ID);
     }
-    syncActiveWorkspace(get().joinedWorkspaces());
+    syncActiveWorkspace(get().joinedWorkspaces(memberUid));
   },
 
   addPendingJoinRequest: (workspaceId) => {
@@ -180,15 +209,19 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     if (!normalized) return;
     set((state) => {
       if (state.pendingJoinRequests.includes(normalized)) return state;
-      return { pendingJoinRequests: [...state.pendingJoinRequests, normalized] };
+      const pendingJoinRequests = [...state.pendingJoinRequests, normalized];
+      writePendingJoinRequests(pendingJoinRequests);
+      return { pendingJoinRequests };
     });
   },
 
   removePendingJoinRequest: (workspaceId) => {
     const normalized = normalizeWorkspaceId(workspaceId);
-    set((state) => ({
-      pendingJoinRequests: state.pendingJoinRequests.filter((id) => id !== normalized),
-    }));
+    set((state) => {
+      const pendingJoinRequests = state.pendingJoinRequests.filter((id) => id !== normalized);
+      writePendingJoinRequests(pendingJoinRequests);
+      return { pendingJoinRequests };
+    });
   },
 
   findWorkspace: (id) => {
@@ -196,27 +229,29 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     return get().customServers.find((server) => server.id === normalized);
   },
 
-  joinedWorkspaces: (userId = LOCAL_USER_ID) => {
+  joinedWorkspaces: (userId) => {
+    const memberUid = userId ?? currentMembershipUserId();
     const joinedIds = new Set(
       get()
-        .memberships.filter((entry) => entry.userId === userId)
+        .memberships.filter((entry) => entry.userId === memberUid)
         .map((entry) => entry.workspaceId),
     );
     return get().customServers.filter((server) => joinedIds.has(server.id));
   },
 
-  membershipIn: (workspaceId, userId = LOCAL_USER_ID) => {
+  membershipIn: (workspaceId, userId) => {
+    const memberUid = userId ?? currentMembershipUserId();
     const normalized = normalizeWorkspaceId(workspaceId);
     return get().memberships.find(
-      (entry) => entry.userId === userId && entry.workspaceId === normalized,
+      (entry) => entry.userId === memberUid && entry.workspaceId === normalized,
     );
   },
 
-  roleIn: (workspaceId, userId = LOCAL_USER_ID) => {
+  roleIn: (workspaceId, userId) => {
     return get().membershipIn(workspaceId, userId)?.role ?? null;
   },
 
-  isWorkspaceOwner: (workspaceId, userId = LOCAL_USER_ID) => {
+  isWorkspaceOwner: (workspaceId, userId) => {
     return get().roleIn(workspaceId, userId) === "owner";
   },
 
@@ -286,9 +321,10 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     return true;
   },
 
-  updateWorkspace: (workspaceId, patch, userId = LOCAL_USER_ID) => {
+  updateWorkspace: (workspaceId, patch, userId) => {
+    const memberUid = userId ?? currentMembershipUserId();
     const normalized = normalizeWorkspaceId(workspaceId);
-    if (get().roleIn(normalized, userId) !== "owner") return false;
+    if (get().roleIn(normalized, memberUid) !== "owner") return false;
 
     const trimmedName = patch.name?.trim();
     const nextPatch: Partial<Pick<Workspace, "name" | "accent">> = {
@@ -326,22 +362,51 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     get().addPendingJoinRequest(normalized);
   },
 
-  respondJoinRequest: async (workspaceId, requesterUid, accept) => {
+  respondJoinRequest: async (workspaceId, requesterUid, accept, requester) => {
     const normalized = normalizeWorkspaceId(workspaceId);
-    if (!get().isWorkspaceOwner(normalized)) {
+    const ownerUid = currentMembershipUserId();
+    if (!get().isWorkspaceOwner(normalized, ownerUid)) {
       throw new Error("Seul le propriétaire peut répondre aux demandes.");
     }
     await respondWorkspaceJoinRequest(normalized, requesterUid, accept);
+    if (accept) {
+      await grantWorkspaceMember(normalized, {
+        uid: requesterUid,
+        displayName: requester?.requesterName?.trim() || "Membre",
+        email: requester?.requesterEmail?.trim().toLowerCase() || "",
+      });
+    }
   },
 
-  leaveWorkspace: (workspaceId, userId = LOCAL_USER_ID) => {
+  reconcilePendingJoinRequests: async (userId) => {
+    const pending = get().pendingJoinRequests;
+    if (!userId || pending.length === 0) return;
+
+    for (const workspaceId of pending) {
+      const request = await fetchJoinRequestForUser(workspaceId, userId);
+      if (!request) continue;
+      if (request.status === "accepted") {
+        const added = await acceptSharedWorkspaceJoin(workspaceId, userId);
+        get().removePendingJoinRequest(workspaceId);
+        if (added) {
+          const { useAuthStore } = await import("./useAuthStore");
+          await useAuthStore.getState().syncWorkspacesToCloud();
+        }
+      } else if (request.status === "declined") {
+        get().removePendingJoinRequest(workspaceId);
+      }
+    }
+  },
+
+  leaveWorkspace: (workspaceId, userId) => {
+    const memberUid = userId ?? currentMembershipUserId();
     const normalized = normalizeWorkspaceId(workspaceId);
-    const membership = get().membershipIn(normalized, userId);
+    const membership = get().membershipIn(normalized, memberUid);
     if (!membership || membership.role === "owner") return;
 
     set((state) => {
       const memberships = state.memberships.filter(
-        (entry) => !(entry.userId === userId && entry.workspaceId === normalized),
+        (entry) => !(entry.userId === memberUid && entry.workspaceId === normalized),
       );
       writePersisted({ customServers: state.customServers, memberships });
       return { memberships };
@@ -366,7 +431,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       writePersisted(next);
       return next;
     });
-    syncActiveWorkspace(get().joinedWorkspaces());
+    syncActiveWorkspace(get().joinedWorkspaces(currentMembershipUserId()));
   },
 }));
 
