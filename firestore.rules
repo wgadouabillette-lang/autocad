@@ -120,6 +120,53 @@ service cloud.firestore {
         && resource.data.status == 'pending';
     }
 
+    function isValidPresenceWrite(uid) {
+      let data = request.resource.data;
+      return data.uid == uid
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 120
+        && data.lastSeen is timestamp
+        && (!('photoURL' in data)
+          || data.photoURL == null
+          || data.photoURL is string)
+        && (!('voiceInPrivateCall' in data) || data.voiceInPrivateCall is bool)
+        && (!('voiceOpenChannelId' in data)
+          || data.voiceOpenChannelId == null
+          || data.voiceOpenChannelId is string);
+    }
+
+    function isValidVoiceKnockCreate(fromUid) {
+      let data = request.resource.data;
+      return fromUid == request.auth.uid
+        && data.keys().hasAll(['id', 'workspaceId', 'fromUid', 'fromName', 'toUid', 'status', 'createdAt'])
+        && data.fromUid == request.auth.uid
+        && data.fromName is string
+        && data.fromName.size() >= 1
+        && data.fromName.size() <= 120
+        && data.toUid is string
+        && data.toUid.size() >= 1
+        && data.toUid != request.auth.uid
+        && data.status == 'pending'
+        && data.createdAt is timestamp;
+    }
+
+    function isVoiceKnockResponse(toUid) {
+      return toUid == request.auth.uid
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'respondedAt'])
+        && request.resource.data.status in ['accepted', 'declined']
+        && request.resource.data.respondedAt is timestamp
+        && resource.data.status == 'pending';
+    }
+
+    function isVoiceKnockCancel(fromUid) {
+      return fromUid == request.auth.uid
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'respondedAt'])
+        && request.resource.data.status == 'declined'
+        && request.resource.data.respondedAt is timestamp
+        && resource.data.status == 'pending';
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create: if isOwner(uid) && isValidProfile();
@@ -248,16 +295,19 @@ service cloud.firestore {
 
       match /presence/{uid} {
         allow read: if isSignedIn();
-        allow create, update: if isOwner(uid)
-          && request.resource.data.uid == uid
-          && request.resource.data.displayName is string
-          && request.resource.data.displayName.size() >= 1
-          && request.resource.data.displayName.size() <= 120
-          && request.resource.data.lastSeen is timestamp
-          && (!('photoURL' in request.resource.data)
-            || request.resource.data.photoURL == null
-            || request.resource.data.photoURL is string);
+        allow create, update: if isOwner(uid) && isValidPresenceWrite(uid);
         allow delete: if isOwner(uid);
+      }
+
+      match /voiceKnocks/{knockId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && isValidVoiceKnockCreate(request.resource.data.fromUid);
+        allow update: if isSignedIn() && (
+          isVoiceKnockResponse(resource.data.toUid)
+          || isVoiceKnockCancel(resource.data.fromUid)
+        );
+        allow delete: if false;
       }
     }
   }

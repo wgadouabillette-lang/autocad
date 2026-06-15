@@ -51,6 +51,10 @@ function blockId(roomId: string, userId: string) {
   return `${roomId}-${userId}`;
 }
 
+export function memberBlockId(roomId: string, userId: string): string {
+  return blockId(roomId, userId);
+}
+
 function withoutLegacyMockBlocks(blocks: CallBlock[]): CallBlock[] {
   return blocks.filter((block) =>
     block.participants.every(
@@ -217,6 +221,83 @@ export function memberBlocksSignature(blocks: CallBlock[]): string {
     )
     .sort()
     .join(";");
+}
+
+export function openChannelsSignature(channels: OpenVoiceChannel[]): string {
+  return channels
+    .map((channel) =>
+      [
+        channel.id,
+        channel.inCall ? "1" : "0",
+        channel.name,
+        ...channel.participants.map(
+          (participant) =>
+            `${participant.id}:${participant.name}:${participant.photoURL ?? ""}:${participant.isLocal ? "1" : "0"}`,
+        ),
+      ].join("|"),
+    )
+    .sort()
+    .join(";");
+}
+
+export interface RemoteVoiceMember {
+  id: string;
+  name: string;
+  photoURL?: string;
+  inPrivateCall: boolean;
+  openChannelId: string | null;
+}
+
+/** Applique l'état vocal distant (présence Firestore) aux blocs et salons ouverts. */
+export function applyRemoteVoiceFromPresence(
+  roomId: string,
+  blocks: CallBlock[],
+  openChannels: OpenVoiceChannel[],
+  members: RemoteVoiceMember[],
+  localFirebaseUid?: string | null,
+  localOpenChannelId?: string | null,
+): { blocks: CallBlock[]; openChannels: OpenVoiceChannel[] } {
+  const remoteMembers = members.filter(
+    (member) => member.id && member.id !== localFirebaseUid && !isLegacyMockMemberId(member.id),
+  );
+
+  const nextBlocks = blocks.map((block) => {
+    if (block.participants.some((participant) => participant.isLocal)) return block;
+    if (block.participants.length !== 1) return block;
+    const participantId = block.participants[0]?.id;
+    const remote = remoteMembers.find((member) => member.id === participantId);
+    if (!remote) return block;
+    return { ...block, inCall: remote.inPrivateCall };
+  });
+
+  const remoteByChannel = new Map<string, RemoteVoiceMember[]>();
+  for (const member of remoteMembers) {
+    if (!member.openChannelId) continue;
+    const bucket = remoteByChannel.get(member.openChannelId) ?? [];
+    bucket.push(member);
+    remoteByChannel.set(member.openChannelId, bucket);
+  }
+
+  const nextOpenChannels = openChannels.map((channel) => {
+    const remoteParticipants = (remoteByChannel.get(channel.id) ?? []).map((member) => ({
+      id: member.id,
+      name: member.name,
+      photoURL: member.photoURL,
+    }));
+    const localParticipants =
+      localOpenChannelId === channel.id
+        ? channel.participants.filter((participant) => participant.isLocal)
+        : [];
+    const participants = [...localParticipants, ...remoteParticipants];
+    const isLocalHere = localParticipants.length > 0;
+    return {
+      ...channel,
+      participants,
+      inCall: remoteParticipants.length > 0 || isLocalHere,
+    };
+  });
+
+  return { blocks: nextBlocks, openChannels: nextOpenChannels };
 }
 
 function isDuplicateRemoteSelfBlock(

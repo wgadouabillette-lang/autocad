@@ -10,11 +10,18 @@ import {
 import { db } from "./client";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 
+export interface WorkspaceVoicePresence {
+  inPrivateCall: boolean;
+  openChannelId: string | null;
+}
+
 export interface WorkspacePresenceDoc {
   uid: string;
   displayName: string;
   photoURL?: string;
   lastSeen?: { seconds: number; nanoseconds: number };
+  voiceInPrivateCall?: boolean;
+  voiceOpenChannelId?: string | null;
 }
 
 export interface WorkspacePresenceMember {
@@ -22,6 +29,17 @@ export interface WorkspacePresenceMember {
   displayName: string;
   photoURL?: string;
   lastSeenMs: number;
+  voice: WorkspaceVoicePresence;
+}
+
+function voiceFromDoc(data: WorkspacePresenceDoc): WorkspaceVoicePresence {
+  return {
+    inPrivateCall: data.voiceInPrivateCall === true,
+    openChannelId:
+      typeof data.voiceOpenChannelId === "string" && data.voiceOpenChannelId
+        ? data.voiceOpenChannelId
+        : null,
+  };
 }
 
 function presenceCol(workspaceId: string) {
@@ -56,6 +74,7 @@ export function watchWorkspacePresence(
           displayName: data.displayName?.trim() || "Membre",
           photoURL: data.photoURL,
           lastSeenMs: lastSeenToMs(data.lastSeen),
+          voice: voiceFromDoc(data),
         };
       });
       onChange(members);
@@ -68,18 +87,29 @@ export async function touchWorkspacePresence(
   workspaceId: string,
   uid: string,
   profile: { displayName: string; photoURL?: string | null },
+  voice?: WorkspaceVoicePresence,
 ): Promise<void> {
   if (!workspaceId || !uid) return;
-  await setDoc(
-    presenceRef(workspaceId, uid),
-    {
-      uid,
-      displayName: profile.displayName.trim() || "Membre",
-      photoURL: profile.photoURL ? profile.photoURL : deleteField(),
-      lastSeen: serverTimestamp(),
-    },
-    { merge: true },
-  );
+  const payload: Record<string, unknown> = {
+    uid,
+    displayName: profile.displayName.trim() || "Membre",
+    photoURL: profile.photoURL ? profile.photoURL : deleteField(),
+    lastSeen: serverTimestamp(),
+  };
+  if (voice) {
+    payload.voiceInPrivateCall = voice.inPrivateCall;
+    payload.voiceOpenChannelId = voice.openChannelId ?? deleteField();
+  }
+  await setDoc(presenceRef(workspaceId, uid), payload, { merge: true });
+}
+
+export async function pushWorkspaceVoiceState(
+  workspaceId: string,
+  uid: string,
+  profile: { displayName: string; photoURL?: string | null },
+  voice: WorkspaceVoicePresence,
+): Promise<void> {
+  await touchWorkspacePresence(workspaceId, uid, profile, voice);
 }
 
 export async function pushProfileToJoinedWorkspaces(

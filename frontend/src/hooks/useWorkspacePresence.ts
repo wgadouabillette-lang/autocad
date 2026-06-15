@@ -38,9 +38,24 @@ export function useWorkspacePresence() {
 
     const heartbeat = () => {
       void Promise.all(
-        workspaceIds.map((workspaceId) =>
-          touchWorkspacePresence(workspaceId, firebaseUid, profile),
-        ),
+        workspaceIds.map((workspaceId) => {
+          const voice = useCallsStore.getState().isLocalInCall(workspaceId)
+            ? (() => {
+                const room = useCallsStore.getState().callsByRoom[workspaceId];
+                const openChannelId =
+                  useCallsStore.getState().localOpenChannelByRoom[workspaceId] ?? null;
+                const localBlock = room?.blocks.find((block) =>
+                  block.participants.some((participant) => participant.isLocal),
+                );
+                const inPrivateCall = !!localBlock?.inCall && !openChannelId;
+                return {
+                  inPrivateCall,
+                  openChannelId: openChannelId ?? null,
+                };
+              })()
+            : { inPrivateCall: false, openChannelId: null };
+          return touchWorkspacePresence(workspaceId, firebaseUid, profile, voice);
+        }),
       );
     };
 
@@ -71,6 +86,7 @@ export function useWorkspacePresence() {
             id: member.uid,
             name: member.displayName,
             photoURL: member.photoURL,
+            voice: member.voice,
           }));
           useCallsStore.getState().syncPresenceMembers(workspaceId, memberRows, firebaseUid);
         },

@@ -11,16 +11,28 @@ import {
   isOpenChannelIdleExpired,
   mapOpenChannelsVacancy,
   syncOpenChannelVacancy,
+  applyRemoteVoiceFromPresence,
   findLocalBlock,
+  memberBlockId,
   mergeCallBlocks,
   mergePresenceMemberBlocks,
   memberBlocksSignature,
+  openChannelsSignature,
   removeDuplicateRemoteSelfBlocks,
   splitLocalFromBlock,
   syncRoomCallsWithMembers,
   type JoinRequest,
   type RoomCallsState,
 } from "../lib/calls";
+import {
+  cancelVoiceKnock,
+  respondVoiceKnock,
+  sendVoiceKnock,
+} from "../lib/firebase/workspaceVoiceKnocks";
+import {
+  pushWorkspaceVoiceState,
+  type WorkspaceVoicePresence,
+} from "../lib/firebase/workspacePresence";
 import {
   acquireLocalMedia,
   disableCamera,
@@ -85,9 +97,17 @@ interface CallsState extends CallControls {
   ensureRoom: (workspaceId: string) => void;
   syncPresenceMembers: (
     workspaceId: string,
-    members: Array<{ id: string; name: string; photoURL?: string }>,
+    members: Array<{
+      id: string;
+      name: string;
+      photoURL?: string;
+      voice?: WorkspaceVoicePresence;
+    }>,
     localFirebaseUid?: string | null,
   ) => void;
+  syncRemoteJoinRequests: (workspaceId: string, pending: JoinRequest[]) => void;
+  completeRemoteKnockJoin: (workspaceId: string, partnerUid: string) => Promise<void>;
+  clearJoinRequest: (workspaceId: string, requestId: string) => void;
   syncLocalParticipantProfile: (profile: {
     photoURL?: string | null;
     displayName?: string;
@@ -147,6 +167,41 @@ function mediaMessage(error: unknown, fallback: string): string {
   }
   if (error instanceof Error && error.message) return error.message;
   return fallback;
+}
+
+function localVoicePresence(get: () => CallsState, workspaceId: string): WorkspaceVoicePresence {
+  const inCall = get().isLocalInCall(workspaceId);
+  const openChannelId = get().localOpenChannelByRoom[workspaceId] ?? null;
+  const room = get().callsByRoom[workspaceId];
+  const localBlock = room ? findLocalBlock(room.blocks) : undefined;
+  const inPrivateCall = inCall && !!localBlock?.inCall && !openChannelId;
+  return {
+    inPrivateCall,
+    openChannelId: inCall && openChannelId ? openChannelId : null,
+  };
+}
+
+function voiceProfile() {
+  const displayName = useStore.getState().userDisplayName.trim() || "Membre";
+  const photoURL = useStore.getState().photoURL;
+  return { displayName, photoURL };
+}
+
+function pushVoicePresence(get: () => CallsState, workspaceId: string) {
+  const firebaseUid = useAuthStore.getState().firebaseUid;
+  if (!firebaseUid || !workspaceId) return;
+  void pushWorkspaceVoiceState(
+    workspaceId,
+    firebaseUid,
+    voiceProfile(),
+    localVoicePresence(get, workspaceId),
+  ).catch(() => {});
+}
+
+function participantUidFromBlock(block: { participants: Array<{ id: string; isLocal?: boolean }> }) {
+  const remote = block.participants.find((participant) => !participant.isLocal);
+  if (remote) return remote.id;
+  return useAuthStore.getState().firebaseUid ?? null;
 }
 
 function syncStreamState(set: (partial: Partial<CallsState>) => void) {
@@ -260,7 +315,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   syncPresenceMembers: (workspaceId, members, localFirebaseUid) => {
     set((s) => {
       const current = s.callsByRoom[workspaceId] ?? createRoomCallsState(workspaceId);
-      const blocks = removeDuplicateRemoteSelfBlocks(
+      const mergedBlocks = removeDuplicateRemoteSelfBlocks(
         mergePresenceMemberBlocks(
           workspaceId,
           current.blocks,
@@ -269,13 +324,93 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         ),
         localFirebaseUid,
       );
-      if (memberBlocksSignature(current.blocks) === memberBlocksSignature(blocks)) {
+      const voiceMembers = members.map((member) => ({
+        id: member.id,
+        name: member.name,
+        photoURL: member.photoURL,
+        inPrivateCall: member.voice?.inPrivateCall ?? false,
+        openChannelId: member.voice?.openChannelId ?? null,
+      }));
+      const { blocks, openChannels } = applyRemoteVoiceFromPresence(
+        workspaceId,
+        mergedBlocks,
+        current.openChannels,
+        voiceMembers,
+        localFirebaseUid,
+        s.localOpenChannelByRoom[workspaceId] ?? null,
+      );
+      if (
+        memberBlocksSignature(current.blocks) === memberBlocksSignature(blocks) &&
+        openChannelsSignature(current.openChannels) === openChannelsSignature(openChannels)
+      ) {
         return s;
       }
       return {
         callsByRoom: {
           ...s.callsByRoom,
-          [workspaceId]: { ...current, blocks },
+          [workspaceId]: { ...current, blocks, openChannels },
+        },
+      };
+    });
+  },
+
+  syncRemoteJoinRequests: (workspaceId, pending) => {
+    set((s) => {
+      const current = s.callsByRoom[workspaceId];
+      if (!current) return s;
+      const settled = current.requests.filter((request) => request.status !== "pending");
+      const pendingIds = new Set(pending.map((request) => request.id));
+      const keptSettled = settled.filter((request) => !pendingIds.has(request.id));
+      const requests = [...keptSettled, ...pending];
+      const signature = (items: JoinRequest[]) =>
+        items
+          .map((request) => `${request.id}:${request.status}:${request.fromBlockId}:${request.toBlockId}`)
+          .sort()
+          .join(";");
+      if (signature(current.requests) === signature(requests)) return s;
+      return {
+        callsByRoom: {
+          ...s.callsByRoom,
+          [workspaceId]: { ...current, requests },
+        },
+      };
+    });
+  },
+
+  completeRemoteKnockJoin: async (workspaceId, partnerUid) => {
+    const state = roomState(get, workspaceId);
+    const localBlock = findLocalBlock(state.blocks);
+    if (!localBlock || !partnerUid) return;
+    const toBlockId = memberBlockId(workspaceId, partnerUid);
+    const blocks = mergeCallBlocks(state.blocks, localBlock.id, toBlockId);
+    const requests = state.requests.map((request) =>
+      request.status === "pending" &&
+      request.fromBlockId === localBlock.id &&
+      request.toBlockId === toBlockId
+        ? { ...request, status: "accepted" as const }
+        : request,
+    );
+    set((s) => ({
+      callsByRoom: {
+        ...s.callsByRoom,
+        [workspaceId]: { ...state, blocks, requests },
+      },
+      localInCallByRoom: { ...s.localInCallByRoom, [workspaceId]: true },
+    }));
+    await get().startLocalMedia();
+    playVoiceJoinSound();
+  },
+
+  clearJoinRequest: (workspaceId, requestId) => {
+    set((s) => {
+      const current = s.callsByRoom[workspaceId];
+      if (!current) return s;
+      const requests = current.requests.filter((request) => request.id !== requestId);
+      if (requests.length === current.requests.length) return s;
+      return {
+        callsByRoom: {
+          ...s.callsByRoom,
+          [workspaceId]: { ...current, requests },
         },
       };
     });
@@ -514,6 +649,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         localOpenChannelByRoom: { ...s.localOpenChannelByRoom, [roomId]: channelId },
       };
     });
+    pushVoicePresence(get, roomId);
   },
 
   getTheater: (workspaceId) => theaterState(get, workspaceId),
@@ -816,6 +952,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         }));
       }
       playVoiceJoinSound();
+      pushVoicePresence(get, roomId);
     } catch (error) {
       set({ mediaError: mediaMessage(error, "Impossible d'accéder au micro.") });
     }
@@ -827,29 +964,25 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     if (!localBlock) return;
     if (!canRequestJoin(state.blocks, state.requests, localBlock.id, toBlockId)) return;
 
-    const request: JoinRequest = {
-      id: `req-${Date.now()}`,
-      roomId,
-      fromBlockId: localBlock.id,
-      toBlockId,
-      status: "pending",
-    };
+    const toBlock = state.blocks.find((block) => block.id === toBlockId);
+    const toUid = participantUidFromBlock(toBlock ?? { participants: [] });
+    const firebaseUid = useAuthStore.getState().firebaseUid;
+    if (!toUid || !firebaseUid) return;
 
-    set((s) => ({
-      callsByRoom: {
-        ...s.callsByRoom,
-        [roomId]: {
-          ...state,
-          requests: [...state.requests, request],
-        },
-      },
-    }));
+    void sendVoiceKnock(roomId, firebaseUid, voiceProfile().displayName, toUid).catch(() => {});
   },
 
   acceptJoin: (roomId, requestId) => {
     const state = roomState(get, roomId);
     const request = state.requests.find((r) => r.id === requestId && r.status === "pending");
     if (!request) return;
+
+    const fromBlock = state.blocks.find((block) => block.id === request.fromBlockId);
+    const fromUid = participantUidFromBlock(fromBlock ?? { participants: [] });
+    const firebaseUid = useAuthStore.getState().firebaseUid;
+    if (fromUid && firebaseUid) {
+      void respondVoiceKnock(roomId, fromUid, firebaseUid, true).catch(() => {});
+    }
 
     const blocks = mergeCallBlocks(state.blocks, request.fromBlockId, request.toBlockId);
     const requests = state.requests.map((r) =>
@@ -865,10 +998,20 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     }));
     void get().startLocalMedia();
     playVoiceJoinSound();
+    pushVoicePresence(get, roomId);
   },
 
   declineJoin: (roomId, requestId) => {
     const state = roomState(get, roomId);
+    const request = state.requests.find((r) => r.id === requestId && r.status === "pending");
+    if (request) {
+      const fromBlock = state.blocks.find((block) => block.id === request.fromBlockId);
+      const fromUid = participantUidFromBlock(fromBlock ?? { participants: [] });
+      const firebaseUid = useAuthStore.getState().firebaseUid;
+      if (fromUid && firebaseUid) {
+        void respondVoiceKnock(roomId, fromUid, firebaseUid, false).catch(() => {});
+      }
+    }
     set((s) => ({
       callsByRoom: {
         ...s.callsByRoom,
@@ -888,7 +1031,14 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     if (!request) return;
     const localBlock = findLocalBlock(state.blocks);
     if (!localBlock || request.fromBlockId !== localBlock.id) return;
-    get().declineJoin(roomId, requestId);
+
+    const toBlock = state.blocks.find((block) => block.id === request.toBlockId);
+    const toUid = participantUidFromBlock(toBlock ?? { participants: [] });
+    const firebaseUid = useAuthStore.getState().firebaseUid;
+    if (toUid && firebaseUid) {
+      void cancelVoiceKnock(roomId, firebaseUid, toUid).catch(() => {});
+    }
+    get().clearJoinRequest(roomId, requestId);
   },
 
   leaveCall: (workspaceId) => {
@@ -957,6 +1107,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       speakingByParticipant: {},
     });
     if (wasInCall) playVoiceLeaveSound();
+    pushVoicePresence(get, workspaceId);
   },
 
   leaveGroupCall: (roomId) => {

@@ -11,6 +11,7 @@ import AuthPage from "./components/auth/AuthPage";
 import { useCallVoiceActivity } from "./hooks/useCallVoiceActivity";
 import { useWorkspacePresence } from "./hooks/useWorkspacePresence";
 import { useWorkspaceJoinRequests } from "./hooks/useWorkspaceJoinRequests";
+import { useWorkspaceVoiceKnocks } from "./hooks/useWorkspaceVoiceKnocks";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useDesktopUpdater } from "./hooks/useDesktopUpdater";
 import { useMobileLayout } from "./hooks/useMobileLayout";
@@ -84,6 +85,7 @@ export default function App() {
   useCallVoiceActivity(inVoiceCall);
   useWorkspacePresence();
   useWorkspaceJoinRequests();
+  useWorkspaceVoiceKnocks();
 
   useEffect(() => {
     if (!workspaceSwitching) return;
