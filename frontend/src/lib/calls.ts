@@ -150,7 +150,7 @@ export function syncRoomCallsWithMembers(
         !freshRemoteIds.has(block.id) &&
         (!localFirebaseUid || !isDuplicateRemoteSelfBlock(block, localFirebaseUid)),
     )
-    .map((block) => ({ ...block, inCall: false }));
+    .map((block) => ({ ...block }));
 
   const mergedBlocks = removeDuplicateRemoteSelfBlocks(
     withoutLegacyMockBlocks([...fresh.blocks, ...preservedRemoteBlocks]),
@@ -747,9 +747,10 @@ export function canRequestJoin(
   requests: JoinRequest[],
   fromBlockId: string,
   toBlockId: string,
-  options?: { remoteInPrivateCall?: boolean },
+  options?: { remoteInPrivateCall?: boolean; localInCall?: boolean },
 ): boolean {
   if (fromBlockId === toBlockId) return false;
+  if (options?.localInCall) return false;
 
   const from = blocks.find((b) => b.id === fromBlockId);
   const to = blocks.find((b) => b.id === toBlockId);

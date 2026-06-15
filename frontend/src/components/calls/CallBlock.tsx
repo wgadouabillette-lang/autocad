@@ -60,11 +60,14 @@ export default function CallBlock({
   void presenceTick;
   const remoteInPrivateCall =
     !isLocal && !!remoteUserId && isMemberInPrivateCall(activeRoomId, remoteUserId);
-  const remoteKnockable = blockActive || remoteInPrivateCall;
+  const remoteInPrivateVoice =
+    !isLocal && (block.inCall === true || remoteInPrivateCall);
   const canRequestJoin =
     !isLocal &&
+    !inCall &&
+    !localOpenChannelId &&
     !isOffline &&
-    remoteKnockable &&
+    remoteInPrivateVoice &&
     !isMerged &&
     localBlock?.participants.length === 1 &&
     !incoming &&
@@ -96,7 +99,7 @@ export default function CallBlock({
         isLocal && blockActive && "call-block--local",
         isLocal && !blockActive && "call-block--idle",
         !isLocal && !blockActive && !isOffline && !remoteInPrivateCall && "call-block--connected",
-        !isLocal && remoteInPrivateCall && !blockActive && "call-block--local",
+        !isLocal && remoteInPrivateVoice && !blockActive && "call-block--local",
         !isLocal && isOffline && "call-block--offline",
         isMerged && "call-block--merged",
         isActionable && !isOffline && "call-block--clickable",

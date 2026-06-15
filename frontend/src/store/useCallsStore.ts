@@ -360,23 +360,47 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     // #endregion
     const localFirebaseUid = useAuthStore.getState().firebaseUid;
     const hadRoom = Boolean(get().callsByRoom[workspaceId]);
-    set((s) => ({
-      callsByRoom: {
-        ...s.callsByRoom,
-        [workspaceId]: syncRoomCallsWithMembers(
+    set((s) => {
+      let room = syncRoomCallsWithMembers(
+        workspaceId,
+        s.callsByRoom[workspaceId],
+        localFirebaseUid,
+      );
+
+      const presenceMembers = useWorkspacePresenceStore.getState().membersByWorkspace[workspaceId];
+      if (presenceMembers) {
+        const voiceMembers = Object.entries(presenceMembers).map(([id, entry]) => ({
+          id,
+          name: entry.displayName,
+          photoURL: entry.photoURL,
+          inPrivateCall: entry.voice.inPrivateCall,
+          openChannelId: entry.voice.openChannelId,
+        }));
+        const applied = applyRemoteVoiceFromPresence(
           workspaceId,
-          s.callsByRoom[workspaceId],
+          room.blocks,
+          room.openChannels,
+          voiceMembers,
           localFirebaseUid,
-        ),
-      },
-      theaterByWorkspace: {
-        ...s.theaterByWorkspace,
-        [workspaceId]: syncTheaterWithMembers(
-          workspaceId,
-          s.theaterByWorkspace[workspaceId],
-        ),
-      },
-    }));
+          s.localOpenChannelByRoom[workspaceId] ?? null,
+        );
+        room = { ...room, blocks: applied.blocks, openChannels: applied.openChannels };
+      }
+
+      return {
+        callsByRoom: {
+          ...s.callsByRoom,
+          [workspaceId]: room,
+        },
+        theaterByWorkspace: {
+          ...s.theaterByWorkspace,
+          [workspaceId]: syncTheaterWithMembers(
+            workspaceId,
+            s.theaterByWorkspace[workspaceId],
+          ),
+        },
+      };
+    });
     if (!hadRoom) {
       const room = get().callsByRoom[workspaceId];
       for (const channel of room?.openChannels ?? []) {
@@ -1100,6 +1124,8 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
   requestJoin: (roomId, toBlockId) => {
     const state = roomState(get, roomId);
+    if (get().isLocalInCall(roomId) || get().localOpenChannelByRoom[roomId]) return;
+
     const localBlock = findLocalSoloBlock(state.blocks) ?? findLocalBlock(state.blocks);
     if (!localBlock) return;
 
@@ -1111,6 +1137,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     if (
       !canRequestJoin(state.blocks, state.requests, localBlock.id, toBlockId, {
         remoteInPrivateCall,
+        localInCall: get().isLocalInCall(roomId),
       })
     ) {
       return;
