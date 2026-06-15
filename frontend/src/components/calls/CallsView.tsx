@@ -37,6 +37,7 @@ export default function CallsView() {
   useVoiceChannelSounds();
 
   const activeRoomId = useStore((s) => s.activeRoomId);
+  const workspaceSwitching = useStore((s) => s.workspaceSwitching);
   const viewMode = useCallsStore((s) => s.getCallsViewMode(activeRoomId));
   const inBlockCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
   const inTheaterCall = useCallsStore((s) => s.isLocalInTheaterCall(activeRoomId));
@@ -116,8 +117,16 @@ export default function CallsView() {
         "calls-view",
         viewMode === "theater" && "calls-view--theater",
         inOpenChannel && "calls-view--open-channel",
+        workspaceSwitching && "calls-view--loading",
       )}
     >
+      {workspaceSwitching ? (
+        <p className="text-sm text-muted-400" role="status">
+          Chargement du workspace…
+        </p>
+      ) : null}
+      {!workspaceSwitching ? (
+        <>
       <CallsViewHexDecor />
       {viewMode === "theater" ? (
         <TheaterView workspaceId={activeRoomId} theater={theaterState} />
@@ -148,6 +157,8 @@ export default function CallsView() {
       {viewMode === "blocks" && <JoinKnockOverlay />}
       {viewMode === "theater" && <HandRaiseOverlay theater={theaterState} />}
       <MiniChatPopover />
+        </>
+      ) : null}
     </div>
   );
 }

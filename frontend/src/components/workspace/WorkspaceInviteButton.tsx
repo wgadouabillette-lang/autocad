@@ -21,8 +21,8 @@ function buildInviteLink(workspaceId: string): string {
   return url.toString();
 }
 
-function buildFriendInviteMessage(workspaceName: string, link: string): string {
-  return `Rejoins-moi sur le serveur « ${workspaceName} » : ${link}`;
+function buildFriendInviteMessage(workspaceName: string, workspaceId: string, link: string): string {
+  return `Rejoins-moi sur « ${workspaceName} » (id: ${workspaceId}) : ${link}`;
 }
 
 export default function WorkspaceInviteButton() {
@@ -103,7 +103,7 @@ export default function WorkspaceInviteButton() {
   const handleInviteFriend = useCallback(
     (friendId: string) => {
       const threadId = `friend-${friendId}`;
-      sendMessage(threadId, buildFriendInviteMessage(workspaceName, inviteLink));
+      sendMessage(threadId, buildFriendInviteMessage(workspaceName, workspace?.id ?? activeRoomId, inviteLink));
       setInvitedIds((prev) => {
         const next = new Set(prev);
         next.add(friendId);
@@ -183,6 +183,23 @@ export default function WorkspaceInviteButton() {
                     })}
                   </ul>
                 )}
+              </section>
+
+              <section className="workspace-invite__section">
+                <div className="workspace-invite__section-head">
+                  <Link2 size={12} strokeWidth={2.25} aria-hidden />
+                  <span>Identifiant du workspace</span>
+                </div>
+                <div className="workspace-invite__link-row">
+                  <input
+                    type="text"
+                    className="workspace-invite__link-input"
+                    value={workspace?.id ?? activeRoomId}
+                    readOnly
+                    onFocus={(event) => event.currentTarget.select()}
+                    aria-label="Identifiant du workspace"
+                  />
+                </div>
               </section>
 
               <section className="workspace-invite__section">

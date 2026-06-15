@@ -3,6 +3,7 @@ import { CHAT_CONNECTORS } from "../components/chat/chatConnectors";
 export type SettingsTab =
   | "general"
   | "friends"
+  | "workspaces"
   | "usage"
   | "agents"
   | "models"
@@ -23,6 +24,7 @@ export type AnySettingsTab = SettingsTab | LegacySettingsTab;
 const SETTINGS_TABS: SettingsTab[] = [
   "general",
   "friends",
+  "workspaces",
   "usage",
   "agents",
   "models",
@@ -107,6 +109,13 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     label: "Amis",
     hint: "Ajouter et gérer vos amis",
     keywords: "amis friends ajouter email liste messages",
+  },
+  {
+    id: "workspaces",
+    tab: "workspaces",
+    label: "Workspaces",
+    hint: "Changer de workspace et gérer les invitations",
+    keywords: "workspaces serveurs workspace invitation rejoindre demande adhésion pivoter",
   },
   {
     id: "plan-free",

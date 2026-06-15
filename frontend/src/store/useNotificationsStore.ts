@@ -16,7 +16,8 @@ export type NotificationKind =
   | "renewal"
   | "connector"
   | "onboarding"
-  | "poll";
+  | "poll"
+  | "workspace";
 
 export interface AppNotification {
   id: string;

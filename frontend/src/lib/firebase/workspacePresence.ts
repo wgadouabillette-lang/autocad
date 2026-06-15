@@ -86,7 +86,7 @@ export async function pushProfileToJoinedWorkspaces(
   uid: string,
   profile: { displayName: string; photoURL?: string | null },
 ): Promise<void> {
-  const workspaces = useWorkspacesStore.getState().joinedWorkspaces();
+  const workspaces = useWorkspacesStore.getState().joinedWorkspaces(uid);
   await Promise.all(
     workspaces.map((workspace) => touchWorkspacePresence(workspace.id, uid, profile)),
   );

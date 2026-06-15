@@ -1,12 +1,14 @@
 import { useMemo, useState, type FormEvent } from "react";
 import clsx from "clsx";
-import { Crown, LayoutGrid, Plus } from "lucide-react";
+import { Check, Crown, LayoutGrid, Plus, X } from "lucide-react";
 import {
+  LOCAL_USER_ID,
   serverRoleLabel,
   workspaceInitials,
   type ServerRole,
   type Workspace,
 } from "../../lib/workspaces";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useWorkspacesStore, workspaceLabel } from "../../store/useWorkspacesStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspaceOverlayStore } from "../../store/useWorkspaceOverlayStore";
@@ -59,41 +61,91 @@ export default function WorkspaceOverlay() {
   const closePanel = useWorkspaceOverlayStore((s) => s.closePanel);
   const activeRoomId = useStore((s) => s.activeRoomId);
   const userDisplayName = useStore((s) => s.userDisplayName);
-  const setActiveRoom = useStore((s) => s.setActiveRoom);
+  const userEmail = useStore((s) => s.userEmail);
+  const switchWorkspace = useStore((s) => s.switchWorkspace);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const memberships = useWorkspacesStore((s) => s.memberships);
   const customServers = useWorkspacesStore((s) => s.customServers);
   const roleIn = useWorkspacesStore((s) => s.roleIn);
   const createWorkspace = useWorkspacesStore((s) => s.createWorkspace);
-  const joinWorkspace = useWorkspacesStore((s) => s.joinWorkspace);
+  const requestJoinWorkspace = useWorkspacesStore((s) => s.requestJoinWorkspace);
+  const respondJoinRequest = useWorkspacesStore((s) => s.respondJoinRequest);
+  const pendingJoinRequests = useWorkspacesStore((s) => s.pendingJoinRequests);
+  const incomingJoinRequests = useWorkspacesStore((s) => s.incomingJoinRequests);
 
   const [draftName, setDraftName] = useState("");
+  const [joinId, setJoinId] = useState("");
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [joinSent, setJoinSent] = useState(false);
+  const [respondBusyUid, setRespondBusyUid] = useState<string | null>(null);
+
+  const ownerUserId = firebaseUid ?? LOCAL_USER_ID;
 
   const joined = useMemo(
-    () => useWorkspacesStore.getState().joinedWorkspaces(),
-    [memberships, customServers],
-  );
-  const joinable = useMemo(
-    () => useWorkspacesStore.getState().discoverableServers(),
-    [memberships, customServers],
+    () => useWorkspacesStore.getState().joinedWorkspaces(ownerUserId),
+    [memberships, customServers, ownerUserId],
   );
 
   if (!panelOpen) return null;
 
   const selectWorkspace = (id: string) => {
-    setActiveRoom(id);
+    if (id === activeRoomId) {
+      closePanel();
+      return;
+    }
+    switchWorkspace(id);
     closePanel();
   };
 
   const onCreate = (e: FormEvent) => {
     e.preventDefault();
     if (!draftName.trim()) return;
-    const id = createWorkspace(draftName, userDisplayName);
+    const id = createWorkspace(draftName, userDisplayName, ownerUserId);
     setDraftName("");
+    void useAuthStore.getState().syncWorkspacesToCloud();
     selectWorkspace(id);
   };
 
-  const owned = joined.filter((server) => roleIn(server.id) === "owner");
-  const memberOf = joined.filter((server) => roleIn(server.id) === "member");
+  const onRequestJoin = async (e: FormEvent) => {
+    e.preventDefault();
+    if (joinBusy || !joinId.trim()) return;
+    if (!firebaseUid) {
+      setJoinError("Connectez-vous pour rejoindre un workspace.");
+      return;
+    }
+    setJoinBusy(true);
+    setJoinError(null);
+    setJoinSent(false);
+    try {
+      await requestJoinWorkspace(joinId, {
+        uid: firebaseUid,
+        displayName: userDisplayName,
+        email: userEmail,
+      });
+      setJoinSent(true);
+      setJoinId("");
+    } catch (error) {
+      setJoinError(error instanceof Error ? error.message : "Demande impossible.");
+    } finally {
+      setJoinBusy(false);
+    }
+  };
+
+  const onRespond = async (requesterUid: string, accept: boolean) => {
+    if (respondBusyUid) return;
+    setRespondBusyUid(requesterUid);
+    try {
+      await respondJoinRequest(activeRoomId, requesterUid, accept);
+    } finally {
+      setRespondBusyUid(null);
+    }
+  };
+
+  const owned = joined.filter((server) => roleIn(server.id, ownerUserId) === "owner");
+  const memberOf = joined.filter((server) => roleIn(server.id, ownerUserId) === "member");
+  const showIncoming =
+    roleIn(activeRoomId, ownerUserId) === "owner" && incomingJoinRequests.length > 0;
 
   return (
     <>
@@ -126,7 +178,7 @@ export default function WorkspaceOverlay() {
               <h4 className="workspace-overlay__section-title">Mes serveurs</h4>
               <ul className="workspace-overlay__list">
                 {owned.map((workspace) => {
-                  const role = roleIn(workspace.id);
+                  const role = roleIn(workspace.id, ownerUserId);
                   if (!role) return null;
                   return (
                     <WorkspaceRow
@@ -147,7 +199,7 @@ export default function WorkspaceOverlay() {
               <h4 className="workspace-overlay__section-title">Serveurs rejoints</h4>
               <ul className="workspace-overlay__list">
                 {memberOf.map((workspace) => {
-                  const role = roleIn(workspace.id);
+                  const role = roleIn(workspace.id, ownerUserId);
                   if (!role) return null;
                   return (
                     <WorkspaceRow
@@ -163,42 +215,88 @@ export default function WorkspaceOverlay() {
             </section>
           )}
 
-          {joinable.length > 0 && (
+          {showIncoming && (
             <section className="workspace-overlay__section">
-              <h4 className="workspace-overlay__section-title">Découvrir</h4>
+              <h4 className="workspace-overlay__section-title">Demandes en attente</h4>
               <ul className="workspace-overlay__list">
-                {joinable.map((workspace) => (
-                  <li key={workspace.id}>
-                    <button
-                      type="button"
-                      className="workspace-overlay__row"
-                      onClick={() => {
-                        joinWorkspace(workspace.id);
-                        selectWorkspace(workspace.id);
-                      }}
-                    >
-                      <span
-                        className="workspace-overlay__row-icon workspace-overlay__row-icon--server"
-                        style={{ backgroundColor: workspace.accent }}
-                        aria-hidden
+                {incomingJoinRequests.map((request) => (
+                  <li key={request.requesterUid} className="workspace-overlay__row">
+                    <span className="min-w-0 flex-1 text-left">
+                      <span className="workspace-overlay__row-name">
+                        {request.requesterName}
+                      </span>
+                      <span className="workspace-overlay__row-address">
+                        {request.requesterEmail}
+                      </span>
+                    </span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        className="workspace-overlay__create-btn"
+                        disabled={respondBusyUid === request.requesterUid}
+                        onClick={() => void onRespond(request.requesterUid, true)}
+                        aria-label={`Accepter ${request.requesterName}`}
                       >
-                        {workspaceInitials(workspace.name)}
-                      </span>
-                      <span className="min-w-0 flex-1 text-left">
-                        <span className="workspace-overlay__row-name">{workspace.name}</span>
-                        <span className="workspace-overlay__row-address">
-                          Propriétaire · {workspace.ownerName}
-                        </span>
-                      </span>
-                      <span className="workspace-overlay__row-badge workspace-overlay__row-badge--join">
-                        Rejoindre
-                      </span>
-                    </button>
+                        <Check size={14} aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className="workspace-overlay__create-btn"
+                        disabled={respondBusyUid === request.requesterUid}
+                        onClick={() => void onRespond(request.requesterUid, false)}
+                        aria-label={`Refuser ${request.requesterName}`}
+                      >
+                        <X size={14} aria-hidden />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
             </section>
           )}
+
+          <section className="workspace-overlay__section">
+            <h4 className="workspace-overlay__section-title">Rejoindre un serveur</h4>
+            <form className="workspace-overlay__create" onSubmit={(e) => void onRequestJoin(e)}>
+              <p className="workspace-overlay__create-label">
+                Entrez l&apos;identifiant partagé par le propriétaire.
+              </p>
+              <div className="workspace-overlay__create-row">
+                <input
+                  type="text"
+                  className="workspace-overlay__create-input"
+                  placeholder="Identifiant du workspace…"
+                  value={joinId}
+                  disabled={joinBusy}
+                  onChange={(e) => {
+                    setJoinId(e.target.value);
+                    setJoinError(null);
+                    setJoinSent(false);
+                  }}
+                />
+                <button
+                  type="submit"
+                  className="workspace-overlay__create-btn"
+                  disabled={joinBusy || !joinId.trim()}
+                >
+                  Demander
+                </button>
+              </div>
+              {joinError ? (
+                <p className="workspace-overlay__create-label text-red-400">{joinError}</p>
+              ) : null}
+              {joinSent ? (
+                <p className="workspace-overlay__create-label text-emerald-400">
+                  Demande envoyée. Vous serez notifié si le propriétaire accepte.
+                </p>
+              ) : null}
+              {pendingJoinRequests.length > 0 ? (
+                <p className="workspace-overlay__create-label text-muted-500">
+                  En attente : {pendingJoinRequests.join(", ")}
+                </p>
+              ) : null}
+            </form>
+          </section>
         </div>
 
         <form className="workspace-overlay__create" onSubmit={onCreate}>

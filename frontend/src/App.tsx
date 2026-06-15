@@ -10,6 +10,7 @@ import RecordingCameraPreview from "./components/calls/RecordingCameraPreview";
 import AuthPage from "./components/auth/AuthPage";
 import { useCallVoiceActivity } from "./hooks/useCallVoiceActivity";
 import { useWorkspacePresence } from "./hooks/useWorkspacePresence";
+import { useWorkspaceJoinRequests } from "./hooks/useWorkspaceJoinRequests";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useDesktopUpdater } from "./hooks/useDesktopUpdater";
 import { useMobileLayout } from "./hooks/useMobileLayout";
@@ -22,8 +23,8 @@ import { useCallsStore } from "./store/useCallsStore";
 import { useStore } from "./store/useStore";
 import { useNotificationsStore } from "./store/useNotificationsStore";
 import { usePeopleStore } from "./store/usePeopleStore";
-import WorkspaceOnboardingDialog from "./components/workspace/WorkspaceOnboardingDialog";
-import { useWorkspaceOnboardingStore } from "./store/useWorkspaceOnboardingStore";
+import { useWorkspacePresenceStore } from "./store/useWorkspacePresenceStore";
+import { LOCAL_USER_ID } from "./lib/workspaces";
 import { debugLog } from "./lib/debugLog";
 
 let appRenderCount = 0;
@@ -65,7 +66,12 @@ export default function App() {
   const authEmail = useAuthStore((s) => s.authEmail);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const hydrateAuth = useAuthStore((s) => s.hydrate);
-  const workspaceOnboardingOpen = useWorkspaceOnboardingStore((s) => s.open);
+  const syncWorkspacesToCloud = useAuthStore((s) => s.syncWorkspacesToCloud);
+  const workspaceSwitching = useStore((s) => s.workspaceSwitching);
+  const finishWorkspaceSwitch = useStore((s) => s.finishWorkspaceSwitch);
+  const presenceLoaded = useWorkspacePresenceStore((s) =>
+    activeRoomId ? s.isLoaded(activeRoomId) : true,
+  );
 
   const runBoot = useCallback(async () => {
     setBootStatus("loading");
@@ -77,6 +83,19 @@ export default function App() {
   useDesktopUpdater();
   useCallVoiceActivity(inVoiceCall);
   useWorkspacePresence();
+  useWorkspaceJoinRequests();
+
+  useEffect(() => {
+    if (!workspaceSwitching) return;
+    if (presenceLoaded) {
+      finishWorkspaceSwitch();
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      finishWorkspaceSwitch();
+    }, 2500);
+    return () => window.clearTimeout(timeoutId);
+  }, [workspaceSwitching, activeRoomId, presenceLoaded, finishWorkspaceSwitch]);
 
   useEffect(() => {
     if (!isMobileLayout) return;
@@ -99,8 +118,10 @@ export default function App() {
 
     const ensureAllRooms = () => {
       const ensureRoom = useCallsStore.getState().ensureRoom;
-      ensureRoom(useStore.getState().activeRoomId);
-      for (const workspace of useWorkspacesStore.getState().joinedWorkspaces()) {
+      const ownerUserId = useAuthStore.getState().firebaseUid ?? LOCAL_USER_ID;
+      const activeRoomId = useStore.getState().activeRoomId;
+      if (activeRoomId) ensureRoom(activeRoomId);
+      for (const workspace of useWorkspacesStore.getState().joinedWorkspaces(ownerUserId)) {
         ensureRoom(workspace.id);
       }
     };
@@ -113,18 +134,10 @@ export default function App() {
       ) {
         return;
       }
-      // #region agent log
-      debugLog(
-        "App.tsx:workspaceSubscribe",
-        "workspace store changed, ensureAllRooms",
-        {
-          membershipsChanged: state.memberships !== prev.memberships,
-          customServersChanged: state.customServers !== prev.customServers,
-        },
-        "B",
-      );
-      // #endregion
       ensureAllRooms();
+      if (useAuthStore.getState().firebaseUid) {
+        void syncWorkspacesToCloud();
+      }
     });
 
     const prefs = readUserPreferences();
@@ -139,7 +152,7 @@ export default function App() {
       stopWorkspaceSync();
       stopAuth();
     };
-  }, [hydrateAuth, runBoot]);
+  }, [hydrateAuth, runBoot, syncWorkspacesToCloud]);
 
   useEffect(() => {
     if (!isAuthenticated || !authEmail) return;
@@ -176,11 +189,11 @@ export default function App() {
   }, [isAuthenticated, firebaseUid]);
 
   useEffect(() => {
-    if (bootStatus !== "ready" || !isAuthenticated || !authEmail || workspaceOnboardingOpen) {
+    if (bootStatus !== "ready" || !isAuthenticated || !authEmail) {
       return;
     }
     void runDashboardOnboardingIfNeeded(authEmail, firebaseUid);
-  }, [bootStatus, isAuthenticated, authEmail, firebaseUid, workspaceOnboardingOpen]);
+  }, [bootStatus, isAuthenticated, authEmail, firebaseUid]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -245,7 +258,9 @@ export default function App() {
     <div className="app-shell">
       {recording && <div className="app-recording-frame" aria-hidden />}
       <RecordingCameraPreview />
-      <WorkspaceOnboardingDialog />
+      {workspaceSwitching ? (
+        <AppLoadingScreen connectionError={false} label="Chargement du workspace…" />
+      ) : null}
       <div
         className={clsx(
           "app-layout",

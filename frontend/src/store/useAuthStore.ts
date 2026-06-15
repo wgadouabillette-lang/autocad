@@ -27,11 +27,10 @@ import { pushProfileToJoinedWorkspaces } from "../lib/firebase/workspacePresence
 import { writeUserPreferences, normalizeSidePanelSide, type SidePanelSide, type UserPreferences } from "../lib/userPreferences";
 import type { AiModel } from "../lib/aiModels";
 import { isValidAiModel } from "../lib/aiModels";
-import { normalizeWorkspaceId } from "../lib/workspaces";
+import { normalizeWorkspaceId, isLegacyPublicWorkspaceId } from "../lib/workspaces";
 import { useStore, type AutosavePayload } from "./useStore";
 import { useWorkspacesStore } from "./useWorkspacesStore";
 import { useCallsStore } from "./useCallsStore";
-import { useWorkspaceOnboardingStore } from "./useWorkspaceOnboardingStore";
 import {
   applyDashboardOnboardingFromProfile,
 } from "../lib/dashboardOnboarding";
@@ -286,15 +285,25 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
 
   const hasCloudWorkspaces =
     workspaces.customServers.length > 0 || workspaces.memberships.length > 0;
-  const needsWorkspaceSetup = !profile?.workspaceSetupCompleted && !hasCloudWorkspaces;
+
+  useWorkspacesStore.getState().stripLegacyPublicWorkspaces();
+
+  const ownerUid = uid;
+  const displayName = useStore.getState().userDisplayName;
 
   if (hasCloudWorkspaces) {
+    const sanitizedServers = workspaces.customServers.filter(
+      (server) => !isLegacyPublicWorkspaceId(server.id),
+    );
+    const sanitizedMemberships = workspaces.memberships.filter(
+      (entry) => !isLegacyPublicWorkspaceId(entry.workspaceId),
+    );
     useWorkspacesStore.setState({
-      customServers: workspaces.customServers,
-      memberships: workspaces.memberships,
+      customServers: sanitizedServers,
+      memberships: sanitizedMemberships,
       hydrated: true,
     });
-    const joined = useWorkspacesStore.getState().joinedWorkspaces();
+    const joined = useWorkspacesStore.getState().joinedWorkspaces(ownerUid);
     for (const workspace of joined) {
       useCallsStore.getState().ensureRoom(workspace.id);
     }
@@ -303,15 +312,32 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
     if (!hasAccess && joined.length > 0) {
       useStore.getState().setActiveRoom(joined[0].id);
     }
+    if (joined.length === 0) {
+      const id = useWorkspacesStore.getState().createPersonalWorkspace(displayName, ownerUid);
+      useStore.getState().setActiveRoom(id);
+      await saveUserWorkspaces(uid, {
+        customServers: useWorkspacesStore.getState().customServers,
+        memberships: useWorkspacesStore.getState().memberships,
+      });
+    }
     if (profile && !profile.workspaceSetupCompleted) {
       await saveUserAccountProfile(uid, {
         ...profileFromStore(auth.currentUser!),
         workspaceSetupCompleted: true,
       });
     }
-  } else if (needsWorkspaceSetup) {
+  } else {
     useWorkspacesStore.getState().resetLocalMemberships();
-    useWorkspaceOnboardingStore.getState().openOnboarding();
+    const id = useWorkspacesStore.getState().createPersonalWorkspace(displayName, ownerUid);
+    useStore.getState().setActiveRoom(id);
+    await saveUserWorkspaces(uid, {
+      customServers: useWorkspacesStore.getState().customServers,
+      memberships: useWorkspacesStore.getState().memberships,
+    });
+    await saveUserAccountProfile(uid, {
+      ...(profile ?? profileFromStore(auth.currentUser!)),
+      workspaceSetupCompleted: true,
+    });
   }
 
   if (chatSessions.length) {
@@ -403,9 +429,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } finally {
           if (!disposed && loadId === authLoadId && auth.currentUser?.uid === user.uid) {
             set({ ready: true });
-            if (!useWorkspaceOnboardingStore.getState().open) {
-              useStore.getState().openAgentPanel();
-            }
+            useStore.getState().openAgentPanel();
           }
         }
       })();
@@ -446,7 +470,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     await signOutUser();
     useStore.getState().setPhotoURL(null);
-    useWorkspaceOnboardingStore.getState().closeOnboarding();
     set({
       isAuthenticated: false,
       authEmail: null,

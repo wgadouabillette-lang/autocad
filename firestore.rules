@@ -10,6 +10,14 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function sharedWorkspace(workspaceId) {
+      return get(/databases/$(database)/documents/workspacesShared/$(workspaceId));
+    }
+
+    function isSharedWorkspaceOwner(workspaceId) {
+      return isSignedIn() && sharedWorkspace(workspaceId).data.ownerId == request.auth.uid;
+    }
+
     function isValidProfile() {
       let data = request.resource.data;
       return data.keys().hasAll(['email', 'userDisplayName', 'updatedAt'])
@@ -61,6 +69,57 @@ service cloud.firestore {
         && request.resource.data.toUid == request.auth.uid;
     }
 
+    function isValidSharedWorkspaceCreate(workspaceId) {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'name', 'accent', 'ownerId', 'ownerName', 'createdAt'])
+        && data.id == workspaceId
+        && data.ownerId == request.auth.uid
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 120
+        && data.accent is string
+        && data.ownerName is string
+        && data.ownerName.size() >= 1
+        && data.ownerName.size() <= 120
+        && data.createdAt is number;
+    }
+
+    function isValidSharedWorkspaceUpdate() {
+      let data = request.resource.data;
+      return data.id == resource.data.id
+        && data.ownerId == resource.data.ownerId
+        && data.createdAt == resource.data.createdAt
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 120
+        && data.accent is string
+        && data.ownerName is string
+        && data.ownerName.size() >= 1
+        && data.ownerName.size() <= 120;
+    }
+
+    function isValidJoinRequestCreate(requesterUid) {
+      let data = request.resource.data;
+      return requesterUid == request.auth.uid
+        && data.keys().hasAll(['requesterUid', 'requesterName', 'requesterEmail', 'status', 'createdAt'])
+        && data.requesterUid == request.auth.uid
+        && data.requesterName is string
+        && data.requesterName.size() >= 1
+        && data.requesterName.size() <= 120
+        && data.requesterEmail is string
+        && data.requesterEmail.size() > 3
+        && data.requesterEmail.size() <= 320
+        && data.status == 'pending'
+        && data.createdAt is timestamp;
+    }
+
+    function isJoinRequestResponse() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'respondedAt'])
+        && request.resource.data.status in ['accepted', 'declined']
+        && request.resource.data.respondedAt is timestamp
+        && resource.data.status == 'pending';
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create: if isOwner(uid) && isValidProfile();
@@ -96,77 +155,94 @@ service cloud.firestore {
       }
     }
 
-  match /userDirectory/{uid} {
-    allow read: if isSignedIn();
-    allow create, update: if isOwner(uid) && isValidDirectoryProfile(uid);
-    allow delete: if false;
-  }
+    match /userDirectory/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(uid) && isValidDirectoryProfile(uid);
+      allow delete: if false;
+    }
 
-  match /friendRequests/{requestId} {
-    allow read: if isSignedIn() && (
-      request.auth.token.email == resource.data.toEmail
-      || request.auth.uid == resource.data.fromUid
-    );
-    allow create: if isSignedIn() && isValidFriendRequest();
-    allow update: if isSignedIn()
-      && request.auth.token.email == resource.data.toEmail
-      && resource.data.status == 'pending'
-      && isFriendRequestResponse();
-    allow delete: if false;
-  }
+    match /friendRequests/{requestId} {
+      allow read: if isSignedIn() && (
+        request.auth.token.email == resource.data.toEmail
+        || request.auth.uid == resource.data.fromUid
+      );
+      allow create: if isSignedIn() && isValidFriendRequest();
+      allow update: if isSignedIn()
+        && request.auth.token.email == resource.data.toEmail
+        && resource.data.status == 'pending'
+        && isFriendRequestResponse();
+      allow delete: if false;
+    }
 
-  match /friendChats/{chatId} {
-    allow read: if isSignedIn()
-      && resource.data.participants is list
-      && request.auth.uid in resource.data.participants;
-    allow create: if isSignedIn()
-      && request.resource.data.participants is list
-      && request.resource.data.participants.size() == 2
-      && request.auth.uid in request.resource.data.participants;
-    allow update: if isSignedIn()
-      && request.auth.uid in resource.data.participants
-      && request.resource.data.participants == resource.data.participants;
-    allow delete: if false;
-
-    match /messages/{messageId} {
+    match /friendChats/{chatId} {
       allow read: if isSignedIn()
         && resource.data.participants is list
         && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn()
-        && request.resource.data.authorUid == request.auth.uid
         && request.resource.data.participants is list
         && request.resource.data.participants.size() == 2
-        && request.auth.uid in request.resource.data.participants
-        && request.resource.data.text is string
-        && request.resource.data.text.size() > 0
-        && request.resource.data.text.size() <= 4000
-        && request.resource.data.createdAt is timestamp;
-      allow update, delete: if false;
+        && request.auth.uid in request.resource.data.participants;
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.participants
+        && request.resource.data.participants == resource.data.participants;
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn()
+          && resource.data.participants is list
+          && request.auth.uid in resource.data.participants;
+        allow create: if isSignedIn()
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.participants is list
+          && request.resource.data.participants.size() == 2
+          && request.auth.uid in request.resource.data.participants
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 4000
+          && request.resource.data.createdAt is timestamp;
+        allow update, delete: if false;
+      }
+    }
+
+    match /desktopAuthSessions/{sessionId} {
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasAll(["provider", "idToken", "createdAt"])
+        && request.resource.data.provider in ["google", "microsoft", "apple"]
+        && request.resource.data.idToken is string
+        && request.resource.data.idToken.size() > 100;
+      allow read, delete: if true;
+      allow update: if false;
+    }
+
+    match /workspacesShared/{workspaceId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidSharedWorkspaceCreate(workspaceId);
+      allow update: if isSharedWorkspaceOwner(workspaceId) && isValidSharedWorkspaceUpdate();
+      allow delete: if false;
+
+      match /joinRequests/{requesterUid} {
+        allow read: if isSignedIn() && (
+          request.auth.uid == requesterUid
+          || isSharedWorkspaceOwner(workspaceId)
+        );
+        allow create: if isSignedIn() && isValidJoinRequestCreate(requesterUid);
+        allow update: if isSharedWorkspaceOwner(workspaceId) && isJoinRequestResponse();
+        allow delete: if false;
+      }
+
+      match /presence/{uid} {
+        allow read: if isSignedIn();
+        allow create, update: if isOwner(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() >= 1
+          && request.resource.data.displayName.size() <= 120
+          && request.resource.data.lastSeen is timestamp
+          && (!('photoURL' in request.resource.data)
+            || request.resource.data.photoURL == null
+            || request.resource.data.photoURL is string);
+        allow delete: if isOwner(uid);
+      }
     }
   }
-
-  match /desktopAuthSessions/{sessionId} {
-    allow create: if request.auth != null
-      && request.resource.data.keys().hasAll(["provider", "idToken", "createdAt"])
-      && request.resource.data.provider in ["google", "microsoft", "apple"]
-      && request.resource.data.idToken is string
-      && request.resource.data.idToken.size() > 100;
-    allow read, delete: if true;
-    allow update: if false;
-  }
-
-  match /workspacesShared/{workspaceId}/presence/{uid} {
-    allow read: if isSignedIn();
-    allow create, update: if isOwner(uid)
-      && request.resource.data.uid == uid
-      && request.resource.data.displayName is string
-      && request.resource.data.displayName.size() >= 1
-      && request.resource.data.displayName.size() <= 120
-      && request.resource.data.lastSeen is timestamp
-      && (!('photoURL' in request.resource.data)
-        || request.resource.data.photoURL == null
-        || request.resource.data.photoURL is string);
-    allow delete: if isOwner(uid);
-  }
-}
 }

@@ -244,6 +244,7 @@ interface State {
   activePage: MainPageId | null;
   openPages: MainPageId[];
   settingsTab: SettingsTab;
+  workspaceSwitching: boolean;
 
   setMaterial: (m: string) => void;
   setAiModel: (model: AiModel) => void;
@@ -309,6 +310,8 @@ interface State {
     roomId: string;
   }) => void;
   setActiveRoom: (id: string) => void;
+  switchWorkspace: (id: string) => void;
+  finishWorkspaceSwitch: () => void;
   startNewChat: () => void;
   switchChatTab: (id: string) => void;
   goBackChat: () => void;
@@ -472,7 +475,7 @@ export const useStore = create<State>((set, get) => ({
   historyIndex: 0,
   historySkip: false,
   activeAiRequests: 0,
-  activeRoomId: "forma",
+  activeRoomId: "",
   chatSessions: [],
   ...initialOpenChatTabs(),
   showChatHistory: false,
@@ -488,6 +491,7 @@ export const useStore = create<State>((set, get) => ({
   activePage: null,
   openPages: [],
   settingsTab: "general",
+  workspaceSwitching: false,
 
   setMaterial: (m) => {
     set({ material: m });
@@ -1587,6 +1591,7 @@ export const useStore = create<State>((set, get) => ({
   setActiveRoom: (id) => {
     const state = get();
     const workspaceId = normalizeWorkspaceId(id);
+    if (!workspaceId) return;
     // #region agent log
     debugLog(
       "useStore.ts:setActiveRoom",
@@ -1603,6 +1608,23 @@ export const useStore = create<State>((set, get) => ({
     }
     useCallsStore.getState().ensureRoom(workspaceId);
     set({ activeRoomId: workspaceId });
+  },
+
+  switchWorkspace: (id) => {
+    const state = get();
+    const workspaceId = normalizeWorkspaceId(id);
+    if (!workspaceId || workspaceId === state.activeRoomId) return;
+    if (state.activePage === "settings") {
+      state.closePage("settings");
+    }
+    useCallsStore.getState().closeTheaterView(state.activeRoomId);
+    useCallsStore.getState().ensureRoom(workspaceId);
+    set({ workspaceSwitching: true, activeRoomId: workspaceId });
+  },
+
+  finishWorkspaceSwitch: () => {
+    if (!get().workspaceSwitching) return;
+    set({ workspaceSwitching: false });
   },
 
   setActivePage: (page) => {

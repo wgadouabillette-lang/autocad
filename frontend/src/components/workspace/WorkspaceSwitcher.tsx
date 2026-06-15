@@ -4,11 +4,13 @@ import { Crown, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import {
+  LOCAL_USER_ID,
   serverRoleLabel,
   workspaceInitials,
   type ServerRole,
   type Workspace,
 } from "../../lib/workspaces";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import { useStore } from "../../store/useStore";
 
@@ -56,24 +58,28 @@ function WorkspaceTab({
 export default function WorkspaceSwitcher() {
   const activeRoomId = useStore((s) => s.activeRoomId);
   const userDisplayName = useStore((s) => s.userDisplayName);
+  const userEmail = useStore((s) => s.userEmail);
   const setActiveRoom = useStore((s) => s.setActiveRoom);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const memberships = useWorkspacesStore((s) => s.memberships);
   const customServers = useWorkspacesStore((s) => s.customServers);
   const roleIn = useWorkspacesStore((s) => s.roleIn);
   const createWorkspace = useWorkspacesStore((s) => s.createWorkspace);
-  const joinWorkspace = useWorkspacesStore((s) => s.joinWorkspace);
+  const requestJoinWorkspace = useWorkspacesStore((s) => s.requestJoinWorkspace);
+
+  const ownerUserId = firebaseUid ?? LOCAL_USER_ID;
 
   const workspaces = useMemo(
-    () => useWorkspacesStore.getState().joinedWorkspaces(),
-    [memberships, customServers],
-  );
-  const joinable = useMemo(
-    () => useWorkspacesStore.getState().discoverableServers(),
-    [memberships, customServers],
+    () => useWorkspacesStore.getState().joinedWorkspaces(ownerUserId),
+    [memberships, customServers, ownerUserId],
   );
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
+  const [joinId, setJoinId] = useState("");
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [joinSent, setJoinSent] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -119,16 +125,32 @@ export default function WorkspaceSwitcher() {
   const onCreate = (event: FormEvent) => {
     event.preventDefault();
     if (!draftName.trim()) return;
-    const id = createWorkspace(draftName, userDisplayName);
+    const id = createWorkspace(draftName, userDisplayName, ownerUserId);
     setDraftName("");
     setMenuOpen(false);
+    void useAuthStore.getState().syncWorkspacesToCloud();
     setActiveRoom(id);
   };
 
-  const onJoin = (workspaceId: string) => {
-    if (!joinWorkspace(workspaceId)) return;
-    setMenuOpen(false);
-    setActiveRoom(workspaceId);
+  const onRequestJoin = async (event: FormEvent) => {
+    event.preventDefault();
+    if (joinBusy || !joinId.trim() || !firebaseUid) return;
+    setJoinBusy(true);
+    setJoinError(null);
+    setJoinSent(false);
+    try {
+      await requestJoinWorkspace(joinId, {
+        uid: firebaseUid,
+        displayName: userDisplayName,
+        email: userEmail,
+      });
+      setJoinSent(true);
+      setJoinId("");
+    } catch (error) {
+      setJoinError(error instanceof Error ? error.message : "Demande impossible.");
+    } finally {
+      setJoinBusy(false);
+    }
   };
 
   const actionMenu =
@@ -173,41 +195,44 @@ export default function WorkspaceSwitcher() {
                 </div>
               </form>
 
-              {joinable.length > 0 && (
-                <div className="app-chrome-row__workspace-menu-section">
-                  <p className="app-chrome-row__workspace-menu-title">Rejoindre un serveur</p>
-                  <p className="app-chrome-row__workspace-menu-hint">
-                    Rejoignez en tant que membre.
-                  </p>
-                  <ul className="app-chrome-row__workspace-join-list">
-                    {joinable.map((server) => (
-                      <li key={server.id}>
-                        <button
-                          type="button"
-                          className="app-chrome-row__workspace-join-row"
-                          onClick={() => onJoin(server.id)}
-                        >
-                          <span
-                            className="app-chrome-row__workspace-icon"
-                            style={{ backgroundColor: server.accent }}
-                            aria-hidden
-                          >
-                            {workspaceInitials(server.name)}
-                          </span>
-                          <span className="min-w-0 flex-1 text-left">
-                            <span className="block truncate text-[11px] font-medium text-muted-100">
-                              {server.name}
-                            </span>
-                            <span className="block truncate text-[10px] text-muted-500">
-                              Propriétaire · {server.ownerName}
-                            </span>
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+              <form
+                className="app-chrome-row__workspace-menu-section"
+                onSubmit={(e) => void onRequestJoin(e)}
+              >
+                <p className="app-chrome-row__workspace-menu-title">Rejoindre un serveur</p>
+                <p className="app-chrome-row__workspace-menu-hint">
+                  Demandez l&apos;accès avec l&apos;identifiant du workspace.
+                </p>
+                <div className="app-chrome-row__workspace-create-row">
+                  <input
+                    type="text"
+                    className="app-chrome-row__workspace-create-input"
+                    placeholder="Identifiant…"
+                    value={joinId}
+                    disabled={joinBusy}
+                    onChange={(e) => {
+                      setJoinId(e.target.value);
+                      setJoinError(null);
+                      setJoinSent(false);
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    className="app-chrome-row__workspace-create-btn"
+                    disabled={joinBusy || !joinId.trim()}
+                  >
+                    Demander
+                  </button>
                 </div>
-              )}
+                {joinError ? (
+                  <p className="app-chrome-row__workspace-menu-hint text-red-400">{joinError}</p>
+                ) : null}
+                {joinSent ? (
+                  <p className="app-chrome-row__workspace-menu-hint text-emerald-400">
+                    Demande envoyée au propriétaire.
+                  </p>
+                ) : null}
+              </form>
             </div>
           </>,
           document.body,
@@ -218,7 +243,7 @@ export default function WorkspaceSwitcher() {
     <nav className="app-chrome-row__workspaces" aria-label="Serveurs">
       <div className="app-chrome-row__workspaces-track">
         {workspaces.map((workspace) => {
-          const role = roleIn(workspace.id);
+          const role = roleIn(workspace.id, ownerUserId);
           if (!role) return null;
           return (
             <WorkspaceTab

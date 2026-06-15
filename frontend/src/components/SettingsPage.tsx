@@ -3,6 +3,7 @@ import {
   Bot,
   Cpu,
   Gauge,
+  LayoutGrid,
   LogOut,
   Plug,
   Server,
@@ -26,6 +27,7 @@ import UsageSettingsSection from "./settings/UsageSettingsSection";
 import { useAuthStore } from "../store/useAuthStore";
 import SettingsProfileHeader from "./settings/SettingsProfileHeader";
 import WorkspaceSettingsSection from "./settings/WorkspaceSettingsSection";
+import WorkspacesSettingsSection from "./settings/WorkspacesSettingsSection";
 
 type NavItem =
   | { kind: "tab"; id: SettingsTab; label: string }
@@ -34,6 +36,7 @@ type NavItem =
 const TAB_TITLES: Record<SettingsTab, string> = {
   general: "General",
   friends: "Friends",
+  workspaces: "Workspaces",
   usage: "Plan & Usage",
   agents: "Agents",
   models: "Models",
@@ -44,6 +47,7 @@ const TAB_TITLES: Record<SettingsTab, string> = {
 const TAB_DESCRIPTIONS: Record<SettingsTab, string> = {
   general: "Profil, interface, apparence et enregistrement.",
   friends: "Amis et invitations.",
+  workspaces: "Vos workspaces, invitations et changement d'espace actif.",
   usage: "Forfait, facturation et consommation.",
   agents: "Personnalisation du chat, des follow-ups et des AI Notes.",
   models: "Choix du modèle IA pour la génération.",
@@ -54,6 +58,7 @@ const TAB_DESCRIPTIONS: Record<SettingsTab, string> = {
 const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
   general: Settings,
   friends: Users,
+  workspaces: LayoutGrid,
   workspace: Server,
   usage: Gauge,
   agents: Bot,
@@ -64,6 +69,7 @@ const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
 const TAB_PANELS: Record<SettingsTab, () => JSX.Element> = {
   general: GeneralSettingsSection,
   friends: FriendsSettingsSection,
+  workspaces: WorkspacesSettingsSection,
   usage: UsageSettingsSection,
   agents: AgentsSettingsSection,
   models: ModelsSettingsSection,
@@ -75,6 +81,7 @@ function buildNav(isWorkspaceOwner: boolean): NavItem[] {
   const items: NavItem[] = [
     { kind: "tab", id: "general", label: "General" },
     { kind: "tab", id: "friends", label: "Friends" },
+    { kind: "tab", id: "workspaces", label: "Workspaces" },
   ];
   if (isWorkspaceOwner) {
     items.push({ kind: "tab", id: "workspace", label: "Workspace" });

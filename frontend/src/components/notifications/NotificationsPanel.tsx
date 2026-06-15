@@ -25,6 +25,7 @@ const DEFAULT_CATEGORY: Record<NotificationKind, string> = {
   renewal: "Renewal",
   connector: "Integration",
   poll: "Group poll",
+  workspace: "Workspace",
 };
 
 const VISUAL_BY_TITLE: Record<string, string> = {
@@ -44,6 +45,7 @@ const VISUAL_BY_KIND: Record<NotificationKind, string> = {
   renewal: "notifications-panel__visual--renewal",
   connector: "notifications-panel__visual--connector",
   poll: "notifications-panel__visual--feature",
+  workspace: "notifications-panel__visual--friend",
 };
 
 interface PanelPosition {

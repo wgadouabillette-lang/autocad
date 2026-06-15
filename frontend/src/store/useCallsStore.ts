@@ -40,7 +40,6 @@ import {
 } from "../lib/voiceChannelSounds";
 import { useWorkspacesStore } from "./useWorkspacesStore";
 import { useAuthStore } from "./useAuthStore";
-import { DEFAULT_WORKSPACE_ID } from "../lib/workspaces";
 import { debugLog } from "../lib/debugLog";
 import { useAiNotesStore } from "./useAiNotesStore";
 import { useFollowUpCaptureStore } from "./useFollowUpCaptureStore";
@@ -186,15 +185,13 @@ function playMutedTransition(wasMuted: boolean, nextMuted: boolean) {
   else playVoiceUnmuteSound();
 }
 
-const initialRoomCalls = createRoomCallsState(DEFAULT_WORKSPACE_ID);
-const initialTheater = createTheaterState(DEFAULT_WORKSPACE_ID);
 let ensureRoomCallCount = 0;
 
 export const useCallsStore = create<CallsState>((set, get) => ({
-  callsByRoom: { [DEFAULT_WORKSPACE_ID]: initialRoomCalls },
+  callsByRoom: {},
   localInCallByRoom: {},
   localOpenChannelByRoom: {},
-  theaterByWorkspace: { [DEFAULT_WORKSPACE_ID]: initialTheater },
+  theaterByWorkspace: {},
   callsViewModeByWorkspace: {},
   muted: false,
   cameraOn: false,
@@ -229,7 +226,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   },
 
   ensureRoom: (workspaceId) => {
-    ensureRoomCallCount += 1;
+    if (!workspaceId) return;
     // #region agent log
     if (ensureRoomCallCount <= 30 || ensureRoomCallCount % 25 === 0) {
       debugLog(

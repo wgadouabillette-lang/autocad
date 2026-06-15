@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { touchWorkspacePresence, watchWorkspacePresence } from "../lib/firebase/workspacePresence";
+import { LOCAL_USER_ID } from "../lib/workspaces";
 import { useAuthStore } from "../store/useAuthStore";
 import { useCallsStore } from "../store/useCallsStore";
 import { useStore } from "../store/useStore";
@@ -17,9 +18,10 @@ export function useWorkspacePresence() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const userDisplayName = useStore((s) => s.userDisplayName);
   const photoURL = useStore((s) => s.photoURL);
+  const ownerUserId = firebaseUid ?? LOCAL_USER_ID;
   const workspaceIdsKey = useWorkspacesStore((s) =>
     s
-      .joinedWorkspaces()
+      .joinedWorkspaces(ownerUserId)
       .map((workspace) => workspace.id)
       .sort()
       .join("\n"),

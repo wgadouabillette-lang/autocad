@@ -3,6 +3,15 @@ export type ServerRole = "owner" | "member";
 
 export const LOCAL_USER_ID = "local";
 
+/** Anciens workspaces publics de démo — retirés, isolés par compte. */
+export const LEGACY_PUBLIC_WORKSPACE_IDS = new Set([
+  "forma",
+  "studio-lumen",
+  "weekend-build",
+  "design-lab",
+  "product-sync",
+]);
+
 export interface Workspace {
   id: string;
   name: string;
@@ -19,53 +28,7 @@ export interface ServerMembership {
   joinedAt: number;
 }
 
-/** Serveurs publics — rejoignables en tant que membre. */
-export const PUBLIC_SERVERS: Workspace[] = [
-  {
-    id: "forma",
-    name: "Lyte HQ",
-    accent: "#5865f2",
-    ownerId: "forma-team",
-    ownerName: "Lyte Team",
-    createdAt: 0,
-  },
-  {
-    id: "studio-lumen",
-    name: "Studio Lumen",
-    accent: "#57f287",
-    ownerId: "studio-lumen-team",
-    ownerName: "Studio Lumen",
-    createdAt: 0,
-  },
-  {
-    id: "weekend-build",
-    name: "Weekend Build",
-    accent: "#fee75c",
-    ownerId: "weekend-build-team",
-    ownerName: "Weekend Build",
-    createdAt: 0,
-  },
-  {
-    id: "design-lab",
-    name: "Design Lab",
-    accent: "#eb459e",
-    ownerId: "design-lab-team",
-    ownerName: "Design Lab",
-    createdAt: 0,
-  },
-  {
-    id: "product-sync",
-    name: "Product Sync",
-    accent: "#00a8fc",
-    ownerId: "product-sync-team",
-    ownerName: "Product Sync",
-    createdAt: 0,
-  },
-];
-
-export const DEFAULT_WORKSPACE_ID = PUBLIC_SERVERS[0].id;
-
-/** Anciens identifiants (salons texte / sous-groupes) → serveurs. */
+/** Anciens identifiants (salons texte / sous-groupes) — conservés pour migration locale. */
 export const LEGACY_WORKSPACE_IDS: Record<string, string> = {
   general: "forma",
   annonces: "forma",
@@ -88,6 +51,10 @@ export function normalizeWorkspaceId(id: string): string {
   return LEGACY_WORKSPACE_IDS[id] ?? id;
 }
 
+export function isLegacyPublicWorkspaceId(id: string): boolean {
+  return LEGACY_PUBLIC_WORKSPACE_IDS.has(normalizeWorkspaceId(id));
+}
+
 export function workspaceInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
@@ -98,6 +65,12 @@ export function workspaceInitials(name: string): string {
 
 export function pickWorkspaceAccent(index: number): string {
   return ACCENT_PALETTE[index % ACCENT_PALETTE.length];
+}
+
+export function defaultPersonalWorkspaceName(ownerName: string): string {
+  const trimmed = ownerName.trim();
+  if (!trimmed || trimmed.toLowerCase() === "vous") return "Mon workspace";
+  return `Workspace de ${trimmed}`;
 }
 
 export function serverRoleLabel(role: ServerRole): string {
