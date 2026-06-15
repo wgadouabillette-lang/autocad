@@ -142,18 +142,44 @@ export function syncRoomCallsWithMembers(
       .map((block) => block.id),
   );
 
+  const preservedMergedBlocks = existing.blocks
+    .filter(
+      (block) =>
+        block.participants.length > 1 &&
+        block.participants.every(
+          (participant) => participant.isLocal || !isLegacyMockMemberId(participant.id),
+        ),
+    )
+    .map((block) => ({ ...block }));
+
+  const mergedParticipantIds = new Set(
+    preservedMergedBlocks.flatMap((block) =>
+      block.participants.map((participant) => participant.id),
+    ),
+  );
+
+  const localInMergedCall = preservedMergedBlocks.some((block) =>
+    block.participants.some((participant) => participant.isLocal),
+  );
+
   const preservedRemoteBlocks = existing.blocks
     .filter(
       (block) =>
         block.participants.every((participant) => !participant.isLocal) &&
+        block.participants.length === 1 &&
         !block.participants.some((participant) => isLegacyMockMemberId(participant.id)) &&
         !freshRemoteIds.has(block.id) &&
-        (!localFirebaseUid || !isDuplicateRemoteSelfBlock(block, localFirebaseUid)),
+        (!localFirebaseUid || !isDuplicateRemoteSelfBlock(block, localFirebaseUid)) &&
+        !mergedParticipantIds.has(block.participants[0]?.id ?? ""),
     )
     .map((block) => ({ ...block }));
 
   const mergedBlocks = removeDuplicateRemoteSelfBlocks(
-    withoutLegacyMockBlocks([...fresh.blocks, ...preservedRemoteBlocks]),
+    withoutLegacyMockBlocks([
+      ...(localInMergedCall ? [] : fresh.blocks),
+      ...preservedRemoteBlocks,
+      ...preservedMergedBlocks,
+    ]),
     localFirebaseUid,
   );
 
@@ -168,7 +194,7 @@ export function syncRoomCallsWithMembers(
   const blocks = mergedBlocks.map((block) => {
     if (!block.participants.some((participant) => participant.isLocal)) return block;
     if (!existingLocal) return block;
-    return { ...block, inCall: existingLocal.inCall };
+    return { ...block, inCall: existingLocal.inCall ?? block.inCall ?? false };
   });
 
   const openChannels = mapOpenChannelsVacancy(

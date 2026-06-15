@@ -88,7 +88,7 @@ export function useWorkspaceVoiceKnocks() {
             if (knock.status === "accepted") {
               void useCallsStore
                 .getState()
-                .completeRemoteKnockJoin(workspaceId, knock.toUid);
+                .completeRemoteKnockJoin(workspaceId, knock.toUid, knock.id);
             } else {
               useCallsStore.getState().clearJoinRequest(workspaceId, knock.id);
             }

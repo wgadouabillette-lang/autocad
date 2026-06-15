@@ -122,7 +122,7 @@ interface CallsState extends CallControls {
     workspaceId: string,
     remoteChannels: OpenVoiceChannelDoc[],
   ) => void;
-  completeRemoteKnockJoin: (workspaceId: string, partnerUid: string) => Promise<void>;
+  completeRemoteKnockJoin: (workspaceId: string, partnerUid: string, requestId?: string) => Promise<void>;
   clearJoinRequest: (workspaceId: string, requestId: string) => void;
   syncLocalParticipantProfile: (profile: {
     photoURL?: string | null;
@@ -515,28 +515,36 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     });
   },
 
-  completeRemoteKnockJoin: async (workspaceId, partnerUid) => {
+  completeRemoteKnockJoin: async (workspaceId, partnerUid, requestId) => {
+    const firebaseUid = useAuthStore.getState().firebaseUid;
+    if (!firebaseUid || !partnerUid) return;
+
     const state = roomState(get, workspaceId);
-    const localBlock = findLocalBlock(state.blocks);
-    if (!localBlock || !partnerUid) return;
+    const localBlock = findLocalSoloBlock(state.blocks) ?? findLocalBlock(state.blocks);
+    if (!localBlock) return;
+
     const toBlockId = memberBlockId(workspaceId, partnerUid);
-    const blocks = mergeCallBlocks(state.blocks, localBlock.id, toBlockId);
-    const requests = state.requests.map((request) =>
-      request.status === "pending" &&
-      request.fromBlockId === localBlock.id &&
-      request.toBlockId === toBlockId
-        ? { ...request, status: "accepted" as const }
-        : request,
-    );
+    const knockRequestId = requestId ?? `${firebaseUid}_${partnerUid}`;
+    const alreadyMerged =
+      localBlock.id === toBlockId && localBlock.participants.length > 1;
+    const blocks = alreadyMerged
+      ? state.blocks
+      : mergeCallBlocks(state.blocks, localBlock.id, toBlockId);
+
     set((s) => ({
       callsByRoom: {
         ...s.callsByRoom,
-        [workspaceId]: { ...state, blocks, requests },
+        [workspaceId]: {
+          ...state,
+          blocks,
+          requests: state.requests.filter((request) => request.id !== knockRequestId),
+        },
       },
       localInCallByRoom: { ...s.localInCallByRoom, [workspaceId]: true },
     }));
     await get().startLocalMedia();
     playVoiceJoinSound();
+    pushVoicePresence(get, workspaceId);
   },
 
   clearJoinRequest: (workspaceId, requestId) => {
