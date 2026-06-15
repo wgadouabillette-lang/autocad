@@ -7,6 +7,7 @@ import BottomHeader from "./components/BottomHeader";
 import CallsView from "./components/calls/CallsView";
 import SettingsPage from "./components/SettingsPage";
 import RecordingCameraPreview from "./components/calls/RecordingCameraPreview";
+import VoiceRemoteAudioSink from "./components/calls/VoiceRemoteAudioSink";
 import AuthPage from "./components/auth/AuthPage";
 import { useCallVoiceActivity } from "./hooks/useCallVoiceActivity";
 import { useWorkspacePresence } from "./hooks/useWorkspacePresence";
@@ -278,6 +279,7 @@ export default function App() {
     <div className="app-shell">
       {recording && <div className="app-recording-frame" aria-hidden />}
       <RecordingCameraPreview />
+      <VoiceRemoteAudioSink />
       {workspaceSwitching ? (
         <AppLoadingScreen connectionError={false} label="Chargement du workspace…" />
       ) : null}

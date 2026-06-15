@@ -39,6 +39,7 @@ import {
   disableCamera,
   enableCamera,
   getLocalMediaStream,
+  hasLocalMediaStream,
   setMicrophoneEnabled,
   stopLocalMedia,
 } from "../lib/localMedia";
@@ -119,7 +120,8 @@ interface CallsState extends CallControls {
   removeOpenChannel: (roomId: string, channelId: string) => void;
   purgeIdleOpenChannels: () => void;
   kickMember: (roomId: string, blockId: string) => void;
-  joinOpenChannel: (roomId: string, channelId: string) => Promise<void>;
+  joinOpenChannel: (roomId: string, channelId: string) => void;
+  prefetchVoiceMedia: () => Promise<void>;
   getCallsViewMode: (workspaceId: string) => CallsViewMode;
   openTheaterView: (workspaceId: string) => void;
   closeTheaterView: (workspaceId: string) => void;
@@ -388,7 +390,10 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       const settled = current.requests.filter((request) => request.status !== "pending");
       const pendingIds = new Set(pending.map((request) => request.id));
       const keptSettled = settled.filter((request) => !pendingIds.has(request.id));
-      const requests = [...keptSettled, ...pending];
+      const localPending = current.requests.filter(
+        (request) => request.status === "pending" && !pendingIds.has(request.id),
+      );
+      const requests = [...keptSettled, ...pending, ...localPending];
       const signature = (items: JoinRequest[]) =>
         items
           .map((request) => `${request.id}:${request.status}:${request.fromBlockId}:${request.toBlockId}`)
@@ -629,7 +634,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     });
   },
 
-  joinOpenChannel: async (roomId, channelId) => {
+  joinOpenChannel: (roomId, channelId) => {
     const state = roomState(get, roomId);
     const channel = state.openChannels.find((c) => c.id === channelId);
     if (!channel || channel.isDraft) return;
@@ -637,8 +642,6 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const localBlock = findLocalBlock(state.blocks);
     const localUser = localBlock?.participants.find((p) => p.isLocal);
     if (!localUser) return;
-
-    await get().joinCall(roomId, { markLocalBlockInCall: false });
 
     set((s) => {
       const current = s.callsByRoom[roomId];
@@ -666,17 +669,43 @@ export const useCallsStore = create<CallsState>((set, get) => ({
                 const hasRemote = participants.some((p) => !p.isLocal);
                 return {
                   ...c,
-                  inCall: hasRemote,
+                  inCall: hasRemote || participants.some((p) => p.isLocal),
                   participants,
                 };
               }),
             ),
           },
         },
+        localInCallByRoom: { ...s.localInCallByRoom, [roomId]: true },
         localOpenChannelByRoom: { ...s.localOpenChannelByRoom, [roomId]: channelId },
+        mediaError: null,
       };
     });
     pushVoicePresence(get, roomId);
+    playVoiceJoinSound();
+
+    void (async () => {
+      try {
+        if (!hasLocalMediaStream()) {
+          await acquireLocalMedia({ audio: true, video: get().cameraOn });
+        }
+        setMicrophoneEnabled(!get().muted);
+        syncStreamState(set);
+        set({ mediaError: null });
+      } catch (error) {
+        set({ mediaError: mediaMessage(error, "Impossible d'accéder au micro.") });
+      }
+    })();
+  },
+
+  prefetchVoiceMedia: async () => {
+    if (hasLocalMediaStream()) return;
+    try {
+      await acquireLocalMedia({ audio: true, video: false });
+      syncStreamState(set);
+    } catch {
+      // Permission refusée ou indisponible — join retentera au clic.
+    }
   },
 
   getTheater: (workspaceId) => theaterState(get, workspaceId),
@@ -996,7 +1025,32 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const firebaseUid = useAuthStore.getState().firebaseUid;
     if (!toUid || !firebaseUid) return;
 
-    void sendVoiceKnock(roomId, firebaseUid, voiceProfile().displayName, toUid).catch(() => {});
+    const requestId = `${firebaseUid}_${toUid}`;
+    const request: JoinRequest = {
+      id: requestId,
+      roomId,
+      fromBlockId: localBlock.id,
+      toBlockId,
+      status: "pending",
+    };
+
+    set((s) => {
+      const current = s.callsByRoom[roomId] ?? state;
+      const withoutDuplicate = current.requests.filter((entry) => entry.id !== requestId);
+      return {
+        callsByRoom: {
+          ...s.callsByRoom,
+          [roomId]: {
+            ...current,
+            requests: [...withoutDuplicate, request],
+          },
+        },
+      };
+    });
+
+    void sendVoiceKnock(roomId, firebaseUid, voiceProfile().displayName, toUid).catch(() => {
+      get().clearJoinRequest(roomId, requestId);
+    });
   },
 
   acceptJoin: (roomId, requestId) => {

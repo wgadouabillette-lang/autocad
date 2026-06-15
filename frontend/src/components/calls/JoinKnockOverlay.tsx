@@ -80,12 +80,13 @@ export default function JoinKnockOverlay() {
         <p className="join-knock__title">
           {knock.mode === "incoming" ? (
             <>
-              <span className="join-knock__name">{knock.knockerName}</span> is knocking at your
-              door...
+              <span className="join-knock__name">{knock.knockerName}</span> frappe à votre
+              porte…
             </>
           ) : (
             <>
-              Knocking at <span className="join-knock__name">{knock.targetName}</span>&apos;s door...
+              Frappe à la porte de{" "}
+              <span className="join-knock__name">{knock.targetName}</span>…
             </>
           )}
         </p>
@@ -103,14 +104,14 @@ export default function JoinKnockOverlay() {
               className="join-knock__btn"
               onClick={() => declineJoin(activeRoomId, knock.request.id)}
             >
-              Deny
+              Refuser
             </button>
             <button
               type="button"
               className="join-knock__btn"
               onClick={() => acceptJoin(activeRoomId, knock.request.id)}
             >
-              Accept
+              Accepter
             </button>
           </div>
         ) : (
@@ -120,7 +121,7 @@ export default function JoinKnockOverlay() {
               className="join-knock__btn w-full"
               onClick={() => cancelJoin(activeRoomId, knock.request.id)}
             >
-              Cancel
+              Annuler
             </button>
           </div>
         )}

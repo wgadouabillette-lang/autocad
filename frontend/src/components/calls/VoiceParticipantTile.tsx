@@ -57,6 +57,9 @@ export default function VoiceParticipantTile({
     if (!audio || participant.isLocal) return;
     audio.srcObject = audioStream;
     audio.muted = audioMuted;
+    if (audioStream) {
+      void audio.play().catch(() => {});
+    }
   }, [audioStream, audioMuted, participant.isLocal]);
 
   const body = (

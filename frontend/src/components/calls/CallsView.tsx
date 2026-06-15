@@ -17,6 +17,7 @@ import GroupCallActionsBar from "./GroupCallActionsBar";
 import HandRaiseOverlay from "./HandRaiseOverlay";
 import JoinKnockOverlay from "./JoinKnockOverlay";
 import MiniChatPopover from "../messages/MiniChatPopover";
+import OpenVoiceInCallView from "./OpenVoiceInCallView";
 import TheaterView from "./TheaterView";
 import CallsViewHexDecor from "./CallsViewHexDecor";
 
@@ -130,6 +131,11 @@ export default function CallsView() {
       <CallsViewHexDecor />
       {viewMode === "theater" ? (
         <TheaterView workspaceId={activeRoomId} theater={theaterState} />
+      ) : inOpenChannel && inBlockCall && localOpenChannelId ? (
+        <OpenVoiceInCallView
+          channelId={localOpenChannelId}
+          openChannels={openChannels}
+        />
       ) : showSoloInCallMedia ? (
         <VoiceParticipantsInCallGrid
           workspaceId={activeRoomId}

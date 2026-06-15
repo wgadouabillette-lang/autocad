@@ -69,19 +69,17 @@ export function useWorkspaceVoiceRtc() {
       sessionKeyRef.current = sessionKey;
     }
 
-    void sessionRef.current?.setPeerUids(rtcContext.peerUids);
-  }, [rtcContext, firebaseUid]);
-
-  useEffect(() => {
-    if (!sessionRef.current || !inCall) return;
-    void sessionRef.current.syncLocalMedia({
-      localStream,
-      screenShareStream,
-      muted,
-      cameraOn,
-      screenSharing,
+    void sessionRef.current?.setPeerUids(rtcContext.peerUids).then(() => {
+      if (!sessionRef.current) return;
+      void sessionRef.current.syncLocalMedia({
+        localStream,
+        screenShareStream,
+        muted,
+        cameraOn,
+        screenSharing,
+      });
     });
-  }, [inCall, localStream, screenShareStream, muted, cameraOn, screenSharing]);
+  }, [rtcContext, firebaseUid, localStream, screenShareStream, muted, cameraOn, screenSharing]);
 
   useEffect(
     () => () => {

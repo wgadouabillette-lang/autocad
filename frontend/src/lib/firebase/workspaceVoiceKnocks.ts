@@ -2,11 +2,9 @@ import {
   collection,
   doc,
   onSnapshot,
-  query,
   serverTimestamp,
   setDoc,
   updateDoc,
-  where,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./client";
@@ -86,17 +84,16 @@ export function watchVoiceKnocks(
     return () => {};
   }
 
-  const pendingQuery = query(
-    knocksCol(workspaceId),
-    where("status", "==", "pending"),
-  );
-
   return onSnapshot(
-    pendingQuery,
+    knocksCol(workspaceId),
     (snap) => {
       const knocks = snap.docs
         .map((entry) => entry.data() as VoiceKnockDoc)
-        .filter((knock) => knock.fromUid === localUid || knock.toUid === localUid);
+        .filter(
+          (knock) =>
+            knock.status === "pending" &&
+            (knock.fromUid === localUid || knock.toUid === localUid),
+        );
       onChange(knocks);
     },
     onError,

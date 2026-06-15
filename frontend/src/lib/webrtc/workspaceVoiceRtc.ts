@@ -57,6 +57,8 @@ export class WorkspaceVoiceRtcSession {
   private peers = new Map<string, PeerState>();
   private signalUnsub: (() => void) | null = null;
   private processedSignals = new Set<string>();
+  private pendingSignalsByUid = new Map<string, RtcSignalDoc[]>();
+  private negotiating = new Set<string>();
   private closed = false;
   private localMedia: LocalMediaSnapshot = {
     localStream: null,
@@ -114,6 +116,8 @@ export class WorkspaceVoiceRtcSession {
       this.removePeer(uid);
     }
     this.processedSignals.clear();
+    this.pendingSignalsByUid.clear();
+    this.negotiating.clear();
   }
 
   private removePeer(uid: string): void {
@@ -126,6 +130,7 @@ export class WorkspaceVoiceRtcSession {
 
   private async addPeer(remoteUid: string): Promise<void> {
     const pc = createPeerConnection();
+    const audioTransceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
     const peer: PeerState = {
       pc,
       remoteUid,
@@ -134,7 +139,7 @@ export class WorkspaceVoiceRtcSession {
       ignoreOffer: false,
       isSettingRemoteAnswerPending: false,
       pendingCandidates: [],
-      audioSender: null,
+      audioSender: audioTransceiver.sender,
       cameraSender: null,
       screenSender: null,
       remoteMedia: emptyRemoteMedia(),
@@ -168,7 +173,9 @@ export class WorkspaceVoiceRtcSession {
     };
 
     pc.onnegotiationneeded = () => {
-      void this.negotiate(peer);
+      if (this.localUid < remoteUid) {
+        void this.negotiate(peer);
+      }
     };
 
     pc.onconnectionstatechange = () => {
@@ -183,7 +190,13 @@ export class WorkspaceVoiceRtcSession {
     this.peers.set(remoteUid, peer);
     await this.applyLocalTracks(peer);
 
-    if (this.localUid < remoteUid) {
+    const pending = this.pendingSignalsByUid.get(remoteUid) ?? [];
+    this.pendingSignalsByUid.delete(remoteUid);
+    for (const signal of pending) {
+      await this.processSignal(peer, signal);
+    }
+
+    if (this.localUid < remoteUid && pc.signalingState === "stable") {
       await this.negotiate(peer);
     }
   }
@@ -244,7 +257,8 @@ export class WorkspaceVoiceRtcSession {
   }
 
   private async negotiate(peer: PeerState): Promise<void> {
-    if (this.closed) return;
+    if (this.closed || this.negotiating.has(peer.remoteUid)) return;
+    this.negotiating.add(peer.remoteUid);
     try {
       peer.makingOffer = true;
       await peer.pc.setLocalDescription(await peer.pc.createOffer());
@@ -258,19 +272,34 @@ export class WorkspaceVoiceRtcSession {
       // Renégociation concurrente.
     } finally {
       peer.makingOffer = false;
+      this.negotiating.delete(peer.remoteUid);
     }
   }
 
   private async handleSignal(signal: RtcSignalDoc): Promise<void> {
     if (!signal.id || this.processedSignals.has(signal.id)) return;
-    this.processedSignals.add(signal.id);
 
     const peer = this.peers.get(signal.fromUid);
     if (!peer) {
+      if (signal.fromUid) {
+        const queue = this.pendingSignalsByUid.get(signal.fromUid) ?? [];
+        queue.push(signal);
+        this.pendingSignalsByUid.set(signal.fromUid, queue);
+      }
+      this.processedSignals.add(signal.id);
       await this.safeDeleteSignal(signal.id);
       return;
     }
 
+    this.processedSignals.add(signal.id);
+    try {
+      await this.processSignal(peer, signal);
+    } finally {
+      await this.safeDeleteSignal(signal.id);
+    }
+  }
+
+  private async processSignal(peer: PeerState, signal: RtcSignalDoc): Promise<void> {
     try {
       if (signal.type === "offer" && signal.sdp) {
         const offerCollision =
@@ -301,8 +330,6 @@ export class WorkspaceVoiceRtcSession {
       }
     } catch {
       // Signal périmé.
-    } finally {
-      await this.safeDeleteSignal(signal.id);
     }
   }
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { memberBlockId } from "../lib/calls";
+import { memberBlockId, type JoinRequest } from "../lib/calls";
 import {
   watchVoiceKnockResponses,
   watchVoiceKnocks,
@@ -14,7 +14,11 @@ function workspaceIdsFromKey(key: string): string[] {
   return key ? key.split("\n") : [];
 }
 
-function knockToJoinRequest(workspaceId: string, knock: VoiceKnockDoc, localUid: string) {
+function knockToJoinRequest(
+  workspaceId: string,
+  knock: VoiceKnockDoc,
+  localUid: string,
+): JoinRequest {
   const isOutgoing = knock.fromUid === localUid;
   return {
     id: knock.id,
@@ -25,7 +29,7 @@ function knockToJoinRequest(workspaceId: string, knock: VoiceKnockDoc, localUid:
     toBlockId: isOutgoing
       ? memberBlockId(workspaceId, knock.toUid)
       : memberBlockId(workspaceId, "local"),
-    status: knock.status,
+    status: "pending",
   };
 }
 
@@ -57,7 +61,7 @@ export function useWorkspaceVoiceKnocks() {
           useCallsStore.getState().syncRemoteJoinRequests(workspaceId, pending);
         },
         () => {
-          useCallsStore.getState().syncRemoteJoinRequests(workspaceId, []);
+          // Ne pas effacer les knocks optimistes locaux en cas d'erreur réseau.
         },
       ),
     );
