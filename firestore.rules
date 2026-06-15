@@ -134,6 +134,7 @@ service cloud.firestore {
         && (!('voiceOpenChannelId' in data)
           || data.voiceOpenChannelId == null
           || data.voiceOpenChannelId is string)
+        && (!('voiceSpeaking' in data) || data.voiceSpeaking is bool)
         && (!('presenceActivity' in data)
           || data.presenceActivity == null
           || (data.presenceActivity is string && data.presenceActivity.size() <= 32));

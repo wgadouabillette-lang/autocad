@@ -10,6 +10,7 @@ import RecordingCameraPreview from "./components/calls/RecordingCameraPreview";
 import VoiceRemoteAudioSink from "./components/calls/VoiceRemoteAudioSink";
 import AuthPage from "./components/auth/AuthPage";
 import { useCallVoiceActivity } from "./hooks/useCallVoiceActivity";
+import { useRemoteVoiceActivity } from "./hooks/useRemoteVoiceActivity";
 import { useWorkspacePresence } from "./hooks/useWorkspacePresence";
 import { useWorkspaceJoinRequests } from "./hooks/useWorkspaceJoinRequests";
 import { useWorkspaceVoiceKnocks } from "./hooks/useWorkspaceVoiceKnocks";
@@ -88,6 +89,7 @@ export default function App() {
   useAppKeyboardShortcuts();
   useDesktopUpdater();
   useCallVoiceActivity(inVoiceCall);
+  useRemoteVoiceActivity(inVoiceCall);
   useWorkspacePresence();
   useWorkspaceJoinRequests();
   useWorkspaceVoiceKnocks();

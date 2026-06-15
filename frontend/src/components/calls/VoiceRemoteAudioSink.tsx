@@ -17,9 +17,23 @@ function RemoteAudioPlayer({
   useEffect(() => {
     const audio = ref.current;
     if (!audio) return;
+
     audio.srcObject = stream;
     audio.muted = muted;
-    void audio.play().catch(() => {});
+
+    const play = () => {
+      void audio.play().catch(() => {});
+    };
+
+    play();
+    stream.addEventListener("addtrack", play);
+
+    return () => {
+      stream.removeEventListener("addtrack", play);
+      if (audio.srcObject === stream) {
+        audio.srcObject = null;
+      }
+    };
   }, [stream, muted]);
 
   return (
@@ -51,7 +65,7 @@ export default function VoiceRemoteAudioSink() {
       {Object.entries(remoteMediaByUid).map(([uid, media]: [string, RemoteParticipantStreams]) =>
         media.audioStream ? (
           <RemoteAudioPlayer
-            key={uid}
+            key={`${uid}:${media.audioStream.id}`}
             uid={uid}
             stream={media.audioStream}
             muted={audioMuted}

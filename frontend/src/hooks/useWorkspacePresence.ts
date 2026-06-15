@@ -128,6 +128,10 @@ export function useWorkspacePresence() {
               member.uid,
               member.presenceActivity,
             );
+            useCallsStore.getState().markParticipantVoiceActivity(
+              member.uid,
+              member.voice.speaking === true,
+            );
           }
           const memberRows = members.map((member) => ({
             id: member.uid,

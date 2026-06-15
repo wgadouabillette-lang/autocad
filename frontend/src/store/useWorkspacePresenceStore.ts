@@ -5,6 +5,7 @@ export const PRESENCE_OFFLINE_AFTER_MS = 90_000;
 export interface WorkspacePresenceVoice {
   inPrivateCall: boolean;
   openChannelId: string | null;
+  speaking?: boolean;
 }
 
 export interface WorkspacePresenceEntry {
@@ -52,7 +53,7 @@ export const useWorkspacePresenceStore = create<WorkspacePresenceState>((set, ge
         displayName: member.displayName,
         photoURL: member.photoURL,
         lastSeenMs: member.lastSeenMs,
-        voice: member.voice ?? { inPrivateCall: false, openChannelId: null },
+        voice: member.voice ?? { inPrivateCall: false, openChannelId: null, speaking: false },
       };
     }
     set((state) => {
@@ -70,7 +71,8 @@ export const useWorkspacePresenceStore = create<WorkspacePresenceState>((set, ge
             before.photoURL === after.photoURL &&
             before.lastSeenMs === after.lastSeenMs &&
             before.voice.inPrivateCall === after.voice.inPrivateCall &&
-            before.voice.openChannelId === after.voice.openChannelId
+            before.voice.openChannelId === after.voice.openChannelId &&
+            before.voice.speaking === after.voice.speaking
           );
         })
       ) {

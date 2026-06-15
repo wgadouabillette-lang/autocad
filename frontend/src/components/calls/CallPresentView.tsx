@@ -24,11 +24,9 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
   const speakingByParticipant = useCallsStore((s) => s.speakingByParticipant);
   const muted = useCallsStore((s) => s.muted);
   const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
-  const muteOthers = useCallsStore((s) => s.muteOthers);
 
   const primaryVideoRef = useRef<HTMLVideoElement>(null);
   const partnerVideoRef = useRef<HTMLVideoElement>(null);
-  const partnerAudioRef = useRef<HTMLAudioElement>(null);
 
   const localBlock = findLocalBlock(blocks);
   const partner = activeCallPartner(blocks, localBlock);
@@ -58,13 +56,6 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
     if (!video) return;
     video.srcObject = showPartnerVideo ? partnerVideoStream : null;
   }, [showPartnerVideo, partnerVideoStream]);
-
-  useEffect(() => {
-    const audio = partnerAudioRef.current;
-    if (!audio || !partner) return;
-    audio.srcObject = partnerMedia?.audioStream ?? null;
-    audio.muted = muteOthers;
-  }, [partner, partnerMedia?.audioStream, muteOthers]);
 
   const primaryLabel = showScreen ? "Partage d'écran" : "Votre caméra";
 
@@ -108,9 +99,6 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
           partner && speakingByParticipant[partner.id] && "call-present-tile--speaking",
         )}
       >
-        {partner && (
-          <audio ref={partnerAudioRef} autoPlay playsInline className="sr-only" aria-hidden />
-        )}
         {partner ? (
           <>
             {showPartnerVideo ? (
