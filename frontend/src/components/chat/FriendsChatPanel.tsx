@@ -2,9 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import clsx from "clsx";
 import { ArrowLeft, ArrowUp, FileImage, Mic, Paperclip, X } from "lucide-react";
 import { avatarColor, userInitials } from "../../lib/calls";
-import type { PeopleMessage } from "../../lib/peopleChat";
+import type { PeopleMessage, Person } from "../../lib/peopleChat";
+import { buildMessagePanelThreads } from "../../lib/peopleChat";
+import { useAuthStore } from "../../store/useAuthStore";
+import { useCallsStore } from "../../store/useCallsStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
+import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
 
 function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
   if (typeof window === "undefined") return null;
@@ -51,10 +55,18 @@ function formatWhen(ts: number): string {
 
 export default function FriendsChatPanel() {
   const friendThreads = usePeopleStore((s) => s.friendThreadsList());
+  const friends = usePeopleStore((s) => s.friends);
   const activeRoomId = useStore((s) => s.activeRoomId);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const colleagueThreads = usePeopleStore((s) =>
     s.colleagueThreadsForWorkspace(activeRoomId),
   );
+  const roomBlocks = useCallsStore((s) => s.callsByRoom[activeRoomId]?.blocks);
+  const presenceMembers = useWorkspacePresenceStore(
+    (s) => s.membersByWorkspace[activeRoomId],
+  );
+  const ensureColleagueThread = usePeopleStore((s) => s.ensureColleagueThread);
+  const ensureFriendThread = usePeopleStore((s) => s.ensureFriendThread);
   const sendMessage = usePeopleStore((s) => s.sendMessage);
   const markThreadRead = usePeopleStore((s) => s.markThreadRead);
   const setActiveFriendThread = usePeopleStore((s) => s.setActiveFriendThread);
@@ -170,11 +182,51 @@ export default function FriendsChatPanel() {
     });
   };
 
-  const combinedThreads = useMemo(() => {
-    return [...colleagueThreads, ...friendThreads].sort(
-      (a, b) => b.updatedAt - a.updatedAt,
-    );
-  }, [friendThreads, colleagueThreads]);
+  const workspaceMemberPeople = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Person[] = [];
+    const push = (id: string, name: string) => {
+      if (!id || id === "local" || (firebaseUid && id === firebaseUid) || seen.has(id)) return;
+      seen.add(id);
+      out.push({ id, name: name.trim() || "Membre", handle: id });
+    };
+
+    if (presenceMembers) {
+      for (const [uid, entry] of Object.entries(presenceMembers)) {
+        push(uid, entry.displayName);
+      }
+    }
+
+    for (const block of roomBlocks ?? []) {
+      for (const participant of block.participants) {
+        if (!participant.isLocal) {
+          push(participant.id, participant.name);
+        }
+      }
+    }
+
+    return out;
+  }, [presenceMembers, roomBlocks, firebaseUid]);
+
+  const combinedThreads = useMemo(
+    () =>
+      buildMessagePanelThreads({
+        workspaceId: activeRoomId,
+        friends,
+        friendThreads,
+        colleagueThreads,
+        workspaceMembers: workspaceMemberPeople,
+        localUserId: firebaseUid,
+      }),
+    [
+      activeRoomId,
+      friends,
+      friendThreads,
+      colleagueThreads,
+      workspaceMemberPeople,
+      firebaseUid,
+    ],
+  );
 
   useEffect(() => {
     return () => {
@@ -202,8 +254,16 @@ export default function FriendsChatPanel() {
     el.scrollTop = el.scrollHeight;
   }, [messages, selectedThreadId]);
 
-  const openThread = (id: string) => {
-    setActiveFriendThread(id);
+  const openThread = (item: (typeof combinedThreads)[number]) => {
+    const threadId =
+      item.section === "friends"
+        ? ensureFriendThread({
+            id: item.personId,
+            name: item.personName,
+            handle: item.personId,
+          })
+        : ensureColleagueThread(activeRoomId, item.personId, item.personName);
+    setActiveFriendThread(threadId);
   };
 
   const submit = () => {
@@ -401,8 +461,8 @@ export default function FriendsChatPanel() {
     <div className="friends-chat-panel">
       {combinedThreads.length === 0 ? (
         <p className="friends-chat-panel__empty">
-          Aucune conversation pour l&apos;instant. Ajoutez un ami par email dans les paramètres
-          pour démarrer un chat.
+          Aucun contact pour l&apos;instant. Ajoutez des amis par email dans les paramètres ou
+          rejoignez un workspace avec d&apos;autres membres.
         </p>
       ) : (
         <ul className="friends-chat-panel__list">
@@ -414,7 +474,7 @@ export default function FriendsChatPanel() {
                   "messages-overlay__thread-row",
                   item.unread > 0 && "messages-overlay__thread-row--unread",
                 )}
-                onClick={() => openThread(item.id)}
+                onClick={() => openThread(item)}
               >
                 <span
                   className="messages-overlay__avatar"
@@ -424,10 +484,13 @@ export default function FriendsChatPanel() {
                 </span>
                 <span className="min-w-0 flex-1 text-left">
                   <span className="messages-overlay__thread-name">{item.personName}</span>
-                  <span className="messages-overlay__thread-preview">{item.preview}</span>
+                  <span className="messages-overlay__thread-preview">
+                    {item.preview ||
+                      (item.section === "friends" ? "Ami · Nouvelle conversation" : "Membre du workspace")}
+                  </span>
                 </span>
                 <span className="messages-overlay__thread-meta">
-                  <time>{formatWhen(item.updatedAt)}</time>
+                  {item.messages.length > 0 && <time>{formatWhen(item.updatedAt)}</time>}
                   {item.unread > 0 && (
                     <span className="messages-overlay__unread">{item.unread}</span>
                   )}

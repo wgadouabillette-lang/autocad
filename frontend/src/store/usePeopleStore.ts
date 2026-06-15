@@ -143,6 +143,7 @@ interface PeopleState {
     personId: string,
     personName: string,
   ) => string;
+  ensureFriendThread: (person: Person) => string;
 }
 
 function upsertFriend(state: PeopleState, person: Person): Person[] {
@@ -784,5 +785,17 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
       },
     });
     return thread.id;
+  },
+
+  ensureFriendThread: (person) => {
+    const state = get();
+    const existing = state.friendThreads.find((thread) => thread.personId === person.id);
+    if (existing) return existing.id;
+
+    set({
+      friends: upsertFriend(state, person),
+      friendThreads: upsertFriendThread(state, person),
+    });
+    return threadIdForFriend(person.id);
   },
 }));

@@ -31,6 +31,7 @@ export function mentionablePeopleForWorkspace(
   friends: Person[],
   colleagueThreads: PeopleThread[],
   callParticipants: CallUser[] = [],
+  workspaceMembers: Person[] = [],
 ): MentionablePerson[] {
   const seen = new Set<string>();
   const out: MentionablePerson[] = [];
@@ -50,6 +51,7 @@ export function mentionablePeopleForWorkspace(
     };
     push(person, "colleagues");
   }
+  for (const member of workspaceMembers) push(member, "colleagues");
   for (const user of callParticipants) {
     const person = personFromParticipant(user);
     if (person) push(person, "colleagues");
