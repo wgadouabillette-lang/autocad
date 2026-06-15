@@ -809,6 +809,44 @@ export function mergeCallBlocks(blocks: CallBlock[], fromBlockId: string, toBloc
   return blocks.filter((b) => b.id !== fromBlockId).map((b) => (b.id === toBlockId ? merged : b));
 }
 
+/** Conserve les blocs fusionnés en appel après une resynchronisation présence / membres. */
+export function reconcileBlocksAfterPresenceSync(
+  previousBlocks: CallBlock[],
+  nextBlocks: CallBlock[],
+): CallBlock[] {
+  const activeMerged = previousBlocks.filter(
+    (block) =>
+      block.participants.length > 1 &&
+      block.inCall === true &&
+      block.participants.every(
+        (participant) => participant.isLocal || !isLegacyMockMemberId(participant.id),
+      ),
+  );
+  if (activeMerged.length === 0) return nextBlocks;
+
+  const localInMergedCall = activeMerged.some((block) =>
+    block.participants.some((participant) => participant.isLocal),
+  );
+  const mergedBlockIds = new Set(activeMerged.map((block) => block.id));
+  const absorbedParticipantIds = new Set(
+    activeMerged.flatMap((block) => block.participants.map((participant) => participant.id)),
+  );
+
+  const soloWithoutMerged = nextBlocks.filter((block) => {
+    if (mergedBlockIds.has(block.id)) return false;
+    if (block.participants.length !== 1) return true;
+    const participantId = block.participants[0]?.id;
+    if (!participantId) return true;
+    if (absorbedParticipantIds.has(participantId)) return false;
+    if (localInMergedCall && block.participants.some((participant) => participant.isLocal)) {
+      return false;
+    }
+    return true;
+  });
+
+  return withoutLegacyMockBlocks([...activeMerged, ...soloWithoutMerged]);
+}
+
 /** Retire l'utilisateur local d'un bloc fusionné et recrée des blocs solo. */
 export function splitLocalFromBlock(blocks: CallBlock[], mergedBlockId: string): CallBlock[] {
   const block = blocks.find((b) => b.id === mergedBlockId);

@@ -19,6 +19,7 @@ import {
   mergePresenceMemberBlocks,
   memberBlocksSignature,
   openChannelsSignature,
+  reconcileBlocksAfterPresenceSync,
   removeDuplicateRemoteSelfBlocks,
   splitLocalFromBlock,
   syncRoomCallsWithMembers,
@@ -429,7 +430,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         inPrivateCall: member.voice?.inPrivateCall ?? false,
         openChannelId: member.voice?.openChannelId ?? null,
       }));
-      const { blocks, openChannels } = applyRemoteVoiceFromPresence(
+      const { blocks: presenceBlocks, openChannels } = applyRemoteVoiceFromPresence(
         workspaceId,
         mergedBlocks,
         current.openChannels,
@@ -437,6 +438,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         localFirebaseUid,
         s.localOpenChannelByRoom[workspaceId] ?? null,
       );
+      const blocks = reconcileBlocksAfterPresenceSync(current.blocks, presenceBlocks);
       if (
         memberBlocksSignature(current.blocks) === memberBlocksSignature(blocks) &&
         openChannelsSignature(current.openChannels) === openChannelsSignature(openChannels)
@@ -519,17 +521,33 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const firebaseUid = useAuthStore.getState().firebaseUid;
     if (!firebaseUid || !partnerUid) return;
 
-    const state = roomState(get, workspaceId);
-    const localBlock = findLocalSoloBlock(state.blocks) ?? findLocalBlock(state.blocks);
-    if (!localBlock) return;
-
-    const toBlockId = memberBlockId(workspaceId, partnerUid);
     const knockRequestId = requestId ?? `${firebaseUid}_${partnerUid}`;
-    const alreadyMerged =
-      localBlock.id === toBlockId && localBlock.participants.length > 1;
-    const blocks = alreadyMerged
+    if (!get().callsByRoom[workspaceId]) {
+      get().ensureRoom(workspaceId);
+    }
+    const state = get().callsByRoom[workspaceId];
+    if (!state) return;
+
+    const pendingRequest = state.requests.find(
+      (request) => request.id === knockRequestId && request.status === "pending",
+    );
+    const hostBlockId = pendingRequest?.toBlockId ?? memberBlockId(workspaceId, partnerUid);
+    const knockerBlockId =
+      pendingRequest?.fromBlockId ??
+      findLocalSoloBlock(state.blocks)?.id ??
+      findLocalBlock(state.blocks)?.id;
+    if (!knockerBlockId || !hostBlockId || knockerBlockId === hostBlockId) return;
+
+    const hostBlock = state.blocks.find((block) => block.id === hostBlockId);
+    const knockerBlock = state.blocks.find((block) => block.id === knockerBlockId);
+    if (!hostBlock || !knockerBlock) return;
+
+    const alreadyInHostBlock =
+      hostBlock.participants.some((participant) => participant.isLocal) &&
+      hostBlock.participants.length > 1;
+    const blocks = alreadyInHostBlock
       ? state.blocks
-      : mergeCallBlocks(state.blocks, localBlock.id, toBlockId);
+      : mergeCallBlocks(state.blocks, knockerBlockId, hostBlockId);
 
     set((s) => ({
       callsByRoom: {
@@ -542,6 +560,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       },
       localInCallByRoom: { ...s.localInCallByRoom, [workspaceId]: true },
     }));
+    pushVoicePresence(get, workspaceId);
     await get().startLocalMedia();
     playVoiceJoinSound();
     pushVoicePresence(get, workspaceId);
@@ -1194,9 +1213,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     }
 
     const blocks = mergeCallBlocks(state.blocks, request.fromBlockId, request.toBlockId);
-    const requests = state.requests.map((r) =>
-      r.id === requestId ? { ...r, status: "accepted" as const } : r,
-    );
+    const requests = state.requests.filter((request) => request.id !== requestId);
 
     set((s) => ({
       callsByRoom: {

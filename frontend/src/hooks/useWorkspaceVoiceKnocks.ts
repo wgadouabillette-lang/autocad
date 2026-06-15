@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { memberBlockId, type JoinRequest } from "../lib/calls";
 import {
   watchVoiceKnockResponses,
@@ -44,13 +44,10 @@ export function useWorkspaceVoiceKnocks() {
       .sort()
       .join("\n"),
   );
-  const handledResponsesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const workspaceIds = workspaceIdsFromKey(workspaceIdsKey);
     if (!isAuthenticated || !firebaseUid || workspaceIds.length === 0) return;
-
-    handledResponsesRef.current.clear();
 
     const unsubs = workspaceIds.map((workspaceId) =>
       watchVoiceKnocks(
@@ -83,8 +80,6 @@ export function useWorkspaceVoiceKnocks() {
         firebaseUid,
         (knocks) => {
           for (const knock of knocks) {
-            if (handledResponsesRef.current.has(knock.id)) continue;
-            handledResponsesRef.current.add(knock.id);
             if (knock.status === "accepted") {
               void useCallsStore
                 .getState()
