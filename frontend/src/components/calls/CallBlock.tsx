@@ -1,5 +1,4 @@
 import clsx from "clsx";
-import { UserMinus } from "lucide-react";
 import {
   blockHeaderTitle,
   blockActivityUser,
@@ -12,7 +11,6 @@ import { useUserAiStroke } from "../../hooks/useAiBlockStroke";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
-import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import CallBlockCard from "./CallBlockCard";
 
 interface CallBlockProps {
@@ -33,8 +31,6 @@ export default function CallBlock({
   layout = "default",
 }: CallBlockProps) {
   const activeRoomId = useStore((s) => s.activeRoomId);
-  const canManageWorkspace = useWorkspacesStore((s) => s.isWorkspaceOwner(activeRoomId));
-  const kickMember = useCallsStore((s) => s.kickMember);
   const joinCall = useCallsStore((s) => s.joinCall);
   const inCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
   const localOpenChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
@@ -90,7 +86,6 @@ export default function CallBlock({
   const { userId: activityUserId, isLocal: activityIsLocal } = blockActivityUser(block);
   const aiStrokeRaw = useUserAiStroke(activeRoomId, activityUserId, activityIsLocal);
   const aiStroke = isLocal && inOpenChannelOnly ? null : isOffline ? null : aiStrokeRaw;
-  const canKick = canManageWorkspace && !isLocal;
 
   return (
     <CallBlockCard
@@ -130,22 +125,6 @@ export default function CallBlock({
             : canStartPrivateCall
               ? `Démarrer un appel vocal privé`
               : blockHeaderTitle(block)
-      }
-      trailing={
-        canKick ? (
-          <button
-            type="button"
-            className="call-block__kick"
-            onClick={(event) => {
-              event.stopPropagation();
-              kickMember(activeRoomId, block.id);
-            }}
-            aria-label={`Expulser ${blockHeaderTitle(block)}`}
-            title="Expulser du workspace"
-          >
-            <UserMinus size={12} strokeWidth={2.25} aria-hidden />
-          </button>
-        ) : undefined
       }
     />
   );
