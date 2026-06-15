@@ -39,6 +39,8 @@ import ChatPollComposer from "./chat/ChatPollComposer";
 import ChatPollVotePanel from "./chat/ChatPollVotePanel";
 import { useActiveVoicePoll } from "../hooks/useActiveVoicePoll";
 import { useVoicePollStore } from "../store/useVoicePollStore";
+import type { ChatSkillDef } from "../lib/chatSkills";
+import { filterSlashSkillMenu, slashQueryAt } from "../lib/promptSlashSkills";
 import { debugLog } from "../lib/debugLog";
 
 const CHAT_COMPOSER_SURFACE_STYLE: CSSProperties = {
@@ -183,6 +185,9 @@ export default function ChatPanel() {
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionFilter, setMentionFilter] = useState("");
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashFilter, setSlashFilter] = useState("");
+  const [slashIndex, setSlashIndex] = useState(0);
   const modelRef = useRef<HTMLDivElement>(null);
   const mentionRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -301,9 +306,10 @@ export default function ChatPanel() {
   }, [chat]);
 
   const mentionOptions = filterMentionMenu(mentionFilter, mentionablePeople);
+  const slashOptions = filterSlashSkillMenu(slashFilter);
 
   useEffect(() => {
-    if (!modelOpen && !mentionOpen) return;
+    if (!modelOpen && !mentionOpen && !slashOpen) return;
     const onClick = (e: MouseEvent) => {
       if (modelOpen && modelRef.current && !modelRef.current.contains(e.target as Node)) {
         setModelOpen(false);
@@ -311,14 +317,21 @@ export default function ChatPanel() {
       if (mentionOpen && mentionRef.current && !mentionRef.current.contains(e.target as Node)) {
         setMentionOpen(false);
       }
+      if (slashOpen && mentionRef.current && !mentionRef.current.contains(e.target as Node)) {
+        setSlashOpen(false);
+      }
     };
     window.document.addEventListener("mousedown", onClick);
     return () => window.document.removeEventListener("mousedown", onClick);
-  }, [modelOpen, mentionOpen]);
+  }, [modelOpen, mentionOpen, slashOpen]);
 
   useEffect(() => {
     setMentionIndex(0);
   }, [mentionFilter]);
+
+  useEffect(() => {
+    setSlashIndex(0);
+  }, [slashFilter]);
 
   useEffect(() => {
     if (!connectorsOpen) return;
@@ -432,6 +445,33 @@ export default function ChatPanel() {
       el?.focus();
       el?.setSelectionRange(pos, pos);
     });
+  };
+
+  const insertSkillTemplate = (skill: ChatSkillDef) => {
+    const el = textareaRef.current;
+    const caret = el?.selectionStart ?? text.length;
+    const sq = slashQueryAt(text, caret);
+    const start = sq?.start ?? caret;
+    const next = text.slice(0, start) + skill.template + text.slice(caret);
+    setText(next);
+    setSlashOpen(false);
+    requestAnimationFrame(() => {
+      const pos = start + skill.template.length;
+      el?.focus();
+      el?.setSelectionRange(pos, pos);
+    });
+  };
+
+  const syncComposerMenu = (value: string, caret: number) => {
+    const sq = slashQueryAt(value, caret);
+    if (sq) {
+      setMentionOpen(false);
+      setSlashFilter(sq.query);
+      setSlashOpen(filterSlashSkillMenu(sq.query).length > 0);
+      return;
+    }
+    setSlashOpen(false);
+    syncMentionMenu(value, caret);
   };
 
   const syncMentionMenu = (value: string, caret: number) => {
@@ -552,6 +592,42 @@ export default function ChatPanel() {
           />
 
           <div className={clsx("relative", attachments.length > 0 && "mt-1.5")} ref={mentionRef}>
+            {slashOpen && slashOptions.length > 0 && (
+              <div
+                className="absolute bottom-full left-0 z-20 mb-1 w-full min-w-[14rem] rounded-lg border border-ink-700 bg-ink-850 py-1 shadow-xl"
+                role="listbox"
+                aria-label="Skills"
+              >
+                {slashOptions.map((skill, i) => {
+                  const Icon = skill.icon;
+                  return (
+                    <button
+                      key={skill.id}
+                      type="button"
+                      role="option"
+                      aria-selected={i === slashIndex}
+                      onMouseEnter={() => setSlashIndex(i)}
+                      onClick={() => insertSkillTemplate(skill)}
+                      className={clsx(
+                        "flex w-full gap-2 px-3 py-2 text-left transition-colors",
+                        i === slashIndex ? "bg-ink-750" : "hover:bg-ink-750/80",
+                      )}
+                    >
+                      <Icon size={14} className="mt-0.5 shrink-0 text-muted-300" />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-medium text-muted-100">
+                          {skill.label}
+                        </span>
+                        <span className="mt-0.5 block text-[10px] leading-snug text-muted-500">
+                          {skill.description}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {mentionOpen && mentionOptions.length > 0 && (
               <div
                 className="absolute bottom-full left-0 z-20 mb-1 w-full min-w-[14rem] rounded-lg border border-ink-700 bg-ink-850 py-1 shadow-xl"
@@ -629,20 +705,42 @@ export default function ChatPanel() {
                   clearSelectedFaces();
                 }
                 const caret = textareaRef.current?.selectionStart ?? v.length;
-                syncMentionMenu(v, caret);
+                syncComposerMenu(v, caret);
                 requestAnimationFrame(() => syncAiComposerEngaged());
               }}
               onFocus={() => syncAiComposerEngaged(true)}
               onBlur={() => syncAiComposerEngaged(false)}
               onClick={() => {
                 const caret = textareaRef.current?.selectionStart ?? text.length;
-                syncMentionMenu(text, caret);
+                syncComposerMenu(text, caret);
               }}
               onKeyUp={() => {
                 const caret = textareaRef.current?.selectionStart ?? text.length;
-                syncMentionMenu(text, caret);
+                syncComposerMenu(text, caret);
               }}
               onKeyDown={(e) => {
+                if (slashOpen && slashOptions.length > 0) {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setSlashIndex((i) => (i + 1) % slashOptions.length);
+                    return;
+                  }
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setSlashIndex((i) => (i - 1 + slashOptions.length) % slashOptions.length);
+                    return;
+                  }
+                  if (e.key === "Enter" || e.key === "Tab") {
+                    e.preventDefault();
+                    insertSkillTemplate(slashOptions[slashIndex]!);
+                    return;
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setSlashOpen(false);
+                    return;
+                  }
+                }
                 if (mentionOpen && mentionOptions.length > 0) {
                   if (e.key === "ArrowDown") {
                     e.preventDefault();

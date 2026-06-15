@@ -3,7 +3,7 @@ import type { DayScheduleEvent } from "../lib/daySchedule";
 
 export interface CalendarEvent extends DayScheduleEvent {
   dateKey: string;
-  source?: "follow-up" | "user";
+  source?: "follow-up" | "user" | "manage-skill";
 }
 
 interface CalendarState {

@@ -152,7 +152,7 @@ interface CallsState extends CallControls {
   endQuestion: (workspaceId: string) => void;
   canSpeakInTheater: (workspaceId: string) => boolean;
   requestJoin: (roomId: string, toBlockId: string) => void;
-  acceptJoin: (roomId: string, requestId: string) => void;
+  acceptJoin: (roomId: string, requestId: string) => Promise<void>;
   declineJoin: (roomId: string, requestId: string) => void;
   cancelJoin: (roomId: string, requestId: string) => void;
   joinCall: (roomId: string, options?: { markLocalBlockInCall?: boolean }) => Promise<void>;
@@ -595,6 +595,13 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       ? state.blocks
       : mergeCallBlocks(state.blocks, knockerBlockId, hostBlockId);
 
+    try {
+      await get().startLocalMedia();
+    } catch (error) {
+      set({ mediaError: mediaMessage(error, "Impossible d'accéder au micro.") });
+      return;
+    }
+
     set((s) => ({
       callsByRoom: {
         ...s.callsByRoom,
@@ -607,7 +614,6 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       localInCallByRoom: { ...s.localInCallByRoom, [workspaceId]: true },
     }));
     pushVoicePresence(get, workspaceId);
-    await get().startLocalMedia();
     playVoiceJoinSound();
     pushVoicePresence(get, workspaceId);
   },
@@ -1246,7 +1252,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     });
   },
 
-  acceptJoin: (roomId, requestId) => {
+  acceptJoin: async (roomId, requestId) => {
     const state = roomState(get, roomId);
     const request = state.requests.find((r) => r.id === requestId && r.status === "pending");
     if (!request) return;
@@ -1256,6 +1262,13 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const firebaseUid = useAuthStore.getState().firebaseUid;
     if (fromUid && firebaseUid) {
       void respondVoiceKnock(roomId, fromUid, firebaseUid, true).catch(() => {});
+    }
+
+    try {
+      await get().startLocalMedia();
+    } catch (error) {
+      set({ mediaError: mediaMessage(error, "Impossible d'accéder au micro.") });
+      return;
     }
 
     const blocks = mergeCallBlocks(state.blocks, request.fromBlockId, request.toBlockId);
@@ -1268,7 +1281,6 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       },
       localInCallByRoom: { ...s.localInCallByRoom, [roomId]: true },
     }));
-    void get().startLocalMedia();
     playVoiceJoinSound();
     pushVoicePresence(get, roomId);
   },

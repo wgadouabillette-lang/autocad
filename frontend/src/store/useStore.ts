@@ -53,6 +53,9 @@ import {
   localRulesReply,
 } from "../lib/chatRulesFallback";
 import { waitMinChatProcessing } from "../lib/chatProcessing";
+import { isManageSchedulePrompt } from "../lib/chatSkills";
+import { runManageScheduleSkill } from "../lib/manageScheduleSkill";
+import { useCalendarOverlayStore } from "./useCalendarOverlayStore";
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
   text: string;
@@ -809,6 +812,40 @@ export const useStore = create<State>((set, get) => ({
         writeAutosave(get());
         return;
       }
+
+      if (isManageSchedulePrompt(displayText)) {
+        get().tickAiRunStep();
+        const scheduleResult = await runManageScheduleSkill(displayText, signal);
+        await waitMinChatProcessing(processingStartedAt, signal);
+        const assistantText =
+          scheduleResult.summary ||
+          "Je n'ai pas pu planifier les tâches. Vérifiez le bloc /manage.";
+        if (scheduleResult.firstDateKey) {
+          useCalendarOverlayStore.getState().setSelectedDate(scheduleResult.firstDateKey);
+          get().openCalendarPanel();
+        }
+        const summary =
+          assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
+        set((s) => ({
+          ...patchChatState(
+            [...s.chat, { role: "assistant", text: assistantText, source: "manage-skill" }],
+            s.openChatTabs,
+            s.activeChatTabId,
+          ),
+          aiRun: {
+            ...run,
+            status: "done",
+            finishedAt: Date.now(),
+            summary,
+            message: assistantText,
+            source: "manage-skill",
+            steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+          },
+        }));
+        writeAutosave(get());
+        return;
+      }
+
       const history = chatWithoutLastUserPrompt(get().chat, displayText)
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role, content: m.text }));

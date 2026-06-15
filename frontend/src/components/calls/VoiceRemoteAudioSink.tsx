@@ -20,6 +20,7 @@ function RemoteAudioPlayer({
 
     audio.srcObject = stream;
     audio.muted = muted;
+    audio.volume = 1;
 
     const play = () => {
       void audio.play().catch(() => {});
@@ -27,9 +28,19 @@ function RemoteAudioPlayer({
 
     play();
     stream.addEventListener("addtrack", play);
+    audio.addEventListener("canplay", play);
+
+    const resumeOnGesture = () => {
+      play();
+    };
+    document.addEventListener("pointerdown", resumeOnGesture, true);
+    document.addEventListener("keydown", resumeOnGesture, true);
 
     return () => {
       stream.removeEventListener("addtrack", play);
+      audio.removeEventListener("canplay", play);
+      document.removeEventListener("pointerdown", resumeOnGesture, true);
+      document.removeEventListener("keydown", resumeOnGesture, true);
       if (audio.srcObject === stream) {
         audio.srcObject = null;
       }

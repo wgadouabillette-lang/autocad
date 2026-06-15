@@ -101,10 +101,22 @@ export class WorkspaceVoiceRtcSession {
   }
 
   async syncLocalMedia(media: LocalMediaSnapshot): Promise<void> {
+    const hadAudio =
+      this.localMedia.localStream?.getAudioTracks().some((track) => track.readyState === "live") ??
+      false;
     this.localMedia = media;
     await Promise.all(
       [...this.peers.values()].map((peer) => this.applyLocalTracks(peer)),
     );
+    const hasAudio =
+      media.localStream?.getAudioTracks().some((track) => track.readyState === "live") ?? false;
+    if (!hadAudio && hasAudio) {
+      await Promise.all(
+        [...this.peers.values()]
+          .filter((peer) => peer.pc.signalingState === "stable")
+          .map((peer) => this.negotiate(peer)),
+      );
+    }
   }
 
   close(): void {
@@ -173,9 +185,7 @@ export class WorkspaceVoiceRtcSession {
     };
 
     pc.onnegotiationneeded = () => {
-      if (this.localUid < remoteUid) {
-        void this.negotiate(peer);
-      }
+      void this.negotiate(peer);
     };
 
     pc.onconnectionstatechange = () => {
@@ -306,6 +316,14 @@ export class WorkspaceVoiceRtcSession {
           peer.makingOffer || peer.pc.signalingState !== "stable";
         peer.ignoreOffer = !peer.polite && offerCollision;
         if (peer.ignoreOffer) return;
+
+        if (offerCollision && peer.polite) {
+          try {
+            await peer.pc.setLocalDescription({ type: "rollback" });
+          } catch {
+            return;
+          }
+        }
 
         await peer.pc.setRemoteDescription({ type: "offer", sdp: signal.sdp });
         await this.flushPendingCandidates(peer);

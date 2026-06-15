@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { resolveVoiceRtcContext } from "../lib/webrtc/voiceSession";
+import { resolveVoiceRtcContext, enrichVoiceRtcContextWithPresence, voiceRtcContextFromPresence } from "../lib/webrtc/voiceSession";
 import { WorkspaceVoiceRtcSession } from "../lib/webrtc/workspaceVoiceRtc";
 import { useAuthStore } from "../store/useAuthStore";
 import { useCallsStore } from "../store/useCallsStore";
@@ -22,20 +22,28 @@ export function useWorkspaceVoiceRtc() {
 
   const rtcContext = useMemo(() => {
     if (!isAuthenticated || !firebaseUid || !inCall) return null;
+    const openChannelId = localOpenChannelId ?? null;
     const base = resolveVoiceRtcContext({
       workspaceId: activeRoomId,
       roomCalls,
       localInCall: inCall,
-      localOpenChannelId: localOpenChannelId ?? null,
+      localOpenChannelId: openChannelId,
       localFirebaseUid: firebaseUid,
     });
-    if (!base) return null;
-    if (!localOpenChannelId) return base;
-    const presencePeers = useWorkspacePresenceStore
-      .getState()
-      .peerUidsInOpenChannel(activeRoomId, localOpenChannelId, firebaseUid);
-    const peerUids = [...new Set([...base.peerUids, ...presencePeers])];
-    return { ...base, peerUids };
+    const presenceContext = voiceRtcContextFromPresence({
+      workspaceId: activeRoomId,
+      localFirebaseUid: firebaseUid,
+      localOpenChannelId: openChannelId,
+      presenceMembers,
+    });
+    const merged = base ?? presenceContext;
+    if (!merged) return null;
+    return enrichVoiceRtcContextWithPresence(
+      merged,
+      presenceMembers,
+      firebaseUid,
+      openChannelId,
+    );
   }, [
     isAuthenticated,
     firebaseUid,
