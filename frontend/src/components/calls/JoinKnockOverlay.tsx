@@ -3,6 +3,7 @@ import { useStore } from "../../store/useStore";
 import { useCallsStore } from "../../store/useCallsStore";
 import {
   findLocalBlock,
+  memberBlockId,
   type CallBlock,
   type JoinRequest,
 } from "../../lib/calls";
@@ -12,6 +13,7 @@ function blockPrimaryName(blocks: CallBlock[], blockId: string): string {
 }
 
 function resolveKnock(
+  workspaceId: string,
   blocks: CallBlock[],
   requests: JoinRequest[],
   localBlockId: string | undefined,
@@ -21,8 +23,11 @@ function resolveKnock(
   | null {
   if (!localBlockId) return null;
 
+  const localKnockBlockId = memberBlockId(workspaceId, "local");
   const incoming = requests.find(
-    (r) => r.status === "pending" && r.toBlockId === localBlockId,
+    (r) =>
+      r.status === "pending" &&
+      (r.toBlockId === localBlockId || r.toBlockId === localKnockBlockId),
   );
   if (incoming) {
     return {
@@ -33,7 +38,9 @@ function resolveKnock(
   }
 
   const outgoing = requests.find(
-    (r) => r.status === "pending" && r.fromBlockId === localBlockId,
+    (r) =>
+      r.status === "pending" &&
+      (r.fromBlockId === localBlockId || r.fromBlockId === localKnockBlockId),
   );
   if (outgoing) {
     return {
@@ -56,7 +63,12 @@ export default function JoinKnockOverlay() {
   if (!roomCalls) return null;
 
   const localBlock = findLocalBlock(roomCalls.blocks);
-  const knock = resolveKnock(roomCalls.blocks, roomCalls.requests, localBlock?.id);
+  const knock = resolveKnock(
+    activeRoomId,
+    roomCalls.blocks,
+    roomCalls.requests,
+    localBlock?.id,
+  );
   if (!knock) return null;
 
   return createPortal(

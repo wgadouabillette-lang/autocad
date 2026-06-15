@@ -131,11 +131,6 @@ export default function CallsView() {
       <CallsViewHexDecor />
       {viewMode === "theater" ? (
         <TheaterView workspaceId={activeRoomId} theater={theaterState} />
-      ) : inOpenChannel && inBlockCall && localOpenChannelId ? (
-        <OpenVoiceInCallView
-          channelId={localOpenChannelId}
-          openChannels={openChannels}
-        />
       ) : showSoloInCallMedia ? (
         <VoiceParticipantsInCallGrid
           workspaceId={activeRoomId}
@@ -144,7 +139,21 @@ export default function CallsView() {
       ) : showPresentLayout ? (
         <CallPresentView blocks={blocks} />
       ) : (
-        <div ref={stageRef} className="calls-view__stage">
+        <div
+          ref={stageRef}
+          className={clsx(
+            "calls-view__stage",
+            inOpenChannel && "calls-view__stage--with-open-channel",
+          )}
+        >
+          {inOpenChannel && localOpenChannelId ? (
+            <div className="calls-view__open-channel-panel">
+              <OpenVoiceInCallView
+                channelId={localOpenChannelId}
+                openChannels={openChannels}
+              />
+            </div>
+          ) : null}
           <CallsVoiceGrid
             key={activeRoomId}
             measureRef={stageRef}

@@ -13,6 +13,7 @@ import {
   syncOpenChannelVacancy,
   applyRemoteVoiceFromPresence,
   findLocalBlock,
+  findLocalSoloBlock,
   memberBlockId,
   mergeCallBlocks,
   mergePresenceMemberBlocks,
@@ -54,6 +55,7 @@ import {
 } from "../lib/voiceChannelSounds";
 import { useWorkspacesStore } from "./useWorkspacesStore";
 import { useAuthStore } from "./useAuthStore";
+import { useWorkspacePresenceStore } from "./useWorkspacePresenceStore";
 import { debugLog } from "../lib/debugLog";
 import { useAiNotesStore } from "./useAiNotesStore";
 import { useFollowUpCaptureStore } from "./useFollowUpCaptureStore";
@@ -1016,12 +1018,23 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
   requestJoin: (roomId, toBlockId) => {
     const state = roomState(get, roomId);
-    const localBlock = findLocalBlock(state.blocks);
+    const localBlock = findLocalSoloBlock(state.blocks) ?? findLocalBlock(state.blocks);
     if (!localBlock) return;
-    if (!canRequestJoin(state.blocks, state.requests, localBlock.id, toBlockId)) return;
 
     const toBlock = state.blocks.find((block) => block.id === toBlockId);
     const toUid = participantUidFromBlock(toBlock ?? { participants: [] });
+    const remoteInPrivateCall =
+      !!toUid && useWorkspacePresenceStore.getState().isInPrivateCall(roomId, toUid);
+
+    if (
+      !canRequestJoin(state.blocks, state.requests, localBlock.id, toBlockId, {
+        remoteInPrivateCall,
+      })
+    ) {
+      return;
+    }
+
+    if (!toBlock) return;
     const firebaseUid = useAuthStore.getState().firebaseUid;
     if (!toUid || !firebaseUid) return;
 
@@ -1222,9 +1235,13 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     }
 
     if (!inVoice) {
-      set({ muted: nextMuted });
-      playMutedTransition(wasMuted, nextMuted);
-      return;
+      if (!nextMuted) {
+        await get().joinCall(activeRoomId);
+      } else {
+        set({ muted: nextMuted });
+        playMutedTransition(wasMuted, nextMuted);
+        return;
+      }
     }
 
     try {

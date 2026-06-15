@@ -1307,6 +1307,13 @@ body {
     padding: clamp(0px, calc(33vh - var(--forma-calls-lift)), calc(14rem - var(--forma-calls-lift))) 0
       12px;
   }
+  .calls-view__stage--with-open-channel {
+    @apply flex-col items-center gap-3;
+    padding-top: 0.75rem;
+  }
+  .calls-view__open-channel-panel {
+    @apply w-full max-w-4xl shrink-0;
+  }
   .calls-view--loading {
     @apply items-center justify-center;
   }

@@ -81,7 +81,16 @@ export function useWorkspacePresence() {
       watchWorkspacePresence(
         workspaceId,
         (members) => {
-          useWorkspacePresenceStore.getState().setWorkspacePresence(workspaceId, members);
+          useWorkspacePresenceStore.getState().setWorkspacePresence(
+            workspaceId,
+            members.map((member) => ({
+              uid: member.uid,
+              displayName: member.displayName,
+              photoURL: member.photoURL,
+              lastSeenMs: member.lastSeenMs,
+              voice: member.voice,
+            })),
+          );
           const memberRows = members.map((member) => ({
             id: member.uid,
             name: member.displayName,

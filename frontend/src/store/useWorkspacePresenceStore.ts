@@ -2,10 +2,16 @@ import { create } from "zustand";
 
 export const PRESENCE_OFFLINE_AFTER_MS = 90_000;
 
+export interface WorkspacePresenceVoice {
+  inPrivateCall: boolean;
+  openChannelId: string | null;
+}
+
 export interface WorkspacePresenceEntry {
   displayName: string;
   photoURL?: string;
   lastSeenMs: number;
+  voice: WorkspacePresenceVoice;
 }
 
 interface WorkspacePresenceState {
@@ -19,10 +25,12 @@ interface WorkspacePresenceState {
       displayName: string;
       photoURL?: string;
       lastSeenMs: number;
+      voice?: WorkspacePresenceVoice;
     }>,
   ) => void;
   clearWorkspacePresence: (workspaceId: string) => void;
   isOnline: (workspaceId: string, userId: string) => boolean;
+  isInPrivateCall: (workspaceId: string, userId: string) => boolean;
   isLoaded: (workspaceId: string) => boolean;
   tickPresence: () => void;
 }
@@ -39,6 +47,7 @@ export const useWorkspacePresenceStore = create<WorkspacePresenceState>((set, ge
         displayName: member.displayName,
         photoURL: member.photoURL,
         lastSeenMs: member.lastSeenMs,
+        voice: member.voice ?? { inPrivateCall: false, openChannelId: null },
       };
     }
     set((state) => {
@@ -54,7 +63,9 @@ export const useWorkspacePresenceStore = create<WorkspacePresenceState>((set, ge
           return (
             before.displayName === after.displayName &&
             before.photoURL === after.photoURL &&
-            before.lastSeenMs === after.lastSeenMs
+            before.lastSeenMs === after.lastSeenMs &&
+            before.voice.inPrivateCall === after.voice.inPrivateCall &&
+            before.voice.openChannelId === after.voice.openChannelId
           );
         })
       ) {
@@ -86,6 +97,11 @@ export const useWorkspacePresenceStore = create<WorkspacePresenceState>((set, ge
     if (!entry) return false;
     if (!entry.lastSeenMs) return false;
     return Date.now() - entry.lastSeenMs < PRESENCE_OFFLINE_AFTER_MS;
+  },
+
+  isInPrivateCall: (workspaceId, userId) => {
+    if (!workspaceId || !userId || userId === "local") return false;
+    return get().membersByWorkspace[workspaceId]?.[userId]?.voice.inPrivateCall === true;
   },
 
   tickPresence: () => {

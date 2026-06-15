@@ -722,6 +722,7 @@ export function canRequestJoin(
   requests: JoinRequest[],
   fromBlockId: string,
   toBlockId: string,
+  options?: { remoteInPrivateCall?: boolean },
 ): boolean {
   if (fromBlockId === toBlockId) return false;
 
@@ -731,7 +732,7 @@ export function canRequestJoin(
   if (!from.participants.some((p) => p.isLocal)) return false;
   if (from.participants.length !== 1 || to.participants.length !== 1) return false;
   if (to.participants.some((p) => p.isLocal)) return false;
-  if (!to.inCall) return false;
+  if (!to.inCall && !options?.remoteInPrivateCall) return false;
 
   const pending = requests.some(
     (r) =>
