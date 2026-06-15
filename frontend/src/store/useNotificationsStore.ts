@@ -10,6 +10,7 @@ import {
 
 export type NotificationKind =
   | "friend_request"
+  | "message"
   | "new_feature"
   | "app_update"
   | "subscription"
@@ -28,6 +29,9 @@ export interface AppNotification {
   createdAt: number;
   read: boolean;
   friendRequestId?: string;
+  messageThreadId?: string;
+  messagePersonId?: string;
+  messagePersonName?: string;
   pollWorkspaceId?: string;
   pollSnapshot?: VoicePoll;
   updateVersion?: string;

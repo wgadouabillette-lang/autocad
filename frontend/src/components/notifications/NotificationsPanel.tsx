@@ -23,6 +23,7 @@ const DEFAULT_CATEGORY: Record<NotificationKind, string> = {
   new_feature: "Update available",
   app_update: "Mise à jour",
   friend_request: "Team",
+  message: "Messages",
   subscription: "Billing",
   renewal: "Renewal",
   connector: "Integration",
@@ -43,6 +44,7 @@ const VISUAL_BY_KIND: Record<NotificationKind, string> = {
   new_feature: "notifications-panel__visual--feature",
   app_update: "notifications-panel__visual--feature",
   friend_request: "notifications-panel__visual--friend",
+  message: "notifications-panel__visual--friend",
   subscription: "notifications-panel__visual--subscription",
   renewal: "notifications-panel__visual--renewal",
   connector: "notifications-panel__visual--connector",
@@ -82,6 +84,7 @@ export default function NotificationsPanel({
   const nextNotification = useNotificationsStore((s) => s.nextNotification);
   const acceptFriendRequest = usePeopleStore((s) => s.acceptFriendRequest);
   const declineFriendRequest = usePeopleStore((s) => s.declineFriendRequest);
+  const openMessageFromNotification = usePeopleStore((s) => s.openMessageFromNotification);
   const workspaceId = useStore((s) => s.activeRoomId);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const openPollVotePanel = useVoicePollStore((s) => s.openVotePanel);
@@ -131,6 +134,12 @@ export default function NotificationsPanel({
           openPollVotePanel(item.pollWorkspaceId ?? workspaceId);
         }
       }
+    }
+    if (item.kind === "message" && item.messagePersonId) {
+      openMessageFromNotification(
+        item.messagePersonId,
+        item.messagePersonName ?? item.title,
+      );
     }
     if (isLast) {
       closePanel();

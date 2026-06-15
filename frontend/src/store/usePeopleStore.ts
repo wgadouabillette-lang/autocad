@@ -18,8 +18,9 @@ import {
 import {
   ensureFriendChat,
   friendChatId,
+  partnerUidFromChatId,
   sendFriendChatMessage,
-  watchFriendChatMessages,
+  watchInboxFriendMessages,
   type CloudFriendMessage,
 } from "../lib/firebase/friendChats";
 import type { Unsubscribe } from "firebase/firestore";
@@ -38,48 +39,10 @@ function isCloudCapableFriend(personId: string): boolean {
   return true;
 }
 
-function collectCloudChatPartners(state: PeopleState, uid: string): Person[] {
-  const byId = new Map<string, Person>();
-
-  for (const friend of state.friends) {
-    if (friend.id !== uid && isCloudCapableFriend(friend.id)) {
-      byId.set(friend.id, friend);
-    }
-  }
-
-  for (const threads of Object.values(state.colleagueThreadsByWorkspace)) {
-    for (const thread of threads) {
-      if (
-        thread.personId !== uid &&
-        isCloudCapableFriend(thread.personId) &&
-        !byId.has(thread.personId)
-      ) {
-        byId.set(thread.personId, {
-          id: thread.personId,
-          name: thread.personName,
-          handle: thread.personId,
-        });
-      }
-    }
-  }
-
-  for (const members of Object.values(useWorkspacePresenceStore.getState().membersByWorkspace)) {
-    for (const [memberUid, entry] of Object.entries(members)) {
-      if (memberUid === uid || !isCloudCapableFriend(memberUid) || byId.has(memberUid)) continue;
-      byId.set(memberUid, {
-        id: memberUid,
-        name: entry.displayName.trim() || "Membre",
-        handle: memberUid,
-      });
-    }
-  }
-
-  return [...byId.values()];
-}
-
 function ensureColleagueThreadsForPartner(
   state: PeopleState,
   partner: Person,
+  forceWorkspaceId?: string | null,
 ): Record<string, PeopleThread[]> {
   if (state.friends.some((friend) => friend.id === partner.id)) {
     return state.colleagueThreadsByWorkspace;
@@ -89,10 +52,9 @@ function ensureColleagueThreadsForPartner(
   let colleagueThreadsByWorkspace = state.colleagueThreadsByWorkspace;
   let changed = false;
 
-  for (const [workspaceId, members] of Object.entries(presence)) {
-    if (!members[partner.id]) continue;
+  const ensureInWorkspace = (workspaceId: string) => {
     const existing = colleagueThreadsByWorkspace[workspaceId] ?? [];
-    if (existing.some((thread) => thread.personId === partner.id)) continue;
+    if (existing.some((thread) => thread.personId === partner.id)) return;
     if (!changed) {
       colleagueThreadsByWorkspace = { ...colleagueThreadsByWorkspace };
       changed = true;
@@ -101,12 +63,25 @@ function ensureColleagueThreadsForPartner(
       ...existing,
       createThreadForPerson(partner, "colleagues", workspaceId),
     ];
+  };
+
+  for (const [workspaceId, members] of Object.entries(presence)) {
+    if (!members[partner.id]) continue;
+    ensureInWorkspace(workspaceId);
+  }
+
+  if (forceWorkspaceId) {
+    ensureInWorkspace(forceWorkspaceId);
   }
 
   return colleagueThreadsByWorkspace;
 }
 
-const friendChatUnsubs = new Map<string, Unsubscribe>();
+const inboxState = {
+  unsub: null as Unsubscribe | null,
+  uid: null as string | null,
+  initialized: false,
+};
 const seenMessageIdsByFriend = new Map<string, Set<string>>();
 const pendingCloudMessages = new Map<
   string,
@@ -213,6 +188,7 @@ interface PeopleState {
     personName: string,
   ) => string;
   ensureFriendThread: (person: Person) => string;
+  openMessageFromNotification: (personId: string, personName: string) => void;
 }
 
 function upsertFriend(state: PeopleState, person: Person): Person[] {
@@ -307,8 +283,177 @@ function personFromCloudRequest(request: CloudFriendRequestDoc): Person {
   };
 }
 
+function notificationIdForMessage(messageId: string): string {
+  return `people-message-${messageId}`;
+}
+
+function workspaceIdForPartner(partnerId: string): string | null {
+  const presence = useWorkspacePresenceStore.getState().membersByWorkspace;
+  for (const [workspaceId, members] of Object.entries(presence)) {
+    if (members[partnerId]) return workspaceId;
+  }
+  const activeRoomId = useStore.getState().activeRoomId;
+  return activeRoomId || null;
+}
+
+function resolvePartnerPerson(
+  state: PeopleState,
+  partnerId: string,
+  cloudMessages: CloudFriendMessage[],
+): Person {
+  const knownFriend = state.friends.find((friend) => friend.id === partnerId);
+  if (knownFriend) return knownFriend;
+
+  for (const threads of Object.values(state.colleagueThreadsByWorkspace)) {
+    const thread = threads.find((entry) => entry.personId === partnerId);
+    if (thread) {
+      return {
+        id: thread.personId,
+        name: thread.personName,
+        handle: thread.personId,
+      };
+    }
+  }
+
+  for (const members of Object.values(useWorkspacePresenceStore.getState().membersByWorkspace)) {
+    const entry = members[partnerId];
+    if (entry) {
+      return {
+        id: partnerId,
+        name: entry.displayName.trim() || "Membre",
+        handle: partnerId,
+      };
+    }
+  }
+
+  const remoteMessage = [...cloudMessages].reverse().find((message) => message.authorUid === partnerId);
+  return {
+    id: partnerId,
+    name: remoteMessage?.authorName?.trim() || "Membre",
+    handle: partnerId,
+  };
+}
+
+function pushIncomingMessageNotifications(
+  partner: Person,
+  messages: CloudFriendMessage[],
+  localUid: string,
+) {
+  for (const message of messages) {
+    if (message.authorUid === localUid) continue;
+    useNotificationsStore.getState().push({
+      id: notificationIdForMessage(message.id),
+      kind: "message",
+      category: "Messages",
+      title: partner.name,
+      body: message.text.slice(0, 160),
+      messageThreadId: threadIdForFriend(partner.id),
+      messagePersonId: partner.id,
+      messagePersonName: partner.name,
+    });
+  }
+}
+
 function notificationIdForFriendRequest(requestId: string): string {
   return `friend-request-${requestId}`;
+}
+
+function syncInboxChat(
+  set: (fn: (state: PeopleState) => Partial<PeopleState>) => void,
+  get: () => PeopleState,
+  uid: string,
+  chatId: string,
+  cloudMessages: CloudFriendMessage[],
+  notifyIncoming: boolean,
+) {
+  const partnerId = partnerUidFromChatId(chatId, uid);
+  if (!partnerId) return;
+
+  const threadId = threadIdForFriend(partnerId);
+  const mappedMessages = mergeCloudMessagesWithPending(
+    threadId,
+    cloudMessages.map((m) => ({
+      id: m.id,
+      author: m.authorName,
+      text: m.text,
+      at: cloudMessageTimestamp(m),
+      mine: m.authorUid === uid,
+    })),
+  );
+
+  const friendSeen = seenMessageIdsByFriend.get(partnerId) ?? new Set<string>();
+  const isInitialLoad = friendSeen.size === 0;
+  const newIncomingMessages = cloudMessages.filter(
+    (m) => !friendSeen.has(m.id) && m.authorUid !== uid,
+  );
+  for (const m of cloudMessages) friendSeen.add(m.id);
+  seenMessageIdsByFriend.set(partnerId, friendSeen);
+
+  if (notifyIncoming && !isInitialLoad && newIncomingMessages.length > 0) {
+    const partner = resolvePartnerPerson(get(), partnerId, cloudMessages);
+    pushIncomingMessageNotifications(partner, newIncomingMessages, uid);
+  }
+
+  set((state) => {
+    const partner = resolvePartnerPerson(state, partnerId, cloudMessages);
+    const isViewingPerson =
+      state.activeFriendThreadId != null &&
+      state.threadById(state.activeFriendThreadId)?.personId === partnerId;
+    const unreadDelta = isInitialLoad || isViewingPerson ? 0 : newIncomingMessages.length;
+    const last = mappedMessages[mappedMessages.length - 1];
+    const preview = last?.text ?? "";
+    const updatedAt = last?.at ?? Date.now();
+    const isViewingThread = (activeThreadId: string) =>
+      state.activeFriendThreadId === activeThreadId || isViewingPerson;
+
+    const colleagueThreadsByWorkspace = ensureColleagueThreadsForPartner(
+      state,
+      partner,
+      useStore.getState().activeRoomId,
+    );
+    const isFriend = state.friends.some((friend) => friend.id === partnerId);
+    let threads = state.friendThreads;
+    if (isFriend && !threads.some((t) => t.id === threadId)) {
+      threads = [
+        ...threads,
+        {
+          id: threadId,
+          personId: partner.id,
+          personName: partner.name,
+          section: "friends" as const,
+          preview: "",
+          updatedAt,
+          unread: 0,
+          messages: [],
+        },
+      ];
+    } else if (!isFriend && !threads.some((t) => t.personId === partnerId)) {
+      threads = [
+        ...threads,
+        {
+          id: threadId,
+          personId: partner.id,
+          personName: partner.name,
+          section: "friends" as const,
+          preview: "",
+          updatedAt,
+          unread: 0,
+          messages: [],
+        },
+      ];
+    }
+
+    return applyMessagesToPersonThreads(
+      { ...state, friendThreads: threads, colleagueThreadsByWorkspace },
+      partnerId,
+      threadId,
+      mappedMessages,
+      preview,
+      updatedAt,
+      unreadDelta,
+      isViewingThread,
+    );
+  });
 }
 
 function syncFriendRequestNotifications(requests: FriendRequest[]) {
@@ -607,6 +752,17 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     const cloudPersonId = rawPersonId ? resolveCloudFriendId(state, rawPersonId) : null;
     const isCloudFriend = Boolean(myUid && cloudPersonId && isCloudCapableFriend(cloudPersonId));
 
+    if (!isCloudFriend) {
+      useNotificationsStore.getState().push({
+        kind: "message",
+        title: "Message non envoyé",
+        body: myUid
+          ? "Ce contact ne peut pas recevoir de messages cloud pour le moment."
+          : "Connectez-vous pour envoyer des messages à d'autres utilisateurs.",
+      });
+      return;
+    }
+
     const optimisticId = `msg-${Date.now()}`;
     const msg: PeopleMessage = {
       id: optimisticId,
@@ -704,100 +860,49 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
 
   subscribeFriendChats: (uid) => {
     if (!uid) {
-      for (const unsub of friendChatUnsubs.values()) unsub();
-      friendChatUnsubs.clear();
+      inboxState.unsub?.();
+      inboxState.unsub = null;
+      inboxState.uid = null;
+      inboxState.initialized = false;
+      seenMessageIdsByFriend.clear();
       pendingCloudMessages.clear();
       return;
     }
-    const cloudPartners = collectCloudChatPartners(get(), uid);
-    const activeIds = new Set(cloudPartners.map((partner) => partner.id));
 
-    for (const [key, unsub] of friendChatUnsubs.entries()) {
-      if (!activeIds.has(key)) {
-        unsub();
-        friendChatUnsubs.delete(key);
-      }
-    }
+    if (inboxState.uid === uid && inboxState.unsub) return;
 
-    for (const partner of cloudPartners) {
-      if (friendChatUnsubs.has(partner.id)) continue;
-      const chatId = friendChatId(uid, partner.id);
-      void ensureFriendChat(uid, partner.id).catch(() => {
-        // best-effort: la lecture pourra créer le doc plus tard
-      });
-      const unsub = watchFriendChatMessages(
-        chatId,
-        (cloudMessages) => {
-          const threadId = threadIdForFriend(partner.id);
-          const mappedMessages = mergeCloudMessagesWithPending(
-            threadId,
-            cloudMessages.map((m) => ({
-              id: m.id,
-              author: m.authorName,
-              text: m.text,
-              at: cloudMessageTimestamp(m),
-              mine: m.authorUid === uid,
-            })),
-          );
-          const friendSeen = seenMessageIdsByFriend.get(partner.id) ?? new Set<string>();
-          const isInitialLoad = friendSeen.size === 0;
-          const newIncomingMessages = cloudMessages.filter(
-            (m) => !friendSeen.has(m.id) && m.authorUid !== uid,
-          );
-          for (const m of cloudMessages) friendSeen.add(m.id);
-          seenMessageIdsByFriend.set(partner.id, friendSeen);
+    inboxState.unsub?.();
+    inboxState.uid = uid;
+    inboxState.initialized = false;
+    seenMessageIdsByFriend.clear();
 
-          set((state) => {
-            const isViewingPerson =
-              state.activeFriendThreadId != null &&
-              state.threadById(state.activeFriendThreadId)?.personId === partner.id;
-            const unreadDelta =
-              isInitialLoad || isViewingPerson ? 0 : newIncomingMessages.length;
-            const last = mappedMessages[mappedMessages.length - 1];
-            const preview = last?.text ?? "";
-            const updatedAt = last?.at ?? Date.now();
-            const isViewingThread = (activeThreadId: string) =>
-              state.activeFriendThreadId === activeThreadId || isViewingPerson;
+    inboxState.unsub = watchInboxFriendMessages(
+      uid,
+      (messagesByChatId) => {
+        const notifyIncoming = inboxState.initialized;
+        inboxState.initialized = true;
+        for (const [chatId, cloudMessages] of Object.entries(messagesByChatId)) {
+          syncInboxChat(set, get, uid, chatId, cloudMessages, notifyIncoming);
+        }
+      },
+      (error) => {
+        useNotificationsStore.getState().push({
+          kind: "message",
+          title: "Messages indisponibles",
+          body: error.message,
+        });
+      },
+    );
+  },
 
-            const colleagueThreadsByWorkspace = ensureColleagueThreadsForPartner(state, partner);
-            const isFriend = state.friends.some((friend) => friend.id === partner.id);
-            let threads = state.friendThreads;
-            if (isFriend && !threads.some((t) => t.id === threadId)) {
-              threads = [
-                ...threads,
-                {
-                  id: threadId,
-                  personId: partner.id,
-                  personName: partner.name,
-                  section: "friends" as const,
-                  preview: "",
-                  updatedAt,
-                  unread: 0,
-                  messages: [],
-                },
-              ];
-            }
-
-            const synced = applyMessagesToPersonThreads(
-              { ...state, friendThreads: threads, colleagueThreadsByWorkspace },
-              partner.id,
-              threadId,
-              mappedMessages,
-              preview,
-              updatedAt,
-              unreadDelta,
-              isViewingThread,
-            );
-
-            return synced;
-          });
-        },
-        () => {
-          // ignore: le chat est best-effort
-        },
-      );
-      friendChatUnsubs.set(partner.id, unsub);
-    }
+  openMessageFromNotification: (personId, personName) => {
+    const workspaceId = workspaceIdForPartner(personId);
+    const threadId = workspaceId
+      ? get().ensureColleagueThread(workspaceId, personId, personName)
+      : get().ensureFriendThread({ id: personId, name: personName, handle: personId });
+    get().markThreadRead(threadId);
+    get().setActiveFriendThread(threadId);
+    useStore.getState().switchChatPanelMode("friends");
   },
 
   setActiveFriendThread: (threadId) => {
