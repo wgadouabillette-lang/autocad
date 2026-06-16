@@ -1,7 +1,9 @@
 import { ArrowUpRight } from "lucide-react";
 import { CHAT_CONNECTORS, type ChatConnectorId } from "./chatConnectors";
+import type { ConnectorStatus } from "../../lib/connectorsApi";
 
 export default function ChatConnectorsList({
+  statuses,
   connectedIds,
   connectingId = null,
   connectError = null,
@@ -11,6 +13,7 @@ export default function ChatConnectorsList({
   onDisconnect,
   onInsertSlash,
 }: {
+  statuses?: ConnectorStatus[];
   connectedIds: ReadonlySet<ChatConnectorId>;
   connectingId?: ChatConnectorId | null;
   connectError?: string | null;
@@ -22,6 +25,7 @@ export default function ChatConnectorsList({
 }) {
   const items = CHAT_CONNECTORS;
   const isSettings = variant === "settings";
+  const statusById = new Map((statuses ?? []).map((status) => [status.id, status]));
 
   return (
     <div
@@ -39,8 +43,11 @@ export default function ChatConnectorsList({
         </p>
       )}
       {items.map(({ id, label, slash, Logo }, index) => {
+        const status = statusById.get(id);
         const connected = connectedIds.has(id);
+        const configured = status?.configured ?? false;
         const connecting = connectingId === id;
+        const accountLabel = status?.accountLabel;
         return (
           <div
             key={id}
@@ -54,7 +61,15 @@ export default function ChatConnectorsList({
               <span className="chat-connectors-row__icon">
                 <Logo />
               </span>
-              <span className="chat-connectors-row__label">{label}</span>
+              <span className="chat-connectors-row__label-wrap">
+                <span className="chat-connectors-row__label">{label}</span>
+                {connected && accountLabel && (
+                  <span className="chat-connectors-row__meta">{accountLabel}</span>
+                )}
+                {!configured && isSettings && (
+                  <span className="chat-connectors-row__meta">Non configuré sur le serveur</span>
+                )}
+              </span>
             </div>
 
             {locked ? (
@@ -77,10 +92,11 @@ export default function ChatConnectorsList({
                 type="button"
                 className="chat-connectors-row__connect"
                 onClick={() => onConnect(id)}
-                disabled={connecting}
+                disabled={connecting || !configured}
+                title={!configured ? "Ajoutez les clés OAuth dans backend/.env" : undefined}
               >
-                {connecting ? "Connexion…" : "Connecter"}
-                {!connecting && (
+                {connecting ? "Connexion…" : configured ? "Connecter" : "Indisponible"}
+                {!connecting && configured && (
                   <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
                 )}
               </button>
@@ -98,10 +114,11 @@ export default function ChatConnectorsList({
                 type="button"
                 className="chat-connectors-row__connect"
                 onClick={() => onConnect(id)}
-                disabled={connecting}
+                disabled={connecting || !configured}
+                title={!configured ? "Ajoutez les clés OAuth dans backend/.env" : undefined}
               >
-                {connecting ? "Connecting…" : "Connect"}
-                {!connecting && (
+                {connecting ? "Connecting…" : configured ? "Connect" : "Unavailable"}
+                {!connecting && configured && (
                   <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
                 )}
               </button>

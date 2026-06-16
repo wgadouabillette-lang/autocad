@@ -2,7 +2,8 @@ import ChatConnectorsList from "../chat/ChatConnectorsList";
 import { useConnectors } from "../../hooks/useConnectors";
 
 export default function PluginsSettingsSection() {
-  const { connectedIds, loading, error, connectingId, connect, disconnect } = useConnectors();
+  const { connectedIds, statuses, loading, error, connectingId, connect, disconnect } =
+    useConnectors();
 
   return (
     <section className="settings-section">
@@ -12,6 +13,7 @@ export default function PluginsSettingsSection() {
       <ChatConnectorsList
         variant="settings"
         connectedIds={connectedIds}
+        statuses={statuses}
         connectingId={connectingId}
         connectError={error}
         onConnect={connect}

@@ -21,7 +21,6 @@ import {
   friendChatId,
   partnerUidFromChatId,
   sendFriendChatMessage,
-  watchInboxFriendMessages,
   watchFriendChatMessages,
   type CloudFriendMessage,
 } from "../lib/firebase/friendChats";
@@ -578,36 +577,11 @@ function startPartnerSubscriptions({ set, get }: PeopleStoreApi, uid: string) {
 
 function startInboxSubscription(store: PeopleStoreApi, uid: string) {
   inboxState.unsub?.();
-  inboxState.unsub = watchInboxFriendMessages(
-    uid,
-    (messagesByChatId) => {
-      inboxState.mode = "inbox";
-      clearPartnerSubscriptions();
-      inboxState.initialized = true;
-      for (const [chatId, cloudMessages] of Object.entries(messagesByChatId)) {
-        syncInboxChat(store.set, store.get, uid, chatId, cloudMessages);
-      }
-    },
-    (error) => {
-      console.error("Friend chat inbox unavailable, falling back to per-partner listen", error);
-      inboxState.unsub?.();
-      inboxState.unsub = null;
-      if (inboxState.mode !== "partners") {
-        inboxState.mode = "partners";
-        startPartnerSubscriptions(store, uid);
-        inboxState.initialized = true;
-        return;
-      }
-      if (!inboxState.errorNotified) {
-        inboxState.errorNotified = true;
-        useNotificationsStore.getState().push({
-          kind: "message",
-          title: "Messages indisponibles",
-          body: error.message,
-        });
-      }
-    },
-  );
+  inboxState.unsub = null;
+  // Per-partner listeners are more reliable than the friendChats collection query.
+  inboxState.mode = "partners";
+  startPartnerSubscriptions(store, uid);
+  inboxState.initialized = true;
 }
 
 function syncFriendRequestNotifications(requests: FriendRequest[]) {

@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.billing import router as billing_router
 from app.api.calendar_sync import router as calendar_sync_router
+from app.api.connector_resources import router as connector_resources_router
 from app.api.connectors import router as connectors_router
 from app.api.desktop_auth import router as desktop_auth_router
 from app.api.routes import router
@@ -39,6 +40,7 @@ app.add_middleware(
 
 app.include_router(router)
 app.include_router(billing_router)
+app.include_router(connector_resources_router)
 app.include_router(connectors_router)
 app.include_router(calendar_sync_router)
 app.include_router(desktop_auth_router)

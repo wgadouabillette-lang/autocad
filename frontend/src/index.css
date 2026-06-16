@@ -2234,10 +2234,10 @@ body {
   .call-block__main {
     @apply flex min-h-0 w-full flex-1 flex-col px-5 py-4 text-left;
   }
-  .call-block__click-target--disabled {
+  .call-block__main--disabled {
     @apply cursor-default;
   }
-  .call-block--clickable .call-block__click-target:not(.call-block__click-target--disabled) {
+  .call-block--clickable .call-block__main:not(.call-block__main--disabled) {
     @apply cursor-pointer;
   }
   .call-block__surface {
@@ -3448,6 +3448,12 @@ body {
   .chat-connectors-row__label {
     @apply truncate text-[12.5px] font-medium text-muted-200;
   }
+  .chat-connectors-row__label-wrap {
+    @apply flex min-w-0 flex-col gap-0.5;
+  }
+  .chat-connectors-row__meta {
+    @apply truncate text-[10.5px] text-muted-500;
+  }
   .chat-connectors-row__connect {
     @apply inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium
       text-muted-200 transition-colors hover:text-muted-100 disabled:opacity-50;
@@ -3944,6 +3950,21 @@ body {
   }
   .calendar-panel__today-reset {
     @apply bg-transparent text-[10px] font-medium text-muted-500 transition-colors hover:text-muted-300;
+  }
+  .calendar-panel__sync-banner {
+    @apply mx-3 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ink-700
+      bg-ink-850 px-3 py-2 text-[11px] text-muted-300;
+  }
+  .calendar-panel__sync-banner--connected {
+    @apply border-emerald-900/50 text-muted-200;
+  }
+  .calendar-panel__sync-banner--warn {
+    @apply border-amber-900/50 text-amber-200/90;
+  }
+  .calendar-panel__sync-connect,
+  .calendar-panel__sync-refresh {
+    @apply shrink-0 rounded-md border border-ink-600 bg-ink-800 px-2.5 py-1 text-[11px] font-medium
+      text-muted-100 transition hover:bg-ink-750 disabled:opacity-50;
   }
   .calendar-panel__body {
     @apply relative flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden;

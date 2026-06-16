@@ -231,6 +231,7 @@ export default function ChatPanel() {
   const pollMorphActive = pollComposerOpen || pollVoteOpen;
   const {
     connectedIds: connectedConnectors,
+    statuses: connectorStatuses,
     connect: connectConnector,
     connectingId,
     error: connectorError,
@@ -1006,6 +1007,7 @@ export default function ChatPanel() {
                 <div className="chat-connectors-stage chat-connectors-stage--footer">
                   <ChatConnectorsList
                     connectedIds={connectedConnectors}
+                    statuses={connectorStatuses}
                     connectingId={connectingId}
                     connectError={connectorError}
                     onConnect={connectConnector}

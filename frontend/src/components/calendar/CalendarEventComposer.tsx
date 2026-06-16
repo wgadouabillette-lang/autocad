@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { X } from "lucide-react";
 import { avatarColor, userInitials } from "../../lib/calls";
 import { formatDayLabel, toDateKey } from "../../lib/daySchedule";
+import { syncEventsToGoogleCalendar } from "../../lib/calendarSync";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
@@ -100,17 +101,29 @@ export default function CalendarEventComposer() {
     }
 
     const detailTrimmed = detail.trim();
-    addEvents([
+    const eventPayload = {
+      id: `user-${eventDate}-${Date.now()}`,
+      dateKey: eventDate,
+      startMinutes,
+      endMinutes,
+      title: trimmedTitle,
+      detail: detailTrimmed || undefined,
+      source: "user" as const,
+    };
+
+    addEvents([eventPayload]);
+
+    void syncEventsToGoogleCalendar([
       {
-        id: `user-${eventDate}-${Date.now()}`,
+        title: trimmedTitle,
+        detail: detailTrimmed || undefined,
         dateKey: eventDate,
         startMinutes,
         endMinutes,
-        title: trimmedTitle,
-        detail: detailTrimmed || undefined,
-        source: "user",
       },
-    ]);
+    ]).then(() => {
+      window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
+    });
 
     if (invitedIds.size > 0) {
       const dayLabel = formatDayLabel(eventDate);

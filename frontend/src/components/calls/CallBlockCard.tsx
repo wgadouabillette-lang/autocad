@@ -169,14 +169,39 @@ export default function CallBlockCard({
 
   const mainClickEnabled = !!onMainClick && !mainDisabled;
 
+  const handleMainClick = (event: React.MouseEvent) => {
+    if (!mainClickEnabled || !onMainClick) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button, a, input, textarea, select, [data-call-block-action]")) return;
+    onMainClick();
+  };
+
+  const handleMainKeyDown = (event: React.KeyboardEvent) => {
+    if (!mainClickEnabled || !onMainClick) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    onMainClick();
+  };
+
   return (
     <article className={blockClassName} style={style}>
       {standby && <span className="call-block__standby-veil" aria-hidden />}
-      <div className="call-block__main">
+      <div
+        className={clsx(
+          "call-block__main",
+          onMainClick && mainDisabled && "call-block__main--disabled",
+        )}
+        role={onMainClick ? "button" : undefined}
+        tabIndex={mainClickEnabled ? 0 : onMainClick ? -1 : undefined}
+        aria-disabled={onMainClick && mainDisabled ? true : undefined}
+        aria-label={onMainClick ? mainAriaLabel ?? title : undefined}
+        onClick={onMainClick ? handleMainClick : undefined}
+        onKeyDown={onMainClick ? handleMainKeyDown : undefined}
+      >
         <div className="call-block__surface">
           <div className="call-block__row call-block__row--header">
             {titleContent ?? <p className="call-block__title">{title}</p>}
-            <div className="call-block__header-trailing">
+            <div className="call-block__header-trailing" data-call-block-action="">
               {showActivity && !standby && (
                 <PresenceActivityButton
                   roomId={activeRoomId}
@@ -190,29 +215,7 @@ export default function CallBlockCard({
 
           {belowHeader}
 
-          {onMainClick ? (
-            <div
-              className={clsx(
-                "call-block__click-target",
-                mainDisabled && "call-block__click-target--disabled",
-              )}
-              role="button"
-              tabIndex={mainClickEnabled ? 0 : -1}
-              aria-disabled={mainDisabled || undefined}
-              aria-label={mainAriaLabel ?? title}
-              onClick={mainClickEnabled ? onMainClick : undefined}
-              onKeyDown={(event) => {
-                if (!mainClickEnabled) return;
-                if (event.key !== "Enter" && event.key !== " ") return;
-                event.preventDefault();
-                onMainClick();
-              }}
-            >
-              {participantSection}
-            </div>
-          ) : (
-            participantSection
-          )}
+          {participantSection}
         </div>
       </div>
     </article>

@@ -7,6 +7,8 @@ import {
   formatScheduleTime,
   isTodayKey,
 } from "../../lib/daySchedule";
+import { useGoogleCalendarSync } from "../../hooks/useGoogleCalendarSync";
+import { useConnectors } from "../../hooks/useConnectors";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
 import { useStore } from "../../store/useStore";
@@ -35,9 +37,13 @@ export default function DaySchedulePanel() {
   const dateInputRef = useRef<HTMLInputElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const userEvents = useCalendarStore((s) => s.userEvents);
+  const googleEvents = useCalendarStore((s) => s.googleEvents);
+  const { status: googleStatus, loading: googleLoading, error: googleError, refresh: refreshGoogle } =
+    useGoogleCalendarSync(selectedDate);
+  const { connect, connectingId } = useConnectors();
   const events = useMemo(
     () => useCalendarStore.getState().eventsForDate(selectedDate),
-    [selectedDate, userEvents],
+    [selectedDate, userEvents, googleEvents],
   );
   const viewingToday = isTodayKey(selectedDate);
 
@@ -123,6 +129,47 @@ export default function DaySchedulePanel() {
           )}
         </div>
       </div>
+
+      {googleStatus && !googleStatus.configured && (
+        <p className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">
+          Google Calendar n&apos;est pas configuré sur le serveur (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).
+        </p>
+      )}
+
+      {googleStatus?.configured && !googleStatus.connected && (
+        <div className="calendar-panel__sync-banner">
+          <span>Liez Google Calendar pour afficher et synchroniser vos événements.</span>
+          <button
+            type="button"
+            className="calendar-panel__sync-connect"
+            onClick={() => void connect("calendar")}
+            disabled={connectingId === "calendar"}
+          >
+            {connectingId === "calendar" ? "Connexion…" : "Connecter Google Calendar"}
+          </button>
+        </div>
+      )}
+
+      {googleStatus?.connected && (
+        <div className="calendar-panel__sync-banner calendar-panel__sync-banner--connected">
+          <span>
+            Synchronisé avec Google Calendar
+            {googleStatus.accountEmail ? ` · ${googleStatus.accountEmail}` : ""}
+          </span>
+          <button
+            type="button"
+            className="calendar-panel__sync-refresh"
+            onClick={() => void refreshGoogle()}
+            disabled={googleLoading}
+          >
+            {googleLoading ? "Sync…" : "Actualiser"}
+          </button>
+        </div>
+      )}
+
+      {googleError && (
+        <p className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">{googleError}</p>
+      )}
 
       <div className="calendar-panel__body">
         <div className="calendar-panel__timeline" ref={timelineRef}>

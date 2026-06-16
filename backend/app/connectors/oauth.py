@@ -14,7 +14,7 @@ from app.connectors.registry import (
     callback_url,
     microsoft_oauth_tenant,
 )
-from app.connectors.store import set_connection
+from app.connectors.user_store import set_connection
 
 _PENDING_STATES: dict[str, dict[str, Any]] = {}
 _STATE_TTL_SEC = 600
@@ -27,39 +27,56 @@ def _gc_states() -> None:
         _PENDING_STATES.pop(key, None)
 
 
-def create_authorize_session(connector_id: str) -> tuple[str, str]:
+def create_authorize_session(connector_id: str, uid: str) -> tuple[str, str]:
     _gc_states()
     state = secrets.token_urlsafe(24)
     _PENDING_STATES[state] = {
         "connector_id": connector_id,
+        "uid": uid,
         "created": time.time(),
     }
     url = build_authorize_url(connector_id, state)
     return state, url
 
 
-def pop_state(state: str) -> str | None:
+def pop_state(state: str) -> tuple[str, str] | None:
     _gc_states()
     entry = _PENDING_STATES.pop(state, None)
     if not entry:
         return None
-    return str(entry["connector_id"])
+    return str(entry["connector_id"]), str(entry["uid"])
 
 
-async def exchange_code(connector_id: str, code: str) -> dict[str, Any]:
+async def exchange_code(connector_id: str, uid: str, code: str) -> dict[str, Any]:
     spec = CONNECTORS[connector_id]
     if spec.provider == "google":
         tokens = await _exchange_google(code)
-    elif spec.provider == "notion":
-        tokens = await _exchange_notion(code)
-    elif spec.provider == "figma":
-        tokens = await _exchange_figma(code)
+        email = await _fetch_google_email(tokens.get("access_token"))
+        if email:
+            tokens["account_email"] = email
     elif spec.provider == "microsoft":
         tokens = await _exchange_microsoft(code)
+        email = await _fetch_microsoft_email(tokens.get("access_token"))
+        if email:
+            tokens["account_email"] = email
+    elif spec.provider == "figma":
+        tokens = await _exchange_figma(code)
+        profile = await _fetch_figma_profile(tokens.get("access_token"))
+        if profile.get("email"):
+            tokens["account_email"] = profile["email"]
+        if profile.get("handle"):
+            tokens["account_name"] = profile["handle"]
+    elif spec.provider == "notion":
+        tokens = await _exchange_notion(code)
+        owner = tokens.pop("owner", None)
+        if isinstance(owner, dict):
+            user = owner.get("user") or {}
+            if isinstance(user, dict) and user.get("email"):
+                tokens["account_email"] = str(user["email"])
     else:
         raise ValueError(f"Unsupported provider: {spec.provider}")
 
-    set_connection(connector_id, spec.provider, tokens)
+    set_connection(uid, connector_id, spec.provider, tokens)
     return tokens
 
 
@@ -86,6 +103,49 @@ async def _exchange_google(code: str) -> dict[str, Any]:
         "token_type": data.get("token_type"),
         "scope": data.get("scope"),
     }
+
+
+async def _fetch_google_email(access_token: Any) -> str | None:
+    if not access_token:
+        return None
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if r.status_code != 200:
+        return None
+    email = r.json().get("email")
+    return str(email).strip() if email else None
+
+
+async def _fetch_microsoft_email(access_token: Any) -> str | None:
+    if not access_token:
+        return None
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(
+            "https://graph.microsoft.com/v1.0/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"$select": "mail,userPrincipalName,displayName"},
+        )
+    if r.status_code != 200:
+        return None
+    data = r.json()
+    email = data.get("mail") or data.get("userPrincipalName")
+    return str(email).strip() if email else None
+
+
+async def _fetch_figma_profile(access_token: Any) -> dict[str, Any]:
+    if not access_token:
+        return {}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(
+            "https://api.figma.com/v1/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if r.status_code != 200:
+        return {}
+    return r.json()
 
 
 async def _exchange_notion(code: str) -> dict[str, Any]:
@@ -115,6 +175,7 @@ async def _exchange_notion(code: str) -> dict[str, Any]:
         "workspace_id": data.get("workspace_id"),
         "workspace_name": data.get("workspace_name"),
         "bot_id": data.get("bot_id"),
+        "owner": data.get("owner"),
     }
 
 

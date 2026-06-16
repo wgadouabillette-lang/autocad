@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 _app = None
 _db = None
+_db_unavailable = False
 
 
 def _project_id() -> str:
@@ -36,12 +37,12 @@ def _credential_path() -> str:
 
 
 def _ensure_app():
-    global _app, _db
+    global _app
     if _app is not None:
         return
     try:
         import firebase_admin
-        from firebase_admin import credentials, firestore
+        from firebase_admin import credentials
     except ImportError:
         logger.warning("firebase-admin not installed; Firebase auth disabled.")
         return
@@ -59,7 +60,25 @@ def _ensure_app():
                 _app = firebase_admin.initialize_app(options={"projectId": _project_id()})
     else:
         _app = firebase_admin.get_app()
-    _db = firestore.client()
+
+
+def _ensure_db():
+    global _db, _db_unavailable
+    _ensure_app()
+    if _db is not None or _db_unavailable or _app is None:
+        return
+    try:
+        from firebase_admin import firestore
+
+        _db = firestore.client()
+    except Exception as exc:
+        _db_unavailable = True
+        logger.warning("Firestore client unavailable: %s", exc)
+
+
+def firestore_available() -> bool:
+    _ensure_db()
+    return _db is not None
 
 
 @dataclass
@@ -80,16 +99,35 @@ def verify_bearer_token(token: str) -> Optional[FirebaseUser]:
     token = (token or "").strip()
     if not token:
         return None
-    _ensure_app()
-    if _app is None:
-        return None
-    try:
-        from firebase_admin import auth
 
-        decoded = auth.verify_id_token(token)
-        return FirebaseUser(uid=str(decoded["uid"]), email=decoded.get("email"))
+    project_id = _project_id()
+
+    _ensure_app()
+    if _app is not None:
+        try:
+            from firebase_admin import auth
+
+            decoded = auth.verify_id_token(token, check_revoked=False)
+            return FirebaseUser(uid=str(decoded["uid"]), email=decoded.get("email"))
+        except Exception as exc:
+            logger.debug("Firebase Admin token verification failed: %s", exc)
+
+    try:
+        from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token as google_id_token
+
+        decoded = google_id_token.verify_firebase_token(
+            token,
+            google_requests.Request(),
+            audience=project_id,
+        )
+        uid = decoded.get("user_id") or decoded.get("sub")
+        if not uid:
+            return None
+        email = decoded.get("email")
+        return FirebaseUser(uid=str(uid), email=str(email) if email else None)
     except Exception as exc:
-        logger.debug("Firebase token verification failed: %s", exc)
+        logger.warning("Firebase token verification failed: %s", exc)
         return None
 
 
@@ -117,7 +155,7 @@ def find_user_by_email(email: str) -> Optional[FirebaseDirectoryUser]:
 
 
 def upsert_user_directory(user: FirebaseDirectoryUser) -> None:
-    _ensure_app()
+    _ensure_db()
     if _db is None:
         return
     try:
@@ -137,7 +175,7 @@ def upsert_user_directory(user: FirebaseDirectoryUser) -> None:
 
 
 def load_user_api_keys(uid: str) -> Dict[str, str]:
-    _ensure_app()
+    _ensure_db()
     if _db is None:
         return {}
     keys: Dict[str, str] = {}
@@ -154,7 +192,7 @@ def load_user_api_keys(uid: str) -> Dict[str, str]:
 
 
 def _billing_ref(uid: str):
-    _ensure_app()
+    _ensure_db()
     if _db is None:
         return None
     return _db.collection("users").document(uid).collection("private").document("billing")
@@ -193,7 +231,7 @@ def update_user_subscription_profile(
     on_demand_usage_enabled: bool,
     billing_managed: bool = True,
 ) -> None:
-    _ensure_app()
+    _ensure_db()
     if _db is None:
         return
     try:
@@ -213,7 +251,7 @@ def update_user_subscription_profile(
 
 
 def find_uid_by_stripe_customer(customer_id: str) -> Optional[str]:
-    _ensure_app()
+    _ensure_db()
     if _db is None or not customer_id:
         return None
     try:

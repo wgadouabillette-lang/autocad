@@ -3,6 +3,7 @@ import { isManageSchedulePrompt } from "./chatSkills";
 import type { ManageSchedulePromptDraft } from "./manageSchedulePrompt";
 import type { CalendarEvent } from "../store/useCalendarStore";
 import { useCalendarStore } from "../store/useCalendarStore";
+import { syncEventsToGoogleCalendar } from "./calendarSync";
 import { useNotificationsStore } from "../store/useNotificationsStore";
 import {
   formatDayLabel,
@@ -324,6 +325,17 @@ function applyEvents(events: ManageScheduleEventDraft[]): CalendarEvent[] {
     source: "manage-skill",
   }));
   useCalendarStore.getState().addEvents(payload);
+  void syncEventsToGoogleCalendar(
+    payload.map((event) => ({
+      title: event.title,
+      detail: event.detail,
+      dateKey: event.dateKey,
+      startMinutes: event.startMinutes,
+      endMinutes: event.endMinutes,
+    })),
+  ).then(() => {
+    window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
+  });
   return payload;
 }
 

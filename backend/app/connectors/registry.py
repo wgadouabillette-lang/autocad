@@ -25,6 +25,8 @@ CONNECTORS: dict[str, ConnectorDef] = {
         label="Google Calendar",
         provider="google",
         scopes=(
+            "openid",
+            "email",
             "https://www.googleapis.com/auth/calendar.readonly",
             "https://www.googleapis.com/auth/calendar.events",
         ),
@@ -34,8 +36,9 @@ CONNECTORS: dict[str, ConnectorDef] = {
         label="Gmail",
         provider="google",
         scopes=(
+            "openid",
+            "email",
             "https://www.googleapis.com/auth/gmail.readonly",
-            "https://www.googleapis.com/auth/userinfo.email",
         ),
     ),
     "outlook": ConnectorDef(
