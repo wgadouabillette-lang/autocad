@@ -5,10 +5,11 @@ import {
   Gauge,
   LayoutGrid,
   LogOut,
+  Mic,
   Plug,
-  Server,
   Settings,
   Users,
+  Volume2,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
@@ -17,16 +18,16 @@ import {
   type SettingsTab,
 } from "../lib/settingsSearchSuggestions";
 import { useStore } from "../store/useStore";
-import { useWorkspacesStore } from "../store/useWorkspacesStore";
 import FriendsSettingsSection from "./settings/FriendsSettingsSection";
 import GeneralSettingsSection from "./settings/GeneralSettingsSection";
 import ModelsSettingsSection from "./settings/ModelsSettingsSection";
 import PluginsSettingsSection from "./settings/PluginsSettingsSection";
 import AgentsSettingsSection from "./settings/AgentsSettingsSection";
+import AudioSettingsSection from "./settings/AudioSettingsSection";
 import UsageSettingsSection from "./settings/UsageSettingsSection";
+import VoiceSettingsSection from "./settings/VoiceSettingsSection";
 import { useAuthStore } from "../store/useAuthStore";
 import SettingsProfileHeader from "./settings/SettingsProfileHeader";
-import WorkspaceSettingsSection from "./settings/WorkspaceSettingsSection";
 import WorkspacesSettingsSection from "./settings/WorkspacesSettingsSection";
 
 type NavItem =
@@ -39,29 +40,32 @@ const TAB_TITLES: Record<SettingsTab, string> = {
   workspaces: "Workspaces",
   usage: "Plan & Usage",
   agents: "Agents",
+  voice: "Voice",
+  audio: "Audio",
   models: "Models",
   plugins: "Plugins",
-  workspace: "Workspace",
 };
 
 const TAB_DESCRIPTIONS: Record<SettingsTab, string> = {
-  general: "Profil, interface, apparence et enregistrement.",
+  general: "Profil, interface et apparence.",
   friends: "Amis et invitations.",
   workspaces: "Vos workspaces, invitations et changement d'espace actif.",
   usage: "Forfait, facturation et consommation.",
   agents: "Personnalisation du chat, des follow-ups et des AI Notes.",
+  voice: "Salons vocaux, enregistrements et options de capture.",
+  audio: "Micro, sortie audio et traitement du signal.",
   models: "Choix du modèle IA pour la génération.",
   plugins: "Connecteurs utilisables dans le chat.",
-  workspace: "Paramètres du workspace actif — réservés au propriétaire.",
 };
 
 const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
   general: Settings,
   friends: Users,
   workspaces: LayoutGrid,
-  workspace: Server,
   usage: Gauge,
   agents: Bot,
+  voice: Mic,
+  audio: Volume2,
   models: Cpu,
   plugins: Plug,
 };
@@ -72,24 +76,24 @@ const TAB_PANELS: Record<SettingsTab, () => JSX.Element> = {
   workspaces: WorkspacesSettingsSection,
   usage: UsageSettingsSection,
   agents: AgentsSettingsSection,
+  voice: VoiceSettingsSection,
+  audio: AudioSettingsSection,
   models: ModelsSettingsSection,
   plugins: PluginsSettingsSection,
-  workspace: WorkspaceSettingsSection,
 };
 
-function buildNav(isWorkspaceOwner: boolean): NavItem[] {
+function buildNav(): NavItem[] {
   const items: NavItem[] = [
     { kind: "tab", id: "general", label: "General" },
     { kind: "tab", id: "friends", label: "Friends" },
     { kind: "tab", id: "workspaces", label: "Workspaces" },
   ];
-  if (isWorkspaceOwner) {
-    items.push({ kind: "tab", id: "workspace", label: "Workspace" });
-  }
   items.push(
     { kind: "separator" },
     { kind: "tab", id: "usage", label: "Plan & Usage" },
     { kind: "tab", id: "agents", label: "Agents" },
+    { kind: "tab", id: "voice", label: "Voice" },
+    { kind: "tab", id: "audio", label: "Audio" },
     { kind: "tab", id: "models", label: "Models" },
     { kind: "separator" },
     { kind: "tab", id: "plugins", label: "Plugins" },
@@ -100,16 +104,10 @@ function buildNav(isWorkspaceOwner: boolean): NavItem[] {
 export default function SettingsPage() {
   const activeTab = useStore((s) => s.settingsTab);
   const setSettingsTab = useStore((s) => s.setSettingsTab);
-  const activeRoomId = useStore((s) => s.activeRoomId);
-  const isWorkspaceOwner = useWorkspacesStore((s) => s.isWorkspaceOwner(activeRoomId));
   const signOut = useAuthStore((s) => s.signOut);
   const panelBodyRef = useRef<HTMLDivElement>(null);
-  const navItems = useMemo(() => buildNav(isWorkspaceOwner), [isWorkspaceOwner]);
-  const resolvedTab = useMemo(() => {
-    const tab = normalizeSettingsTab(activeTab);
-    if (tab === "workspace" && !isWorkspaceOwner) return "general";
-    return tab;
-  }, [activeTab, isWorkspaceOwner]);
+  const navItems = useMemo(() => buildNav(), []);
+  const resolvedTab = useMemo(() => normalizeSettingsTab(activeTab), [activeTab]);
   const Panel = TAB_PANELS[resolvedTab] ?? GeneralSettingsSection;
 
   useEffect(() => {

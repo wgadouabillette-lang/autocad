@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -134,6 +135,14 @@ export async function saveUserDirectoryProfile(
     },
     { merge: true },
   );
+}
+
+export async function loadUserDirectoryByUid(uid: string): Promise<UserDirectoryDoc | null> {
+  const trimmed = uid.trim();
+  if (!trimmed) return null;
+  const snap = await getDoc(userDirectoryRef(trimmed));
+  if (!snap.exists()) return null;
+  return snap.data() as UserDirectoryDoc;
 }
 
 export async function findUserDirectoryByEmail(
@@ -300,6 +309,17 @@ export async function saveChatSessions(uid: string, sessions: ChatSession[]): Pr
     batch.set(doc(chatSessionsCol(uid), session.id), session as unknown as DocumentData);
   }
   await batch.commit();
+}
+
+export async function saveChatSession(uid: string, session: ChatSession): Promise<void> {
+  await setDoc(
+    doc(chatSessionsCol(uid), session.id),
+    session as unknown as DocumentData,
+  );
+}
+
+export async function deleteChatSession(uid: string, sessionId: string): Promise<void> {
+  await deleteDoc(doc(chatSessionsCol(uid), sessionId));
 }
 
 export async function loadChatSessions(uid: string): Promise<ChatSession[]> {

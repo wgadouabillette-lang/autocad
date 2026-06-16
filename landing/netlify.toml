@@ -12,6 +12,11 @@
   status = 200
 
 [[redirects]]
+  from = "/subprocessors"
+  to = "/subprocessors.html"
+  status = 200
+
+[[redirects]]
   from = "/auth"
   to = "/auth.html"
   status = 200

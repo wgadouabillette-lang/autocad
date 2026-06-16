@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { isManageSchedulePrompt } from "./chatSkills";
+import type { ManageSchedulePromptDraft } from "./manageSchedulePrompt";
 import type { CalendarEvent } from "../store/useCalendarStore";
 import { useCalendarStore } from "../store/useCalendarStore";
 import { useNotificationsStore } from "../store/useNotificationsStore";
@@ -60,6 +61,22 @@ function parseTimeToMinutes(value: string, fallback: number): number {
   return hours * 60 + minutes;
 }
 
+function defaultManageDeadlineFromParsed(): string {
+  const fallback = new Date();
+  fallback.setDate(fallback.getDate() + 7);
+  return toDateKey(fallback);
+}
+
+function formatParsedBlockForAi(parsed: ParsedManageBlock): string {
+  return [
+    "Tasks:",
+    ...parsed.tasks.map((task) => `- ${task}`),
+    `Deadline: ${parsed.deadline}`,
+    "Working hours: 09:00-18:00",
+    "Default task duration: 30 minutes",
+  ].join("\n");
+}
+
 function parseManageBlock(text: string): ParsedManageBlock {
   const lines = text.split("\n");
   let deadline = "";
@@ -99,6 +116,20 @@ function parseManageBlock(text: string): ParsedManageBlock {
       if (title && !/^task title \d+$/i.test(title) && title !== "YYYY-MM-DD") {
         tasks.push(title);
       }
+    }
+  }
+
+  if (tasks.length === 0) {
+    const natural =
+      text.match(/need to do\s+(.+?)\s+before\s+([^,\n.]+)/i) ??
+      text.match(/faire\s+(.+?)\s+avant\s+le\s+([^,\n.]+)/i);
+    if (natural) {
+      const parsedTasks = natural[1]!
+        .split(/,\s*|\s+(?:and|et)\s+/i)
+        .map((part) => part.trim())
+        .filter(Boolean);
+      if (parsedTasks.length > 0) tasks.push(...parsedTasks);
+      if (!deadline) deadline = natural[2]?.trim() ?? "";
     }
   }
 
@@ -299,16 +330,28 @@ function applyEvents(events: ManageScheduleEventDraft[]): CalendarEvent[] {
 export async function runManageScheduleSkill(
   userBlock: string,
   signal?: AbortSignal,
+  draft?: ManageSchedulePromptDraft,
 ): Promise<ManageScheduleResult> {
-  if (!isManageSchedulePrompt(userBlock)) {
+  if (!isManageSchedulePrompt(userBlock) && !draft) {
     return { applied: false, summary: "", events: [], firstDateKey: null };
   }
 
-  const parsed = parseManageBlock(userBlock);
+  const parsed = draft
+    ? {
+        deadline: draft.deadline.trim() || defaultManageDeadlineFromParsed(),
+        workStartMinutes: 9 * 60,
+        workEndMinutes: 18 * 60,
+        defaultDurationMinutes: 30,
+        tasks: draft.tasks.map((t) => t.trim()).filter(Boolean),
+      }
+    : parseManageBlock(userBlock);
   const today = toDateKey(new Date());
   const dateKeys = enumerateDateKeys(today, parsed.deadline);
   const calendarContext = gatherCalendarContext(dateKeys);
-  const prompt = buildManageScheduleAiPrompt(userBlock, calendarContext);
+  const prompt = buildManageScheduleAiPrompt(
+    draft ? formatParsedBlockForAi(parsed) : userBlock,
+    calendarContext,
+  );
 
   try {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
@@ -333,7 +376,9 @@ export async function runManageScheduleSkill(
     };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
-    const fallback = localFallbackSchedule(userBlock);
+    const fallback = localFallbackSchedule(
+      draft ? formatParsedBlockForAi(parsed) : userBlock,
+    );
     if (fallback.applied) {
       applyEvents(fallback.events);
       useNotificationsStore.getState().push({

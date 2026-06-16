@@ -4,9 +4,12 @@ import {
   blockActivityUser,
   findLocalBlock,
   isBlockInCall,
+  isLocalPrivateCallHost,
+  memberBlockId,
   type CallBlock as CallBlockType,
   type JoinRequest,
 } from "../../lib/calls";
+import { UserMinus } from "lucide-react";
 import { useUserAiStroke } from "../../hooks/useAiBlockStroke";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
@@ -33,8 +36,12 @@ export default function CallBlock({
   const activeRoomId = useStore((s) => s.activeRoomId);
   const inCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
   const localOpenChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
+  const disconnectRemoteFromPrivateCall = useCallsStore((s) => s.disconnectRemoteFromPrivateCall);
   const isLocal = block.participants.some((p) => p.isLocal);
   const isMerged = block.participants.length > 1;
+  const isPrivateCallHost =
+    isLocal && isMerged && isLocalPrivateCallHost(blocks, activeRoomId) && block.id === memberBlockId(activeRoomId, "local");
+  const remoteParticipants = block.participants.filter((participant) => !participant.isLocal);
   const inOpenChannelOnly = isLocal && inCall && !!localOpenChannelId;
   const blockActive = isLocal
     ? !inOpenChannelOnly
@@ -102,6 +109,27 @@ export default function CallBlock({
       activityIsLocal={activityIsLocal}
       aiStroke={aiStroke}
       standby={isOffline}
+      trailing={
+        isPrivateCallHost ? (
+          <>
+            {remoteParticipants.map((participant) => (
+              <button
+                key={participant.id}
+                type="button"
+                className="call-block__kick"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  disconnectRemoteFromPrivateCall(activeRoomId, participant.id);
+                }}
+                aria-label={`Déconnecter ${participant.name}`}
+                title={`Déconnecter ${participant.name}`}
+              >
+                <UserMinus size={12} strokeWidth={2.25} aria-hidden />
+              </button>
+            ))}
+          </>
+        ) : undefined
+      }
       mainDisabled={!isActionable}
       onMainClick={canRequestJoin ? () => onRequestJoin(block.id) : undefined}
       mainAriaLabel={

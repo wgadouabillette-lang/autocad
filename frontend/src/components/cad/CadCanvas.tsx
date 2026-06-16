@@ -11,7 +11,8 @@ import {
   arcPath,
 } from "../../lib/drawing/geometry";
 import type { Point2 } from "../../lib/drawing/types";
-import { THEME } from "../../lib/theme";
+import { useThemePalette } from "../../hooks/useThemePalette";
+import type { ThemePalette } from "../../lib/theme";
 
 function worldFromEvent(
   e: React.MouseEvent | MouseEvent,
@@ -32,6 +33,7 @@ function worldFromEvent(
 }
 
 export default function CadCanvas() {
+  const theme = useThemePalette();
   const svgRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [dragging, setDragging] = useState<
@@ -192,7 +194,7 @@ export default function CadCanvas() {
           y1={-span}
           x2={x}
           y2={span}
-          stroke={Math.abs(x % (step * 5)) < 0.1 ? THEME.gridSection : THEME.gridCell}
+          stroke={Math.abs(x % (step * 5)) < 0.1 ? theme.gridSection : theme.gridCell}
           strokeWidth={0.5}
           vectorEffect="non-scaling-stroke"
         />,
@@ -206,7 +208,7 @@ export default function CadCanvas() {
           y1={-y}
           x2={span}
           y2={-y}
-          stroke={Math.abs(y % (step * 5)) < 0.1 ? THEME.gridSection : THEME.gridCell}
+          stroke={Math.abs(y % (step * 5)) < 0.1 ? theme.gridSection : theme.gridCell}
           strokeWidth={0.5}
           vectorEffect="non-scaling-stroke"
         />,
@@ -215,7 +217,7 @@ export default function CadCanvas() {
   }
 
   const sessionPoints = toolSession?.points ?? [];
-  const preview = cursor && sessionPoints.length > 0 ? renderPreview(activeTool, sessionPoints, cursor) : null;
+  const preview = cursor && sessionPoints.length > 0 ? renderPreview(activeTool, sessionPoints, cursor, theme) : null;
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink-900">
@@ -246,8 +248,8 @@ export default function CadCanvas() {
             />
           )}
           {gridLines}
-          <line x1={-20} y1={0} x2={20} y2={0} stroke={THEME.border} strokeWidth={0.3} vectorEffect="non-scaling-stroke" />
-          <line x1={0} y1={-20} x2={0} y2={20} stroke={THEME.border} strokeWidth={0.3} vectorEffect="non-scaling-stroke" />
+          <line x1={-20} y1={0} x2={20} y2={0} stroke={theme.border} strokeWidth={0.3} vectorEffect="non-scaling-stroke" />
+          <line x1={0} y1={-20} x2={0} y2={20} stroke={theme.border} strokeWidth={0.3} vectorEffect="non-scaling-stroke" />
 
           {entities.map((e) => (
             <g key={e.id}>
@@ -257,7 +259,7 @@ export default function CadCanvas() {
 
           {preview}
           {sessionPoints.map((p, i) => (
-            <circle key={i} cx={p.x} cy={-p.y} r={3 / scale} fill={THEME.highlight} />
+            <circle key={i} cx={p.x} cy={-p.y} r={3 / scale} fill={theme.highlight} />
           ))}
         </g>
       </svg>
@@ -269,8 +271,8 @@ export default function CadCanvas() {
   );
 }
 
-function renderPreview(tool: string, points: Point2[], cursor: Point2) {
-  const stroke = THEME.highlight;
+function renderPreview(tool: string, points: Point2[], cursor: Point2, theme: ThemePalette) {
+  const stroke = theme.highlight;
   const dash = "4 3";
 
   if (tool === "line" && points.length === 1) {
@@ -373,7 +375,7 @@ function renderPreview(tool: string, points: Point2[], cursor: Point2) {
           y1={-a.y}
           x2={cursor.x}
           y2={-cursor.y}
-          stroke={THEME.accentStrong}
+          stroke={theme.accentStrong}
           strokeDasharray={dash}
           strokeWidth={1}
           vectorEffect="non-scaling-stroke"

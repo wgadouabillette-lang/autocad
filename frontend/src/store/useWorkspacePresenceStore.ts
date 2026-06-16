@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { usePeopleStore } from "./usePeopleStore";
 
 export const PRESENCE_OFFLINE_AFTER_MS = 90_000;
 
@@ -55,6 +56,9 @@ export const useWorkspacePresenceStore = create<WorkspacePresenceState>((set, ge
         lastSeenMs: member.lastSeenMs,
         voice: member.voice ?? { inPrivateCall: false, openChannelId: null, speaking: false },
       };
+      if (member.photoURL?.trim()) {
+        usePeopleStore.getState().cachePersonPhoto(member.uid, member.photoURL);
+      }
     }
     set((state) => {
       const prev = state.membersByWorkspace[workspaceId] ?? {};

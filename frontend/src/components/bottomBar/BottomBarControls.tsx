@@ -37,7 +37,10 @@ export function BottomBarCapsule({ children }: { children: React.ReactNode }) {
                 ? "end"
                 : "middle";
 
-        return cloneElement(child, { segment });
+        return cloneElement(child, {
+          key: child.key ?? `bottom-bar-${index}`,
+          segment,
+        });
       })}
     </div>
   );

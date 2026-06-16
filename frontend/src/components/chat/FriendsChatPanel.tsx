@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import clsx from "clsx";
-import { ArrowLeft, ArrowUp, FileImage, Mic, Paperclip, X } from "lucide-react";
-import { avatarColor, userInitials } from "../../lib/calls";
+import { ArrowUp, FileImage, Paperclip, Smile, X } from "lucide-react";
 import type { PeopleMessage, Person } from "../../lib/peopleChat";
 import { buildMessagePanelThreads, resolvePersonPhotoURL } from "../../lib/peopleChat";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -10,23 +9,15 @@ import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
 import UserAvatar from "../UserAvatar";
+import PeopleChatEmojiPicker from "./PeopleChatEmojiPicker";
 import PeopleChatThreadMessages from "./PeopleChatThreadMessages";
 
-function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
-  if (typeof window === "undefined") return null;
-  const w = window as Window & {
-    SpeechRecognition?: new () => SpeechRecognition;
-    webkitSpeechRecognition?: new () => SpeechRecognition;
-  };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
+const EMPTY_MESSAGES: PeopleMessage[] = [];
 
 const CHAT_COMPOSER_SURFACE_STYLE: CSSProperties = {
   backgroundColor: "var(--forma-chat-composer-bg)",
   border: "1px solid var(--forma-chat-composer-stroke)",
 };
-
-const EMPTY_MESSAGES: PeopleMessage[] = [];
 
 interface ComposerAttachment {
   id: string;
@@ -48,11 +39,11 @@ function buildAttachment(file: File): ComposerAttachment {
 function formatWhen(ts: number): string {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "À l'instant";
+  if (mins < 1) return "Just now";
   if (mins < 60) return `${mins} min`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours} h`;
-  return `${Math.floor(hours / 24)} j`;
+  return `${Math.floor(hours / 24)} d`;
 }
 
 export default function FriendsChatPanel() {
@@ -68,10 +59,13 @@ export default function FriendsChatPanel() {
     (s) => s.membersByWorkspace[activeRoomId],
   );
   const membersByWorkspace = useWorkspacePresenceStore((s) => s.membersByWorkspace);
+  const personPhotoByUserId = usePeopleStore((s) => s.personPhotoByUserId);
+  const hydratePersonPhotos = usePeopleStore((s) => s.hydratePersonPhotos);
   const ensureColleagueThread = usePeopleStore((s) => s.ensureColleagueThread);
   const ensureFriendThread = usePeopleStore((s) => s.ensureFriendThread);
   const sendMessage = usePeopleStore((s) => s.sendMessage);
   const markThreadRead = usePeopleStore((s) => s.markThreadRead);
+  const markFriendsTabSeen = usePeopleStore((s) => s.markFriendsTabSeen);
   const setActiveFriendThread = usePeopleStore((s) => s.setActiveFriendThread);
   const selectedThreadId = usePeopleStore((s) => s.activeFriendThreadId);
   const thread = usePeopleStore((s) =>
@@ -91,77 +85,10 @@ export default function FriendsChatPanel() {
 
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
-  const [isDictating, setIsDictating] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesScrollRef = useRef<HTMLUListElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const dictationBaseRef = useRef<string>("");
-  const speechSupported = useMemo(() => getSpeechRecognitionCtor() !== null, []);
-
-  const stopDictation = useCallback(() => {
-    const rec = recognitionRef.current;
-    if (rec) {
-      try {
-        rec.stop();
-      } catch {
-        // ignore
-      }
-    }
-    recognitionRef.current = null;
-    setIsDictating(false);
-  }, []);
-
-  const startDictation = useCallback(() => {
-    const Ctor = getSpeechRecognitionCtor();
-    if (!Ctor) return;
-    const rec = new Ctor();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = navigator.language || "fr-FR";
-    dictationBaseRef.current = draft;
-    rec.onresult = (event) => {
-      let interim = "";
-      let finalText = "";
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const result = event.results[i];
-        const transcript = result[0]?.transcript ?? "";
-        if (result.isFinal) finalText += transcript;
-        else interim += transcript;
-      }
-      if (finalText) {
-        const base = dictationBaseRef.current;
-        const joined = base ? `${base.trimEnd()} ${finalText.trim()}` : finalText.trim();
-        dictationBaseRef.current = joined;
-        setDraft(joined);
-      } else if (interim) {
-        const base = dictationBaseRef.current;
-        const preview = base ? `${base.trimEnd()} ${interim}` : interim;
-        setDraft(preview);
-      }
-    };
-    rec.onerror = () => {
-      stopDictation();
-    };
-    rec.onend = () => {
-      recognitionRef.current = null;
-      setIsDictating(false);
-    };
-    recognitionRef.current = rec;
-    try {
-      rec.start();
-      setIsDictating(true);
-    } catch {
-      recognitionRef.current = null;
-      setIsDictating(false);
-    }
-  }, [draft, stopDictation]);
-
-  useEffect(() => {
-    return () => {
-      stopDictation();
-    };
-  }, [stopDictation]);
 
   useEffect(() => {
     return () => {
@@ -191,7 +118,7 @@ export default function FriendsChatPanel() {
     const push = (id: string, name: string) => {
       if (!id || id === "local" || (firebaseUid && id === firebaseUid) || seen.has(id)) return;
       seen.add(id);
-      out.push({ id, name: name.trim() || "Membre", handle: id });
+      out.push({ id, name: name.trim() || "Member", handle: id });
     };
 
     if (presenceMembers) {
@@ -231,6 +158,21 @@ export default function FriendsChatPanel() {
     ],
   );
 
+  const photoLookup = useMemo(
+    () => ({ preferredWorkspaceId: activeRoomId, photoCache: personPhotoByUserId }),
+    [activeRoomId, personPhotoByUserId],
+  );
+
+  useEffect(() => {
+    const personIds = combinedThreads.map((item) => item.personId);
+    if (thread) personIds.push(thread.personId);
+    void hydratePersonPhotos([...new Set(personIds)]);
+  }, [combinedThreads, thread, hydratePersonPhotos]);
+
+  useEffect(() => {
+    markFriendsTabSeen();
+  }, [markFriendsTabSeen]);
+
   useEffect(() => {
     return () => {
       setActiveFriendThread(null);
@@ -241,15 +183,15 @@ export default function FriendsChatPanel() {
     if (selectedThreadId) {
       markThreadRead(selectedThreadId);
       setDraft("");
+      setEmojiPickerOpen(false);
       setAttachments((prev) => {
         prev.forEach((att) => {
           if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
         });
         return [];
       });
-      stopDictation();
     }
-  }, [selectedThreadId, markThreadRead, stopDictation]);
+  }, [selectedThreadId, markThreadRead]);
 
   useEffect(() => {
     const el = messagesScrollRef.current;
@@ -273,7 +215,6 @@ export default function FriendsChatPanel() {
     if (!thread) return;
     const trimmed = draft.trim();
     if (!trimmed && attachments.length === 0) return;
-    stopDictation();
     if (trimmed) sendMessage(thread.id, trimmed);
     setDraft("");
     setAttachments((prev) => {
@@ -285,30 +226,17 @@ export default function FriendsChatPanel() {
     textareaRef.current?.focus();
   };
 
+  const handleEmojiSelect = (emoji: string) => {
+    setDraft((prev) => prev + emoji);
+    textareaRef.current?.focus();
+  };
+
   if (thread) {
-    const partnerPhotoURL = resolvePersonPhotoURL(thread.personId, membersByWorkspace);
+    const partnerPhotoURL = resolvePersonPhotoURL(thread.personId, membersByWorkspace, photoLookup);
     const canSubmit = draft.trim().length > 0 || attachments.length > 0;
     return (
       <div className="chat-panel-layout relative overflow-hidden">
         <div className="flex min-h-0 flex-col overflow-hidden">
-          <div className="friends-chat-panel__thread-header shrink-0">
-            <button
-              type="button"
-              className="friends-chat-panel__back"
-              onClick={() => setActiveFriendThread(null)}
-              aria-label="Retour"
-            >
-              <ArrowLeft size={14} aria-hidden />
-            </button>
-            <UserAvatar
-              userId={thread.personId}
-              name={thread.personName}
-              photoURL={partnerPhotoURL}
-              className="friends-chat-panel__thread-avatar"
-            />
-            <span className="friends-chat-panel__thread-name">{thread.personName}</span>
-          </div>
-
           <PeopleChatThreadMessages
             partnerName={thread.personName}
             partnerId={thread.personId}
@@ -319,7 +247,12 @@ export default function FriendsChatPanel() {
           />
         </div>
 
-        <div className="chat-panel-footer pointer-events-none shrink-0 px-3 pb-3 pt-0">
+        <div
+          className={clsx(
+            "chat-panel-footer pointer-events-none shrink-0 px-3 pb-3 pt-0",
+            emojiPickerOpen && "chat-panel-footer--poll-morph",
+          )}
+        >
           <form
             className="pointer-events-auto relative"
             onSubmit={(e) => {
@@ -328,9 +261,20 @@ export default function FriendsChatPanel() {
             }}
           >
             <div
-              className="chat-composer relative z-10 flex flex-col gap-1 rounded-xl px-2 py-1.5"
+              className={clsx(
+                "relative",
+                emojiPickerOpen && "chat-composer chat-composer-morph rounded-xl",
+                !emojiPickerOpen && "chat-composer z-10 flex flex-col gap-1 rounded-xl px-2 py-1.5",
+              )}
               style={CHAT_COMPOSER_SURFACE_STYLE}
             >
+              {emojiPickerOpen ? (
+                <PeopleChatEmojiPicker
+                  onSelect={handleEmojiSelect}
+                  onClose={() => setEmojiPickerOpen(false)}
+                />
+              ) : (
+                <>
               {attachments.length > 0 && (
                 <div className="flex h-8 items-center gap-1 overflow-hidden">
                   {attachments.map((att, i) => (
@@ -353,7 +297,7 @@ export default function FriendsChatPanel() {
                         type="button"
                         onClick={() => removeAttachment(att.id)}
                         className="absolute inset-0 flex items-center justify-center bg-ink-900/55 text-muted-100 opacity-0 transition-opacity group-hover:opacity-100"
-                        aria-label="Retirer la pièce jointe"
+                        aria-label="Remove attachment"
                       >
                         <X size={12} strokeWidth={2.5} aria-hidden />
                       </button>
@@ -385,55 +329,35 @@ export default function FriendsChatPanel() {
                   }
                 }}
                 rows={1}
-                placeholder={`Écrire à ${thread.personName}…`}
+                placeholder={`Write to ${thread.personName}…`}
                 className="min-h-[24px] max-h-[160px] w-full resize-none border-0 bg-transparent px-1 py-1 text-[12px] leading-tight text-muted-100 outline-none placeholder:text-muted-500"
               />
               <div className="flex h-[24px] items-center gap-2">
                 <button
                   type="button"
-                  className="chat-apps-capsule"
-                  title="Ajouter une pièce jointe"
-                  aria-label="Ajouter une pièce jointe"
+                  title="Add attachment"
+                  aria-label="Add attachment"
                   onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-transparent text-muted-400 transition-colors hover:text-muted-200"
                 >
-                  <span className="chat-apps-stack">
-                    <span
-                      className="chat-app-circle pointer-events-none"
-                      aria-hidden
-                    >
-                      <Paperclip size={11} strokeWidth={2.25} />
-                    </span>
-                  </span>
+                  <Paperclip size={14} strokeWidth={2.25} aria-hidden />
                 </button>
 
                 <div className="ml-auto flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => (isDictating ? stopDictation() : startDictation())}
-                    disabled={!speechSupported}
-                    aria-pressed={isDictating}
-                    title={
-                      !speechSupported
-                        ? "Dictée vocale non disponible sur cet appareil"
-                        : isDictating
-                          ? "Arrêter la dictée"
-                          : "Dicter le message"
-                    }
-                    aria-label={isDictating ? "Arrêter la dictée" : "Dicter le message"}
-                    className={clsx(
-                      "inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-transparent transition-colors disabled:opacity-30",
-                      isDictating
-                        ? "text-red-400 hover:text-red-300"
-                        : "text-muted-400 hover:text-muted-200",
-                    )}
+                    onClick={() => setEmojiPickerOpen(true)}
+                    title="Add emoji"
+                    aria-label="Add emoji"
+                    className="inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-transparent text-muted-400 transition-colors hover:text-muted-200"
                   >
-                    <Mic size={14} strokeWidth={2.25} aria-hidden />
+                    <Smile size={14} strokeWidth={2.25} aria-hidden />
                   </button>
                   <button
                     type="submit"
                     disabled={!canSubmit}
-                    title="Envoyer"
-                    aria-label="Envoyer"
+                    title="Send"
+                    aria-label="Send"
                     className={clsx(
                       "inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full border border-ink-600 bg-ink-750 text-muted-200 transition-colors hover:bg-ink-700 disabled:opacity-30",
                     )}
@@ -442,6 +366,8 @@ export default function FriendsChatPanel() {
                   </button>
                 </div>
               </div>
+                </>
+              )}
             </div>
           </form>
         </div>
@@ -453,8 +379,7 @@ export default function FriendsChatPanel() {
     <div className="friends-chat-panel">
       {combinedThreads.length === 0 ? (
         <p className="friends-chat-panel__empty">
-          Aucun contact pour l&apos;instant. Ajoutez des amis par email dans les paramètres ou
-          rejoignez un workspace avec d&apos;autres membres.
+          No contacts yet. Add friends by email in settings or join a workspace with other members.
         </p>
       ) : (
         <ul className="friends-chat-panel__list">
@@ -468,17 +393,17 @@ export default function FriendsChatPanel() {
                 )}
                 onClick={() => openThread(item)}
               >
-                <span
+                <UserAvatar
+                  userId={item.personId}
+                  name={item.personName}
+                  photoURL={resolvePersonPhotoURL(item.personId, membersByWorkspace, photoLookup)}
                   className="messages-overlay__avatar"
-                  style={{ backgroundColor: avatarColor(item.personId) }}
-                >
-                  {userInitials(item.personName)}
-                </span>
+                />
                 <span className="min-w-0 flex-1 text-left">
                   <span className="messages-overlay__thread-name">{item.personName}</span>
                   <span className="messages-overlay__thread-preview">
                     {item.preview ||
-                      (item.section === "friends" ? "Ami · Nouvelle conversation" : "Membre du workspace")}
+                      (item.section === "friends" ? "Friend · New conversation" : "Workspace member")}
                   </span>
                 </span>
                 <span className="messages-overlay__thread-meta">

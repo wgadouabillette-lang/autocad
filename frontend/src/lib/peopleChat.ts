@@ -102,9 +102,18 @@ export function buildMessagePanelThreads(opts: {
 export function resolvePersonPhotoURL(
   personId: string,
   membersByWorkspace: Record<string, Record<string, { photoURL?: string }>>,
+  options?: { preferredWorkspaceId?: string; photoCache?: Record<string, string> },
 ): string | undefined {
+  const cached = options?.photoCache?.[personId]?.trim();
+  if (cached) return cached;
+
+  const preferredWorkspaceId = options?.preferredWorkspaceId;
+  if (preferredWorkspaceId) {
+    const preferredPhoto = membersByWorkspace[preferredWorkspaceId]?.[personId]?.photoURL?.trim();
+    if (preferredPhoto) return preferredPhoto;
+  }
   for (const members of Object.values(membersByWorkspace)) {
-    const photoURL = members[personId]?.photoURL;
+    const photoURL = members[personId]?.photoURL?.trim();
     if (photoURL) return photoURL;
   }
   return undefined;

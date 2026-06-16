@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { Video } from "lucide-react";
 import { startRecordingCamera, stopRecordingCamera } from "../../lib/recordingMedia";
@@ -7,6 +8,7 @@ import { useStore } from "../../store/useStore";
 export default function RecordingCameraPreview() {
   const recording = useCallsStore((s) => s.recording);
   const recordingCameraPreview = useStore((s) => s.recordingCameraPreview);
+  const recordingCameraMirrorPreview = useStore((s) => s.recordingCameraMirrorPreview);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [loading, setLoading] = useState(false);
@@ -57,7 +59,16 @@ export default function RecordingCameraPreview() {
   return (
     <div className="recording-camera-preview" aria-label="Aperçu caméra enregistrement">
       {showVideo ? (
-        <video ref={videoRef} autoPlay muted playsInline className="recording-camera-preview__video" />
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className={clsx(
+            "recording-camera-preview__video",
+            recordingCameraMirrorPreview && "recording-camera-preview__video--mirrored",
+          )}
+        />
       ) : (
         <div className="recording-camera-preview__placeholder">
           <Video size={22} className="text-muted-500" aria-hidden />

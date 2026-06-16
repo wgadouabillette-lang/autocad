@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Subprocessors — Lyte</title>
+    <link rel="icon" type="image/png" href="icon.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="legal-body">
+    <div class="page">
+      <header class="header">
+        <a class="logo" href="/" aria-label="Lyte">
+          <img src="icon.png" alt="" class="logo__icon" width="28" height="28" />
+          <span>Lyte</span>
+        </a>
+      </header>
+
+      <main class="legal legal--wide">
+        <h1>Subprocessors</h1>
+        <p class="legal__updated">Last updated: June 15, 2026</p>
+
+        <p>
+          Lyte uses the third-party service providers listed below (“Subprocessors”) to host,
+          operate, and deliver the Service. We require Subprocessors that handle personal data to
+          provide appropriate contractual protections and to process data only on our instructions,
+          consistent with our <a href="privacy.html">Privacy Policy</a>.
+        </p>
+        <p>
+          We may update this list from time to time. Material changes will be reflected on this
+          page with an updated “Last updated” date.
+        </p>
+
+        <h2>Core infrastructure</h2>
+        <div class="legal__table-wrap">
+          <table class="legal__table">
+            <thead>
+              <tr>
+                <th>Subprocessor</th>
+                <th>Purpose</th>
+                <th>Typical data</th>
+                <th>Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Google LLC (Firebase / Google Cloud)</td>
+                <td>
+                  Authentication, database (Firestore), file storage, Cloud Functions, website
+                  hosting, OAuth sign-in
+                </td>
+                <td>
+                  Account identifiers, profile data, workspace and chat content, presence,
+                  signaling metadata, user preferences, billing flags, encrypted API key storage
+                </td>
+                <td>
+                  Firestore primary region: EU (<code>eur3</code>); Cloud Functions:
+                  United States (<code>us-central1</code>)
+                </td>
+              </tr>
+              <tr>
+                <td>Stripe, Inc.</td>
+                <td>Subscription billing, checkout, customer portal, payment webhooks</td>
+                <td>
+                  Email, customer and subscription IDs, payment status, invoice metadata (Stripe
+                  processes card data directly; Lyte does not store full card numbers)
+                </td>
+                <td>United States / global</td>
+              </tr>
+              <tr>
+                <td>Vercel Inc.</td>
+                <td>Application and API hosting (web app and backend endpoints)</td>
+                <td>
+                  Request metadata, IP address, authentication tokens in transit, API payloads
+                  necessary to operate features
+                </td>
+                <td>United States / global edge network</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2>AI providers (Pro plan and user-configured keys)</h2>
+        <p>
+          When you use AI features (chat assistant, AI Notes, follow-ups, vision/CAD assistance),
+          message content and related context you submit may be sent to the model provider you or
+          Lyte selects. If you provide your own API keys, requests are routed using those keys.
+        </p>
+        <div class="legal__table-wrap">
+          <table class="legal__table">
+            <thead>
+              <tr>
+                <th>Subprocessor</th>
+                <th>Purpose</th>
+                <th>Typical data</th>
+                <th>Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>OpenAI, LLC</td>
+                <td>Large language model inference (e.g. GPT models)</td>
+                <td>Prompts, chat history, optional images or documents you attach</td>
+                <td>United States</td>
+              </tr>
+              <tr>
+                <td>Anthropic, PBC</td>
+                <td>Large language model inference (Claude models)</td>
+                <td>Prompts, chat history, optional attachments</td>
+                <td>United States</td>
+              </tr>
+              <tr>
+                <td>xAI Corp.</td>
+                <td>Large language model inference (Grok models)</td>
+                <td>Prompts, chat history, optional images for vision features</td>
+                <td>United States</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2>Realtime communication</h2>
+        <div class="legal__table-wrap">
+          <table class="legal__table">
+            <thead>
+              <tr>
+                <th>Subprocessor</th>
+                <th>Purpose</th>
+                <th>Typical data</th>
+                <th>Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Google LLC</td>
+                <td>STUN servers for WebRTC connectivity (<code>stun.l.google.com</code>)</td>
+                <td>IP addresses and connection metadata during voice/video calls</td>
+                <td>Global</td>
+              </tr>
+              <tr>
+                <td>Metered.ca (Open Relay Project)</td>
+                <td>TURN relay when direct peer connection is unavailable</td>
+                <td>
+                  Encrypted media relay metadata; media may pass through relay servers when NAT
+                  traversal requires it
+                </td>
+                <td>Canada / global</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Voice and video streams are primarily peer-to-peer via WebRTC. Lyte uses Firebase to
+          exchange signaling data (session descriptions and ICE candidates), not to store call
+          recordings unless you explicitly start a recording or AI Notes capture.
+        </p>
+
+        <h2>Identity and integrations</h2>
+        <div class="legal__table-wrap">
+          <table class="legal__table">
+            <thead>
+              <tr>
+                <th>Subprocessor</th>
+                <th>Purpose</th>
+                <th>Typical data</th>
+                <th>When used</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Google LLC</td>
+                <td>Sign in with Google; Google Calendar and Gmail chat connectors</td>
+                <td>OAuth tokens, profile email/name, connector content you invoke via slash commands</td>
+                <td>When you sign in with Google or use Google connectors</td>
+              </tr>
+              <tr>
+                <td>Microsoft Corporation</td>
+                <td>Sign in with Microsoft; Outlook connector</td>
+                <td>OAuth tokens, profile data, connector content you invoke</td>
+                <td>When you sign in with Microsoft or use Outlook connector</td>
+              </tr>
+              <tr>
+                <td>Apple Inc.</td>
+                <td>Sign in with Apple</td>
+                <td>Apple user identifier, email (including private relay), name if shared</td>
+                <td>When you sign in with Apple</td>
+              </tr>
+              <tr>
+                <td>Notion Labs, Inc.</td>
+                <td>Notion chat connector</td>
+                <td>Content and metadata from Notion pages you access through the connector</td>
+                <td>When you use the Notion connector</td>
+              </tr>
+              <tr>
+                <td>Figma, Inc.</td>
+                <td>Figma chat connector</td>
+                <td>Design file metadata and content you access through the connector</td>
+                <td>When you use the Figma connector</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2>Other service providers</h2>
+        <div class="legal__table-wrap">
+          <table class="legal__table">
+            <thead>
+              <tr>
+                <th>Subprocessor</th>
+                <th>Purpose</th>
+                <th>Typical data</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Google Fonts (Google LLC)</td>
+                <td>Delivery of the Inter typeface</td>
+                <td>IP address and browser metadata sent to the font CDN</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2>Optional TURN provider</h2>
+        <p>
+          If configured for your deployment, Lyte may use a dedicated TURN service
+          (<code>VITE_TURN_URL</code>) instead of or in addition to the public relay above. That
+          provider would process connection metadata and relay encrypted media when required.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Questions about Subprocessors:
+          <a href="mailto:privacy@lyte.app">privacy@lyte.app</a>
+        </p>
+
+        <p>
+          <a class="legal__back" href="ressources.html">← Ressources</a>
+          ·
+          <a class="legal__back" href="/">Back to Lyte</a>
+        </p>
+      </main>
+    </div>
+  </body>
+</html>

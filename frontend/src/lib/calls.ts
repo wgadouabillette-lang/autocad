@@ -631,6 +631,13 @@ export function findLocalBlock(blocks: CallBlock[]): CallBlock | undefined {
   return blocks.find((block) => block.participants.some((p) => p.isLocal));
 }
 
+/** Hôte d'un appel privé fusionné (bloc local, pas invité). */
+export function isLocalPrivateCallHost(blocks: CallBlock[], roomId: string): boolean {
+  const localBlock = findLocalBlock(blocks);
+  if (!localBlock || localBlock.participants.length <= 1) return false;
+  return localBlock.id === memberBlockId(roomId, "local");
+}
+
 /** Bloc solo local — absent si fusionné dans un autre bloc vocal. */
 export function findLocalSoloBlock(blocks: CallBlock[]): CallBlock | undefined {
   return blocks.find(

@@ -1,11 +1,10 @@
-import { useMemo, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import clsx from "clsx";
 import type { PeopleMessage } from "../../lib/peopleChat";
 import {
   buildPeopleChatTimeline,
   type PeopleChatRenderItem,
 } from "../../lib/peopleChatGrouping";
-import UserAvatar from "../UserAvatar";
 
 interface PeopleChatThreadMessagesProps {
   partnerName: string;
@@ -18,16 +17,10 @@ interface PeopleChatThreadMessagesProps {
 }
 
 function PeopleChatBubble({
-  partnerName,
-  partnerId,
-  partnerPhotoURL,
   item,
   mine,
   compact,
 }: {
-  partnerName: string;
-  partnerId: string;
-  partnerPhotoURL?: string;
   item: PeopleChatRenderItem;
   mine: boolean;
   compact?: boolean;
@@ -43,16 +36,6 @@ function PeopleChatBubble({
         isLastInGroup && "people-chat-bubble-wrap--last",
       )}
     >
-      {!mine && isLastInGroup && (
-        <UserAvatar
-          userId={partnerId}
-          name={partnerName}
-          photoURL={partnerPhotoURL}
-          className="people-chat-bubble-wrap__avatar"
-        />
-      )}
-      {!mine && !isLastInGroup && <span className="people-chat-bubble-wrap__avatar-spacer" aria-hidden />}
-
       <div className="people-chat-bubble-stack">
         {!mine && isFirstInGroup && (
           <span className="people-chat-bubble-stack__author">{message.author}</span>
@@ -75,39 +58,58 @@ function PeopleChatBubble({
 }
 
 export default function PeopleChatThreadMessages({
-  partnerName,
   partnerId,
-  partnerPhotoURL,
   messages,
   listRef,
   className,
   compact,
 }: PeopleChatThreadMessagesProps) {
   const timeline = useMemo(() => buildPeopleChatTimeline(messages), [messages]);
+  const prevLastMessageIdRef = useRef<string | undefined>();
+  const [risingMessageId, setRisingMessageId] = useState<string | null>(null);
+
+  const lastMessageId = messages[messages.length - 1]?.id;
+
+  useEffect(() => {
+    prevLastMessageIdRef.current = lastMessageId;
+    setRisingMessageId(null);
+  }, [partnerId]);
+
+  useEffect(() => {
+    if (!lastMessageId || lastMessageId === prevLastMessageIdRef.current) return;
+    prevLastMessageIdRef.current = lastMessageId;
+    setRisingMessageId(lastMessageId);
+    const timer = window.setTimeout(() => setRisingMessageId(null), 360);
+    return () => window.clearTimeout(timer);
+  }, [lastMessageId]);
 
   return (
     <ul ref={listRef} className={clsx("people-chat-thread", className)}>
-      {timeline.map((entry) => (
+      <li className="people-chat-thread__spacer" aria-hidden />
+      {timeline.map((entry) => {
+        const hasRisingMessage = entry.items.some(
+          (item) => item.message.id === risingMessageId,
+        );
+        return (
           <li
             key={entry.key}
             className={clsx(
               "people-chat-thread__group",
               entry.mine && "people-chat-thread__group--mine",
+              hasRisingMessage && "people-chat-thread__group--rise",
             )}
           >
             {entry.items.map((item) => (
               <PeopleChatBubble
                 key={item.message.id}
-                partnerName={partnerName}
-                partnerId={partnerId}
-                partnerPhotoURL={partnerPhotoURL}
                 item={item}
                 mine={entry.mine}
                 compact={compact}
               />
             ))}
           </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

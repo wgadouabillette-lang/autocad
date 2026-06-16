@@ -108,13 +108,13 @@ export default function ChatPanelShell() {
 
   const panelLabel =
     chatPanelMode === "calendar"
-      ? "Calendrier"
+      ? "Calendar"
       : chatPanelMode === "friends"
-        ? "Amis"
+        ? "Friends"
         : chatPanelMode === "theater"
-          ? "Chat théâtre"
+          ? "Theater chat"
           : isVoiceAssistPanelMode(chatPanelMode)
-            ? "Assistance vocale"
+            ? "Voice assist"
             : "XYZ Superagent";
 
   const isOverlay = !isMobileLayout && (chatPanelExpanded || leaving);
@@ -126,7 +126,7 @@ export default function ChatPanelShell() {
         <button
           type="button"
           className="chat-panel-mobile-backdrop"
-          aria-label="Fermer le panneau"
+          aria-label="Close panel"
           onClick={closeChatPanel}
         />
       )}
@@ -166,7 +166,13 @@ export default function ChatPanelShell() {
           ) : chatPanelMode === "theater" ? (
             <TheaterChatPanel />
           ) : isVoiceAssistPanelMode(chatPanelMode) ? (
-            <VoiceAssistPanel />
+            chatPanelMode === "ai-notes" && showChatHistory ? (
+              <ChatHistoryView />
+            ) : chatPanelMode === "ai-notes" && showRecordingPlayback ? (
+              <RecordingPlaybackView />
+            ) : (
+              <VoiceAssistPanel />
+            )
           ) : showChatHistory ? (
             <ChatHistoryView />
           ) : showRecordingPlayback ? (

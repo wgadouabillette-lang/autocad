@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useEffect } from "react";
 import { useStore } from "../../store/useStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useBilling } from "../../hooks/useBilling";
@@ -8,12 +9,13 @@ import {
   type SubscriptionPlan,
 } from "../../lib/subscriptionPlans";
 
+const PRO_PLAN = SUBSCRIPTION_PLANS.find((plan) => plan.id === "pro");
+
 export default function PlanSettingsSection() {
   const subscriptionPlan = useStore((s) => s.subscriptionPlan);
   const onDemandUsageEnabled = useStore((s) => s.onDemandUsageEnabled);
   const setSubscriptionPlan = useStore((s) => s.setSubscriptionPlan);
   const toggleOnDemandUsage = useStore((s) => s.toggleOnDemandUsage);
-  const llmEnabled = useStore((s) => s.llmEnabled);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const onDemandAvailable = canEnableOnDemandUsage(subscriptionPlan);
   const {
@@ -26,28 +28,30 @@ export default function PlanSettingsSection() {
     checkoutPro,
     openPortal,
     setOnDemand,
+    refreshProfile,
   } = useBilling();
 
-  const handlePlanSelect = (plan: SubscriptionPlan) => {
-    if (plan === "pro") {
-      if (subscriptionPlan === "pro" && billingManaged) {
-        void openPortal();
-        return;
-      }
-      if (stripeEnabled) {
-        void checkoutPro();
-        return;
-      }
-      if (!isAuthenticated) {
-        return;
-      }
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "success") {
+      void refreshProfile();
     }
+  }, [refreshProfile]);
 
-    if (plan === "free" && billingManaged) {
+  const handlePlanSelect = (plan: SubscriptionPlan) => {
+    if (plan !== "pro") return;
+
+    if (subscriptionPlan === "pro" && billingManaged) {
       void openPortal();
       return;
     }
-
+    if (stripeEnabled) {
+      void checkoutPro();
+      return;
+    }
+    if (!isAuthenticated) {
+      return;
+    }
     if (!stripeEnabled) {
       setSubscriptionPlan(plan);
     }
@@ -61,6 +65,8 @@ export default function PlanSettingsSection() {
     }
     toggleOnDemandUsage();
   };
+
+  if (!PRO_PLAN) return null;
 
   return (
     <>
@@ -86,41 +92,40 @@ export default function PlanSettingsSection() {
       )}
 
       <div className="settings-plan-grid">
-        {SUBSCRIPTION_PLANS.map((plan) => (
-          <button
-            key={plan.id}
-            type="button"
-            disabled={loading}
-            onClick={() => handlePlanSelect(plan.id)}
-            className={clsx(
-              "settings-plan-card",
-              subscriptionPlan === plan.id && "settings-plan-card--active",
-            )}
-          >
-            <div className="settings-plan-card__header">
-              <span className="settings-plan-card__name">{plan.label}</span>
-              <span className="settings-plan-card__price">
-                {plan.id === "pro" && stripeEnabled ? proPriceLabel : plan.price}
-              </span>
-            </div>
-            <p className="settings-plan-card__desc">{plan.description}</p>
-            <ul className="settings-plan-card__features">
-              {plan.features.map((feature) => (
-                <li key={feature}>{feature}</li>
-              ))}
-            </ul>
-            {stripeEnabled && plan.id === "pro" && subscriptionPlan !== "pro" && (
-              <p className="settings-plan-card__desc">Cliquer pour ouvrir la page de paiement Stripe</p>
-            )}
-          </button>
-        ))}
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => handlePlanSelect("pro")}
+          className={clsx(
+            "settings-plan-card",
+            subscriptionPlan === "pro" && "settings-plan-card--active",
+          )}
+        >
+          <div className="settings-plan-card__header">
+            <span className="settings-plan-card__name">{PRO_PLAN.label}</span>
+            <span className="settings-plan-card__price">
+              {stripeEnabled ? proPriceLabel : PRO_PLAN.price}
+            </span>
+          </div>
+          <p className="settings-plan-card__desc">{PRO_PLAN.description}</p>
+          <ul className="settings-plan-card__features">
+            {PRO_PLAN.features.map((feature) => (
+              <li key={feature}>{feature}</li>
+            ))}
+          </ul>
+          {stripeEnabled && subscriptionPlan !== "pro" && (
+            <p className="settings-plan-card__desc">Cliquer pour ouvrir la page de paiement Stripe</p>
+          )}
+          {stripeEnabled && subscriptionPlan === "pro" && (
+            <p className="settings-plan-card__desc">Cliquer pour gérer l&apos;abonnement via Stripe</p>
+          )}
+        </button>
       </div>
 
       <section className="settings-section settings-section--card">
-        <h3 className="settings-section__label">Usage à la demande</h3>
+        <h3 className="settings-section__label">On-demand usage</h3>
         <p className="settings-section__hint">
-          Complément pay-as-you-go, activable en plus de l&apos;abonnement Pro. Sans abonnement,
-          cette option reste indisponible.
+          Optional pay-as-you-go add-on on top of your Pro subscription.
         </p>
         <button
           type="button"
@@ -133,33 +138,21 @@ export default function PlanSettingsSection() {
           )}
         >
           <span className="settings-option__title">
-            {onDemandUsageEnabled ? "Add-on activé" : "Activer l'usage à la demande"}
+            {onDemandUsageEnabled ? "Add-on enabled" : "Enable on-demand usage"}
           </span>
           <span className="settings-option__subtitle">
             {!onDemandAvailable
-              ? "Passez au forfait Pro pour débloquer cette option."
+              ? "Subscribe to Pro to unlock this option."
               : stripeEnabled && !stripeOnDemand
-                ? "Add-on non configuré côté serveur."
+                ? "Add-on not configured on the server."
                 : onDemandUsageEnabled
                   ? billingManaged
-                    ? "Synchronisé avec votre abonnement Stripe."
-                    : "Facturation au fil des requêtes, en complément du quota mensuel."
-                  : "Facturation au fil des requêtes, en complément du quota mensuel."}
+                    ? "Synced with your Stripe subscription."
+                    : "Billed per request, in addition to your monthly quota."
+                  : "Billed per request, in addition to your monthly quota."}
           </span>
         </button>
       </section>
-
-      {subscriptionPlan === "pro" && (
-        <section className="settings-section settings-section--card">
-          <h3 className="settings-section__label">Statut IA</h3>
-          <dl className="settings-kv">
-            <div className="settings-kv__row">
-              <dt>LLM</dt>
-              <dd>{llmEnabled ? "Connecté" : "Mode règles"}</dd>
-            </div>
-          </dl>
-        </section>
-      )}
     </>
   );
 }

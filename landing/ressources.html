@@ -3,21 +3,56 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Lyte — Ressources" />
+    <meta name="description" content="Lyte — Ressources, documentation légale et guides" />
     <title>Lyte — Ressources</title>
     <link rel="icon" type="image/png" href="icon.png" />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
+  <body class="resources-body">
     <div id="site-nav" data-active="ressources"></div>
 
-    <main class="hero">
+    <main class="hero hero--resources">
       <div class="hero__text">
         <h1 class="hero__title">Ressources.</h1>
         <p class="hero__lead">
-          Documentation, guides et tutoriels pour tirer le meilleur de Lyte. À venir.
+          Documentation, guides et informations légales pour utiliser Lyte en toute confiance.
         </p>
       </div>
+
+      <section class="resources-section" aria-labelledby="resources-legal-heading">
+        <h2 id="resources-legal-heading" class="resources-section__title">Legal</h2>
+        <ul class="resources-list">
+          <li>
+            <a class="resources-card" href="privacy.html">
+              <span class="resources-card__title">Privacy Policy</span>
+              <span class="resources-card__desc">
+                How we collect, use, and protect your personal data.
+              </span>
+            </a>
+          </li>
+          <li>
+            <a class="resources-card" href="terms.html">
+              <span class="resources-card__title">Terms of Service</span>
+              <span class="resources-card__desc">
+                Rules for using Lyte, subscriptions, and acceptable use.
+              </span>
+            </a>
+          </li>
+          <li>
+            <a class="resources-card" href="subprocessors.html">
+              <span class="resources-card__title">Subprocessors</span>
+              <span class="resources-card__desc">
+                Third-party providers that help us host and operate the Service.
+              </span>
+            </a>
+          </li>
+        </ul>
+      </section>
+
+      <section class="resources-section" aria-labelledby="resources-guides-heading">
+        <h2 id="resources-guides-heading" class="resources-section__title">Guides</h2>
+        <p class="resources-section__hint">Documentation produit — à venir.</p>
+      </section>
     </main>
 
     <script src="nav.js"></script>

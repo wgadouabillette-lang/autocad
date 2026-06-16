@@ -17,6 +17,7 @@ export default defineConfig({
         auth: resolve(rootDir, "auth.html"),
         terms: resolve(rootDir, "terms.html"),
         privacy: resolve(rootDir, "privacy.html"),
+        subprocessors: resolve(rootDir, "subprocessors.html"),
       },
     },
   },

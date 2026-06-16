@@ -11,7 +11,7 @@ import {
   pickPlanarFacePatch,
   triangleNormal,
 } from "../../lib/faceReference";
-import { THEME } from "../../lib/theme";
+import { useThemePalette } from "../../hooks/useThemePalette";
 
 interface Props {
   mesh: CadMesh;
@@ -19,10 +19,11 @@ interface Props {
 }
 
 export default function PickableSolid({ mesh, material }: Props) {
+  const theme = useThemePalette();
   const meshRef = useRef<THREE.Mesh>(null);
   const selectFace = useStore((s) => s.selectFace);
   const selectedFaces = useStore((s) => s.selectedFaces);
-  const highlight = useMemo(() => new THREE.Color(THEME.highlight), []);
+  const highlight = useMemo(() => new THREE.Color(theme.highlight), [theme.highlight]);
 
   const adjacency = useMemo(() => buildTriangleAdjacency(mesh), [mesh]);
 
@@ -284,7 +285,7 @@ export default function PickableSolid({ mesh, material }: Props) {
         }}
       >
         <meshBasicMaterial
-          color={THEME.gridMajor}
+          color={theme.gridMajor}
           transparent
           opacity={0.9}
           side={THREE.FrontSide}
@@ -295,12 +296,12 @@ export default function PickableSolid({ mesh, material }: Props) {
       </mesh>
 
       <lineSegments geometry={edgesGeometry} renderOrder={1}>
-        <lineBasicMaterial color={THEME.edgeLabel} />
+        <lineBasicMaterial color={theme.edgeLabel} />
       </lineSegments>
 
       <lineSegments geometry={edgesGeometry} renderOrder={2}>
         <lineDashedMaterial
-          color={THEME.edgeLabel}
+          color={theme.edgeLabel}
           transparent
           opacity={0.8}
           dashSize={1.5}
@@ -311,7 +312,7 @@ export default function PickableSolid({ mesh, material }: Props) {
 
       <lineSegments geometry={silhouetteGeometry} renderOrder={3}>
         <lineDashedMaterial
-          color={THEME.edgeLabel}
+          color={theme.edgeLabel}
           transparent
           opacity={0.8}
           dashSize={1.5}

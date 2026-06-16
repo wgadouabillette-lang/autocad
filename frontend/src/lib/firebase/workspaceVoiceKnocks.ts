@@ -9,7 +9,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./client";
 
-export type VoiceKnockStatus = "pending" | "accepted" | "declined";
+export type VoiceKnockStatus = "pending" | "accepted" | "declined" | "ejected";
 
 export interface VoiceKnockDoc {
   id: string;
@@ -71,6 +71,48 @@ export async function cancelVoiceKnock(
   toUid: string,
 ): Promise<void> {
   await respondVoiceKnock(workspaceId, fromUid, toUid, false);
+}
+
+export async function sendVoiceEject(
+  workspaceId: string,
+  hostUid: string,
+  hostName: string,
+  remoteUid: string,
+): Promise<void> {
+  const id = `eject_${hostUid}_${remoteUid}`;
+  await setDoc(doc(db, "workspacesShared", workspaceId, "voiceKnocks", id), {
+    id,
+    workspaceId,
+    fromUid: hostUid,
+    fromName: hostName.trim() || "Membre",
+    toUid: remoteUid,
+    status: "ejected",
+    createdAt: serverTimestamp(),
+  });
+}
+
+export function watchVoiceEjects(
+  workspaceId: string,
+  localUid: string,
+  onEject: (knock: VoiceKnockDoc) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  if (!workspaceId || !localUid) {
+    return () => {};
+  }
+
+  return onSnapshot(
+    knocksCol(workspaceId),
+    (snap) => {
+      for (const entry of snap.docs) {
+        const knock = entry.data() as VoiceKnockDoc;
+        if (knock.status === "ejected" && knock.toUid === localUid) {
+          onEject(knock);
+        }
+      }
+    },
+    onError,
+  );
 }
 
 export function watchVoiceKnocks(

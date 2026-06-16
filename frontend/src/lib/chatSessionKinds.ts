@@ -11,17 +11,17 @@ export const CHAT_SESSION_KIND_META: Record<
 > = {
   discussion: {
     label: "Discussions",
-    emptyLabel: "Aucune discussion.",
+    emptyLabel: "No discussions.",
     Icon: MessagesSquare,
   },
   note: {
     label: "Notes",
-    emptyLabel: "Aucune note.",
+    emptyLabel: "No notes.",
     Icon: StickyNote,
   },
   recording: {
-    label: "Enregistrements",
-    emptyLabel: "Aucun enregistrement.",
+    label: "Recordings",
+    emptyLabel: "No recordings.",
     Icon: Circle,
   },
 };

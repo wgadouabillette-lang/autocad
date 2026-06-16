@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" href="icon.png" />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
+  <body class="legal-body">
     <div class="page">
       <header class="header">
         <a class="logo" href="/" aria-label="Lyte">
@@ -16,22 +16,213 @@
         </a>
       </header>
 
-      <main class="legal">
+      <main class="legal legal--wide">
         <h1>Privacy Policy</h1>
-        <p class="legal__updated">Last updated: June 10, 2026</p>
+        <p class="legal__updated">Last updated: June 15, 2026</p>
+
         <p>
-          Lyte processes account, workspace, and usage data needed to provide the application
-          and improve the product experience.
+          This Privacy Policy describes how Lyte (“<strong>Lyte</strong>”, “<strong>we</strong>”,
+          “<strong>us</strong>”) collects, uses, and shares information when you use the Lyte
+          website, web application, desktop application, and related services (collectively, the
+          “<strong>Service</strong>”).
         </p>
         <p>
-          We do not sell your personal data. Data may be stored locally on your device or on
-          services required to operate features you enable.
+          By using the Service, you agree to this Privacy Policy. If you do not agree, do not use
+          the Service.
         </p>
+
+        <h2>1. Who we are</h2>
         <p>
-          You may contact us to request access, correction, or deletion of your data where
-          applicable.
+          Lyte is a collaborative workspace product that includes voice channels, messaging, AI
+          assistance, calendar and connector features, screen recording, and optional CAD/design
+          tools. For privacy inquiries, contact us at
+          <a href="mailto:privacy@lyte.app">privacy@lyte.app</a>.
         </p>
-        <p><a class="legal__back" href="/">← Back to Lyte</a></p>
+
+        <h2>2. Information we collect</h2>
+
+        <h3>2.1 Account and profile</h3>
+        <ul>
+          <li>Email address and authentication method (email link, Google, Microsoft, or Apple)</li>
+          <li>Display name and profile photo</li>
+          <li>Firebase user identifier and session tokens</li>
+          <li>Subscription plan, billing flags, and on-demand usage preferences</li>
+        </ul>
+
+        <h3>2.2 Workspace and collaboration data</h3>
+        <ul>
+          <li>Workspaces you create or join, membership role, and invitations</li>
+          <li>Presence and activity status in voice channels</li>
+          <li>Voice channel participation, hand-raise and knock requests</li>
+          <li>Direct and group chat messages between friends and workspace members</li>
+          <li>Polls, notifications, and join-request workflows</li>
+        </ul>
+
+        <h3>2.3 Content you create</h3>
+        <ul>
+          <li>Chat conversations, manual notes, AI Notes transcripts, and follow-up drafts</li>
+          <li>Screen and audio recordings you choose to capture (metadata in our cloud database; media files may be stored locally on your device in IndexedDB)</li>
+          <li>CAD documents, drawings, project snapshots, and related chat context</li>
+          <li>Calendar events and connector interactions when you use integrations (Google Calendar, Gmail, Outlook, Notion, Figma)</li>
+        </ul>
+
+        <h3>2.4 AI features (Pro plan)</h3>
+        <p>
+          When you use AI chat, AI Notes, follow-ups, or vision/CAD assistance, we process the
+          prompts, conversation history, and attachments you submit. This content may be sent to
+          third-party model providers (OpenAI, Anthropic, xAI) as described in our
+          <a href="subprocessors.html">Subprocessors</a> list. You may also store your own API
+          keys for these providers in your private account settings; keys are stored server-side
+          and are not exposed to other users.
+        </p>
+
+        <h3>2.5 Voice and video</h3>
+        <p>
+          Real-time audio and video during calls are transmitted using WebRTC, primarily
+          peer-to-peer. We use signaling data (stored in Firebase) to establish connections. Media
+          may traverse STUN/TURN relay servers when direct connectivity is not possible. We do not
+          record calls unless you explicitly start recording or enable AI Notes capture.
+        </p>
+
+        <h3>2.6 Device and usage data</h3>
+        <ul>
+          <li>Browser or desktop app type, operating system, and language</li>
+          <li>Selected audio input/output devices and related preferences</li>
+          <li>Theme, panel layout, and other in-app preferences</li>
+          <li>IP address, timestamps, and diagnostic logs needed to secure and operate the Service</li>
+          <li>Local storage, session storage, and IndexedDB entries required for offline features and recordings</li>
+        </ul>
+
+        <h3>2.7 Payment information</h3>
+        <p>
+          Paid subscriptions are processed by Stripe. We receive customer IDs, subscription status,
+          and billing metadata from Stripe. We do not store full payment card numbers.
+        </p>
+
+        <h2>3. How we use information</h2>
+        <p>We use information to:</p>
+        <ul>
+          <li>Provide, maintain, and improve the Service</li>
+          <li>Authenticate users and enforce workspace permissions</li>
+          <li>Enable voice, chat, calendar, connector, and AI features you request</li>
+          <li>Process subscriptions and usage-based billing</li>
+          <li>Send transactional messages (e.g. sign-in links, security notices)</li>
+          <li>Detect abuse, fraud, and security incidents</li>
+          <li>Comply with legal obligations</li>
+        </ul>
+        <p>
+          We do <strong>not</strong> sell your personal information. We do not use your private
+          workspace content to train public AI models unless we clearly ask for and receive your
+          consent for a specific program.
+        </p>
+
+        <h2>4. Legal bases (EEA/UK users)</h2>
+        <p>Where GDPR or similar laws apply, we rely on:</p>
+        <ul>
+          <li><strong>Contract</strong> — to provide the Service you request</li>
+          <li><strong>Legitimate interests</strong> — security, product improvement, and support, balanced against your rights</li>
+          <li><strong>Consent</strong> — where required (e.g. optional connectors, marketing if offered)</li>
+          <li><strong>Legal obligation</strong> — tax, accounting, and regulatory requirements</li>
+        </ul>
+
+        <h2>5. How we share information</h2>
+        <p>We share information with:</p>
+        <ul>
+          <li>
+            <strong>Service providers</strong> listed in our
+            <a href="subprocessors.html">Subprocessors</a> page (hosting, auth, AI, payments,
+            WebRTC relay)
+          </li>
+          <li>
+            <strong>Other users</strong> in your workspace or friend list, according to features
+            you use (messages, presence, profile name/photo)
+          </li>
+          <li>
+            <strong>Integration partners</strong> when you invoke a connector (Google, Microsoft,
+            Notion, Figma)
+          </li>
+          <li>
+            <strong>Authorities</strong> when required by law or to protect rights, safety, and
+            security
+          </li>
+          <li>
+            <strong>Business transfers</strong> in connection with a merger, acquisition, or asset
+            sale, subject to continued protection
+          </li>
+        </ul>
+
+        <h2>6. International transfers</h2>
+        <p>
+          We operate globally. Your data may be processed in the European Union (Firestore
+          <code>eur3</code>), the United States (Cloud Functions, AI providers, Stripe), and other
+          countries where our providers operate. We use appropriate safeguards such as standard
+          contractual clauses where required.
+        </p>
+
+        <h2>7. Retention</h2>
+        <p>
+          We retain information for as long as your account is active or as needed to provide the
+          Service. You may delete chat sessions, notes, and recordings from within the app where
+          those controls exist. We may retain certain logs and billing records as required by law.
+          When you delete your account, we delete or anonymize personal data within a reasonable
+          period, except where retention is legally required.
+        </p>
+
+        <h2>8. Security</h2>
+        <p>
+          We use industry-standard measures including encrypted transport (HTTPS/TLS), Firebase
+          security rules, access controls, and authenticated API endpoints. No method of transmission
+          or storage is 100% secure; you are responsible for safeguarding your account credentials
+          and devices.
+        </p>
+
+        <h2>9. Your rights and choices</h2>
+        <p>Depending on your location, you may have the right to:</p>
+        <ul>
+          <li>Access, correct, or delete your personal information</li>
+          <li>Export your data</li>
+          <li>Object to or restrict certain processing</li>
+          <li>Withdraw consent where processing is consent-based</li>
+          <li>Lodge a complaint with a supervisory authority</li>
+        </ul>
+        <p>
+          To exercise these rights, email
+          <a href="mailto:privacy@lyte.app">privacy@lyte.app</a>. We may need to verify your
+          identity before responding.
+        </p>
+
+        <h2>10. Children</h2>
+        <p>
+          The Service is not directed to children under 16. We do not knowingly collect personal
+          information from children under 16. If you believe a child has provided us data, contact
+          us and we will delete it.
+        </p>
+
+        <h2>11. Third-party links</h2>
+        <p>
+          The Service may link to third-party sites or services. Their privacy practices are
+          governed by their own policies, not this one.
+        </p>
+
+        <h2>12. Changes</h2>
+        <p>
+          We may update this Privacy Policy from time to time. We will post the revised version
+          with a new “Last updated” date. Material changes may also be communicated in the Service
+          or by email where appropriate. Continued use after changes take effect constitutes
+          acceptance.
+        </p>
+
+        <h2>13. Contact</h2>
+        <p>
+          Privacy: <a href="mailto:privacy@lyte.app">privacy@lyte.app</a><br />
+          General support: <a href="mailto:support@lyte.app">support@lyte.app</a>
+        </p>
+
+        <p>
+          <a class="legal__back" href="ressources.html">← Ressources</a>
+          ·
+          <a class="legal__back" href="/">Back to Lyte</a>
+        </p>
       </main>
     </div>
   </body>

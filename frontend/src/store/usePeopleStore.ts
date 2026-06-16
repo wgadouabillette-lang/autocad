@@ -10,6 +10,7 @@ import {
   createFriendRequest,
   findUserDirectoryByEmail,
   loadIncomingFriendRequests,
+  loadUserDirectoryByUid,
   respondToFriendRequest,
   watchIncomingFriendRequests,
   watchOutgoingFriendRequests,
@@ -26,6 +27,12 @@ import {
 } from "../lib/firebase/friendChats";
 import type { Unsubscribe } from "firebase/firestore";
 import { auth } from "../lib/firebase/client";
+import {
+  getFriendsTabSeenAt,
+  getLastReadAt,
+  setFriendsTabSeenAt,
+  setLastReadAt,
+} from "../lib/friendChatReadState";
 import { useNotificationsStore } from "./useNotificationsStore";
 import { useStore } from "./useStore";
 import { useWorkspacePresenceStore } from "./useWorkspacePresenceStore";
@@ -211,12 +218,15 @@ interface PeopleState {
   friendThreads: PeopleThread[];
   colleagueThreadsByWorkspace: Record<string, PeopleThread[]>;
   activeFriendThreadId: string | null;
+  personPhotoByUserId: Record<string, string>;
+  friendsTabSeenAt: number;
 
   friendThreadsList: () => PeopleThread[];
   colleagueThreadsForWorkspace: (workspaceId: string) => PeopleThread[];
   unreadCount: (workspaceId: string) => number;
   peopleMessagesUnreadCount: () => number;
   threadById: (id: string) => PeopleThread | undefined;
+  markFriendsTabSeen: () => void;
 
   hydrateFriendRequests: (uid: string | null, email: string | null) => () => void;
   subscribeFriendChats: (uid: string | null) => void;
@@ -233,6 +243,8 @@ interface PeopleState {
   ) => string;
   ensureFriendThread: (person: Person) => string;
   openMessageFromNotification: (personId: string, personName: string) => void;
+  cachePersonPhoto: (userId: string, photoURL?: string | null) => void;
+  hydratePersonPhotos: (personIds: string[]) => Promise<void>;
 }
 
 function upsertFriend(state: PeopleState, person: Person): Person[] {
@@ -378,6 +390,19 @@ function notificationIdForFriendRequest(requestId: string): string {
   return `friend-request-${requestId}`;
 }
 
+function persistThreadRead(state: PeopleState, threadId: string): void {
+  const thread = state.friendThreads.find((t) => t.id === threadId)
+    ?? Object.values(state.colleagueThreadsByWorkspace)
+      .flat()
+      .find((t) => t.id === threadId);
+  if (!thread) return;
+  const localUid = auth.currentUser?.uid;
+  if (!localUid) return;
+  const last = thread.messages[thread.messages.length - 1];
+  const ts = last?.at ?? Date.now();
+  setLastReadAt(localUid, thread.personId, ts);
+}
+
 function peopleMessagesUnreadTotal(state: PeopleState): number {
   const byPerson = new Map<string, number>();
 
@@ -426,12 +451,32 @@ function syncInboxChat(
   for (const m of cloudMessages) friendSeen.add(m.id);
   seenMessageIdsByFriend.set(partnerId, friendSeen);
 
+  const lastReadAt = isInitialLoad ? getLastReadAt(uid, partnerId) : 0;
+  const persistedUnreadCount = isInitialLoad
+    ? cloudMessages.filter(
+        (m) => m.authorUid !== uid && cloudMessageTimestamp(m) > lastReadAt,
+      ).length
+    : 0;
+
+  const viewingPartnerNow =
+    get().activeFriendThreadId != null &&
+    get().threadById(get().activeFriendThreadId!)?.personId === partnerId;
+  if (viewingPartnerNow) {
+    const latest = cloudMessages[cloudMessages.length - 1];
+    const latestTs = latest ? cloudMessageTimestamp(latest) : 0;
+    if (latestTs > 0) setLastReadAt(uid, partnerId, latestTs);
+  }
+
   set((state) => {
     const partner = resolvePartnerPerson(state, partnerId, cloudMessages);
     const isViewingPerson =
       state.activeFriendThreadId != null &&
       state.threadById(state.activeFriendThreadId)?.personId === partnerId;
-    const unreadDelta = isInitialLoad || isViewingPerson ? 0 : newIncomingMessages.length;
+    const unreadDelta = isViewingPerson
+      ? 0
+      : isInitialLoad
+      ? persistedUnreadCount
+      : newIncomingMessages.length;
     const last = mappedMessages[mappedMessages.length - 1];
     const preview = last?.text ?? "";
     const updatedAt = last?.at ?? Date.now();
@@ -658,8 +703,17 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
   friendThreads: [],
   colleagueThreadsByWorkspace: {},
   activeFriendThreadId: null,
+  personPhotoByUserId: {},
+  friendsTabSeenAt: 0,
 
   friendThreadsList: () => get().friendThreads,
+
+  markFriendsTabSeen: () => {
+    const ts = Date.now();
+    const uid = auth.currentUser?.uid;
+    if (uid) setFriendsTabSeenAt(uid, ts);
+    set({ friendsTabSeenAt: ts });
+  },
 
   colleagueThreadsForWorkspace: (workspaceId) =>
     get().colleagueThreadsByWorkspace[workspaceId] ?? EMPTY_PEOPLE_THREADS,
@@ -980,8 +1034,11 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
       inboxState.errorNotified = false;
       seenMessageIdsByFriend.clear();
       pendingCloudMessages.clear();
+      set({ friendsTabSeenAt: 0 });
       return;
     }
+
+    set({ friendsTabSeenAt: getFriendsTabSeenAt(uid) });
 
     if (inboxState.uid === uid && inboxState.mode === "partners") {
       startPartnerSubscriptions({ set, get }, uid);
@@ -1013,11 +1070,40 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     useStore.getState().switchChatPanelMode("friends");
   },
 
+  cachePersonPhoto: (userId, photoURL) => {
+    const trimmed = photoURL?.trim();
+    if (!userId || !trimmed) return;
+    if (get().personPhotoByUserId[userId] === trimmed) return;
+    set((state) => ({
+      personPhotoByUserId: { ...state.personPhotoByUserId, [userId]: trimmed },
+    }));
+  },
+
+  hydratePersonPhotos: async (personIds) => {
+    const unique = [...new Set(personIds.filter((id) => id && id !== "local"))];
+    const missing = unique.filter((id) => !get().personPhotoByUserId[id]);
+    if (missing.length === 0) return;
+
+    const updates: Record<string, string> = {};
+    await Promise.all(
+      missing.map(async (uid) => {
+        const profile = await loadUserDirectoryByUid(uid).catch(() => null);
+        const photoURL = profile?.photoURL?.trim();
+        if (photoURL) updates[uid] = photoURL;
+      }),
+    );
+    if (Object.keys(updates).length === 0) return;
+    set((state) => ({
+      personPhotoByUserId: { ...state.personPhotoByUserId, ...updates },
+    }));
+  },
+
   setActiveFriendThread: (threadId) => {
     set((state) => {
       if (state.activeFriendThreadId === threadId) return state;
       const next: Partial<PeopleState> = { activeFriendThreadId: threadId };
       if (threadId) {
+        persistThreadRead(state, threadId);
         next.friendThreads = state.friendThreads.map((t) =>
           t.id === threadId ? { ...t, unread: 0 } : t,
         );
@@ -1033,6 +1119,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
   },
 
   markThreadRead: (threadId) => {
+    persistThreadRead(get(), threadId);
     const patch = (t: PeopleThread) =>
       t.id === threadId ? { ...t, unread: 0 } : t;
 

@@ -8,7 +8,7 @@ import {
   Users,
 } from "lucide-react";
 import type { SubscriptionPlan } from "./subscriptionPlans";
-import { hasAiNotesAccess, hasFollowUpAccess } from "./subscriptionPlans";
+import { hasFollowUpAccess } from "./subscriptionPlans";
 import type { ChatPanelMode } from "./voiceAssistPanel";
 
 export interface ChatPanelModeTab {
@@ -23,16 +23,13 @@ export function chatPanelModeTabs(
 ): ChatPanelModeTab[] {
   const tabs: ChatPanelModeTab[] = [
     { id: "agent", label: "Chat", icon: MessageSquare },
-    { id: "calendar", label: "Calendrier", icon: Calendar },
+    { id: "ai-notes", label: "Notes", icon: Sparkles },
+    { id: "calendar", label: "Calendar", icon: Calendar },
     { id: "friends", label: "Messages", icon: Users },
   ];
 
   if (inTheaterView) {
-    tabs.push({ id: "theater", label: "Théâtre", icon: Theater });
-  }
-
-  if (hasAiNotesAccess(plan)) {
-    tabs.push({ id: "ai-notes", label: "AI Notes", icon: Sparkles });
+    tabs.push({ id: "theater", label: "Theater", icon: Theater });
   }
 
   if (hasFollowUpAccess(plan)) {

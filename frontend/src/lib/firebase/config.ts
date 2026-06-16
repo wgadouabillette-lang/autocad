@@ -10,4 +10,4 @@ export const firebaseConfig = {
   measurementId: env.VITE_FIREBASE_MEASUREMENT_ID ?? "",
 };
 
-export const functionsRegion = env.VITE_FIREBASE_FUNCTIONS_REGION ?? "europe-west1";
+export const functionsRegion = env.VITE_FIREBASE_FUNCTIONS_REGION ?? "us-central1";

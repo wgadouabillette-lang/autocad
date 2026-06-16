@@ -116,102 +116,105 @@ export default function CallBlockCard({
     />
   );
 
-  const body = (
-    <div className="call-block__surface">
-      <div className="call-block__row call-block__row--header">
-        {titleContent ?? <p className="call-block__title">{title}</p>}
-        <div className="call-block__header-trailing">
-          {showActivity && !standby && (
-            <PresenceActivityButton
-              roomId={activeRoomId}
-              userId={activityUserId}
-              isLocal={activityIsLocal}
-            />
+  const participantSection =
+    participantLayout === "theater" ? (
+      <div className="call-block__row call-block__row--theater" aria-label="Participants">
+        {previewTiles.length > 0 && (
+          <div
+            className="call-block__row call-block__row--participant-tiles"
+            aria-label="Intervenants"
+          >
+            {previewTiles.map(renderPreviewTile)}
+          </div>
+        )}
+        <div className="call-block__row call-block__row--avatars" aria-label="Spectateurs">
+          {audienceSlots.map((user, index) =>
+            user ? (
+              renderAvatar(user)
+            ) : (
+              <span
+                key={`audience-slot-${index}`}
+                className="call-block__avatar call-block__avatar--slot"
+                aria-hidden
+              />
+            ),
           )}
-          {standby && (
-            <span className="call-block__standby-badge" aria-label="Hors ligne">
-              Hors ligne
-            </span>
-          )}
-          {trailing}
         </div>
       </div>
-
-      {belowHeader}
-
-      {participantLayout === "theater" ? (
-        <div className="call-block__row call-block__row--theater" aria-label="Participants">
-          {previewTiles.length > 0 && (
-            <div
-              className="call-block__row call-block__row--participant-tiles"
-              aria-label="Intervenants"
-            >
-              {previewTiles.map(renderPreviewTile)}
-            </div>
-          )}
-          <div className="call-block__row call-block__row--avatars" aria-label="Spectateurs">
-            {audienceSlots.map((user, index) =>
+    ) : (
+      <div
+        className={clsx(
+          "call-block__row",
+          participantLayout === "tiles"
+            ? "call-block__row--participant-tiles"
+            : "call-block__row--avatars",
+        )}
+        aria-label="Participants"
+      >
+        {participantLayout === "tiles"
+          ? previewTiles.map(renderPreviewTile)
+          : avatarSlots.map((user, index) =>
               user ? (
                 renderAvatar(user)
               ) : (
                 <span
-                  key={`audience-slot-${index}`}
+                  key={`slot-${index}`}
                   className="call-block__avatar call-block__avatar--slot"
                   aria-hidden
                 />
               ),
             )}
-          </div>
-        </div>
-      ) : (
-        <div
-          className={clsx(
-            "call-block__row",
-            participantLayout === "tiles"
-              ? "call-block__row--participant-tiles"
-              : "call-block__row--avatars",
-          )}
-          aria-label="Participants"
-        >
-          {participantLayout === "tiles"
-            ? previewTiles.map(renderPreviewTile)
-            : avatarSlots.map((user, index) =>
-                user ? (
-                  renderAvatar(user)
-                ) : (
-                  <span
-                    key={`slot-${index}`}
-                    className="call-block__avatar call-block__avatar--slot"
-                    aria-hidden
-                  />
-                ),
-              )}
-        </div>
-      )}
-    </div>
-  );
-
-  if (!onMainClick) {
-    return (
-      <article className={blockClassName} style={style}>
-        {standby && <span className="call-block__standby-veil" aria-hidden />}
-        <div className="call-block__main">{body}</div>
-      </article>
+      </div>
     );
-  }
+
+  const mainClickEnabled = !!onMainClick && !mainDisabled;
 
   return (
     <article className={blockClassName} style={style}>
       {standby && <span className="call-block__standby-veil" aria-hidden />}
-      <button
-        type="button"
-        className="call-block__main"
-        disabled={mainDisabled}
-        onClick={onMainClick}
-        aria-label={mainAriaLabel ?? title}
-      >
-        {body}
-      </button>
+      <div className="call-block__main">
+        <div className="call-block__surface">
+          <div className="call-block__row call-block__row--header">
+            {titleContent ?? <p className="call-block__title">{title}</p>}
+            <div className="call-block__header-trailing">
+              {showActivity && !standby && (
+                <PresenceActivityButton
+                  roomId={activeRoomId}
+                  userId={activityUserId}
+                  isLocal={activityIsLocal}
+                />
+              )}
+              {trailing}
+            </div>
+          </div>
+
+          {belowHeader}
+
+          {onMainClick ? (
+            <div
+              className={clsx(
+                "call-block__click-target",
+                mainDisabled && "call-block__click-target--disabled",
+              )}
+              role="button"
+              tabIndex={mainClickEnabled ? 0 : -1}
+              aria-disabled={mainDisabled || undefined}
+              aria-label={mainAriaLabel ?? title}
+              onClick={mainClickEnabled ? onMainClick : undefined}
+              onKeyDown={(event) => {
+                if (!mainClickEnabled) return;
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onMainClick();
+              }}
+            >
+              {participantSection}
+            </div>
+          ) : (
+            participantSection
+          )}
+        </div>
+      </div>
     </article>
   );
 }

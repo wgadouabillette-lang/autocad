@@ -1,15 +1,17 @@
 import clsx from "clsx";
 import { useEffect, useRef } from "react";
-import { MonitorUp, User, Video } from "lucide-react";
+import { MonitorUp, User, UserMinus, Video } from "lucide-react";
 import {
   activeCallPartner,
   avatarColor,
   findLocalBlock,
+  isLocalPrivateCallHost,
   userInitials,
   type CallBlock,
 } from "../../lib/calls";
 import { participantVideoStream } from "../../lib/webrtc/workspaceVoiceRtc";
 import { useCallsStore } from "../../store/useCallsStore";
+import { useStore } from "../../store/useStore";
 import VoiceMuteBadge from "./VoiceMuteBadge";
 
 interface CallPresentViewProps {
@@ -17,6 +19,8 @@ interface CallPresentViewProps {
 }
 
 export default function CallPresentView({ blocks }: CallPresentViewProps) {
+  const activeRoomId = useStore((s) => s.activeRoomId);
+  const disconnectRemoteFromPrivateCall = useCallsStore((s) => s.disconnectRemoteFromPrivateCall);
   const screenSharing = useCallsStore((s) => s.screenSharing);
   const screenShareStream = useCallsStore((s) => s.screenShareStream);
   const cameraOn = useCallsStore((s) => s.cameraOn);
@@ -30,6 +34,8 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
 
   const localBlock = findLocalBlock(blocks);
   const partner = activeCallPartner(blocks, localBlock);
+  const canDisconnectPartner =
+    !!partner && isLocalPrivateCallHost(blocks, activeRoomId);
 
   const showScreen = screenSharing && screenShareStream;
   const showCamera = !showScreen && cameraOn && localStream;
@@ -118,6 +124,17 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
               </div>
             )}
             <span className="call-present-tile__label">{partner.name}</span>
+            {canDisconnectPartner ? (
+              <button
+                type="button"
+                className="call-present-tile__disconnect"
+                onClick={() => disconnectRemoteFromPrivateCall(activeRoomId, partner.id)}
+                aria-label={`Déconnecter ${partner.name}`}
+                title={`Déconnecter ${partner.name}`}
+              >
+                <UserMinus size={14} strokeWidth={2.25} aria-hidden />
+              </button>
+            ) : null}
           </>
         ) : (
           <>

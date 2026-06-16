@@ -27,7 +27,8 @@ import { pushProfileToJoinedWorkspaces } from "../lib/firebase/workspacePresence
 import { writeUserPreferences, normalizeSidePanelSide, type SidePanelSide, type UserPreferences } from "../lib/userPreferences";
 import type { AiModel } from "../lib/aiModels";
 import { isValidAiModel } from "../lib/aiModels";
-import { normalizeWorkspaceId, isLegacyPublicWorkspaceId } from "../lib/workspaces";
+import { isLegacyPublicWorkspaceId } from "../lib/workspaces";
+import { resolveActiveWorkspaceId } from "../lib/lastActiveWorkspace";
 import { useStore, type AutosavePayload } from "./useStore";
 import { useWorkspacesStore } from "./useWorkspacesStore";
 import { useCallsStore } from "./useCallsStore";
@@ -38,6 +39,16 @@ import {
 export type AuthProvider = FirebaseAuthProvider;
 
 const PROFILE_SYNC_DEBOUNCE_MS = 600;
+const AUTH_HYDRATE_TIMEOUT_MS = 12_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error(`${label} timeout`)), ms);
+    }),
+  ]);
+}
 
 interface AuthState {
   ready: boolean;
@@ -109,12 +120,14 @@ function applyLocalProfile(profile: UserProfileDoc) {
     userEmail: profile.userEmail,
     photoURL: profile.photoURL ?? null,
     recordingCameraPreview: profile.recordingCameraPreview,
+    recordingCameraMirrorPreview: profile.recordingCameraMirrorPreview !== false,
     audioInputDeviceId: profile.audioInputDeviceId ?? "",
     audioOutputDeviceId: profile.audioOutputDeviceId ?? "",
     audioEchoCancellation: profile.audioEchoCancellation !== false,
     audioNoiseSuppression: profile.audioNoiseSuppression !== false,
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
+    colorTheme: profile.colorTheme === "light" || profile.colorTheme === "system" ? profile.colorTheme : "dark",
     subscriptionPlan: profile.subscriptionPlan,
     onDemandUsageEnabled: profile.onDemandUsageEnabled,
     agentChatInstructions: profile.agentChatInstructions ?? "",
@@ -129,12 +142,14 @@ function applyLocalProfile(profile: UserProfileDoc) {
     userEmail: profile.userEmail,
     photoURL: profile.photoURL,
     recordingCameraPreview: profile.recordingCameraPreview,
+    recordingCameraMirrorPreview: profile.recordingCameraMirrorPreview !== false,
     audioInputDeviceId: profile.audioInputDeviceId ?? "",
     audioOutputDeviceId: profile.audioOutputDeviceId ?? "",
     audioEchoCancellation: profile.audioEchoCancellation !== false,
     audioNoiseSuppression: profile.audioNoiseSuppression !== false,
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
+    colorTheme: profile.colorTheme === "light" || profile.colorTheme === "system" ? profile.colorTheme : "dark",
     subscriptionPlan: profile.subscriptionPlan,
     onDemandUsageEnabled: profile.onDemandUsageEnabled,
     agentChatInstructions: profile.agentChatInstructions ?? "",
@@ -157,12 +172,14 @@ function profileFromStore(user: User): UserProfileDoc {
     userDisplayName: state.userDisplayName,
     userEmail: state.userEmail,
     recordingCameraPreview: state.recordingCameraPreview,
+    recordingCameraMirrorPreview: state.recordingCameraMirrorPreview,
     audioInputDeviceId: state.audioInputDeviceId,
     audioOutputDeviceId: state.audioOutputDeviceId,
     audioEchoCancellation: state.audioEchoCancellation,
     audioNoiseSuppression: state.audioNoiseSuppression,
     chatPanelOpen: state.chatPanelOpen,
     sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
+    colorTheme: state.colorTheme,
     subscriptionPlan: state.subscriptionPlan,
     onDemandUsageEnabled: state.onDemandUsageEnabled,
     agentChatInstructions: state.agentChatInstructions,
@@ -188,8 +205,10 @@ function profileSyncKey(profile: UserProfileDoc): string {
     userDisplayName: profile.userDisplayName,
     userEmail: profile.userEmail,
     recordingCameraPreview: profile.recordingCameraPreview,
+    recordingCameraMirrorPreview: profile.recordingCameraMirrorPreview !== false,
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide: profile.sidePanelSide,
+    colorTheme: profile.colorTheme,
     subscriptionPlan: profile.subscriptionPlan,
     onDemandUsageEnabled: profile.onDemandUsageEnabled,
     agentChatInstructions: profile.agentChatInstructions ?? "",
@@ -236,8 +255,10 @@ function startProfileAutosync(
       state.userEmail === previousState.userEmail &&
       state.photoURL === previousState.photoURL &&
       state.recordingCameraPreview === previousState.recordingCameraPreview &&
+      state.recordingCameraMirrorPreview === previousState.recordingCameraMirrorPreview &&
       state.chatPanelOpen === previousState.chatPanelOpen &&
       state.sidePanelSide === previousState.sidePanelSide &&
+      state.colorTheme === previousState.colorTheme &&
       state.subscriptionPlan === previousState.subscriptionPlan &&
       state.onDemandUsageEnabled === previousState.onDemandUsageEnabled &&
       state.aiModel === previousState.aiModel
@@ -307,40 +328,42 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
     for (const workspace of joined) {
       useCallsStore.getState().ensureRoom(workspace.id);
     }
-    const active = normalizeWorkspaceId(useStore.getState().activeRoomId);
-    const hasAccess = joined.some((server) => server.id === active);
-    if (!hasAccess && joined.length > 0) {
-      useStore.getState().setActiveRoom(joined[0].id);
+    const target = resolveActiveWorkspaceId(
+      joined.map((workspace) => workspace.id),
+      { currentId: useStore.getState().activeRoomId, userId: ownerUid },
+    );
+    if (target) {
+      useStore.getState().setActiveRoom(target);
     }
     if (joined.length === 0) {
       const id = useWorkspacesStore.getState().createPersonalWorkspace(displayName, ownerUid);
       useStore.getState().setActiveRoom(id);
-      await saveUserWorkspaces(uid, {
+      void saveUserWorkspaces(uid, {
         customServers: useWorkspacesStore.getState().customServers,
         memberships: useWorkspacesStore.getState().memberships,
-      });
+      }).catch(() => {});
     }
     if (profile && !profile.workspaceSetupCompleted) {
-      await saveUserAccountProfile(uid, {
+      void saveUserAccountProfile(uid, {
         ...profileFromStore(auth.currentUser!),
         workspaceSetupCompleted: true,
-      });
+      }).catch(() => {});
     }
   } else {
     useWorkspacesStore.getState().resetLocalMemberships();
     const id = useWorkspacesStore.getState().createPersonalWorkspace(displayName, ownerUid);
     useStore.getState().setActiveRoom(id);
-    await saveUserWorkspaces(uid, {
+    void saveUserWorkspaces(uid, {
       customServers: useWorkspacesStore.getState().customServers,
       memberships: useWorkspacesStore.getState().memberships,
-    });
-    await saveUserAccountProfile(uid, {
+    }).catch(() => {});
+    void saveUserAccountProfile(uid, {
       ...(profile ?? profileFromStore(auth.currentUser!)),
       workspaceSetupCompleted: true,
-    });
+    }).catch(() => {});
   }
 
-  await useWorkspacesStore.getState().reconcilePendingJoinRequests(uid);
+  void useWorkspacesStore.getState().reconcilePendingJoinRequests(uid);
 
   if (chatSessions.length) {
     useStore.setState({ chatSessions });
@@ -414,11 +437,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ ready: false });
       set(applyFirebaseUser(user));
 
+      const readySafety = window.setTimeout(() => {
+        if (!disposed && loadId === authLoadId && auth.currentUser?.uid === user.uid && !get().ready) {
+          set({ ready: true });
+          useStore.getState().openAgentPanel();
+        }
+      }, AUTH_HYDRATE_TIMEOUT_MS);
+
       void (async () => {
         try {
-          const hydrated = await hydrateRemoteData(user.uid);
+          const hydrated = await withTimeout(
+            hydrateRemoteData(user.uid),
+            AUTH_HYDRATE_TIMEOUT_MS,
+            "hydrateRemoteData",
+          );
           if (!hydrated || disposed || loadId !== authLoadId) return;
-          await saveUserAccountProfile(user.uid, profileFromStore(user));
+          void saveUserAccountProfile(user.uid, profileFromStore(user)).catch(() => {});
           if (disposed || loadId !== authLoadId || auth.currentUser?.uid !== user.uid) return;
           stopProfileAutosync = startProfileAutosync(user.uid, user, (message) => {
             set({ authError: message });
@@ -427,9 +461,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (disposed || loadId !== authLoadId) return;
           const message =
             error instanceof Error ? error.message : "Synchronisation cloud impossible.";
-          set({ authError: message });
+          if (!message.endsWith(" timeout")) {
+            set({ authError: message });
+          }
         } finally {
+          window.clearTimeout(readySafety);
           if (!disposed && loadId === authLoadId && auth.currentUser?.uid === user.uid) {
+            const joined = useWorkspacesStore.getState().joinedWorkspaces(user.uid);
+            if (joined.length === 0) {
+              const id = useWorkspacesStore.getState().createPersonalWorkspace(
+                useStore.getState().userDisplayName,
+                user.uid,
+              );
+              useStore.getState().setActiveRoom(id);
+            } else {
+              const target = resolveActiveWorkspaceId(
+                joined.map((workspace) => workspace.id),
+                { currentId: useStore.getState().activeRoomId, userId: user.uid },
+              );
+              if (target) useStore.getState().setActiveRoom(target);
+            }
             set({ ready: true });
             useStore.getState().openAgentPanel();
           }
@@ -557,12 +608,14 @@ export function currentUserPreferencesSnapshot(): UserPreferences {
     userEmail: state.userEmail,
     photoURL: state.photoURL ?? undefined,
     recordingCameraPreview: state.recordingCameraPreview,
+    recordingCameraMirrorPreview: state.recordingCameraMirrorPreview,
     audioInputDeviceId: state.audioInputDeviceId,
     audioOutputDeviceId: state.audioOutputDeviceId,
     audioEchoCancellation: state.audioEchoCancellation,
     audioNoiseSuppression: state.audioNoiseSuppression,
     chatPanelOpen: state.chatPanelOpen,
     sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
+    colorTheme: state.colorTheme,
     subscriptionPlan: state.subscriptionPlan,
     onDemandUsageEnabled: state.onDemandUsageEnabled,
     agentChatInstructions: state.agentChatInstructions,

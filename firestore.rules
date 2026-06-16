@@ -207,6 +207,20 @@ service cloud.firestore {
         && request.resource.data.toUid == resource.data.toUid;
     }
 
+    function isValidVoiceEjectCreate() {
+      let data = request.resource.data;
+      return data.fromUid == request.auth.uid
+        && data.keys().hasAll(['id', 'workspaceId', 'fromUid', 'fromName', 'toUid', 'status', 'createdAt'])
+        && data.fromName is string
+        && data.fromName.size() >= 1
+        && data.fromName.size() <= 120
+        && data.toUid is string
+        && data.toUid.size() >= 1
+        && data.toUid != request.auth.uid
+        && data.status == 'ejected'
+        && data.createdAt is timestamp;
+    }
+
     function isValidVoiceKnockCreate(fromUid) {
       let data = request.resource.data;
       return fromUid == request.auth.uid
@@ -313,8 +327,11 @@ service cloud.firestore {
     }
 
     match /{path=**}/messages/{messageId} {
-      allow read: if isFriendChatMessagesPath(path)
-        && canReadFriendChatMessage(friendChatIdFromMessagesPath(path));
+      // Collection-group inbox query filters on participants; avoid get() here.
+      allow read: if isSignedIn()
+        && isFriendChatMessagesPath(path)
+        && resource.data.participants is list
+        && request.auth.uid in resource.data.participants;
       allow create, update, delete: if false;
     }
 
@@ -398,7 +415,8 @@ service cloud.firestore {
       match /voiceKnocks/{knockId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn()
-          && isValidVoiceKnockCreate(request.resource.data.fromUid);
+          && (isValidVoiceKnockCreate(request.resource.data.fromUid)
+            || isValidVoiceEjectCreate());
         allow update: if isSignedIn() && (
           isVoiceKnockResponse(resource.data.toUid)
           || isVoiceKnockCancel(resource.data.fromUid)

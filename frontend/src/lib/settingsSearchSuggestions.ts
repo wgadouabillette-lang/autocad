@@ -6,9 +6,10 @@ export type SettingsTab =
   | "workspaces"
   | "usage"
   | "agents"
+  | "voice"
+  | "audio"
   | "models"
-  | "plugins"
-  | "workspace";
+  | "plugins";
 
 /** Anciens identifiants conservés pour la recherche et les liens profonds. */
 export type LegacySettingsTab =
@@ -17,7 +18,8 @@ export type LegacySettingsTab =
   | "plan"
   | "billing"
   | "recording"
-  | "skills";
+  | "skills"
+  | "workspace";
 
 export type AnySettingsTab = SettingsTab | LegacySettingsTab;
 
@@ -27,9 +29,10 @@ const SETTINGS_TABS: SettingsTab[] = [
   "workspaces",
   "usage",
   "agents",
+  "voice",
+  "audio",
   "models",
   "plugins",
-  "workspace",
 ];
 
 const LEGACY_TAB_MAP: Record<LegacySettingsTab, SettingsTab> = {
@@ -37,8 +40,9 @@ const LEGACY_TAB_MAP: Record<LegacySettingsTab, SettingsTab> = {
   account: "general",
   plan: "usage",
   billing: "usage",
-  recording: "general",
+  recording: "voice",
   skills: "plugins",
+  workspace: "workspaces",
 };
 
 export function normalizeSettingsTab(tab: string | null | undefined): SettingsTab {
@@ -97,11 +101,32 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     keywords: "models modèle ia gpt grok claude opus génération",
   },
   {
-    id: "audio-devices",
+    id: "theme",
     tab: "general",
+    label: "Theme",
+    hint: "Dark, light, or system by time of day",
+    keywords: "theme thème dark light clair sombre system système appearance apparence couleur color mode",
+  },
+  {
+    id: "audio-devices",
+    tab: "audio",
     label: "Audio",
     hint: "Micro, sortie et réduction du bruit",
-    keywords: "audio micro microphone haut-parleur sortie écho bruit general appel vocal",
+    keywords: "audio micro microphone haut-parleur sortie écho bruit appel vocal",
+  },
+  {
+    id: "recording-camera-preview",
+    tab: "voice",
+    label: "Camera preview",
+    hint: "Rounded camera preview while recording",
+    keywords: "voice recording enregistrement camera preview aperçu caméra salon vocal",
+  },
+  {
+    id: "voice",
+    tab: "voice",
+    label: "Voice",
+    hint: "Enregistrements et options de capture",
+    keywords: "voice vocal salon appel enregistrement recording capture",
   },
   {
     id: "friends",
@@ -151,13 +176,6 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     label: "Email",
     hint: "Adresse de votre compte",
     keywords: "compte email adresse general account",
-  },
-  {
-    id: "workspace",
-    tab: "workspace",
-    label: "Workspace",
-    hint: "Nom du serveur et gestion des membres",
-    keywords: "workspace serveur propriétaire membres expulser salon vocal",
   },
 ];
 

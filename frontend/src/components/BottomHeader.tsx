@@ -20,7 +20,7 @@ import NotificationsPanel from "./notifications/NotificationsPanel";
 import { useCalendarOverlayStore } from "../store/useCalendarOverlayStore";
 import { useCallsStore } from "../store/useCallsStore";
 import { useNotificationsStore } from "../store/useNotificationsStore";
-import { countBlockCallParticipants } from "../lib/calls";
+import { countBlockCallParticipants, isLocalPrivateCallHost } from "../lib/calls";
 import {
   canLocalSpeak,
   countTheaterParticipants,
@@ -106,6 +106,15 @@ export default function BottomHeader() {
           localOpenChannelId ?? null,
         );
   const inGroupCall = inCall && participantCount >= 2;
+  const isPrivateCallHost =
+    viewMode === "blocks" &&
+    inBlockCall &&
+    !inOpenChannel &&
+    isLocalPrivateCallHost(roomCalls?.blocks ?? [], activeRoomId);
+  const showLeaveCall =
+    viewMode === "theater" ||
+    (inBlockCall && inOpenChannel) ||
+    (inBlockCall && !inOpenChannel && inGroupCall && !isPrivateCallHost);
   const showPollControl = viewMode === "blocks";
   const showAssistButtons =
     inGroupCall &&
@@ -252,7 +261,7 @@ export default function BottomHeader() {
         </BottomBarButton>
       )}
 
-      {(inCall || viewMode === "theater") && (
+      {showLeaveCall && (
         <BottomBarButton
           label={viewMode === "theater" && inTheaterCall ? "Quitter le théâtre" : "Quitter"}
           onClick={() => leaveCall(activeRoomId)}
@@ -283,7 +292,7 @@ export default function BottomHeader() {
       </BottomBarButton>
 
       <BottomBarButton
-        label={recording ? "Arrêter l'enregistrement" : "Enregistrement"}
+        label={recording ? "Stop recording" : "Record"}
         onClick={() => void toggleRecording()}
         active={recording}
         recording={recording}

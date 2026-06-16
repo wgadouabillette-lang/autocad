@@ -21,6 +21,7 @@ import {
 } from "../lib/firebase/workspaceRegistry";
 import { parseWorkspaceInviteInput } from "../lib/workspaceInvite";
 import { auth } from "../lib/firebase/client";
+import { resolveActiveWorkspaceId } from "../lib/lastActiveWorkspace";
 import { useCallsStore } from "./useCallsStore";
 import { useStore } from "./useStore";
 
@@ -151,15 +152,19 @@ function ensureJoinedWorkspaceRooms(joined: Workspace[]) {
   }
 }
 
-function syncActiveWorkspace(joined: Workspace[]) {
+function syncActiveWorkspace(joined: Workspace[], userId?: string) {
   if (joined.length === 0) return;
   ensureJoinedWorkspaceRooms(joined);
-  const active = normalizeWorkspaceId(useStore.getState().activeRoomId);
-  const hasAccess = joined.some((server) => server.id === active);
-  if (!hasAccess) {
-    useStore.getState().setActiveRoom(joined[0].id);
-  } else if (active !== useStore.getState().activeRoomId) {
-    useStore.getState().setActiveRoom(active);
+  const memberUid = userId ?? currentMembershipUserId();
+  const target = resolveActiveWorkspaceId(
+    joined.map((workspace) => workspace.id),
+    { currentId: useStore.getState().activeRoomId, userId: memberUid },
+  );
+  if (!target) return;
+  if (target !== useStore.getState().activeRoomId) {
+    useStore.getState().setActiveRoom(target);
+  } else {
+    useCallsStore.getState().ensureRoom(target);
   }
 }
 

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { memberBlockId, type JoinRequest } from "../lib/calls";
 import {
+  watchVoiceEjects,
   watchVoiceKnockResponses,
   watchVoiceKnocks,
   type VoiceKnockDoc,
@@ -88,6 +89,29 @@ export function useWorkspaceVoiceKnocks() {
               useCallsStore.getState().clearJoinRequest(workspaceId, knock.id);
             }
           }
+        },
+        () => {},
+      ),
+    );
+
+    return () => {
+      for (const unsub of unsubs) unsub();
+    };
+  }, [firebaseUid, isAuthenticated, workspaceIdsKey]);
+
+  useEffect(() => {
+    const workspaceIds = workspaceIdsFromKey(workspaceIdsKey);
+    if (!isAuthenticated || !firebaseUid || workspaceIds.length === 0) return;
+
+    const handledEjects = new Set<string>();
+    const unsubs = workspaceIds.map((workspaceId) =>
+      watchVoiceEjects(
+        workspaceId,
+        firebaseUid,
+        (knock) => {
+          if (handledEjects.has(knock.id)) return;
+          handledEjects.add(knock.id);
+          useCallsStore.getState().leaveCall(workspaceId);
         },
         () => {},
       ),

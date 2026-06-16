@@ -9,17 +9,7 @@ export interface ChatSkillDef {
   template: string;
 }
 
-export const MANAGE_SKILL_TEMPLATE = `/manage
-
-Deadline: YYYY-MM-DD
-Working hours: 09:00-18:00
-Default task duration: 30 minutes
-
-Tasks:
-- Task title 1
-- Task title 2
-- Task title 3
-`;
+export const MANAGE_SKILL_TEMPLATE = `/manage`;
 
 export const CHAT_SKILLS: ChatSkillDef[] = [
   {

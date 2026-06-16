@@ -23,6 +23,7 @@ import {
   removeDuplicateRemoteSelfBlocks,
   splitDepartedRemotesFromMergedBlocks,
   splitLocalFromBlock,
+  splitRemoteParticipantFromBlock,
   syncRoomCallsWithMembers,
   type JoinRequest,
   type RoomCallsState,
@@ -30,6 +31,7 @@ import {
 import {
   cancelVoiceKnock,
   respondVoiceKnock,
+  sendVoiceEject,
   sendVoiceKnock,
 } from "../lib/firebase/workspaceVoiceKnocks";
 import {
@@ -157,6 +159,7 @@ interface CallsState extends CallControls {
   cancelJoin: (roomId: string, requestId: string) => void;
   joinCall: (roomId: string, options?: { markLocalBlockInCall?: boolean }) => Promise<void>;
   leaveCall: (workspaceId: string) => void;
+  disconnectRemoteFromPrivateCall: (roomId: string, remoteUserId: string) => void;
   leaveGroupCall: (roomId: string) => void;
   isLocalInCall: (workspaceId: string) => boolean;
   togglePushToTalk: () => void;
@@ -1395,6 +1398,39 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     pushVoicePresence(get, workspaceId);
   },
 
+  disconnectRemoteFromPrivateCall: (roomId, remoteUserId) => {
+    const state = roomState(get, roomId);
+    const localBlock = findLocalBlock(state.blocks);
+    const hostBlockId = memberBlockId(roomId, "local");
+    if (!localBlock || localBlock.id !== hostBlockId || localBlock.participants.length <= 1) {
+      return;
+    }
+
+    let blocks = splitRemoteParticipantFromBlock(state.blocks, localBlock.id, remoteUserId);
+    blocks = blocks.map((block) => {
+      if (block.participants.some((participant) => participant.isLocal) && block.participants.length === 1) {
+        return { ...block, inCall: true };
+      }
+      if (block.participants.some((participant) => participant.id === remoteUserId)) {
+        return { ...block, inCall: false };
+      }
+      return block;
+    });
+
+    const firebaseUid = useAuthStore.getState().firebaseUid;
+    if (firebaseUid) {
+      void sendVoiceEject(roomId, firebaseUid, voiceProfile().displayName, remoteUserId).catch(() => {});
+    }
+
+    set({
+      callsByRoom: {
+        ...get().callsByRoom,
+        [roomId]: { ...state, blocks },
+      },
+    });
+    pushVoicePresence(get, roomId);
+  },
+
   leaveGroupCall: (roomId) => {
     const state = roomState(get, roomId);
     const localBlock = findLocalBlock(state.blocks);
@@ -1518,28 +1554,46 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   toggleRecording: async () => {
     if (get().recordingBusy) return;
 
-    if (get().recording) {
-      set({ recordingBusy: true });
+    const resetRecordingState = (mediaError: string | null = null) => {
+      set({ recording: false, recordingBusy: false, mediaError });
+    };
+
+    const cancelActiveRecording = async () => {
+      const { abortAppScreenRecording, isAppScreenRecording } = await import(
+        "../lib/appScreenRecording"
+      );
+      const { stopRecordingCamera } = await import("../lib/recordingMedia");
+      if (isAppScreenRecording()) {
+        await abortAppScreenRecording();
+      }
+      stopRecordingCamera();
+      resetRecordingState(null);
+    };
+
+    const finalizeActiveRecording = async (): Promise<boolean> => {
+      const {
+        stopAppScreenRecording,
+        isRecordingTooShort,
+        isAppScreenRecording,
+        abortAppScreenRecording,
+      } = await import("../lib/appScreenRecording");
+      const { saveRecordingBlob } = await import("../lib/recordingsStorage");
+      const { stopRecordingCamera } = await import("../lib/recordingMedia");
+
+      if (!isAppScreenRecording()) {
+        stopRecordingCamera();
+        resetRecordingState(null);
+        return false;
+      }
+
       try {
-        const {
-          stopAppScreenRecording,
-          isRecordingTooShort,
-          isAppScreenRecording,
-          abortAppScreenRecording,
-        } = await import("../lib/appScreenRecording");
-
-        if (!isAppScreenRecording()) {
-          set({ recording: false, recordingBusy: false, mediaError: null });
-          return;
-        }
-
-        const { saveRecordingBlob } = await import("../lib/recordingsStorage");
         const { blob, durationMs } = await stopAppScreenRecording();
+        stopRecordingCamera();
 
         if (isRecordingTooShort(durationMs, blob)) {
           await abortAppScreenRecording();
-          set({ recording: false, recordingBusy: false, mediaError: null });
-          return;
+          resetRecordingState(null);
+          return false;
         }
 
         const recordingId = `rec-${Date.now()}`;
@@ -1549,40 +1603,83 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         useStore.getState().saveRecordingSession({ recordingId, durationMs });
         useNotificationsStore.getState().push({
           kind: "connector",
-          title: "Enregistrement sauvegardé",
-          body: "Disponible dans l'historique du chat.",
+          title: "Recording saved",
+          body: "Available in your notes history.",
         });
-        set({ recording: false, recordingBusy: false, mediaError: null });
+        resetRecordingState(null);
+        return true;
       } catch (error) {
-        const { abortAppScreenRecording } = await import("../lib/appScreenRecording");
         await abortAppScreenRecording();
-        set({
-          recording: false,
-          recordingBusy: false,
-          mediaError: mediaMessage(error, "Impossible de finaliser l'enregistrement."),
-        });
+        stopRecordingCamera();
+        resetRecordingState(
+          mediaMessage(error, "Could not finish the recording."),
+        );
+        return false;
       }
+    };
+
+    if (get().recording) {
+      set({ recordingBusy: true });
+      await finalizeActiveRecording();
       return;
     }
 
     set({ recording: true, mediaError: null });
-    void (async () => {
-      try {
-        const { startAppScreenRecording } = await import("../lib/appScreenRecording");
-        await startAppScreenRecording();
-      } catch {
-        const { abortAppScreenRecording } = await import("../lib/appScreenRecording");
-        await abortAppScreenRecording();
-      }
-    })();
+    try {
+      const { startAppScreenRecording } = await import("../lib/appScreenRecording");
+      await startAppScreenRecording();
+    } catch (error) {
+      await cancelActiveRecording();
+      set({
+        recording: false,
+        recordingBusy: false,
+        mediaError: mediaMessage(error, "Could not start screen recording."),
+      });
+    }
   },
+
   handleRecordingStreamEnded: async () => {
-    const { abortAppScreenRecording } = await import("../lib/appScreenRecording");
-    await abortAppScreenRecording();
+    if (!get().recording || get().recordingBusy) return;
+    set({ recordingBusy: true });
+    const { stopAppScreenRecording, isRecordingTooShort, abortAppScreenRecording } = await import(
+      "../lib/appScreenRecording"
+    );
+    const { saveRecordingBlob } = await import("../lib/recordingsStorage");
+    const { stopRecordingCamera } = await import("../lib/recordingMedia");
+
+    try {
+      const { blob, durationMs } = await stopAppScreenRecording();
+      stopRecordingCamera();
+
+      if (isRecordingTooShort(durationMs, blob)) {
+        await abortAppScreenRecording();
+        set({ recording: false, recordingBusy: false, mediaError: null });
+        return;
+      }
+
+      const recordingId = `rec-${Date.now()}`;
+      await saveRecordingBlob(recordingId, blob);
+      const { useStore } = await import("./useStore");
+      useStore.getState().saveRecordingSession({ recordingId, durationMs });
+      set({ recording: false, recordingBusy: false, mediaError: null });
+    } catch {
+      const { abortAppScreenRecording: abort } = await import("../lib/appScreenRecording");
+      await abort();
+      stopRecordingCamera();
+      set({ recording: false, recordingBusy: false, mediaError: null });
+    }
   },
+
   handleRecordingCaptureLost: async () => {
-    const { abortAppScreenRecording } = await import("../lib/appScreenRecording");
-    await abortAppScreenRecording();
+    const { abortAppScreenRecording, isAppScreenRecording } = await import(
+      "../lib/appScreenRecording"
+    );
+    const { stopRecordingCamera } = await import("../lib/recordingMedia");
+    if (isAppScreenRecording()) {
+      await abortAppScreenRecording();
+    }
+    stopRecordingCamera();
+    set({ recording: false, recordingBusy: false, mediaError: null });
   },
   togglePushToTalk: () => {
     const wasMuted = get().muted;

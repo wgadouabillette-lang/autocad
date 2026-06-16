@@ -35,6 +35,9 @@ import type { AnySettingsTab, SettingsTab } from "../lib/settingsSearchSuggestio
 import { normalizeSettingsTab } from "../lib/settingsSearchSuggestions";
 import { sameFaceReference, type FaceReference } from "../lib/faceReference";
 import { sortOpenPages, type MainPageId } from "../lib/mainPages";
+import type { ColorThemePreference } from "../lib/theme";
+import { applyDocumentTheme, resolveEffectiveTheme } from "../lib/theme";
+import { writeLastActiveWorkspace } from "../lib/lastActiveWorkspace";
 import { normalizeWorkspaceId } from "../lib/workspaces";
 import { debugLog } from "../lib/debugLog";
 import type { ChatSessionKind } from "../lib/chatSessionKinds";
@@ -55,11 +58,19 @@ import {
 import { waitMinChatProcessing } from "../lib/chatProcessing";
 import { isManageSchedulePrompt } from "../lib/chatSkills";
 import { runManageScheduleSkill } from "../lib/manageScheduleSkill";
+import type { ManageSchedulePromptDraft } from "../lib/manageSchedulePrompt";
 import { useCalendarOverlayStore } from "./useCalendarOverlayStore";
+import { auth } from "../lib/firebase/client";
+import {
+  deleteChatSession as fbDeleteChatSession,
+  saveChatSession as fbSaveChatSession,
+} from "../lib/firebase/userData";
+import { deleteRecordingBlob } from "../lib/recordingsStorage";
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
   text: string;
   source?: string;
+  managePrompt?: ManageSchedulePromptDraft;
   actions?: { kind: string; description: string }[];
 }
 
@@ -71,6 +82,10 @@ export interface ChatSession {
   kind?: ChatSessionKind;
   recordingId?: string;
   durationMs?: number;
+  /** Titre brut (sans troncature) saisi par l'utilisateur dans une note manuelle. */
+  manualNoteTitle?: string;
+  /** Corps brut (HTML enrichi) de la note manuelle. */
+  manualNoteBody?: string;
 }
 
 function chatTabTitle(messages: ChatMessage[]): string {
@@ -224,6 +239,10 @@ interface State {
   chatNavPointer: number;
   showChatHistory: boolean;
   chatPanelMode: "agent" | "friends" | "calendar" | "theater" | "ai-notes" | "follow-up";
+  /** Compteur servant de clé pour remonter le composant de notes manuelles. */
+  manualNoteResetTick: number;
+  /** Id de la note manuelle actuellement ouverte (null = nouvelle note vide). */
+  activeManualNoteId: string | null;
   pendingAutosave: AutosavePayload | null;
   autosaveChecked: boolean;
   aiModel: AiModel;
@@ -233,11 +252,13 @@ interface State {
   userEmail: string;
   photoURL: string | null;
   recordingCameraPreview: boolean;
+  recordingCameraMirrorPreview: boolean;
   audioInputDeviceId: string;
   audioOutputDeviceId: string;
   audioEchoCancellation: boolean;
   audioNoiseSuppression: boolean;
   sidePanelSide: SidePanelSide;
+  colorTheme: ColorThemePreference;
   subscriptionPlan: SubscriptionPlan;
   onDemandUsageEnabled: boolean;
   agentChatInstructions: string;
@@ -254,11 +275,13 @@ interface State {
   setChatWorkMode: (mode: SelectableWorkMode) => void;
   setAutoWorkModeSwitch: (enabled: boolean) => void;
   setRecordingCameraPreview: (enabled: boolean) => void;
+  setRecordingCameraMirrorPreview: (enabled: boolean) => void;
   setAudioInputDeviceId: (deviceId: string) => void;
   setAudioOutputDeviceId: (deviceId: string) => void;
   setAudioEchoCancellation: (enabled: boolean) => void;
   setAudioNoiseSuppression: (enabled: boolean) => void;
   setSidePanelSide: (side: SidePanelSide) => void;
+  setColorTheme: (theme: ColorThemePreference) => void;
   setUserDisplayName: (name: string) => void;
   setUserEmail: (email: string) => void;
   setPhotoURL: (url: string | null) => void;
@@ -306,6 +329,15 @@ interface State {
     messages: ChatMessage[];
     durationMs: number;
   }) => void;
+  saveManualNote: (input: {
+    id?: string | null;
+    title: string;
+    body: string;
+  }) => ChatSession | null;
+  startNewManualNote: () => void;
+  openManualNote: (id: string) => void;
+  openRecordingSession: (id: string) => void;
+  deleteRecordingSession: (sessionId: string) => Promise<void>;
   saveFollowUpNoteSession: (input: {
     recap: string;
     actions: { title: string; detail?: string; dueDate: string }[];
@@ -342,8 +374,13 @@ interface State {
   submitAssistantPrompt: (
     prompt: string,
     imageFiles?: File[],
+    options?: { managePrompt?: ManageSchedulePromptDraft; userDisplayText?: string },
   ) => Promise<{ blocked: boolean; requireImage?: boolean }>;
-  sendChat: (prompt: string, userChatText?: string) => Promise<void>;
+  sendChat: (
+    prompt: string,
+    userChatText?: string,
+    options?: { managePrompt?: ManageSchedulePromptDraft },
+  ) => Promise<void>;
   sendAgent: (
     prompt: string,
     imageFiles?: File[],
@@ -398,12 +435,14 @@ function userPreferencesSnapshot(state: {
   userEmail: string;
   photoURL: string | null;
   recordingCameraPreview: boolean;
+  recordingCameraMirrorPreview: boolean;
   audioInputDeviceId: string;
   audioOutputDeviceId: string;
   audioEchoCancellation: boolean;
   audioNoiseSuppression: boolean;
   chatPanelOpen: boolean;
   sidePanelSide: SidePanelSide;
+  colorTheme: ColorThemePreference;
   subscriptionPlan: SubscriptionPlan;
   onDemandUsageEnabled: boolean;
   agentChatInstructions: string;
@@ -417,12 +456,14 @@ function userPreferencesSnapshot(state: {
     userEmail: state.userEmail,
     photoURL: state.photoURL ?? undefined,
     recordingCameraPreview: state.recordingCameraPreview,
+    recordingCameraMirrorPreview: state.recordingCameraMirrorPreview,
     audioInputDeviceId: state.audioInputDeviceId,
     audioOutputDeviceId: state.audioOutputDeviceId,
     audioEchoCancellation: state.audioEchoCancellation,
     audioNoiseSuppression: state.audioNoiseSuppression,
     chatPanelOpen: state.chatPanelOpen,
     sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
+    colorTheme: state.colorTheme,
     subscriptionPlan: state.subscriptionPlan,
     onDemandUsageEnabled:
       state.subscriptionPlan === "pro" ? state.onDemandUsageEnabled : false,
@@ -483,6 +524,8 @@ export const useStore = create<State>((set, get) => ({
   ...initialOpenChatTabs(),
   showChatHistory: false,
   chatPanelMode: "agent",
+  manualNoteResetTick: 0,
+  activeManualNoteId: null,
   pendingAutosave: null,
   autosaveChecked: false,
   aiModel: "auto",
@@ -518,6 +561,13 @@ export const useStore = create<State>((set, get) => ({
     writeUserPreferences(userPreferencesSnapshot({ ...get(), recordingCameraPreview: enabled }));
   },
 
+  setRecordingCameraMirrorPreview: (enabled) => {
+    set({ recordingCameraMirrorPreview: enabled });
+    writeUserPreferences(
+      userPreferencesSnapshot({ ...get(), recordingCameraMirrorPreview: enabled }),
+    );
+  },
+
   setAudioInputDeviceId: (deviceId) => {
     set({ audioInputDeviceId: deviceId });
     writeUserPreferences(userPreferencesSnapshot({ ...get(), audioInputDeviceId: deviceId }));
@@ -542,6 +592,14 @@ export const useStore = create<State>((set, get) => ({
     const normalized = normalizeSidePanelSide(side);
     set({ sidePanelSide: normalized });
     writeUserPreferences(userPreferencesSnapshot({ ...get(), sidePanelSide: normalized }));
+  },
+
+  setColorTheme: (theme) => {
+    const normalized =
+      theme === "light" || theme === "system" ? theme : ("dark" as const);
+    set({ colorTheme: normalized });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), colorTheme: normalized }));
+    applyDocumentTheme(resolveEffectiveTheme(normalized));
   },
 
   setUserDisplayName: (name) => {
@@ -750,15 +808,19 @@ export const useStore = create<State>((set, get) => ({
     return prompt;
   },
 
-  submitAssistantPrompt: async (prompt, _imageFiles = []) => {
+  submitAssistantPrompt: async (
+    prompt,
+    _imageFiles = [],
+    options?: { managePrompt?: ManageSchedulePromptDraft; userDisplayText?: string },
+  ) => {
     const trimmed = prompt.trim();
-    const userChatText = trimmed || "(Attachments)";
-    await get().sendChat(trimmed, userChatText);
+    const userChatText = options?.userDisplayText?.trim() || trimmed || "(Attachments)";
+    await get().sendChat(trimmed, userChatText, options);
     writeAutosave(get());
     return { blocked: false as const };
   },
 
-  sendChat: async (prompt, userChatText) => {
+  sendChat: async (prompt, userChatText, options?: { managePrompt?: ManageSchedulePromptDraft }) => {
     const displayText = userChatText ?? prompt;
 
     const { aiModel, chat, activeRoomId, agentChatInstructions } = get();
@@ -780,7 +842,20 @@ export const useStore = create<State>((set, get) => ({
       busy: true,
       aiRun: run,
       chatPanelOpen: true,
-      ...patchChatState([...s.chat, { role: "user", text: displayText }], s.openChatTabs, s.activeChatTabId),
+      ...patchChatState(
+        [
+          ...s.chat,
+          {
+            role: "user",
+            text: displayText,
+            ...(options?.managePrompt
+              ? { source: "manage-prompt", managePrompt: options.managePrompt }
+              : {}),
+          },
+        ],
+        s.openChatTabs,
+        s.activeChatTabId,
+      ),
     }));
     const tickMs = stepTickIntervalMs("chat");
     const stepTimer = window.setInterval(() => get().tickAiRunStep(), tickMs);
@@ -815,7 +890,11 @@ export const useStore = create<State>((set, get) => ({
 
       if (isManageSchedulePrompt(displayText)) {
         get().tickAiRunStep();
-        const scheduleResult = await runManageScheduleSkill(displayText, signal);
+        const scheduleResult = await runManageScheduleSkill(
+          displayText,
+          signal,
+          options?.managePrompt,
+        );
         await waitMinChatProcessing(processingStartedAt, signal);
         const assistantText =
           scheduleResult.summary ||
@@ -1507,7 +1586,7 @@ export const useStore = create<State>((set, get) => ({
   beginAiNotesSession: (workspaceId) => {
     const at = Date.now();
     const id = `ainotes-${at}`;
-    const title = `AI Notes · ${new Date(at).toLocaleString("fr-FR", {
+    const title = `AI Notes · ${new Date(at).toLocaleString("en-US", {
       day: "numeric",
       month: "short",
       hour: "2-digit",
@@ -1540,6 +1619,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   finalizeAiNotesSession: ({ sessionId, messages, durationMs }) => {
+    let savedSession: ChatSession | null = null;
     set((s) => {
       const existing =
         s.openChatTabs.find((t) => t.id === sessionId) ??
@@ -1552,6 +1632,7 @@ export const useStore = create<State>((set, get) => ({
         kind: "note",
         durationMs,
       };
+      savedSession = session;
       const openChatTabs = s.openChatTabs.some((t) => t.id === sessionId)
         ? s.openChatTabs.map((t) => (t.id === sessionId ? session : t))
         : [...s.openChatTabs, session];
@@ -1561,12 +1642,137 @@ export const useStore = create<State>((set, get) => ({
       return { openChatTabs, chat, chatSessions };
     });
     writeAutosave(get());
+    const uid = auth.currentUser?.uid;
+    if (uid && savedSession) {
+      void fbSaveChatSession(uid, savedSession).catch((error) => {
+        console.error("[ai-notes] Firestore save failed", error);
+      });
+    }
+  },
+
+  startNewManualNote: () => {
+    set((s) => ({
+      manualNoteResetTick: s.manualNoteResetTick + 1,
+      activeManualNoteId: null,
+      showChatHistory: false,
+    }));
+  },
+
+  openManualNote: (id) => {
+    set((s) => ({
+      manualNoteResetTick: s.manualNoteResetTick + 1,
+      activeManualNoteId: id,
+      chatPanelMode: "ai-notes",
+      showChatHistory: false,
+    }));
+  },
+
+  openRecordingSession: (id) => {
+    const session = get().chatSessions.find((item) => item.id === id);
+    if (!session || session.kind !== "recording") return;
+    const { chat, openChatTabs, activeChatTabId } = get();
+    const synced = updateActiveTabInTabs(openChatTabs, activeChatTabId, chat);
+    const existing = synced.find((tab) => tab.id === id);
+    if (existing) {
+      get().switchChatTab(id);
+      set({ showChatHistory: false, chatPanelMode: "ai-notes" });
+      return;
+    }
+    const tab: ChatSession = {
+      ...session,
+      messages: structuredClone(session.messages),
+    };
+    const stack = get().chatNavStack.slice(0, get().chatNavPointer + 1);
+    stack.push(tab.id);
+    set({
+      openChatTabs: [...synced, tab],
+      activeChatTabId: tab.id,
+      chat: structuredClone(session.messages),
+      chatNavStack: stack,
+      chatNavPointer: stack.length - 1,
+      showChatHistory: false,
+      chatPanelMode: "ai-notes",
+      chatPanelOpen: true,
+    });
+  },
+
+  deleteRecordingSession: async (sessionId) => {
+    const session = get().chatSessions.find((item) => item.id === sessionId);
+    if (!session?.recordingId) return;
+
+    const recordingId = session.recordingId;
+    const nextOpenChatTabs = get().openChatTabs.filter((tab) => tab.id !== sessionId);
+    const nextChatSessions = get().chatSessions.filter((item) => item.id !== sessionId);
+    const wasActive = get().activeChatTabId === sessionId;
+    const nextActiveId = wasActive
+      ? nextOpenChatTabs[nextOpenChatTabs.length - 1]?.id ?? ""
+      : get().activeChatTabId;
+
+    set({
+      chatSessions: nextChatSessions,
+      openChatTabs: nextOpenChatTabs,
+      activeChatTabId: nextActiveId,
+      showChatHistory: true,
+      chatPanelMode: "ai-notes",
+    });
+    writeAutosave(get());
+
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      await fbDeleteChatSession(uid, sessionId).catch((error) => {
+        console.error("[recording] Firestore delete failed", error);
+      });
+    }
+    await deleteRecordingBlob(recordingId).catch((error) => {
+      console.error("[recording] IndexedDB delete failed", error);
+    });
+  },
+
+  saveManualNote: ({ id, title, body }) => {
+    const trimmedTitle = title.trim();
+    const trimmedBody = body.trim();
+    if (!trimmedTitle && !trimmedBody) return null;
+    const at = Date.now();
+    const sessionId = id ?? `note-${at}`;
+    const fallbackTitle = trimmedBody.split(/\r?\n/)[0] ?? "Note";
+    const rawTitle = trimmedTitle || fallbackTitle || "Note";
+    const displayTitle =
+      rawTitle.length > 48 ? `${rawTitle.slice(0, 48)}…` : rawTitle;
+    const session: ChatSession = {
+      id: sessionId,
+      title: displayTitle,
+      messages: [
+        {
+          role: "user",
+          text: trimmedBody,
+        },
+      ],
+      updatedAt: at,
+      kind: "note",
+      manualNoteTitle: trimmedTitle,
+      manualNoteBody: trimmedBody,
+    };
+    set((s) => ({
+      chatSessions: [
+        session,
+        ...s.chatSessions.filter((item) => item.id !== sessionId),
+      ],
+      activeManualNoteId: sessionId,
+    }));
+    writeAutosave(get());
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      void fbSaveChatSession(uid, session).catch((error) => {
+        console.error("[notes] Firestore save failed", error);
+      });
+    }
+    return session;
   },
 
   saveFollowUpNoteSession: ({ recap, actions, emails, roomId }) => {
     const at = Date.now();
     const id = `followup-${at}`;
-    const title = `Follow-up · ${new Date(at).toLocaleString("fr-FR", {
+    const title = `Follow-up · ${new Date(at).toLocaleString("en-US", {
       day: "numeric",
       month: "short",
       hour: "2-digit",
@@ -1580,7 +1786,7 @@ export const useStore = create<State>((set, get) => ({
       );
     }
     if (emails.length > 0) {
-      lines.push("", "## E-mails à envoyer");
+      lines.push("", "## Emails to send");
       for (const email of emails) {
         lines.push(`- ${email.to} — ${email.subject}`);
         if (email.body.trim()) lines.push(`  ${email.body.trim()}`);
@@ -1599,6 +1805,13 @@ export const useStore = create<State>((set, get) => ({
       chatSessions: [session, ...s.chatSessions.filter((item) => item.id !== id)],
     }));
     writeAutosave(get());
+
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      void fbSaveChatSession(uid, session).catch((error) => {
+        console.error("[follow-up] Firestore save failed", error);
+      });
+    }
 
     void roomId;
   },
@@ -1644,6 +1857,7 @@ export const useStore = create<State>((set, get) => ({
       useCallsStore.getState().closeTheaterView(state.activeRoomId);
     }
     useCallsStore.getState().ensureRoom(workspaceId);
+    writeLastActiveWorkspace(workspaceId);
     set({ activeRoomId: workspaceId });
   },
 
@@ -1656,6 +1870,7 @@ export const useStore = create<State>((set, get) => ({
     }
     useCallsStore.getState().closeTheaterView(state.activeRoomId);
     useCallsStore.getState().ensureRoom(workspaceId);
+    writeLastActiveWorkspace(workspaceId);
     set({ workspaceSwitching: true, activeRoomId: workspaceId });
   },
 
@@ -1792,7 +2007,7 @@ export const useStore = create<State>((set, get) => ({
   toggleChatHistory: () =>
     set((s) => ({
       showChatHistory: !s.showChatHistory,
-      chatPanelMode: "agent",
+      chatPanelMode: s.chatPanelMode === "ai-notes" ? "ai-notes" : "agent",
     })),
 
   setChatPanelMode: (mode) =>
@@ -1835,20 +2050,35 @@ export const useStore = create<State>((set, get) => ({
   openChatFromHistory: (id) => {
     const { chat, openChatTabs, activeChatTabId, chatSessions } = get();
     const synced = updateActiveTabInTabs(openChatTabs, activeChatTabId, chat);
+    const noteSession = chatSessions.find(
+      (session) => session.id === id && session.kind === "note",
+    );
+    if (noteSession) {
+      get().openManualNote(id);
+      return;
+    }
+    const recordingSession = chatSessions.find(
+      (session) => session.id === id && session.kind === "recording",
+    );
+    if (recordingSession) {
+      get().openRecordingSession(id);
+      return;
+    }
     const inTabs = synced.some((tab) => tab.id === id);
     if (inTabs) {
       get().switchChatTab(id);
-      set({ showChatHistory: false });
+      set({ showChatHistory: false, chatPanelMode: "agent" });
       return;
     }
     if (chatSessions.some((session) => session.id === id)) {
       get().loadChatSession(id);
+      set({ chatPanelMode: "agent" });
     }
   },
 
   saveRecordingSession: ({ recordingId, durationMs, createdAt }) => {
     const at = createdAt ?? Date.now();
-    const title = `Enregistrement ${new Date(at).toLocaleString("fr-FR", {
+    const title = `Recording ${new Date(at).toLocaleString("en-US", {
       day: "numeric",
       month: "short",
       hour: "2-digit",
@@ -1867,6 +2097,12 @@ export const useStore = create<State>((set, get) => ({
       chatSessions: [session, ...s.chatSessions.filter((item) => item.id !== recordingId)],
     }));
     writeAutosave(get());
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      void fbSaveChatSession(uid, session).catch((error) => {
+        console.error("[recording] Firestore save failed", error);
+      });
+    }
     return session;
   },
 

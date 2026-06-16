@@ -3,10 +3,12 @@ import { useMemo } from "react";
 import { formatShortChatDate, mergeChatHistorySessions } from "../../lib/chatHistory";
 import {
   CHAT_SESSION_KIND_META,
-  CHAT_SESSION_KIND_ORDER,
   groupChatSessionsByKind,
+  type ChatSessionKind,
 } from "../../lib/chatSessionKinds";
 import { updateActiveTabInTabs, useStore } from "../../store/useStore";
+
+const VISIBLE_KINDS: ChatSessionKind[] = ["note", "recording"];
 
 export default function ChatHistoryView() {
   const openChatTabs = useStore((s) => s.openChatTabs);
@@ -21,18 +23,18 @@ export default function ChatHistoryView() {
     return groupChatSessionsByKind(sessions);
   }, [openChatTabs, chatSessions, activeChatTabId, chat]);
 
-  const hasAny = CHAT_SESSION_KIND_ORDER.some((kind) => grouped[kind].length > 0);
+  const hasAny = VISIBLE_KINDS.some((kind) => grouped[kind].length > 0);
 
   return (
     <div className="chat-history-view flex h-full min-h-0 flex-col">
       <div className="chat-history-view__list min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-3">
         {!hasAny ? (
           <p className="px-2 py-6 text-center text-xs text-muted-500">
-            Aucune discussion pour l&apos;instant.
+            Nothing yet.
           </p>
         ) : (
           <div className="flex flex-col gap-4">
-            {CHAT_SESSION_KIND_ORDER.map((kind) => {
+            {VISIBLE_KINDS.map((kind) => {
               const { label, emptyLabel, Icon } = CHAT_SESSION_KIND_META[kind];
               const sessions = grouped[kind];
 

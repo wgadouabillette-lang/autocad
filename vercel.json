@@ -36,6 +36,10 @@
       "destination": "/privacy.html"
     },
     {
+      "source": "/subprocessors",
+      "destination": "/subprocessors.html"
+    },
+    {
       "source": "/app",
       "destination": "/app/"
     }

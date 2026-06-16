@@ -1,6 +1,8 @@
 import clsx from "clsx";
+import { ArrowUpRight } from "lucide-react";
 import { useStore } from "../../store/useStore";
-import { SETTINGS_AI_MODELS, aiModelLabel, type AiModel } from "../../lib/aiModels";
+import { SETTINGS_AI_MODELS, type AiModel } from "../../lib/aiModels";
+import { AiModelIcon } from "../chat/aiModelLogos";
 
 export default function ModelsSettingsSection() {
   const aiModel = useStore((s) => s.aiModel);
@@ -8,24 +10,40 @@ export default function ModelsSettingsSection() {
 
   return (
     <section className="settings-section">
-      <div className="settings-section__stack">
-        {SETTINGS_AI_MODELS.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => setAiModel(m.id as AiModel)}
-            className={clsx(
-              "settings-option",
-              aiModel === m.id && "settings-option--active",
-            )}
-          >
-            <span className="settings-option__title">{m.label}</span>
-          </button>
-        ))}
+      <div className="chat-connectors-list chat-connectors-list--settings" role="list" aria-label="AI models">
+        {SETTINGS_AI_MODELS.map((m) => {
+          const active = aiModel === m.id;
+          return (
+            <div
+              key={m.id}
+              role="listitem"
+              className={clsx("chat-connectors-row", active && "settings-model-row--active")}
+            >
+              <div className="chat-connectors-row__main">
+                {m.icon ? (
+                  <span className="chat-connectors-row__icon">
+                    <AiModelIcon icon={m.icon} />
+                  </span>
+                ) : null}
+                <span className="chat-connectors-row__label">{m.label}</span>
+              </div>
+
+              <button
+                type="button"
+                className="chat-connectors-row__connect"
+                onClick={() => setAiModel(m.id as AiModel)}
+                disabled={active}
+                aria-pressed={active}
+              >
+                {active ? "In use" : "Use"}
+                {!active && (
+                  <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
+                )}
+              </button>
+            </div>
+          );
+        })}
       </div>
-      <p className="settings-section__meta">
-        Actuel : <span className="text-muted-300">{aiModelLabel(aiModel)}</span>
-      </p>
     </section>
   );
 }

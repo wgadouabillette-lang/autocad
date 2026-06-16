@@ -40,6 +40,14 @@ import ChatPollVotePanel from "./chat/ChatPollVotePanel";
 import { useActiveVoicePoll } from "../hooks/useActiveVoicePoll";
 import { useVoicePollStore } from "../store/useVoicePollStore";
 import type { ChatSkillDef } from "../lib/chatSkills";
+import {
+  buildManageSkillPayload,
+  createDefaultManageDraft,
+  isManageDraftReady,
+  parseManagePromptFromText,
+  type ManageSchedulePromptDraft,
+} from "../lib/manageSchedulePrompt";
+import ManageSchedulePromptLine from "./chat/ManageSchedulePromptLine";
 import { filterSlashSkillMenu, slashQueryAt } from "../lib/promptSlashSkills";
 import { debugLog } from "../lib/debugLog";
 
@@ -107,6 +115,19 @@ function ChatBubble({
   if (message.role === "system") return null;
 
   if (message.role === "user") {
+    const managePrompt =
+      message.managePrompt ?? parseManagePromptFromText(message.text) ?? undefined;
+    if (
+      managePrompt &&
+      (message.source === "manage-prompt" || /(?:^|\s)\/manage\b/i.test(message.text))
+    ) {
+      return (
+        <div className="chat-user-bubble chat-user-bubble--manage-prompt">
+          <ManageSchedulePromptLine draft={managePrompt} readOnly />
+        </div>
+      );
+    }
+
     return (
       <div className="chat-user-bubble">
         <span className="min-w-0 whitespace-pre-wrap break-words">{message.text}</span>
@@ -188,6 +209,7 @@ export default function ChatPanel() {
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState("");
   const [slashIndex, setSlashIndex] = useState(0);
+  const [manageDraft, setManageDraft] = useState<ManageSchedulePromptDraft | null>(null);
   const modelRef = useRef<HTMLDivElement>(null);
   const mentionRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -216,15 +238,33 @@ export default function ChatPanel() {
   const prevChatLenRef = useRef(chat.length);
 
   useEffect(() => {
-    if (pollMorphActive) setConnectorsOpen(false);
-  }, [pollMorphActive]);
+    if (!manageDraft) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setManageDraft(null);
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey && isManageDraftReady(manageDraft)) {
+        e.preventDefault();
+        const payload = buildManageSkillPayload(manageDraft);
+        setManageDraft(null);
+        setText("");
+        void submitAssistantPrompt(payload.skillText, [], {
+          managePrompt: payload.managePrompt,
+          userDisplayText: payload.displayText,
+        });
+      }
+    };
+    window.document.addEventListener("keydown", onKey);
+    return () => window.document.removeEventListener("keydown", onKey);
+  }, [manageDraft, submitAssistantPrompt]);
   const setAiComposerEngaged = useAiComposerStore((s) => s.setEngaged);
   const setPresenceActivity = usePresenceActivityStore((s) => s.setActivity);
 
   const syncAiComposerEngaged = useCallback(
     (focused?: boolean) => {
       const isFocused = focused ?? document.activeElement === textareaRef.current;
-      const hasDraft = text.trim().length > 0;
+      const hasDraft = text.trim().length > 0 || !!manageDraft;
       const chatRunActive =
         busy ||
         aiRun?.status === "running" ||
@@ -241,6 +281,7 @@ export default function ChatPanel() {
     },
     [
       text,
+      manageDraft,
       busy,
       aiRun?.status,
       aiRun?.runKind,
@@ -448,6 +489,14 @@ export default function ChatPanel() {
   };
 
   const insertSkillTemplate = (skill: ChatSkillDef) => {
+    if (skill.id === "manage") {
+      setManageDraft(createDefaultManageDraft());
+      setText("");
+      setSlashOpen(false);
+      requestAnimationFrame(() => textareaRef.current?.focus());
+      return;
+    }
+
     const el = textareaRef.current;
     const caret = el?.selectionStart ?? text.length;
     const sq = slashQueryAt(text, caret);
@@ -486,6 +535,18 @@ export default function ChatPanel() {
   };
 
   const submit = () => {
+    if (manageDraft) {
+      if (!isManageDraftReady(manageDraft)) return;
+      const payload = buildManageSkillPayload(manageDraft);
+      setManageDraft(null);
+      setText("");
+      void submitAssistantPrompt(payload.skillText, [], {
+        managePrompt: payload.managePrompt,
+        userDisplayText: payload.displayText,
+      });
+      return;
+    }
+
     const raw = text.trim();
     if (!raw && attachments.length === 0) return;
 
@@ -506,7 +567,9 @@ export default function ChatPanel() {
     setText(prompt);
   };
 
-  const canSubmit = text.trim().length > 0 || attachments.length > 0;
+  const canSubmit = manageDraft
+    ? isManageDraftReady(manageDraft)
+    : text.trim().length > 0 || attachments.length > 0;
 
   const insertConnectorSlash = (slash: string) => {
     setText((prev) => (prev.trim() ? `${prev.trimEnd()} ${slash} ` : `${slash} `));
@@ -657,7 +720,7 @@ export default function ChatPanel() {
                           </span>
                           <span className="mt-0.5 block text-[10px] leading-snug text-muted-500">
                             @{target.mention}
-                            {target.section === "friends" ? " · Ami" : " · Collègue"}
+                            {target.section === "friends" ? " · Friend" : " · Colleague"}
                           </span>
                         </span>
                       </button>
@@ -694,6 +757,13 @@ export default function ChatPanel() {
               </div>
             )}
 
+            {manageDraft ? (
+              <ManageSchedulePromptLine
+                draft={manageDraft}
+                onChange={setManageDraft}
+                onClose={() => setManageDraft(null)}
+              />
+            ) : (
             <HighlightedPromptInput
               ref={textareaRef}
               value={text}
@@ -769,6 +839,7 @@ export default function ChatPanel() {
                 }
               }}
             />
+            )}
           </div>
           <div className="flex h-[24px] items-center gap-2">
             <ChatAppIntegrations

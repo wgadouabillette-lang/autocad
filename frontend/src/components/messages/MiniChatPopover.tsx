@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Send, X } from "lucide-react";
 import type { PeopleMessage } from "../../lib/peopleChat";
 import { resolvePersonPhotoURL } from "../../lib/peopleChat";
+import { useStore } from "../../store/useStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
@@ -29,11 +30,16 @@ export default function MiniChatPopover() {
   });
   const sendMessage = usePeopleStore((s) => s.sendMessage);
   const membersByWorkspace = useWorkspacePresenceStore((s) => s.membersByWorkspace);
+  const personPhotoByUserId = usePeopleStore((s) => s.personPhotoByUserId);
+  const activeRoomId = useStore((s) => s.activeRoomId);
   const [draft, setDraft] = useState("");
 
   if (!open || !threadId || !thread) return null;
 
-  const partnerPhotoURL = resolvePersonPhotoURL(thread.personId, membersByWorkspace);
+  const partnerPhotoURL = resolvePersonPhotoURL(thread.personId, membersByWorkspace, {
+    preferredWorkspaceId: activeRoomId,
+    photoCache: personPhotoByUserId,
+  });
 
   return (
     <>

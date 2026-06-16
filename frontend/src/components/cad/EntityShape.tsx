@@ -1,6 +1,6 @@
 import type { DrawingEntity } from "../../lib/drawing/types";
 import { arcPath } from "../../lib/drawing/geometry";
-import { THEME } from "../../lib/theme";
+import { useThemePalette } from "../../hooks/useThemePalette";
 
 interface Props {
   entity: DrawingEntity;
@@ -8,7 +8,8 @@ interface Props {
 }
 
 export function EntityShape({ entity, selected }: Props) {
-  const stroke = selected ? THEME.highlight : THEME.textBright;
+  const theme = useThemePalette();
+  const stroke = selected ? theme.highlight : theme.textBright;
   const sw = selected ? 2 : 1.2;
 
   switch (entity.type) {

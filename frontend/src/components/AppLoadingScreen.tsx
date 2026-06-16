@@ -6,7 +6,7 @@ type AppLoadingScreenProps = {
 
 export default function AppLoadingScreen({
   connectionError = false,
-  label = "Chargement…",
+  label = "Loading…",
   onRetry,
 }: AppLoadingScreenProps) {
   return (
@@ -30,13 +30,13 @@ export default function AppLoadingScreen({
         ) : null}
         {connectionError ? (
           <div className="app-loading-screen__error">
-            <p className="app-loading-screen__error-title">Connexion impossible</p>
+            <p className="app-loading-screen__error-title">Connection failed</p>
             <p className="app-loading-screen__error-body">
-              Vérifiez votre connexion internet, puis réessayez.
+              Check your internet connection, then try again.
             </p>
             {onRetry ? (
               <button type="button" className="app-loading-screen__retry" onClick={onRetry}>
-                Réessayer
+                Try again
               </button>
             ) : null}
           </div>

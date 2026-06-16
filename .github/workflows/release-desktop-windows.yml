@@ -60,7 +60,7 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: forma-cad-dev.firebasestorage.app
           VITE_FIREBASE_MESSAGING_SENDER_ID: "341690938979"
           VITE_FIREBASE_APP_ID: 1:341690938979:web:e44bbe2e180e0b1cdaea56
-          VITE_FIREBASE_FUNCTIONS_REGION: europe-west1
+          VITE_FIREBASE_FUNCTIONS_REGION: us-central1
         run: node scripts/prepare-desktop-resources.cjs
 
       - name: Build Windows installer

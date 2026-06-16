@@ -1,6 +1,8 @@
 import type { SelectableWorkMode } from "./workModes";
 import type { SubscriptionPlan } from "./subscriptionPlans";
 
+import type { ColorThemePreference } from "./theme";
+
 const KEY = "forma-user-preferences";
 
 export type SidePanelSide = "left" | "right";
@@ -9,13 +11,18 @@ export function normalizeSidePanelSide(value: unknown): SidePanelSide {
   return value === "left" ? "left" : "right";
 }
 
+export type { ColorThemePreference };
+
 export interface UserPreferences {
+  colorTheme: ColorThemePreference;
   chatWorkMode: SelectableWorkMode;
   autoWorkModeSwitch: boolean;
   userDisplayName: string;
   userEmail: string;
   photoURL?: string;
   recordingCameraPreview: boolean;
+  /** When true, flip preview horizontally to match natural left/right movement. */
+  recordingCameraMirrorPreview: boolean;
   audioInputDeviceId: string;
   audioOutputDeviceId: string;
   audioEchoCancellation: boolean;
@@ -30,11 +37,13 @@ export interface UserPreferences {
 }
 
 const DEFAULTS: UserPreferences = {
+  colorTheme: "dark",
   chatWorkMode: "agent",
   autoWorkModeSwitch: false,
   userDisplayName: "William",
   userEmail: "william@forma.app",
   recordingCameraPreview: false,
+  recordingCameraMirrorPreview: true,
   audioInputDeviceId: "",
   audioOutputDeviceId: "",
   audioEchoCancellation: true,
@@ -55,6 +64,10 @@ export function readUserPreferences(): UserPreferences {
     const data = JSON.parse(raw) as Partial<UserPreferences>;
     const chatWorkMode = data.chatWorkMode === "render" ? "render" : "agent";
     return {
+      colorTheme:
+        data.colorTheme === "light" || data.colorTheme === "system"
+          ? data.colorTheme
+          : "dark",
       chatWorkMode,
       autoWorkModeSwitch: Boolean(data.autoWorkModeSwitch),
       userDisplayName:
@@ -67,6 +80,8 @@ export function readUserPreferences(): UserPreferences {
           : DEFAULTS.userEmail,
       photoURL: typeof data.photoURL === "string" && data.photoURL.trim() ? data.photoURL.trim() : undefined,
       recordingCameraPreview: Boolean(data.recordingCameraPreview),
+      recordingCameraMirrorPreview:
+        data.recordingCameraMirrorPreview !== false,
       audioInputDeviceId:
         typeof data.audioInputDeviceId === "string" ? data.audioInputDeviceId : "",
       audioOutputDeviceId:

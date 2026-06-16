@@ -1,17 +1,22 @@
+import { buildAudioInputConstraints } from "./audioDevices";
 import { hasFormaDesktop } from "./formaDesktop";
 import { isScreenCapturePermissionError } from "./screenCapturePermission";
+import { readUserPreferences } from "./userPreferences";
 
 const MIN_RECORDING_MS = 2000;
 
 let recorder: MediaRecorder | null = null;
 let captureStream: MediaStream | null = null;
+let displayStream: MediaStream | null = null;
+let micStream: MediaStream | null = null;
+let audioContext: AudioContext | null = null;
 let chunks: Blob[] = [];
 let startedAt = 0;
 let trackEndedHandler: (() => void) | null = null;
 
 function requireDisplayMedia() {
   if (!navigator.mediaDevices?.getDisplayMedia) {
-    throw new Error("L'enregistrement d'écran n'est pas disponible dans ce navigateur.");
+    throw new Error("Screen recording is not available in this browser.");
   }
 }
 
@@ -19,7 +24,7 @@ async function acquireViaDesktopSourceId(sourceId: string): Promise<MediaStream>
   const constraints: MediaStreamConstraints = {
     audio: false,
     video: {
-      // @ts-expect-error — contraintes Chromium / Electron
+      // @ts-expect-error — Chromium / Electron constraints
       mandatory: {
         chromeMediaSource: "desktop",
         chromeMediaSourceId: sourceId,
@@ -34,7 +39,7 @@ function assertLiveVideoTrack(stream: MediaStream): MediaStream {
   if (!track || track.readyState === "ended") {
     stream.getTracks().forEach((item) => item.stop());
     throw new Error(
-      "La capture d'écran s'est arrêtée immédiatement. Vérifiez la permission d'enregistrement d'écran.",
+      "Screen capture stopped immediately. Check screen recording permissions.",
     );
   }
   return stream;
@@ -45,7 +50,7 @@ async function acquireViaDisplayMedia(): Promise<MediaStream> {
 
   const stream = await navigator.mediaDevices.getDisplayMedia({
     video: true,
-    audio: false,
+    audio: true,
     ...(hasFormaDesktop()
       ? {}
       : {
@@ -63,7 +68,7 @@ async function acquireViaElectronDesktop(): Promise<MediaStream> {
   const sourceId = await window.formaDesktop!.getAppWindowSourceId();
   if (!sourceId) {
     throw new Error(
-      "Fenêtre Lyte introuvable. Autorisez Lyte (ou Electron) dans l'enregistrement d'écran.",
+      "Lyte window not found. Allow Lyte (or Electron) in screen recording settings.",
     );
   }
 
@@ -75,19 +80,56 @@ async function acquireViaElectronDesktop(): Promise<MediaStream> {
   }
 }
 
-async function acquireAppCaptureStream(): Promise<MediaStream> {
+async function acquireDisplayStream(): Promise<MediaStream> {
   if (hasFormaDesktop()) {
     return acquireViaElectronDesktop();
   }
   return acquireViaDisplayMedia();
 }
 
-function pickMimeType(): string | undefined {
-  const candidates = [
-    "video/webm;codecs=vp9",
-    "video/webm;codecs=vp8",
-    "video/webm",
+async function acquireMicrophoneStream(): Promise<MediaStream | null> {
+  if (!navigator.mediaDevices?.getUserMedia) return null;
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: buildAudioInputConstraints(readUserPreferences()),
+      video: false,
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function buildRecordingStream(): Promise<MediaStream> {
+  displayStream = await acquireDisplayStream();
+  micStream = await acquireMicrophoneStream();
+
+  const videoTracks = displayStream.getVideoTracks();
+  const audioTracks = [
+    ...displayStream.getAudioTracks(),
+    ...(micStream?.getAudioTracks() ?? []),
   ];
+
+  if (audioTracks.length === 0) {
+    captureStream = displayStream;
+    return captureStream;
+  }
+
+  audioContext = new AudioContext();
+  const destination = audioContext.createMediaStreamDestination();
+
+  for (const track of audioTracks) {
+    const source = audioContext.createMediaStreamSource(new MediaStream([track]));
+    source.connect(destination);
+  }
+
+  captureStream = new MediaStream([...videoTracks, ...destination.stream.getAudioTracks()]);
+  return captureStream;
+}
+
+function pickMimeType(hasAudio: boolean): string | undefined {
+  const candidates = hasAudio
+    ? ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"]
+    : ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
   return candidates.find((type) => MediaRecorder.isTypeSupported(type));
 }
 
@@ -101,13 +143,25 @@ export function getRecordingElapsedMs(): number {
 }
 
 function releaseCaptureStream() {
-  const track = captureStream?.getVideoTracks()[0];
+  const track = captureStream?.getVideoTracks()[0] ?? displayStream?.getVideoTracks()[0];
   if (track && trackEndedHandler) {
     track.removeEventListener("ended", trackEndedHandler);
   }
   trackEndedHandler = null;
+
   captureStream?.getTracks().forEach((item) => item.stop());
   captureStream = null;
+
+  displayStream?.getTracks().forEach((item) => item.stop());
+  displayStream = null;
+
+  micStream?.getTracks().forEach((item) => item.stop());
+  micStream = null;
+
+  if (audioContext) {
+    void audioContext.close();
+    audioContext = null;
+  }
 }
 
 function dispatchCaptureEnded() {
@@ -121,21 +175,19 @@ function dispatchCaptureLost() {
 export async function startAppScreenRecording(): Promise<void> {
   if (isAppScreenRecording()) return;
 
-  captureStream = await acquireAppCaptureStream();
+  const stream = await buildRecordingStream();
   chunks = [];
   startedAt = Date.now();
 
-  const mimeType = pickMimeType();
-  recorder = new MediaRecorder(
-    captureStream,
-    mimeType ? { mimeType } : undefined,
-  );
+  const hasAudio = stream.getAudioTracks().length > 0;
+  const mimeType = pickMimeType(hasAudio);
+  recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
 
   recorder.ondataavailable = (event) => {
     if (event.data.size > 0) chunks.push(event.data);
   };
 
-  const track = captureStream.getVideoTracks()[0];
+  const track = stream.getVideoTracks()[0];
   trackEndedHandler = () => {
     if (getRecordingElapsedMs() < MIN_RECORDING_MS) {
       dispatchCaptureLost();
@@ -167,7 +219,7 @@ export async function stopAppScreenRecording(): Promise<{
   durationMs: number;
 }> {
   if (!recorder) {
-    throw new Error("Aucun enregistrement en cours.");
+    throw new Error("No recording in progress.");
   }
 
   const durationMs = getRecordingElapsedMs();
@@ -175,7 +227,7 @@ export async function stopAppScreenRecording(): Promise<{
   const blob = await new Promise<Blob>((resolve, reject) => {
     const active = recorder;
     if (!active) {
-      reject(new Error("Enregistreur indisponible."));
+      reject(new Error("Recorder unavailable."));
       return;
     }
 
@@ -183,7 +235,7 @@ export async function stopAppScreenRecording(): Promise<{
       const type = active.mimeType || "video/webm";
       resolve(new Blob(chunks, { type }));
     };
-    active.onerror = () => reject(new Error("Erreur pendant l'enregistrement."));
+    active.onerror = () => reject(new Error("Error while recording."));
 
     if (active.state === "inactive") {
       const type = active.mimeType || "video/webm";

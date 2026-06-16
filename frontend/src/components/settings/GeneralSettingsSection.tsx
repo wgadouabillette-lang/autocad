@@ -1,11 +1,11 @@
 import AccountSettingsSection from "./AccountSettingsSection";
-import AudioSettingsSection from "./AudioSettingsSection";
+import ThemeSettingsSection from "./ThemeSettingsSection";
 
 export default function GeneralSettingsSection() {
   return (
     <>
       <AccountSettingsSection />
-      <AudioSettingsSection />
+      <ThemeSettingsSection />
     </>
   );
 }

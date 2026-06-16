@@ -18,6 +18,7 @@ import { useWorkspaceVoiceRtc } from "./hooks/useWorkspaceVoiceRtc";
 import { useWorkspacePolls } from "./hooks/useWorkspacePolls";
 import { useWorkspaceOpenVoiceChannels } from "./hooks/useWorkspaceOpenVoiceChannels";
 import JoinKnockOverlay from "./components/calls/JoinKnockOverlay";
+import { useColorTheme } from "./hooks/useColorTheme";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useDesktopUpdater } from "./hooks/useDesktopUpdater";
 import { useMobileLayout } from "./hooks/useMobileLayout";
@@ -87,6 +88,7 @@ export default function App() {
   }, []);
 
   useAppKeyboardShortcuts();
+  useColorTheme();
   useDesktopUpdater();
   useCallVoiceActivity(inVoiceCall);
   useRemoteVoiceActivity(inVoiceCall);
@@ -274,7 +276,7 @@ export default function App() {
     return (
       <AppLoadingScreen
         connectionError={false}
-        label="Chargement…"
+        label="Loading…"
       />
     );
   }
@@ -299,7 +301,7 @@ export default function App() {
       <VoiceRemoteAudioSink />
       <JoinKnockOverlay />
       {workspaceSwitching ? (
-        <AppLoadingScreen connectionError={false} label="Chargement du workspace…" />
+        <AppLoadingScreen connectionError={false} label="Loading workspace…" />
       ) : null}
       <div
         className={clsx(

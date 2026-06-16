@@ -1,10 +1,11 @@
 import { Canvas } from "@react-three/fiber";
 import { Bounds, GizmoHelper, GizmoViewport, OrbitControls } from "@react-three/drei";
 import { useStore } from "../store/useStore";
-import { THEME } from "../lib/theme";
+import { useThemePalette } from "../hooks/useThemePalette";
 import PickableSolid from "./viewport/PickableSolid";
 
 export default function Viewport() {
+  const theme = useThemePalette();
   const rebuild = useStore((s) => s.rebuild);
   const material = useStore((s) => s.material);
   const document = useStore((s) => s.document);
@@ -21,7 +22,7 @@ export default function Viewport() {
         gl={{ antialias: true }}
         onPointerMissed={() => clearSelectedFaces()}
       >
-        <color attach="background" args={[THEME.bg]} />
+        <color attach="background" args={[theme.bg]} />
         <ambientLight intensity={1} />
 
         {/* Repere CAD : Z vers le haut -> on bascule le groupe pour l'affichage Y-up */}
@@ -40,7 +41,7 @@ export default function Viewport() {
             scale={22}
             axisHeadScale={0.85}
             axisColors={["#e57373", "#81c784", "#64b5f6"]}
-            labelColor={THEME.edgeLabel}
+            labelColor={theme.edgeLabel}
             hideNegativeAxes={false}
           />
         </GizmoHelper>

@@ -7,7 +7,7 @@ import { runAiChat, assertAuthenticated } from "./ai/chat";
 
 initializeApp();
 
-setGlobalOptions({ region: "europe-west1" });
+setGlobalOptions({ region: "us-central1" });
 
 const db = getFirestore();
 
