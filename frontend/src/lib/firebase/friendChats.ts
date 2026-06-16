@@ -1,7 +1,6 @@
 import {
   addDoc,
   collection,
-  collectionGroup,
   doc,
   onSnapshot,
   query,
@@ -39,10 +38,6 @@ function chatRef(chatId: string) {
 
 function messagesCol(chatId: string) {
   return collection(db, "friendChats", chatId, "messages");
-}
-
-function chatIdFromMessageDoc(docSnap: QueryDocumentSnapshot<DocumentData>): string | null {
-  return docSnap.ref.parent.parent?.id ?? null;
 }
 
 export async function ensureFriendChat(uidA: string, uidB: string): Promise<string> {
@@ -91,7 +86,7 @@ function sortMessages(messages: CloudFriendMessage[]): CloudFriendMessage[] {
   return [...messages].sort((a, b) => messageSortKey(a) - messageSortKey(b));
 }
 
-/** Écoute tous les messages où l'utilisateur est participant (inbox temps réel). */
+/** Écoute tous les chats amis puis leurs messages (inbox temps réel). */
 export function watchInboxFriendMessages(
   localUid: string,
   onChange: (messagesByChatId: Record<string, CloudFriendMessage[]>) => void,
@@ -102,29 +97,58 @@ export function watchInboxFriendMessages(
     return () => {};
   }
 
-  const inboxQuery = query(
-    collectionGroup(db, "messages"),
+  const messagesByChatId: Record<string, CloudFriendMessage[]> = {};
+  const messageUnsubs = new Map<string, Unsubscribe>();
+
+  const emit = () => {
+    onChange({ ...messagesByChatId });
+  };
+
+  const chatsQuery = query(
+    collection(db, "friendChats"),
     where("participants", "array-contains", localUid),
   );
 
-  return onSnapshot(
-    inboxQuery,
-    (snap) => {
-      const messagesByChatId: Record<string, CloudFriendMessage[]> = {};
-      for (const docSnap of snap.docs) {
-        const chatId = chatIdFromMessageDoc(docSnap);
-        if (!chatId) continue;
-        const bucket = messagesByChatId[chatId] ?? [];
-        bucket.push(mapMessageDoc(docSnap));
-        messagesByChatId[chatId] = bucket;
+  const chatsUnsub = onSnapshot(
+    chatsQuery,
+    (chatSnap) => {
+      const activeChatIds = new Set<string>();
+
+      for (const chatDoc of chatSnap.docs) {
+        const chatId = chatDoc.id;
+        activeChatIds.add(chatId);
+        if (messageUnsubs.has(chatId)) continue;
+
+        messageUnsubs.set(
+          chatId,
+          watchFriendChatMessages(
+            chatId,
+            (messages) => {
+              messagesByChatId[chatId] = messages;
+              emit();
+            },
+            onError,
+          ),
+        );
       }
-      for (const chatId of Object.keys(messagesByChatId)) {
-        messagesByChatId[chatId] = sortMessages(messagesByChatId[chatId]!);
+
+      for (const [chatId, unsub] of messageUnsubs.entries()) {
+        if (activeChatIds.has(chatId)) continue;
+        unsub();
+        messageUnsubs.delete(chatId);
+        delete messagesByChatId[chatId];
       }
-      onChange(messagesByChatId);
+
+      emit();
     },
     onError,
   );
+
+  return () => {
+    chatsUnsub();
+    for (const unsub of messageUnsubs.values()) unsub();
+    messageUnsubs.clear();
+  };
 }
 
 export function watchFriendChatMessages(

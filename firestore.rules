@@ -89,10 +89,6 @@ service cloud.firestore {
       return path.matches('friendChats/[^/]+');
     }
 
-    function friendChatIdFromMessagesPath(path) {
-      return path.split('/')[1];
-    }
-
     function isValidSharedWorkspaceCreate(workspaceId) {
       let data = request.resource.data;
       return data.keys().hasAll(['id', 'name', 'accent', 'ownerId', 'ownerName', 'createdAt'])
