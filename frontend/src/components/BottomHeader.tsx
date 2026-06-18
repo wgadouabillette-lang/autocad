@@ -130,8 +130,7 @@ export default function BottomHeader() {
   const followUpActive = useFollowUpCaptureStore((s) => s.active);
   const followUpBusy = useFollowUpCaptureStore((s) => s.busy);
   const toggleFollowUp = useFollowUpCaptureStore((s) => s.toggle);
-  const setChatPanelOpen = useStore((s) => s.setChatPanelOpen);
-  const setChatPanelMode = useStore((s) => s.setChatPanelMode);
+  const openAgentPanel = useStore((s) => s.openAgentPanel);
   const { connectedIds, connect, connectingId, statuses } = useConnectors();
   const spotifyStatus = statuses.find((s) => s.id === "spotify");
   const spotifyConnected = connectedIds.has("spotify");
@@ -191,8 +190,7 @@ export default function BottomHeader() {
           void connect("spotify");
           return;
         }
-        setChatPanelMode("agent");
-        setChatPanelOpen(true);
+        openAgentPanel();
       }}
       active={spotifyConnected}
       disabled={!spotifyConfigured || connectingId === "spotify"}
