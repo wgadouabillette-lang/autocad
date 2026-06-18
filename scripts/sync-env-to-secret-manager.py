@@ -83,6 +83,11 @@ def main() -> int:
         help="Which bundle to sync (default: all).",
     )
     parser.add_argument("--project", default=None, help=f"GCP project (default: {DEFAULT_PROJECT}).")
+    parser.add_argument(
+        "--env-file",
+        default=None,
+        help="Override env file path for push (e.g. temp bundle with prod URLs).",
+    )
     args = parser.parse_args()
 
     if not args.push and not args.pull:
@@ -94,8 +99,9 @@ def main() -> int:
     targets = ["backend", "functions", "frontend"] if args.target == "all" else [args.target]
     for key in targets:
         secret_id, env_path = SECRET_MAP[key]
+        push_path = Path(args.env_file).resolve() if args.env_file and key == args.target else env_path
         if args.push:
-            push_bundle(client, project_id, secret_id, env_path)
+            push_bundle(client, project_id, secret_id, push_path)
         if args.pull:
             pull_bundle(client, project_id, secret_id, env_path)
 
