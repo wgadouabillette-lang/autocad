@@ -29,6 +29,15 @@ def use_local_env_only() -> bool:
     return val in {"1", "true", "yes", "on"}
 
 
+def use_secret_manager() -> bool:
+    """GSM at runtime needs GCP ADC — not available on Vercel serverless."""
+    if use_local_env_only():
+        return False
+    if os.getenv("VERCEL"):
+        return False
+    return True
+
+
 def secrets_required() -> bool:
     val = os.getenv("FORMA_SECRETS_REQUIRED", "").strip().lower()
     return val in {"1", "true", "yes", "on"}
@@ -103,7 +112,7 @@ def load_secret_bundle(
 
 
 def load_backend_secrets(*, override: bool = False) -> int:
-    if use_local_env_only():
+    if not use_secret_manager():
         return 0
     return load_secret_bundle(backend_secret_id(), override=override)
 

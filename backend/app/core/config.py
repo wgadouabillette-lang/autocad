@@ -13,7 +13,7 @@ from typing import List
 
 from dotenv import load_dotenv
 
-from app.core.secrets import load_backend_secrets_or_raise, use_local_env_only
+from app.core.secrets import load_backend_secrets_or_raise, use_local_env_only, use_secret_manager
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -54,7 +54,7 @@ def _has_llm_env() -> bool:
 
 
 def _load_env() -> None:
-    if not use_local_env_only():
+    if use_secret_manager():
         try:
             load_backend_secrets_or_raise()
         except RuntimeError:

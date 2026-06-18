@@ -26,6 +26,20 @@ def _project_id() -> str:
     return (os.getenv("FIREBASE_PROJECT_ID") or "forma-cad-dev").strip()
 
 
+def _service_account_dict() -> dict | None:
+    raw = (os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or "").strip()
+    if not raw:
+        return None
+    import json
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON.")
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def _credential_path() -> str:
     explicit = (os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
     if explicit and os.path.isfile(explicit):
@@ -53,8 +67,12 @@ def _ensure_app():
         return
 
     if not firebase_admin._apps:
+        sa_dict = _service_account_dict()
         cred_path = _credential_path()
-        if cred_path:
+        if sa_dict:
+            cred = credentials.Certificate(sa_dict)
+            _app = firebase_admin.initialize_app(cred, {"projectId": _project_id()})
+        elif cred_path:
             cred = credentials.Certificate(cred_path)
             _app = firebase_admin.initialize_app(cred, {"projectId": _project_id()})
         else:

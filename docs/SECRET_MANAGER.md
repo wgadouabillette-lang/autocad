@@ -78,11 +78,24 @@ firebase deploy --only functions
 | Variable | Description |
 |----------|-------------|
 | `FORMA_SECRETS_PROJECT` | Projet GCP (défaut : `forma-cad-dev`) |
-| `FORMA_USE_LOCAL_ENV=1` | Ignore GSM, utilise les `.env` locaux |
-| `FORMA_SECRETS_REQUIRED=1` | Échec si GSM indisponible (prod) |
+| `FORMA_USE_LOCAL_ENV=1` | Ignore GSM ; utilise `.env` local ou les variables du process (Vercel) |
+| `FORMA_SECRETS_REQUIRED=1` | Échec si GSM indisponible (prod **hors Vercel**) |
 | `FORMA_BACKEND_SECRET_ID` | Nom du secret backend (défaut `forma-backend-env`) |
 | `FORMA_FUNCTIONS_SECRET_ID` | Nom du secret functions (défaut `forma-functions-env`) |
 | `FORMA_FRONTEND_SECRET_ID` | Nom du secret frontend (défaut `forma-frontend-env`) |
+
+## Vercel (backend Python)
+
+Le runtime Vercel **n’a pas accès** à Google Secret Manager (pas de compte de service GCP). Les variables backend doivent être dans **Vercel → Settings → Environment Variables**, pas seulement dans GSM.
+
+```bash
+vercel login
+./scripts/sync-gsm-to-vercel-env.sh
+```
+
+Ajoutez aussi `FIREBASE_SERVICE_ACCOUNT_JSON` (JSON du compte de service Firebase) pour que Firestore enregistre les tokens OAuth des connecteurs.
+
+Le backend détecte `VERCEL=1` et **ne tente pas** GSM au démarrage (évite `FUNCTION_INVOCATION_FAILED`).
 
 ## Rotation
 
