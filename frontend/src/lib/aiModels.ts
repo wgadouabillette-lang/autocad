@@ -11,8 +11,8 @@ export type AiModelSpeed = "fast" | "medium" | "reasoning";
 
 export type AiModelIconKey = "openai" | "grok" | "claude";
 
-/** Modèle chat économique utilisé en mode Auto (aligné sur FORMA_AUTO_CHAT_MODEL). */
-export const AUTO_CHAT_MODEL_NAME = "GPT 4.1 nano";
+/** Modèles utilisés en mode Auto (routage selon la question). */
+export const AUTO_CHAT_MODEL_NAME = "GPT 4o mini / Grok 3 Mini";
 
 export interface AiModelDef {
   id: AiModel;
@@ -72,7 +72,7 @@ export const AI_MODELS: AiModelDef[] = [
     id: "grok",
     label: "Grok 4.1",
     short: "Grok 4.1",
-    speed: "fast",
+    speed: "medium",
     icon: "grok",
   },
   {

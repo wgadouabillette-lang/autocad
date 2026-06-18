@@ -1,4 +1,4 @@
-export type PeopleChatSection = "friends" | "colleagues";
+export type PeopleChatSection = "friends" | "colleagues" | "groups";
 
 export interface Person {
   id: string;
@@ -13,6 +13,10 @@ export interface PeopleMessage {
   text: string;
   at: number;
   mine?: boolean;
+  kind?: "text" | "handoff";
+  handoffId?: string;
+  handoffTitle?: string;
+  handoffPreview?: string;
 }
 
 export interface PeopleThread {
@@ -21,6 +25,10 @@ export interface PeopleThread {
   personName: string;
   section: PeopleChatSection;
   workspaceId?: string;
+  groupName?: string;
+  memberIds?: string[];
+  memberNames?: Record<string, string>;
+  creatorUid?: string;
   preview: string;
   updatedAt: number;
   unread: number;
@@ -117,4 +125,101 @@ export function resolvePersonPhotoURL(
     if (photoURL) return photoURL;
   }
   return undefined;
+}
+
+export function threadIdForGroup(groupId: string): string {
+  return `group-${groupId}`;
+}
+
+export function groupIdFromThreadId(threadId: string): string | null {
+  if (!threadId.startsWith("group-")) return null;
+  return threadId.slice("group-".length);
+}
+
+export function createGroupThread(
+  groupId: string,
+  name: string,
+  memberIds: string[],
+  memberNames: Record<string, string>,
+  creatorUid?: string,
+): PeopleThread {
+  const trimmedName = name.trim() || "Groupe";
+  return {
+    id: threadIdForGroup(groupId),
+    personId: groupId,
+    personName: trimmedName,
+    section: "groups",
+    groupName: trimmedName,
+    memberIds: [...memberIds],
+    memberNames: { ...memberNames },
+    creatorUid,
+    preview: "",
+    updatedAt: Date.now(),
+    unread: 0,
+    messages: [],
+  };
+}
+
+export function isCloudCapablePersonId(personId: string): boolean {
+  if (!personId) return false;
+  if (personId === "local") return false;
+  if (personId.startsWith("email:")) return false;
+  return true;
+}
+
+/** Members the creator may add: friends + colleagues from any shared workspace (deduped). */
+export function collectAllWorkspaceMembers(
+  membersByWorkspace: Record<string, Record<string, { displayName: string }>>,
+): Person[] {
+  const seen = new Set<string>();
+  const entries: Person[] = [];
+
+  for (const members of Object.values(membersByWorkspace)) {
+    for (const [id, entry] of Object.entries(members)) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      entries.push({
+        id,
+        name: entry.displayName.trim() || "Membre",
+        handle: id,
+      });
+    }
+  }
+
+  return entries;
+}
+
+/** Members the creator may add: friends + workspace colleagues (deduped). */
+export function buildEligibleGroupChatMembers(opts: {
+  friends: Person[];
+  workspaceMembers: Person[];
+  localUserId?: string | null;
+}): Person[] {
+  const { friends, workspaceMembers, localUserId } = opts;
+  const seen = new Set<string>();
+  const entries: Person[] = [];
+
+  const push = (person: Person) => {
+    if (!isCloudCapablePersonId(person.id)) return;
+    if (localUserId && person.id === localUserId) return;
+    if (seen.has(person.id)) return;
+    seen.add(person.id);
+    entries.push(person);
+  };
+
+  for (const friend of friends) push(friend);
+  for (const member of workspaceMembers) push(member);
+
+  return entries.sort((a, b) => a.name.localeCompare(b.name, "fr"));
+}
+
+export function canAddPersonToGroupChat(
+  personId: string,
+  opts: {
+    friends: Person[];
+    workspaceMembers: Person[];
+    localUserId?: string | null;
+  },
+): boolean {
+  return buildEligibleGroupChatMembers(opts).some((person) => person.id === personId);
 }

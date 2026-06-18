@@ -55,21 +55,20 @@ Collez-y votre `XAI_API_KEY=...` puis relancez l’app.
 
 L’app bureau utilise le même projet Firebase que le web (`forma-cad-dev`) :
 
-- **Connexion** : Google / Microsoft / Apple via **navigateur externe** → page web `https://forma-cad-dev.web.app/auth.html` (ou `https://forma.app/auth.html` après déploiement Netlify), puis retour automatique dans l'app
+- **Connexion** : Google / Microsoft / Facebook via **navigateur externe** → page web `https://forma-cad-dev.web.app/auth.html` (ou `https://forma.app/auth.html` après déploiement Netlify), puis retour automatique dans l'app
 - **Clés API LLM** : enregistrées via Cloud Functions (Settings → Plugins), sans `.env`
 - **Données** : profil, workspaces et projets synchronisés dans Firestore après connexion
 
 Configuration Firebase Console requise :
 
 1. [Domaines autorisés](https://console.firebase.google.com/project/forma-cad-dev/authentication/settings) : ajoutez `forma-cad-dev.web.app`, `forma.app`, `127.0.0.1`, `localhost`
-2. Activez **Microsoft** et **Apple** :
+2. Activez **Microsoft** et **Facebook** :
    ```bash
    ./scripts/configure-firebase-oauth-providers.sh
    ```
-   Apple est activé automatiquement. Microsoft nécessite un app registration Azure AD
-   (`MICROSOFT_OAUTH_CLIENT_ID` + `MICROSOFT_OAUTH_CLIENT_SECRET`). Pour Apple web,
-   ajoutez aussi `APPLE_OAUTH_SERVICE_ID`, `APPLE_OAUTH_TEAM_ID`, `APPLE_OAUTH_KEY_ID`,
-   `APPLE_OAUTH_PRIVATE_KEY` puis relancez le script.
+   Facebook nécessite une app Meta (`FACEBOOK_OAUTH_APP_ID` + `FACEBOOK_OAUTH_APP_SECRET`).
+   Microsoft nécessite un app registration Azure AD
+   (`MICROSOFT_OAUTH_CLIENT_ID` + `MICROSOFT_OAUTH_CLIENT_SECRET`).
 3. Déployez la landing + page d'auth :
    ```bash
    ./scripts/deploy-landing.sh

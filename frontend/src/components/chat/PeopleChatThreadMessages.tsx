@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import clsx from "clsx";
 import type { PeopleMessage } from "../../lib/peopleChat";
+import HandoffInboxCard from "./HandoffInboxCard";
+import { useHandoffStore } from "../../store/useHandoffStore";
 import {
   buildPeopleChatTimeline,
   type PeopleChatRenderItem,
@@ -14,18 +16,42 @@ interface PeopleChatThreadMessagesProps {
   listRef?: RefObject<HTMLUListElement>;
   className?: string;
   compact?: boolean;
+  showAuthors?: boolean;
 }
 
 function PeopleChatBubble({
   item,
   mine,
   compact,
+  showAuthors,
 }: {
   item: PeopleChatRenderItem;
   mine: boolean;
   compact?: boolean;
+  showAuthors?: boolean;
 }) {
   const { message, isFirstInGroup, isLastInGroup } = item;
+  const openHandoffPreview = useHandoffStore((s) => s.openPreview);
+
+  if (message.kind === "handoff" && message.handoffId) {
+    return (
+      <div
+        className={clsx(
+          "people-chat-bubble-wrap",
+          mine && "people-chat-bubble-wrap--mine",
+          isFirstInGroup && "people-chat-bubble-wrap--first",
+          isLastInGroup && "people-chat-bubble-wrap--last",
+        )}
+      >
+        <HandoffInboxCard
+          senderName={message.author}
+          title={message.handoffTitle}
+          preview={message.handoffPreview}
+          onOpen={() => void openHandoffPreview(message.handoffId!)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -37,7 +63,7 @@ function PeopleChatBubble({
       )}
     >
       <div className="people-chat-bubble-stack">
-        {!mine && isFirstInGroup && (
+        {!mine && isFirstInGroup && showAuthors && (
           <span className="people-chat-bubble-stack__author">{message.author}</span>
         )}
 
@@ -63,6 +89,7 @@ export default function PeopleChatThreadMessages({
   listRef,
   className,
   compact,
+  showAuthors = false,
 }: PeopleChatThreadMessagesProps) {
   const timeline = useMemo(() => buildPeopleChatTimeline(messages), [messages]);
   const prevLastMessageIdRef = useRef<string | undefined>();
@@ -105,6 +132,7 @@ export default function PeopleChatThreadMessages({
                 item={item}
                 mine={entry.mine}
                 compact={compact}
+                showAuthors={showAuthors}
               />
             ))}
           </li>

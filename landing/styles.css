@@ -206,48 +206,6 @@ a {
   flex-direction: column;
 }
 
-.product-window__chrome {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  height: 34px;
-  padding: 0 0.85rem;
-  background: #1a1a1a;
-  border-bottom: 1px solid rgb(255 255 255 / 0.06);
-  flex-shrink: 0;
-}
-
-.product-window__dot {
-  width: 11px;
-  height: 11px;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.18);
-}
-
-.product-window__dot--red {
-  background: #ff5f57;
-}
-
-.product-window__dot--yellow {
-  background: #febc2e;
-}
-
-.product-window__dot--green {
-  background: #28c840;
-}
-
-.product-window__title {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--text-muted);
-  pointer-events: none;
-  user-select: none;
-}
-
 .product-window__screen {
   position: relative;
   flex: 1;
@@ -272,6 +230,1781 @@ a {
   background: transparent;
   cursor: default;
   user-select: none;
+}
+
+/* ---------- Lyte dashboard mockup (inside product window) ---------- */
+
+.lyte-mock {
+  --lm-bg: #1a1a1a;
+  --lm-shell: #0e0e0e;
+  --lm-calls: #171717;
+  --lm-text: #e0e0e0;
+  --lm-muted: #909090;
+  --lm-muted-soft: #737373;
+  --lm-divider: #2a2a2a;
+  --lm-tint-04: rgb(255 255 255 / 0.04);
+  --lm-tint-06: rgb(255 255 255 / 0.06);
+  --lm-tint-07: rgb(255 255 255 / 0.07);
+  --lm-tint-08: rgb(255 255 255 / 0.08);
+  --lm-tint-12: rgb(255 255 255 / 0.12);
+  --lm-tint-16: rgb(255 255 255 / 0.16);
+  --lm-composer: #222222;
+  --lm-composer-stroke: #404040;
+  --lm-composer-shadow:
+    0 6px 18px -5px rgb(0 0 0 / 0.44),
+    0 2px 5px -2px rgb(0 0 0 / 0.24);
+  --lm-chat-width: 22rem;
+
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background-color: var(--lm-bg);
+  color: var(--lm-text);
+  font-family: var(--font);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lyte-mock--with-chat {
+  grid-template-columns: minmax(0, 1fr) var(--lm-chat-width);
+}
+
+.lyte-mock--with-chat .lyte-mock__chrome,
+.lyte-mock--with-chat .lyte-mock__main,
+.lyte-mock--with-chat .lyte-mock__footer {
+  grid-column: 1;
+}
+
+/* Chat fullscreen mode */
+.lyte-mock--chat-fullscreen {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+.lyte-mock--chat-fullscreen .lyte-mock__chrome,
+.lyte-mock--chat-fullscreen .lyte-mock__main,
+.lyte-mock--chat-fullscreen .lyte-mock__footer {
+  display: none;
+}
+
+.lyte-mock--chat-fullscreen .lyte-mock__chat {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  border-left: 0;
+}
+
+/* --- Top chrome row --- */
+
+.lyte-mock__chrome {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  min-height: 2.75rem;
+  border-bottom: 1px solid var(--lm-divider);
+  background-color: var(--lm-bg);
+}
+
+.lyte-mock__chrome-leading {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+}
+
+.lyte-mock__chrome-brand {
+  justify-self: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #e0e0e0;
+}
+
+.lyte-mock__chrome-trailing {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+}
+
+.lyte-mock__chrome-circle,
+.lyte-mock__chrome-capsule {
+  appearance: none;
+  border: 0;
+  cursor: default;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+  border-radius: 999px;
+  background-color: rgb(24 46 82);
+  background-image: linear-gradient(
+    135deg,
+    rgb(34 58 94 / 0.96) 0%,
+    rgb(24 46 82 / 0.98) 52%,
+    rgb(18 38 72 / 1) 100%
+  );
+  box-shadow:
+    0 4px 14px -4px rgb(0 0 0 / 0.35),
+    inset 0 1px 0 rgb(191 219 254 / 0.14);
+  color: rgb(191 219 254 / 0.92);
+}
+
+.lyte-mock__chrome-circle {
+  width: 1.75rem;
+  justify-content: center;
+}
+
+.lyte-mock__chrome-capsule {
+  gap: 0.4rem;
+  padding: 0 0.85rem;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.lyte-mock__chrome-capsule-name {
+  background: linear-gradient(
+    135deg,
+    rgb(186 230 253 / 0.98) 0%,
+    rgb(219 234 254 / 0.92) 48%,
+    rgb(239 246 255 / 0.86) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* --- Main calls area --- */
+
+.lyte-mock__main {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--lm-calls);
+  padding: 1rem 1.25rem;
+}
+
+.lyte-mock__hex {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.lyte-mock__grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+  padding-top: clamp(0.5rem, 6%, 2.25rem);
+}
+
+.lyte-mock__sides {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.lyte-mock__sides--left {
+  grid-column: 1;
+  justify-self: end;
+}
+
+.lyte-mock__sides--right {
+  grid-column: 3;
+  justify-self: start;
+}
+
+.lyte-mock__col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 8.25rem;
+}
+
+.lyte-mock__center {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 14rem;
+  justify-self: center;
+}
+
+/* --- Call blocks (cards) --- */
+
+.lyte-block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 1rem;
+  background-color: var(--lm-composer);
+  box-shadow:
+    var(--lm-composer-shadow),
+    inset 0 1px 0 var(--lm-tint-07);
+  isolation: isolate;
+}
+
+.lyte-block--idle {
+  opacity: 0.78;
+}
+
+.lyte-block--wide {
+  width: 100%;
+}
+
+.lyte-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.lyte-block__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lyte-block__activity {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--lm-muted);
+}
+
+.lyte-block__activity:empty {
+  background: var(--lm-tint-08);
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.lyte-block__activity img {
+  width: 0.95rem;
+  height: 0.95rem;
+  display: block;
+  border-radius: 0.18rem;
+  object-fit: contain;
+}
+
+.lyte-block__activity svg {
+  display: block;
+}
+
+.lyte-block__activity--ai {
+  color: #c084fc;
+}
+
+.lyte-block__activity--rec {
+  color: #f59e0b;
+}
+
+.lyte-block__media-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+  margin-right: 0.15rem;
+}
+
+.lyte-block__media-status-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--lm-muted);
+}
+
+.lyte-block__media-status-item--muted {
+  color: #ef4444;
+}
+
+.lyte-block__media-status-item--screen {
+  color: #60a5fa;
+}
+
+.lyte-block__media-status-item svg {
+  display: block;
+}
+
+.lyte-block__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--lm-muted);
+  flex-shrink: 0;
+}
+
+.lyte-block__avatars {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.lyte-block__avatars--audience {
+  margin-top: 0.15rem;
+}
+
+.lyte-block__tiles {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.lyte-tile {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.625rem;
+  background-color: var(--lm-tint-04);
+  border: 1px solid var(--lm-tint-08);
+  min-width: 0;
+}
+
+.lyte-tile__name {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.lyte-tile__avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.lyte-tile__mute-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background-color: #1f1f1f;
+  border: 1.5px solid var(--lm-tint-04);
+  color: #ef4444;
+}
+
+.lyte-tile--speaking .lyte-tile__avatar-wrap::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 1.5px solid #4ade80;
+  pointer-events: none;
+}
+
+/* --- Avatars --- */
+
+.lyte-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  border: 2px solid var(--lm-composer);
+  font-size: 9px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.01em;
+  flex-shrink: 0;
+}
+
+.lyte-avatar--lg {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-width: 0;
+  font-size: 9px;
+}
+
+.lyte-avatar--slot {
+  background: transparent;
+  border-color: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- Add voice channel button --- */
+
+.lyte-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  border-radius: 1rem;
+  border: 1px dashed #333333;
+  background: transparent;
+  color: #999999;
+  font-size: 10.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: default;
+}
+
+.lyte-add svg {
+  flex-shrink: 0;
+}
+
+/* --- Bottom footer --- */
+
+.lyte-mock__footer {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  min-height: 2.75rem;
+  border-top: 1px solid var(--lm-divider);
+  background-color: var(--lm-bg);
+}
+
+.lyte-mock__cluster {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+}
+
+.lyte-mock__cluster--end {
+  justify-self: end;
+}
+
+.lyte-mock__footer > .lyte-mock__cluster:nth-child(2) {
+  justify-self: center;
+}
+
+.lyte-capsule {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background-color: var(--lm-composer);
+  box-shadow:
+    var(--lm-composer-shadow),
+    inset 0 1px 0 var(--lm-tint-07);
+}
+
+.lyte-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  color: #b3b3b3;
+  cursor: default;
+  border-radius: 0.5rem;
+}
+
+.lyte-btn--active {
+  background-color: rgb(255 255 255 / 0.06);
+  color: #f0f0f0;
+}
+
+.lyte-btn--ai {
+  color: #c084fc;
+}
+
+/* Clickable bottom-bar buttons */
+.lyte-btn[data-lyte-toggle] {
+  cursor: pointer;
+}
+
+/* Mic: active = muted (show MicOff), inactive = live (show Mic) */
+.lyte-btn[data-lyte-toggle="mic"] .lyte-btn__icon-on { display: none; }
+.lyte-btn[data-lyte-toggle="mic"]:not(.lyte-btn--active) .lyte-btn__icon-on { display: block; }
+.lyte-btn[data-lyte-toggle="mic"]:not(.lyte-btn--active) .lyte-btn__icon-off { display: none; }
+
+/* Cam: active = on (show Video on), inactive = off (show VideoOff) */
+.lyte-btn[data-lyte-toggle="cam"] .lyte-btn__icon-on { display: none; }
+.lyte-btn[data-lyte-toggle="cam"].lyte-btn--active .lyte-btn__icon-on { display: block; }
+.lyte-btn[data-lyte-toggle="cam"].lyte-btn--active .lyte-btn__icon-off { display: none; }
+
+/* Fullscreen toggle */
+.lyte-tool[data-lyte-fullscreen] {
+  cursor: pointer;
+}
+
+.lyte-tool__icon-collapse { display: none; }
+
+.lyte-mock--chat-fullscreen .lyte-tool__icon-expand { display: none; }
+.lyte-mock--chat-fullscreen .lyte-tool__icon-collapse { display: block; }
+
+.lyte-btn[data-segment="single"] {
+  border-radius: 999px;
+}
+
+.lyte-btn[data-segment="start"] {
+  border-radius: 999px 0.5rem 0.5rem 999px;
+}
+
+.lyte-btn[data-segment="end"] {
+  border-radius: 0.5rem 999px 999px 0.5rem;
+}
+
+.lyte-btn svg {
+  display: block;
+}
+
+/* Responsive: tighten the mockup at narrow widths */
+
+@media (max-width: 900px) {
+  .lyte-mock__main {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .lyte-mock__grid {
+    grid-template-columns: minmax(0, 1fr) 12rem minmax(0, 1fr);
+    padding-top: 0.5rem;
+  }
+
+  .lyte-mock__col {
+    width: 7rem;
+  }
+
+  .lyte-mock__center {
+    width: 12rem;
+  }
+
+  .lyte-block {
+    padding: 0.5rem 0.65rem;
+  }
+
+  .lyte-block__title {
+    font-size: 10px;
+  }
+
+  .lyte-avatar {
+    width: 1.5rem;
+    height: 1.5rem;
+    font-size: 8.5px;
+  }
+}
+
+@media (max-width: 700px) {
+  .lyte-mock__chrome,
+  .lyte-mock__footer {
+    padding: 0.4rem 0.55rem;
+    min-height: 2.4rem;
+  }
+
+  .lyte-mock__chrome-circle,
+  .lyte-mock__chrome-capsule {
+    height: 1.5rem;
+  }
+
+  .lyte-mock__chrome-circle {
+    width: 1.5rem;
+  }
+
+  .lyte-mock__chrome-capsule {
+    padding: 0 0.6rem;
+    font-size: 10.5px;
+  }
+
+  .lyte-mock__grid {
+    grid-template-columns: minmax(0, 1fr) 10rem minmax(0, 1fr);
+    gap: 0.35rem;
+  }
+
+  .lyte-mock__sides {
+    gap: 0.3rem;
+  }
+
+  .lyte-mock__col {
+    width: 6rem;
+    gap: 0.35rem;
+  }
+
+  .lyte-mock__center {
+    width: 10rem;
+    gap: 0.35rem;
+  }
+
+  .lyte-block {
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.85rem;
+    gap: 0.3rem;
+  }
+
+  .lyte-block__title {
+    font-size: 9.5px;
+  }
+
+  .lyte-avatar {
+    width: 1.25rem;
+    height: 1.25rem;
+    font-size: 8px;
+    border-width: 1.5px;
+  }
+
+  .lyte-avatar--lg {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .lyte-tile {
+    padding: 0.25rem 0.35rem;
+  }
+
+  .lyte-tile__name {
+    font-size: 9.5px;
+  }
+
+  .lyte-add {
+    height: 1.85rem;
+    font-size: 9.5px;
+  }
+
+  .lyte-btn {
+    width: 1.6rem;
+    height: 1.6rem;
+  }
+
+  .lyte-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .lyte-mock__sides {
+    display: none;
+  }
+
+  .lyte-mock__grid {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+
+  .lyte-mock__center {
+    grid-column: 1;
+    width: min(100%, 14rem);
+  }
+}
+
+/* --- Chat panel (right dock) --- */
+
+.lyte-mock__chat {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background-color: var(--lm-bg);
+  border-left: 1px solid var(--lm-divider);
+  overflow: hidden;
+}
+
+.lyte-mock__chat-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.55rem 0.65rem;
+  min-height: 2.75rem;
+  border-bottom: 1px solid var(--lm-divider);
+}
+
+.lyte-mock__chat-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  justify-self: start;
+}
+
+.lyte-mock__chat-tools--end {
+  justify-self: end;
+}
+
+.lyte-tool {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  color: #b3b3b3;
+  cursor: default;
+}
+
+.lyte-mock__chat-title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  justify-self: center;
+}
+
+.lyte-mock__chat-tabs-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.lyte-mock__chat-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.65rem 0.4rem 1.1rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  flex-shrink: 0;
+}
+
+.lyte-mock__chat-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.lyte-mock__chat-tabs-fade {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 32px;
+  background: linear-gradient(to right, transparent, var(--lm-composer));
+}
+
+.lyte-tab {
+  appearance: none;
+  border: 0;
+  background-color: var(--lm-composer);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 0.4rem;
+  font-size: 10px;
+  font-weight: 500;
+  flex-shrink: 0;
+  font-family: inherit;
+  color: var(--lm-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.lyte-tab:hover {
+  color: #f0f0f0;
+  background-color: #2a2a2a;
+}
+
+.lyte-tab--active {
+  color: #ffffff;
+  background-color: var(--lm-composer);
+  box-shadow: inset 0 1px 0 var(--lm-tint-08);
+}
+
+.lyte-tab svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.lyte-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 0.25rem;
+  margin-left: 0.15rem;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: #ef4444;
+  line-height: 1;
+}
+
+.lyte-mock__chat-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 0.65rem 0.75rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.lyte-mock__chat-content::-webkit-scrollbar {
+  display: none;
+}
+
+.lyte-mock__chat-content[hidden] {
+  display: none;
+}
+
+.lyte-shortcuts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 1.75rem;
+  row-gap: 0.65rem;
+}
+
+.lyte-shortcuts li {
+  display: contents;
+}
+
+.lyte-shortcuts__label {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--lm-muted);
+  white-space: nowrap;
+}
+
+.lyte-shortcuts__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.lyte-shortcuts__plus {
+  padding: 0 0.25rem;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--lm-muted-soft);
+}
+
+.lyte-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 0.4rem;
+  background-color: var(--lm-composer);
+  box-shadow:
+    var(--lm-composer-shadow),
+    inset 0 1px 0 var(--lm-tint-07);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font);
+  color: #e0e0e0;
+}
+
+/* --- Chat tab: messages thread --- */
+
+.lyte-chat-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding-top: 0.25rem;
+}
+
+.lyte-msg {
+  font-size: 12.5px;
+  line-height: 1.55;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.lyte-msg--user {
+  align-self: stretch;
+  background-color: var(--lm-composer);
+  border: 1px solid var(--lm-composer-stroke);
+  color: var(--lm-text);
+  font-weight: 500;
+}
+
+.lyte-msg--manage {
+  max-width: 100%;
+}
+
+.lyte-manage-prompt {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  font-weight: 400;
+  color: var(--lm-muted);
+}
+
+.lyte-manage-prompt__chip {
+  display: inline;
+  color: rgb(168 182 210);
+  background-color: rgb(59 111 232 / 0.1);
+  border-radius: 0.25rem;
+  padding: 0 0.2rem;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.lyte-mention {
+  color: #e0e0e0;
+  background-color: var(--lm-tint-08);
+  border-radius: 0.2rem;
+  padding: 0.1rem 0.35rem;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.lyte-msg--assistant {
+  color: #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.lyte-md__p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: #e0e0e0;
+}
+
+.lyte-md__strong {
+  font-weight: 600;
+  color: #f0f0f0;
+}
+
+.lyte-md__ul {
+  margin: 0;
+  padding-left: 1rem;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #e0e0e0;
+}
+
+.lyte-md__ul li {
+  padding-left: 0.1rem;
+}
+
+.lyte-md__ul li::marker {
+  color: #737373;
+}
+
+/* --- Notes tab --- */
+
+.lyte-notes {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -0.25rem;
+}
+
+.lyte-notes__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.25rem 0.5rem 0.5rem;
+}
+
+.lyte-notes__tool {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.4rem;
+  color: #b3b3b3;
+  cursor: default;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.lyte-notes__tool:hover {
+  background-color: #303030;
+  color: #f0f0f0;
+}
+
+.lyte-notes__tool--ai {
+  color: #a855f7;
+}
+
+.lyte-notes__title {
+  margin: 0.25rem 0.25rem 0.5rem;
+  font-size: 18px;
+  font-weight: 600;
+  color: #f0f0f0;
+  letter-spacing: -0.01em;
+}
+
+.lyte-notes__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0 0.25rem;
+}
+
+.lyte-notes__h1 {
+  margin: 0.5rem 0 0.15rem;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #f0f0f0;
+}
+
+.lyte-notes__h2 {
+  margin: 0.65rem 0 0.15rem;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #f0f0f0;
+}
+
+.lyte-notes__p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #e0e0e0;
+}
+
+.lyte-notes__p strong {
+  font-weight: 600;
+  color: #f5f5f5;
+}
+
+.lyte-notes__p em {
+  font-style: italic;
+  color: #c4c4c4;
+}
+
+.lyte-notes__hl {
+  background-color: rgba(250, 204, 21, 0.35);
+  padding: 0 0.1rem;
+  border-radius: 2px;
+  color: #f5f5f5;
+}
+
+/* --- Calendar tab --- */
+
+.lyte-mock__chat-content--calendar {
+  padding: 0;
+}
+
+.lyte-cal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.lyte-cal__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem 0.6rem;
+  flex-shrink: 0;
+}
+
+.lyte-cal__date {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #f0f0f0;
+}
+
+.lyte-cal__today-row {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.lyte-cal__today-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.35rem;
+  border: 1px solid var(--lm-composer-stroke);
+  background-color: var(--lm-composer);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  color: #e0e0e0;
+  cursor: default;
+}
+
+.lyte-cal__today-btn--icon {
+  padding: 0 0.4rem;
+  align-self: stretch;
+  justify-content: center;
+}
+
+.lyte-cal__timeline {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.lyte-cal__timeline::-webkit-scrollbar {
+  display: none;
+}
+
+.lyte-cal__timeline-inner {
+  position: relative;
+  width: 100%;
+  height: 480px;
+}
+
+.lyte-cal__hour {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 48px;
+  display: flex;
+  align-items: flex-start;
+  padding: 0 0.75rem;
+}
+
+.lyte-cal__hour-label {
+  width: 3rem;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #737373;
+}
+
+.lyte-cal__hour-line {
+  position: absolute;
+  left: 3.75rem;
+  right: 0.75rem;
+  top: 0;
+  height: 1px;
+  background-color: var(--lm-divider);
+  opacity: 0.7;
+}
+
+.lyte-cal__event {
+  position: absolute;
+  left: 3.75rem;
+  right: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  background-color: rgb(56 110 195 / 0.18);
+  border: 1px solid rgb(96 165 250 / 0.45);
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.2);
+  overflow: hidden;
+}
+
+.lyte-cal__event--now {
+  background-color: rgb(56 110 195 / 0.32);
+  border-color: rgb(147 197 253 / 0.7);
+  box-shadow:
+    0 0 0 1px rgb(96 165 250 / 0.35),
+    0 4px 14px -4px rgb(59 130 246 / 0.45);
+}
+
+.lyte-cal__event--past {
+  opacity: 0.55;
+  background-color: rgb(255 255 255 / 0.05);
+  border-color: rgb(255 255 255 / 0.08);
+}
+
+.lyte-cal__event-time {
+  font-size: 9.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #b3b3b3;
+}
+
+.lyte-cal__event-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #f0f0f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lyte-cal__event-detail {
+  font-size: 10.5px;
+  line-height: 1.25;
+  color: #999999;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lyte-cal__event-live {
+  position: absolute;
+  right: 0.35rem;
+  top: 0.35rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #f0f0f0;
+  background-color: rgb(96 165 250 / 0.35);
+}
+
+.lyte-cal__now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  transform: translateY(-50%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.lyte-cal__now-dot {
+  margin-left: 3.25rem;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background-color: #ef4444;
+  box-shadow: 0 0 0 2px rgb(239 68 68 / 0.25);
+  flex-shrink: 0;
+}
+
+.lyte-cal__now-line {
+  flex: 1;
+  height: 1px;
+  background-color: #ef4444;
+}
+
+/* --- Messages tab --- */
+
+.lyte-mock__chat-content--messages {
+  padding: 0.25rem 0;
+}
+
+.lyte-threads {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lyte-thread {
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  font-family: inherit;
+  cursor: default;
+  transition: background-color 0.12s ease;
+}
+
+.lyte-thread:hover {
+  background-color: #1e1e1e;
+}
+
+.lyte-thread--unread {
+  background-color: var(--lm-tint-04);
+}
+
+.lyte-thread--unread:hover {
+  background-color: rgb(255 255 255 / 0.05);
+}
+
+.lyte-avatar--thread {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.lyte-avatar--group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--lm-tint-08);
+  color: var(--lm-muted);
+}
+
+.lyte-thread__body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.lyte-thread__name {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.lyte-thread--unread .lyte-thread__name {
+  color: #ffffff;
+}
+
+.lyte-thread__preview {
+  display: block;
+  font-size: 11px;
+  color: #999999;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.lyte-thread--unread .lyte-thread__preview {
+  color: #d4d4d4;
+}
+
+.lyte-thread__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: #737373;
+}
+
+.lyte-thread__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+  color: #f0f0f0;
+  background-color: var(--lm-composer);
+  line-height: 1;
+}
+
+/* --- Follow-up tab --- */
+
+.lyte-mock__chat-content--followup {
+  padding: 0.5rem 0.75rem;
+}
+
+.lyte-followup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.lyte-followup__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.lyte-followup__label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--lm-muted);
+  text-transform: none;
+  display: flex;
+  align-items: center;
+}
+
+.lyte-followup__recap {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.5rem;
+  background-color: var(--lm-tint-04);
+  border: 1px solid var(--lm-tint-08);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #d4d4d4;
+}
+
+.lyte-followup__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.lyte-followup__item {
+  display: flex;
+  gap: 0.55rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--lm-tint-08);
+  background-color: var(--lm-tint-04);
+}
+
+.lyte-followup__item--selected {
+  background-color: rgb(56 110 195 / 0.16);
+  border-color: rgb(96 165 250 / 0.4);
+}
+
+.lyte-followup__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  border: 1px solid #525252;
+  border-radius: 3px;
+  background-color: #1a1a1a;
+  flex-shrink: 0;
+  color: transparent;
+}
+
+.lyte-followup__check--on {
+  background-color: #60a5fa;
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+.lyte-followup__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.lyte-followup__title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #f0f0f0;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lyte-followup__detail {
+  font-size: 10.5px;
+  color: #999999;
+  line-height: 1.35;
+}
+
+.lyte-followup__schedule {
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #93c5fd;
+  letter-spacing: 0.01em;
+}
+
+.lyte-followup__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding-top: 0.25rem;
+}
+
+.lyte-followup__btn {
+  appearance: none;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.4rem;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: default;
+}
+
+.lyte-followup__btn--ghost {
+  background-color: transparent;
+  color: var(--lm-muted);
+}
+
+.lyte-followup__btn--primary {
+  background-color: rgb(56 110 195 / 0.55);
+  color: #f0f0f0;
+  border: 1px solid rgb(96 165 250 / 0.6);
+}
+
+.lyte-mock__chat-composer {
+  flex-shrink: 0;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.lyte-skills-stage {
+  margin-bottom: 0.35rem;
+}
+
+.lyte-skills-stage[hidden] {
+  display: none;
+}
+
+.lyte-skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.25rem 0;
+  border-radius: 0.65rem;
+  border: 1px solid var(--lm-composer-stroke);
+  background-color: #1c1c1c;
+  box-shadow: var(--lm-composer-shadow);
+  overflow: hidden;
+}
+
+.lyte-skills-row {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  text-align: left;
+  font-family: inherit;
+  cursor: default;
+}
+
+.lyte-skills-row--active,
+.lyte-skills-row:hover {
+  background-color: #2a2a2a;
+}
+
+.lyte-skills-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.05rem;
+  color: var(--lm-muted);
+  flex-shrink: 0;
+}
+
+.lyte-skills-row__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.lyte-skills-row__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e0e0e0;
+  line-height: 1.2;
+}
+
+.lyte-skills-row__meta {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--lm-muted);
+}
+
+.lyte-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0.55rem 0.4rem;
+  border-radius: 0.75rem;
+  background-color: var(--lm-composer);
+  border: 1px solid var(--lm-composer-stroke);
+  box-shadow: var(--lm-composer-shadow);
+}
+
+.lyte-composer__input {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--lm-muted-soft);
+  padding: 0.25rem 0.35rem 0.4rem;
+}
+
+.lyte-composer__input--filled {
+  color: #c8c8c8;
+  font-weight: 400;
+}
+
+.lyte-composer__plain {
+  color: #c8c8c8;
+}
+
+.lyte-composer__chip {
+  color: rgb(168 182 210);
+  background-color: rgb(59 111 232 / 0.1);
+  border-radius: 0.25rem;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.lyte-composer__bottom {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.1rem;
+}
+
+.lyte-composer__apps {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--lm-composer-stroke);
+  background-color: var(--lm-composer);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--lm-muted);
+}
+
+.lyte-composer__apps svg {
+  opacity: 0.85;
+}
+
+.lyte-composer__model {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--lm-muted);
+}
+
+.lyte-composer__model svg {
+  opacity: 0.7;
+}
+
+.lyte-composer__actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.lyte-composer__btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  color: var(--lm-muted);
+  cursor: default;
+}
+
+.lyte-composer__btn--send {
+  background-color: #2e2e2e;
+  border: 1px solid #404040;
+  color: #e0e0e0;
+}
+
+/* --- Layout adjustments for chat-open mockup --- */
+
+.lyte-mock--with-chat .lyte-mock__grid {
+  grid-template-columns: minmax(0, 1fr) 13rem minmax(0, 1fr);
+}
+
+.lyte-mock--with-chat .lyte-mock__col {
+  width: 7.5rem;
+}
+
+.lyte-mock--with-chat .lyte-mock__center {
+  width: 13rem;
+}
+
+@media (max-width: 1100px) {
+  .lyte-mock--with-chat {
+    --lm-chat-width: 18rem;
+  }
+
+  .lyte-mock--with-chat .lyte-mock__sides--left,
+  .lyte-mock--with-chat .lyte-mock__sides--right {
+    gap: 0.35rem;
+  }
+
+  .lyte-mock--with-chat .lyte-mock__sides .lyte-mock__col + .lyte-mock__col {
+    display: none;
+  }
+
+  .lyte-mock--with-chat .lyte-mock__col {
+    width: 7rem;
+  }
+}
+
+@media (max-width: 820px) {
+  .lyte-mock--with-chat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lyte-mock__chat {
+    display: none;
+  }
 }
 
 /* ---------- Legal pages (privacy / terms / subprocessors) ---------- */
@@ -558,6 +2291,16 @@ body.resources-body {
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.auth-provider-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .auth-provider-btn:hover {
@@ -573,34 +2316,34 @@ body.resources-body {
 }
 
 .auth-email-label {
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--text-muted);
 }
 
 .auth-email-input {
   width: 100%;
-  min-height: 2.25rem;
-  padding: 0.55rem 1rem;
+  min-height: 2.5rem;
+  padding: 0.65rem 1rem;
   border: 1px solid var(--border);
-  border-radius: 0.35rem;
+  border-radius: 0.4rem;
   background: var(--surface);
   color: var(--text);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
 }
 
 .auth-email-submit {
   appearance: none;
   width: 100%;
-  min-height: 2.25rem;
-  padding: 0.55rem 1rem;
+  min-height: 2.5rem;
+  padding: 0.65rem 1rem;
   border: 1px solid rgb(255 255 255 / 0.2);
-  border-radius: 0.35rem;
+  border-radius: 0.4rem;
   background: #fff;
   color: #111;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
 }

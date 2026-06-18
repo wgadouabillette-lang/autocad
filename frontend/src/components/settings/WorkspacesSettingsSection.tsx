@@ -17,6 +17,7 @@ import {
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
+import WorkspaceEnterpriseUsageSection from "./WorkspaceEnterpriseUsageSection";
 
 interface IncomingRequestRow {
   workspaceId: string;
@@ -265,6 +266,8 @@ export default function WorkspacesSettingsSection() {
 
   return (
     <div className="settings-workspaces">
+      <WorkspaceEnterpriseUsageSection />
+
       {incomingRequests.length > 0 && (
         <section className="settings-section settings-section--card">
           <h3 className="settings-section__label">Invitations reçues</h3>

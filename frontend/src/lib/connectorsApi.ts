@@ -108,3 +108,117 @@ export async function fetchNotionPreview(limit = 5): Promise<NotionPreviewItem[]
   const data = (await r.json()) as { results?: NotionPreviewItem[] };
   return data.results ?? [];
 }
+
+export interface FigmaPreviewFile {
+  key: string;
+  name: string;
+  lastModified: string;
+  projectName: string;
+}
+
+export interface FigmaPreviewProfile {
+  id?: string;
+  email?: string;
+  handle?: string;
+}
+
+export interface FigmaPreviewResult {
+  files: FigmaPreviewFile[];
+  profile?: FigmaPreviewProfile;
+  hint?: string;
+}
+
+export async function fetchFigmaPreview(limit = 5): Promise<FigmaPreviewResult> {
+  const r = await fetch(`${BASE}/figma/files?maxResults=${limit}`, {
+    headers: await authHeaders(),
+  });
+  if (!r.ok) throw new Error(await readError(r));
+  return (await r.json()) as FigmaPreviewResult;
+}
+
+export type ChatConnectorIdForPreview =
+  | "calendar"
+  | "gmail"
+  | "outlook"
+  | "notion"
+  | "figma"
+  | "spotify";
+
+export interface SpotifyPreviewTrack {
+  id?: string;
+  name: string;
+  artists: string;
+  album: string;
+  url: string;
+  durationMs?: number;
+}
+
+export interface SpotifyPreviewResult {
+  playing: boolean;
+  track: SpotifyPreviewTrack | null;
+  device?: string | null;
+  progressMs?: number;
+}
+
+export interface SpotifyTrackCard {
+  id?: string;
+  name: string;
+  artists: string;
+  album: string;
+  imageUrl?: string | null;
+  url: string;
+}
+
+export interface SpotifyPlayResult {
+  playing: boolean;
+  track: SpotifyTrackCard | null;
+  device?: string | null;
+}
+
+export async function fetchSpotifyPreview(): Promise<SpotifyPreviewResult> {
+  const r = await fetch(`${BASE}/spotify/playback`, {
+    headers: await authHeaders(),
+  });
+  if (!r.ok) throw new Error(await readError(r));
+  return (await r.json()) as SpotifyPreviewResult;
+}
+
+export async function playSpotifyTrack(
+  query: string,
+  signal?: AbortSignal,
+): Promise<SpotifyPlayResult> {
+  const r = await fetch(`${BASE}/spotify/play`, {
+    method: "POST",
+    headers: await authHeaders(true),
+    body: JSON.stringify({ query }),
+    signal,
+  });
+  if (!r.ok) throw new Error(await readError(r));
+  return (await r.json()) as SpotifyPlayResult;
+}
+
+export async function fetchConnectorPreview(
+  id: ChatConnectorIdForPreview,
+  limit = 5,
+): Promise<unknown> {
+  switch (id) {
+    case "gmail":
+      return fetchGmailPreview(limit);
+    case "outlook":
+      return fetchOutlookPreview(limit);
+    case "notion":
+      return fetchNotionPreview(limit);
+    case "figma":
+      return fetchFigmaPreview(limit);
+    case "spotify":
+      return fetchSpotifyPreview();
+    case "calendar": {
+      const today = new Date();
+      const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      const { fetchGoogleCalendarEvents } = await import("./calendarSync");
+      return fetchGoogleCalendarEvents(dateKey);
+    }
+    default:
+      return [];
+  }
+}

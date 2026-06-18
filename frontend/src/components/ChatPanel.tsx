@@ -26,6 +26,7 @@ import {
 import { selectedFacesStillInText, stripFaceReferenceFromText } from "../lib/faceReference";
 import ChatAppIntegrations from "./chat/ChatAppIntegrations";
 import ChatConnectorsList from "./chat/ChatConnectorsList";
+import ChatSkillsList from "./chat/ChatSkillsList";
 import ChatShortcutsHint from "./chat/ChatShortcutsHint";
 import HighlightedPromptInput from "./chat/HighlightedPromptInput";
 import { useConnectors } from "../hooks/useConnectors";
@@ -41,14 +42,48 @@ import { useActiveVoicePoll } from "../hooks/useActiveVoicePoll";
 import { useVoicePollStore } from "../store/useVoicePollStore";
 import type { ChatSkillDef } from "../lib/chatSkills";
 import {
+  CREATE_GROUP_COMPOSER_TEXT,
+  CREATE_GROUP_SKILL_TEMPLATE,
+  MANAGE_COMPOSER_TEMPLATE,
+  MANAGE_SKILL_TEMPLATE,
+  RECAP_SKILL_TEMPLATE,
+  HANDOFF_SKILL_TEMPLATE,
+} from "../lib/chatSkills";
+import {
   buildManageSkillPayload,
-  createDefaultManageDraft,
   isManageDraftReady,
+  manageComposerTaskSelection,
+  looksLikeManageComposer,
+  parseManageComposerText,
   parseManagePromptFromText,
   type ManageSchedulePromptDraft,
 } from "../lib/manageSchedulePrompt";
 import ManageSchedulePromptLine from "./chat/ManageSchedulePromptLine";
-import { filterSlashSkillMenu, slashQueryAt } from "../lib/promptSlashSkills";
+import PlayPromptLine from "./chat/PlayPromptLine";
+import SpotifyTrackBubble from "./chat/SpotifyTrackBubble";
+import {
+  filterSlashSkillMenu,
+  slashQueryAt,
+} from "../lib/promptSlashSkills";
+import { isPlaySkillPrompt, parsePlaySkillQuery } from "../lib/playSkill";
+import {
+  buildGroupNameFromMembers,
+  isCreateGroupComposerReady,
+  memberIdsFromComposerText,
+} from "../lib/createGroupSkill";
+import { hasRecapSkillAccess } from "../lib/subscriptionPlans";
+import { isRecapDraftReady } from "../lib/recapSkill";
+import RecapComposerLine from "./chat/RecapComposerLine";
+import { useRecapStore } from "../store/useRecapStore";
+import HandoffComposerBar from "./chat/HandoffComposerBar";
+import HandoffPreviewBanner from "./chat/HandoffPreviewBanner";
+import { useHandoffStore } from "../store/useHandoffStore";
+import {
+  buildEligibleGroupChatMembers,
+  collectAllWorkspaceMembers,
+} from "../lib/peopleChat";
+import { useAuthStore } from "../store/useAuthStore";
+import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
 import { debugLog } from "../lib/debugLog";
 
 const CHAT_COMPOSER_SURFACE_STYLE: CSSProperties = {
@@ -128,6 +163,19 @@ function ChatBubble({
       );
     }
 
+    const playQuery =
+      message.playQuery ?? parsePlaySkillQuery(message.text) ?? undefined;
+    if (
+      playQuery &&
+      (message.source === "play-prompt" || /(?:^|\s)\/play\b/i.test(message.text))
+    ) {
+      return (
+        <div className="chat-user-bubble chat-user-bubble--play-prompt">
+          <PlayPromptLine query={playQuery} readOnly />
+        </div>
+      );
+    }
+
     return (
       <div className="chat-user-bubble">
         <span className="min-w-0 whitespace-pre-wrap break-words">{message.text}</span>
@@ -137,6 +185,9 @@ function ChatBubble({
 
   return (
     <div className="chat-assistant-bubble">
+      {message.spotifyTrack ? (
+        <SpotifyTrackBubble track={message.spotifyTrack} />
+      ) : null}
       <StructuredAssistantMessage
         text={message.text}
         reveal={reveal}
@@ -163,7 +214,6 @@ export default function ChatPanel() {
   const isMobileLayout = useMobileLayout();
   const {
     submitAssistantPrompt,
-    userDisplayName,
     aiModel,
     setAiModel,
     aiRun,
@@ -173,11 +223,17 @@ export default function ChatPanel() {
     selectedFaces,
     clearSelectedFaces,
     activeRoomId,
+    activeChatTabId,
   } = useStore();
   const friends = usePeopleStore((s) => s.friends);
+  const createGroupChat = usePeopleStore((s) => s.createGroupChat);
+  const setActiveFriendThread = usePeopleStore((s) => s.setActiveFriendThread);
   const colleagueThreads = usePeopleStore((s) =>
     s.colleagueThreadsForWorkspace(activeRoomId),
   );
+  const membersByWorkspace = useWorkspacePresenceStore((s) => s.membersByWorkspace);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
+  const switchChatPanelMode = useStore((s) => s.switchChatPanelMode);
   const roomBlocks = useCallsStore((s) => s.callsByRoom[activeRoomId]?.blocks);
   const ensureRoom = useCallsStore((s) => s.ensureRoom);
   const mentionablePeople = useMemo(
@@ -189,6 +245,15 @@ export default function ChatPanel() {
         (roomBlocks ?? []).flatMap((block) => block.participants),
       ),
     [activeRoomId, friends, colleagueThreads, roomBlocks],
+  );
+  const eligibleGroupMembers = useMemo(
+    () =>
+      buildEligibleGroupChatMembers({
+        friends,
+        workspaceMembers: collectAllWorkspaceMembers(membersByWorkspace),
+        localUserId: firebaseUid,
+      }),
+    [friends, membersByWorkspace, firebaseUid],
   );
 
   useEffect(() => {
@@ -209,10 +274,33 @@ export default function ChatPanel() {
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState("");
   const [slashIndex, setSlashIndex] = useState(0);
-  const [manageDraft, setManageDraft] = useState<ManageSchedulePromptDraft | null>(null);
+  const [activeComposerSkill, setActiveComposerSkill] = useState<
+    "manage" | "group" | "recap" | null
+  >(null);
+  const subscriptionPlan = useStore((s) => s.subscriptionPlan);
+  const billingManaged = useStore((s) => s.billingManaged);
+  const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
+  const openSettingsTab = useStore((s) => s.openSettingsTab);
+  const recapDraft = useRecapStore((s) => s.composerDraft);
+  const setRecapDraft = useRecapStore((s) => s.setComposerDraft);
+  const submitRecap = useRecapStore((s) => s.submitRecap);
+  const handoffSelectionMode = useHandoffStore((s) => s.selectionMode);
+  const handoffSelectedIndices = useHandoffStore((s) => s.selectedIndices);
+  const handoffTarget = useHandoffStore((s) => s.target);
+  const handoffSubmitting = useHandoffStore((s) => s.submitting);
+  const handoffError = useHandoffStore((s) => s.error);
+  const handoffPreview = useHandoffStore((s) => s.preview);
+  const enterHandoffSelection = useHandoffStore((s) => s.enterSelectionMode);
+  const exitHandoffSelection = useHandoffStore((s) => s.exitSelectionMode);
+  const toggleHandoffIndex = useHandoffStore((s) => s.toggleMessageIndex);
+  const setHandoffTarget = useHandoffStore((s) => s.setTarget);
+  const submitSegmentHandoff = useHandoffStore((s) => s.submitSegmentHandoff);
+  const closeHandoffPreview = useHandoffStore((s) => s.closePreview);
   const modelRef = useRef<HTMLDivElement>(null);
   const mentionRef = useRef<HTMLDivElement>(null);
+  const skillsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recapFileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -238,34 +326,38 @@ export default function ChatPanel() {
   } = useConnectors();
   const prevChatLenRef = useRef(chat.length);
 
-  useEffect(() => {
-    if (!manageDraft) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setManageDraft(null);
-        return;
+  const submitCreateGroupFromText = useCallback(
+    async (composerText: string) => {
+      const ids = memberIdsFromComposerText(composerText, eligibleGroupMembers);
+      const members = ids
+        .map((id) => eligibleGroupMembers.find((member) => member.id === id))
+        .filter((member): member is NonNullable<typeof member> => !!member);
+      if (members.length === 0) return;
+      const name = buildGroupNameFromMembers(members);
+      const memberIds = members.map((member) => member.id);
+      setText("");
+      setActiveComposerSkill(null);
+      const result = await createGroupChat(name, memberIds);
+      if (result.ok && result.threadId) {
+        switchChatPanelMode("friends");
+        setActiveFriendThread(result.threadId);
       }
-      if (e.key === "Enter" && !e.shiftKey && isManageDraftReady(manageDraft)) {
-        e.preventDefault();
-        const payload = buildManageSkillPayload(manageDraft);
-        setManageDraft(null);
-        setText("");
-        void submitAssistantPrompt(payload.skillText, [], {
-          managePrompt: payload.managePrompt,
-          userDisplayText: payload.displayText,
-        });
-      }
-    };
-    window.document.addEventListener("keydown", onKey);
-    return () => window.document.removeEventListener("keydown", onKey);
-  }, [manageDraft, submitAssistantPrompt]);
+    },
+    [
+      createGroupChat,
+      eligibleGroupMembers,
+      setActiveFriendThread,
+      switchChatPanelMode,
+    ],
+  );
+
   const setAiComposerEngaged = useAiComposerStore((s) => s.setEngaged);
   const setPresenceActivity = usePresenceActivityStore((s) => s.setActivity);
 
   const syncAiComposerEngaged = useCallback(
     (focused?: boolean) => {
       const isFocused = focused ?? document.activeElement === textareaRef.current;
-      const hasDraft = text.trim().length > 0 || !!manageDraft;
+      const hasDraft = text.trim().length > 0 || !!activeComposerSkill;
       const chatRunActive =
         busy ||
         aiRun?.status === "running" ||
@@ -282,7 +374,7 @@ export default function ChatPanel() {
     },
     [
       text,
-      manageDraft,
+      activeComposerSkill,
       busy,
       aiRun?.status,
       aiRun?.runKind,
@@ -359,8 +451,10 @@ export default function ChatPanel() {
       if (mentionOpen && mentionRef.current && !mentionRef.current.contains(e.target as Node)) {
         setMentionOpen(false);
       }
-      if (slashOpen && mentionRef.current && !mentionRef.current.contains(e.target as Node)) {
-        setSlashOpen(false);
+      if (slashOpen) {
+        const inSkills = skillsRef.current?.contains(e.target as Node);
+        const inComposer = mentionRef.current?.contains(e.target as Node);
+        if (!inSkills && !inComposer) setSlashOpen(false);
       }
     };
     window.document.addEventListener("mousedown", onClick);
@@ -411,6 +505,7 @@ export default function ChatPanel() {
   }, [chat.length, revealIdx]);
 
   const chatIsEmpty = !chat.some((m) => m.role === "user" || m.role === "assistant");
+  const displayChat = handoffPreview?.messages ?? chat;
   const agentGenerating = busy && aiRun?.status === "running";
   const lastMessage = chat[chat.length - 1];
   const showPendingAssistant = agentGenerating && lastMessage?.role === "user";
@@ -490,11 +585,59 @@ export default function ChatPanel() {
   };
 
   const insertSkillTemplate = (skill: ChatSkillDef) => {
-    if (skill.id === "manage") {
-      setManageDraft(createDefaultManageDraft());
+    if (skill.requiresPaidPlan && !hasRecapSkillAccess(subscriptionPlan, billingManaged, workspaceEnterpriseActive)) {
+      openSettingsTab("usage");
+      setSlashOpen(false);
+      return;
+    }
+    if (skill.id === "recap") {
+      setActiveComposerSkill("recap");
+      setRecapDraft(null);
       setText("");
       setSlashOpen(false);
-      requestAnimationFrame(() => textareaRef.current?.focus());
+      return;
+    }
+    if (skill.id === "handoff") {
+      enterHandoffSelection();
+      setActiveComposerSkill(null);
+      setText("");
+      setSlashOpen(false);
+      return;
+    }
+    if (skill.id === "group") {
+      setActiveComposerSkill("group");
+      setText(CREATE_GROUP_COMPOSER_TEXT);
+      setSlashOpen(false);
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        el?.focus();
+        el?.setSelectionRange(1, 1);
+        syncMentionMenu(CREATE_GROUP_COMPOSER_TEXT, 1);
+      });
+      return;
+    }
+    if (skill.id === "manage") {
+      setActiveComposerSkill("manage");
+      setText(MANAGE_COMPOSER_TEMPLATE);
+      setSlashOpen(false);
+      const sel = manageComposerTaskSelection();
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        el?.focus();
+        el?.setSelectionRange(sel.start, sel.end);
+      });
+      return;
+    }
+    if (skill.id === "play") {
+      setActiveComposerSkill(null);
+      setText(skill.template);
+      setSlashOpen(false);
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        const pos = skill.template.length;
+        el?.focus();
+        el?.setSelectionRange(pos, pos);
+      });
       return;
     }
 
@@ -536,10 +679,22 @@ export default function ChatPanel() {
   };
 
   const submit = () => {
-    if (manageDraft) {
-      if (!isManageDraftReady(manageDraft)) return;
-      const payload = buildManageSkillPayload(manageDraft);
-      setManageDraft(null);
+    if (activeComposerSkill === "recap") {
+      if (!isRecapDraftReady(recapDraft)) return;
+      setActiveComposerSkill(null);
+      void submitRecap();
+      return;
+    }
+    if (activeComposerSkill === "group") {
+      if (!isCreateGroupComposerReady(text, eligibleGroupMembers)) return;
+      void submitCreateGroupFromText(text);
+      return;
+    }
+    if (activeComposerSkill === "manage") {
+      const parsed = parseManageComposerText(text);
+      if (!parsed || !isManageDraftReady(parsed)) return;
+      const payload = buildManageSkillPayload(parsed);
+      setActiveComposerSkill(null);
       setText("");
       void submitAssistantPrompt(payload.skillText, [], {
         managePrompt: payload.managePrompt,
@@ -568,9 +723,23 @@ export default function ChatPanel() {
     setText(prompt);
   };
 
-  const canSubmit = manageDraft
-    ? isManageDraftReady(manageDraft)
-    : text.trim().length > 0 || attachments.length > 0;
+  const canSubmit =
+    activeComposerSkill === "recap"
+      ? isRecapDraftReady(recapDraft)
+      : activeComposerSkill === "group"
+      ? isCreateGroupComposerReady(text, eligibleGroupMembers)
+      : activeComposerSkill === "manage"
+      ? (() => {
+          const parsed = parseManageComposerText(text);
+          return !!parsed && isManageDraftReady(parsed);
+        })()
+      : text.trim().length > 0 || attachments.length > 0;
+
+  const playQueryDraft = parsePlaySkillQuery(text);
+  const canSubmitResolved =
+    isPlaySkillPrompt(text.trim()) && !playQueryDraft
+      ? false
+      : canSubmit;
 
   const insertConnectorSlash = (slash: string) => {
     setText((prev) => (prev.trim() ? `${prev.trimEnd()} ${slash} ` : `${slash} `));
@@ -578,9 +747,9 @@ export default function ChatPanel() {
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
-  const placeholder = `How can we help you, ${userDisplayName}?`;
+  const placeholder = 'Type "/" for free in-app skills!';
 
-  const composerBlock = (
+  const composerBlock = handoffPreview ? null : (
     <div className="pointer-events-auto relative">
       <div className="relative">
         <div
@@ -644,6 +813,23 @@ export default function ChatPanel() {
           )}
 
           <input
+            ref={recapFileInputRef}
+            type="file"
+            accept="video/*,.webm,.mp4,.mov,.m4v"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setRecapDraft({
+                kind: "import",
+                file,
+                label: file.name.replace(/\.[^.]+$/, "") || "Imported recording",
+              });
+              e.target.value = "";
+            }}
+          />
+
+          <input
             ref={fileInputRef}
             type="file"
             accept="image/*,.pdf,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff"
@@ -656,42 +842,6 @@ export default function ChatPanel() {
           />
 
           <div className={clsx("relative", attachments.length > 0 && "mt-1.5")} ref={mentionRef}>
-            {slashOpen && slashOptions.length > 0 && (
-              <div
-                className="absolute bottom-full left-0 z-20 mb-1 w-full min-w-[14rem] rounded-lg border border-ink-700 bg-ink-850 py-1 shadow-xl"
-                role="listbox"
-                aria-label="Skills"
-              >
-                {slashOptions.map((skill, i) => {
-                  const Icon = skill.icon;
-                  return (
-                    <button
-                      key={skill.id}
-                      type="button"
-                      role="option"
-                      aria-selected={i === slashIndex}
-                      onMouseEnter={() => setSlashIndex(i)}
-                      onClick={() => insertSkillTemplate(skill)}
-                      className={clsx(
-                        "flex w-full gap-2 px-3 py-2 text-left transition-colors",
-                        i === slashIndex ? "bg-ink-750" : "hover:bg-ink-750/80",
-                      )}
-                    >
-                      <Icon size={14} className="mt-0.5 shrink-0 text-muted-300" />
-                      <span className="min-w-0">
-                        <span className="block text-xs font-medium text-muted-100">
-                          {skill.label}
-                        </span>
-                        <span className="mt-0.5 block text-[10px] leading-snug text-muted-500">
-                          {skill.description}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
             {mentionOpen && mentionOptions.length > 0 && (
               <div
                 className="absolute bottom-full left-0 z-20 mb-1 w-full min-w-[14rem] rounded-lg border border-ink-700 bg-ink-850 py-1 shadow-xl"
@@ -758,11 +908,21 @@ export default function ChatPanel() {
               </div>
             )}
 
-            {manageDraft ? (
-              <ManageSchedulePromptLine
-                draft={manageDraft}
-                onChange={setManageDraft}
-                onClose={() => setManageDraft(null)}
+            {handoffSelectionMode ? (
+              <HandoffComposerBar
+                selectedCount={handoffSelectedIndices.size}
+                target={handoffTarget}
+                submitting={handoffSubmitting}
+                error={handoffError}
+                onTargetChange={setHandoffTarget}
+                onCancel={exitHandoffSelection}
+                onSubmit={() => void submitSegmentHandoff(chat, activeChatTabId)}
+              />
+            ) : activeComposerSkill === "recap" ? (
+              <RecapComposerLine
+                draft={recapDraft}
+                onChange={setRecapDraft}
+                onImportClick={() => recapFileInputRef.current?.click()}
               />
             ) : (
             <HighlightedPromptInput
@@ -770,8 +930,72 @@ export default function ChatPanel() {
               value={text}
               placeholder={placeholder}
               peopleHandles={peopleHandles}
+              composerSkill={activeComposerSkill}
               onChange={(v) => {
+                const trimmed = v.trim().toLowerCase();
+                if (trimmed === CREATE_GROUP_SKILL_TEMPLATE) {
+                  setActiveComposerSkill("group");
+                  setText(CREATE_GROUP_COMPOSER_TEXT);
+                  setSlashOpen(false);
+                  requestAnimationFrame(() => {
+                    const el = textareaRef.current;
+                    el?.focus();
+                    el?.setSelectionRange(1, 1);
+                    syncMentionMenu(CREATE_GROUP_COMPOSER_TEXT, 1);
+                  });
+                  return;
+                }
+                if (trimmed === MANAGE_SKILL_TEMPLATE) {
+                  setActiveComposerSkill("manage");
+                  setText(MANAGE_COMPOSER_TEMPLATE);
+                  setSlashOpen(false);
+                  const sel = manageComposerTaskSelection();
+                  requestAnimationFrame(() => {
+                    const el = textareaRef.current;
+                    el?.focus();
+                    el?.setSelectionRange(sel.start, sel.end);
+                  });
+                  return;
+                }
+                if (trimmed === RECAP_SKILL_TEMPLATE) {
+                  if (
+                    !hasRecapSkillAccess(
+                      subscriptionPlan,
+                      billingManaged,
+                      workspaceEnterpriseActive,
+                    )
+                  ) {
+                    openSettingsTab("usage");
+                    setText("");
+                    return;
+                  }
+                  setActiveComposerSkill("recap");
+                  setRecapDraft(null);
+                  setText("");
+                  setSlashOpen(false);
+                  return;
+                }
+                if (trimmed === HANDOFF_SKILL_TEMPLATE) {
+                  enterHandoffSelection();
+                  setActiveComposerSkill(null);
+                  setText("");
+                  setSlashOpen(false);
+                  return;
+                }
+
                 setText(v);
+                if (activeComposerSkill === "manage" && !v.trim()) {
+                  setActiveComposerSkill(null);
+                } else if (
+                  activeComposerSkill === "manage" &&
+                  !looksLikeManageComposer(v) &&
+                  !parseManageComposerText(v)
+                ) {
+                  setActiveComposerSkill(null);
+                }
+                if (activeComposerSkill === "group" && !v.includes("@")) {
+                  setActiveComposerSkill(null);
+                }
                 if (selectedFaces.length > 0 && !selectedFacesStillInText(v, selectedFaces)) {
                   clearSelectedFaces();
                 }
@@ -899,8 +1123,14 @@ export default function ChatPanel() {
             <div className="ml-auto flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                title="Add an image or file"
+                onClick={() => {
+                  if (activeComposerSkill === "recap") {
+                    recapFileInputRef.current?.click();
+                    return;
+                  }
+                  fileInputRef.current?.click();
+                }}
+                title={activeComposerSkill === "recap" ? "Import video" : "Add an image or file"}
                 className="inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-transparent text-muted-400 transition-colors hover:text-muted-200 disabled:opacity-30"
               >
                 <Plus size={15} strokeWidth={2.5} />
@@ -908,7 +1138,7 @@ export default function ChatPanel() {
               <button
                 type="button"
                 onClick={submit}
-                disabled={!canSubmit}
+                disabled={!canSubmitResolved}
                 title="Send"
                 className={clsx(
                   "inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full border border-ink-600 bg-ink-750 text-muted-200 transition-colors hover:bg-ink-700 disabled:opacity-30",
@@ -935,17 +1165,74 @@ export default function ChatPanel() {
         ref={messagesScrollRef}
         className="chat-messages-scroll relative min-h-0 overflow-y-auto overflow-x-hidden px-3 pb-0"
       >
-        {!chatIsEmpty && (
+        {handoffPreview ? (
+          <div className="flex flex-col gap-3 pt-3">
+            <HandoffPreviewBanner
+              title={handoffPreview.title}
+              senderName={handoffPreview.senderName}
+              onBack={closeHandoffPreview}
+            />
+            {handoffPreview.kind === "manual-note" && handoffPreview.noteBodyHtml ? (
+              <div className="handoff-preview-note">
+                {handoffPreview.noteTitle ? (
+                  <h2 className="handoff-preview-note__title">{handoffPreview.noteTitle}</h2>
+                ) : null}
+                <div
+                  className="handoff-preview-note__body manual-notes-panel__editor"
+                  dangerouslySetInnerHTML={{ __html: handoffPreview.noteBodyHtml }}
+                />
+              </div>
+            ) : (
+              displayChat.map((message, i) => {
+                if (message.role === "system") return null;
+                const spacing = chatMessageSpacingClass(displayChat, i);
+                return (
+                  <div key={`preview-${message.role}-${i}`} className={spacing}>
+                    <ChatBubble message={message} />
+                  </div>
+                );
+              })
+            )}
+            <div
+              ref={messagesEndRef}
+              className="shrink-0"
+              style={{ height: scrollPadBottom }}
+              aria-hidden
+            />
+          </div>
+        ) : !chatIsEmpty ? (
         <div className="flex flex-col pt-3">
           {chat.map((message, i) => {
             if (message.role === "system") return null;
             const spacing = chatMessageSpacingClass(chat, i);
+            const selected = handoffSelectedIndices.has(i);
             const bubble = (
               <ChatBubble
                 message={message}
                 reveal={message.role === "assistant" && i === revealIdx}
                 onRevealComplete={() => setRevealIdx(null)}
               />
+            );
+
+            const row = (
+              <div
+                className={clsx(
+                  "handoff-select-row",
+                  handoffSelectionMode && "handoff-select-row--active",
+                  selected && "handoff-select-row--selected",
+                )}
+              >
+                {handoffSelectionMode ? (
+                  <button
+                    type="button"
+                    className={clsx("handoff-select-row__check", selected && "is-checked")}
+                    aria-pressed={selected}
+                    aria-label={selected ? "Deselect message" : "Select message"}
+                    onClick={() => toggleHandoffIndex(i)}
+                  />
+                ) : null}
+                <div className="handoff-select-row__bubble">{bubble}</div>
+              </div>
             );
 
             if (message.role === "user") {
@@ -956,19 +1243,19 @@ export default function ChatPanel() {
                   className={clsx(spacing, "chat-sticky-prompt")}
                   style={{ zIndex: userPromptStickyZIndex(chat, i) }}
                 >
-                  <div className="chat-sticky-prompt__bubble">{bubble}</div>
+                  <div className="chat-sticky-prompt__bubble">{row}</div>
                 </div>
               );
             }
 
             return (
               <div key={`${message.role}-${i}`} className={spacing}>
-                {bubble}
+                {row}
               </div>
             );
           })}
 
-          {showPendingAssistant && (
+          {showPendingAssistant && !handoffSelectionMode && (
             <div className="chat-assistant-bubble mt-3">
               <AssistantPendingBubble />
             </div>
@@ -981,7 +1268,7 @@ export default function ChatPanel() {
             aria-hidden
           />
           </div>
-        )}
+        ) : null}
       </div>
 
       <div
@@ -1003,6 +1290,19 @@ export default function ChatPanel() {
             <ChatPollVotePanel />
           ) : (
             <>
+              {slashOpen && slashOptions.length > 0 && (
+                <div
+                  ref={skillsRef}
+                  className="chat-connectors-stage chat-connectors-stage--footer"
+                >
+                  <ChatSkillsList
+                    skills={slashOptions}
+                    activeIndex={slashIndex}
+                    onActiveIndexChange={setSlashIndex}
+                    onSelect={insertSkillTemplate}
+                  />
+                </div>
+              )}
               {connectorsOpen && (
                 <div className="chat-connectors-stage chat-connectors-stage--footer">
                   <ChatConnectorsList

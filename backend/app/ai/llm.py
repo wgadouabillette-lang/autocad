@@ -85,6 +85,16 @@ class LlmResult:
     data: Optional[dict]
     error: Optional[str] = None
     rate_limited: bool = False
+    input_tokens: int = 0
+    output_tokens: int = 0
+    model_id: Optional[str] = None
+
+
+@dataclass
+class _RawLlm:
+    text: str
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 def available() -> bool:
@@ -93,6 +103,10 @@ def available() -> bool:
 
 def active_provider() -> Optional[str]:
     return _pick_provider()
+
+
+def provider_for_model(model_id: Optional[str]) -> Optional[str]:
+    return _provider_for_model(model_id)
 
 
 def complete_json(
@@ -167,10 +181,17 @@ def complete_text(
             logger.exception("LLM chat %s failed", provider)
         return LlmResult(None, f"LLM error ({provider}): {exc}")
 
-    text = (raw or "").strip()
+    text = (raw.text or "").strip()
     if not text:
         return LlmResult(None, "Empty AI response.")
-    return LlmResult({"message": text}, None)
+    resolved = _resolved_api_model(provider, model_id, has_images=False)
+    return LlmResult(
+        {"message": text},
+        None,
+        input_tokens=raw.input_tokens,
+        output_tokens=raw.output_tokens,
+        model_id=resolved,
+    )
 
 
 def invoke(
@@ -182,7 +203,7 @@ def invoke(
     temperature: float = 0.05,
 ) -> LlmResult:
     """Appel LLM brut → JSON parsé."""
-    provider = _pick_provider()
+    provider = _provider_for_model(model_id) or _pick_provider()
     if provider is None:
         return LlmResult(None, "No LLM API key configured (backend/.env).")
 
@@ -226,17 +247,39 @@ def invoke(
             logger.exception("LLM %s failed", provider)
         return LlmResult(None, f"LLM error ({provider}): {exc}")
 
-    if not raw:
+    if not raw.text:
         return LlmResult(None, "Empty AI response.")
 
-    parsed = _extract_json(raw)
+    resolved = _resolved_api_model(provider, model_id, has_images=bool(images))
+    parsed = _extract_json(raw.text)
     if parsed is None:
-        snippet = raw[:280].replace("\n", " ")
+        snippet = raw.text[:280].replace("\n", " ")
         return LlmResult(
             None,
             f"Unreadable AI response (JSON expected). Excerpt: {snippet}…",
         )
-    return LlmResult(parsed, None)
+    return LlmResult(
+        parsed,
+        None,
+        input_tokens=raw.input_tokens,
+        output_tokens=raw.output_tokens,
+        model_id=resolved,
+    )
+
+
+def _resolved_api_model(
+    provider: str,
+    model_id: Optional[str],
+    *,
+    has_images: bool,
+) -> str:
+    if model_id:
+        return model_id.strip()
+    if provider == "xai":
+        return settings.xai_vision_model if has_images else settings.xai_model
+    if provider == "openai":
+        return settings.openai_model
+    return settings.anthropic_model
 
 
 def _looks_rate_limited(detail: str) -> bool:
@@ -295,6 +338,22 @@ def _message_text(payload: dict) -> str:
     if content:
         return content
     return (msg.get("reasoning_content") or "").strip()
+
+
+def _usage_from_openai(payload: dict) -> tuple[int, int]:
+    usage = payload.get("usage") or {}
+    if not isinstance(usage, dict):
+        return 0, 0
+    prompt = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+    completion = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+    return max(0, prompt), max(0, completion)
+
+
+def _usage_from_anthropic(payload: dict) -> tuple[int, int]:
+    usage = payload.get("usage") or {}
+    if not isinstance(usage, dict):
+        return 0, 0
+    return max(0, int(usage.get("input_tokens") or 0)), max(0, int(usage.get("output_tokens") or 0))
 
 
 def _extract_json(text: str) -> Optional[dict]:
@@ -365,7 +424,7 @@ def _xai_raw_text(
     system: str,
     max_tokens: int = 8192,
     temperature: float = 0.05,
-) -> str:
+) -> _RawLlm:
     model = model_id or (settings.xai_vision_model if images else settings.xai_model)
     return _openai_compat_raw_text(
         settings.xai_api_base,
@@ -388,7 +447,7 @@ def _openai_compat_raw_text(
     system: str,
     max_tokens: int = 8192,
     temperature: float = 0.05,
-) -> str:
+) -> _RawLlm:
     url = base_url.rstrip("/") + "/chat/completions"
     timeout = 240 if images else 120
     content: list | str = user_text
@@ -417,7 +476,9 @@ def _openai_compat_raw_text(
         timeout=timeout,
     )
     r.raise_for_status()
-    return _message_text(r.json())
+    payload = r.json()
+    input_tokens, output_tokens = _usage_from_openai(payload)
+    return _RawLlm(_message_text(payload), input_tokens, output_tokens)
 
 
 def _openai_compat_messages_raw_text(
@@ -428,7 +489,7 @@ def _openai_compat_messages_raw_text(
     system: str,
     max_tokens: int = 2048,
     temperature: float = 0.4,
-) -> str:
+) -> _RawLlm:
     url = base_url.rstrip("/") + "/chat/completions"
     payload_messages = [{"role": "system", "content": system}, *messages]
     r = httpx.post(
@@ -443,7 +504,9 @@ def _openai_compat_messages_raw_text(
         timeout=120,
     )
     r.raise_for_status()
-    return _message_text(r.json())
+    payload = r.json()
+    input_tokens, output_tokens = _usage_from_openai(payload)
+    return _RawLlm(_message_text(payload), input_tokens, output_tokens)
 
 
 def _anthropic_messages_raw_text(
@@ -451,7 +514,7 @@ def _anthropic_messages_raw_text(
     model_id: Optional[str],
     system: str,
     max_tokens: int = 2048,
-) -> str:
+) -> _RawLlm:
     blocks: list = []
     for item in messages:
         role = item.get("role")
@@ -475,7 +538,9 @@ def _anthropic_messages_raw_text(
         timeout=120,
     )
     r.raise_for_status()
-    return _extract_json_text_anthropic(r.json())
+    payload = r.json()
+    input_tokens, output_tokens = _usage_from_anthropic(payload)
+    return _RawLlm(_extract_json_text_anthropic(payload), input_tokens, output_tokens)
 
 
 def _anthropic_raw_text(
@@ -484,7 +549,7 @@ def _anthropic_raw_text(
     images: Optional[List[AgentImage]],
     system: str,
     max_tokens: int = 8192,
-) -> str:
+) -> _RawLlm:
     blocks: list = [{"type": "text", "text": user_text}]
     for mime, b64 in images or []:
         if mime == "image/jpg":
@@ -510,7 +575,9 @@ def _anthropic_raw_text(
         timeout=240 if images else 120,
     )
     r.raise_for_status()
-    return _extract_json_text_anthropic(r.json())
+    payload = r.json()
+    input_tokens, output_tokens = _usage_from_anthropic(payload)
+    return _RawLlm(_extract_json_text_anthropic(payload), input_tokens, output_tokens)
 
 
 def _xai_raw(
@@ -519,7 +586,7 @@ def _xai_raw(
     model_id: Optional[str],
     images: Optional[List[AgentImage]],
     system: str,
-) -> str:
+) -> _RawLlm:
     return _xai_raw_text(_user_text(user_prompt, context), model_id, images, system)
 
 
@@ -531,7 +598,7 @@ def _openai_compat_raw(
     model: str,
     images: Optional[List[AgentImage]],
     system: str,
-) -> str:
+) -> _RawLlm:
     return _openai_compat_raw_text(
         base_url, api_key, _user_text(user_prompt, context), model, images, system
     )
@@ -543,7 +610,7 @@ def _anthropic_raw(
     model_id: Optional[str],
     images: Optional[List[AgentImage]],
     system: str,
-) -> str:
+) -> _RawLlm:
     return _anthropic_raw_text(_user_text(user_prompt, context), model_id, images, system)
 
 

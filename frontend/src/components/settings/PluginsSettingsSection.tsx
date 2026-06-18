@@ -1,4 +1,6 @@
 import ChatConnectorsList from "../chat/ChatConnectorsList";
+import ConnectorPluginPreview from "./ConnectorPluginPreview";
+import { CHAT_CONNECTORS } from "../chat/chatConnectors";
 import { useConnectors } from "../../hooks/useConnectors";
 
 export default function PluginsSettingsSection() {
@@ -20,6 +22,15 @@ export default function PluginsSettingsSection() {
         onDisconnect={disconnect}
         onInsertSlash={() => {}}
       />
+
+      {CHAT_CONNECTORS.map(({ id, label }) =>
+        connectedIds.has(id) ? (
+          <div key={id} className="connector-plugin-preview-wrap">
+            <h4 className="settings-section__label">{label}</h4>
+            <ConnectorPluginPreview connectorId={id} connected />
+          </div>
+        ) : null,
+      )}
     </section>
   );
 }

@@ -22,6 +22,10 @@ export interface SharedWorkspaceDoc {
   ownerId: string;
   ownerName: string;
   createdAt: number;
+  enterpriseSubscriptionPlan?: "free" | "enterprise";
+  enterpriseBillingManaged?: boolean;
+  enterpriseMemberCount?: number;
+  enterpriseSeatCount?: number;
 }
 
 export interface WorkspaceJoinRequestDoc {

@@ -8,6 +8,7 @@ import {
   isTodayKey,
 } from "../../lib/daySchedule";
 import { useGoogleCalendarSync } from "../../hooks/useGoogleCalendarSync";
+import { useOutlookCalendarSync } from "../../hooks/useOutlookCalendarSync";
 import { useConnectors } from "../../hooks/useConnectors";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
@@ -38,12 +39,19 @@ export default function DaySchedulePanel() {
   const timelineRef = useRef<HTMLDivElement>(null);
   const userEvents = useCalendarStore((s) => s.userEvents);
   const googleEvents = useCalendarStore((s) => s.googleEvents);
+  const outlookEvents = useCalendarStore((s) => s.outlookEvents);
   const { status: googleStatus, loading: googleLoading, error: googleError, refresh: refreshGoogle } =
     useGoogleCalendarSync(selectedDate);
+  const {
+    status: outlookStatus,
+    loading: outlookLoading,
+    error: outlookError,
+    refresh: refreshOutlook,
+  } = useOutlookCalendarSync(selectedDate);
   const { connect, connectingId } = useConnectors();
   const events = useMemo(
     () => useCalendarStore.getState().eventsForDate(selectedDate),
-    [selectedDate, userEvents, googleEvents],
+    [selectedDate, userEvents, googleEvents, outlookEvents],
   );
   const viewingToday = isTodayKey(selectedDate);
 
@@ -88,15 +96,6 @@ export default function DaySchedulePanel() {
 
         <div className="calendar-panel__today-wrap">
           <div className="calendar-panel__today-row">
-            <button
-              type="button"
-              className="calendar-panel__today-btn calendar-panel__today-btn--icon"
-              onClick={() => openComposer()}
-              aria-label="Nouvel événement"
-              title="Nouvel événement"
-            >
-              <Plus size={12} strokeWidth={2.25} className="shrink-0" aria-hidden />
-            </button>
             <button
               type="button"
               className="calendar-panel__today-btn"
@@ -169,6 +168,47 @@ export default function DaySchedulePanel() {
 
       {googleError && (
         <p className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">{googleError}</p>
+      )}
+
+      {outlookStatus && !outlookStatus.configured && (
+        <p className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">
+          Outlook n&apos;est pas configuré sur le serveur (MICROSOFT_OAUTH_CLIENT_ID / SECRET).
+        </p>
+      )}
+
+      {outlookStatus?.configured && !outlookStatus.connected && (
+        <div className="calendar-panel__sync-banner">
+          <span>Liez Outlook pour afficher et synchroniser votre calendrier Microsoft.</span>
+          <button
+            type="button"
+            className="calendar-panel__sync-connect"
+            onClick={() => void connect("outlook")}
+            disabled={connectingId === "outlook"}
+          >
+            {connectingId === "outlook" ? "Connexion…" : "Connecter Outlook"}
+          </button>
+        </div>
+      )}
+
+      {outlookStatus?.connected && (
+        <div className="calendar-panel__sync-banner calendar-panel__sync-banner--connected">
+          <span>
+            Synchronisé avec Outlook
+            {outlookStatus.accountEmail ? ` · ${outlookStatus.accountEmail}` : ""}
+          </span>
+          <button
+            type="button"
+            className="calendar-panel__sync-refresh"
+            onClick={() => void refreshOutlook()}
+            disabled={outlookLoading}
+          >
+            {outlookLoading ? "Sync…" : "Actualiser Outlook"}
+          </button>
+        </div>
+      )}
+
+      {outlookError && (
+        <p className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">{outlookError}</p>
       )}
 
       <div className="calendar-panel__body">

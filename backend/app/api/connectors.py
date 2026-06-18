@@ -108,6 +108,10 @@ def _callback_html(
     redirect = f"{origin}/?connector_oauth={status}"
     if connector_id:
         redirect += f"&connector_id={connector_id}"
+    if message:
+        from urllib.parse import quote
+
+        redirect += f"&connector_oauth_message={quote(message)}"
     return f"""<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Connector OAuth</title></head>

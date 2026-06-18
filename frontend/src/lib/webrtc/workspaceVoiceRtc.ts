@@ -185,6 +185,7 @@ export class WorkspaceVoiceRtcSession {
     };
 
     pc.onnegotiationneeded = () => {
+      if (peer.pc.signalingState !== "stable" || this.negotiating.has(peer.remoteUid)) return;
       void this.negotiate(peer);
     };
 
@@ -232,9 +233,11 @@ export class WorkspaceVoiceRtcSession {
     const { localStream, screenShareStream, muted, cameraOn, screenSharing } = this.localMedia;
     const audioTrack =
       localStream?.getAudioTracks().find((track) => track.readyState === "live") ?? null;
+    const previousAudioTrackId = peer.audioSender?.track?.id ?? null;
     if (audioTrack) audioTrack.enabled = !muted;
 
     peer.audioSender = await this.setSenderTrack(peer, peer.audioSender, audioTrack);
+    const audioTrackChanged = (audioTrack?.id ?? null) !== previousAudioTrackId;
     const cameraTrack =
       cameraOn && localStream
         ? (localStream.getVideoTracks().find((track) => track.readyState === "live") ?? null)
@@ -246,6 +249,15 @@ export class WorkspaceVoiceRtcSession {
           null)
         : null;
     peer.screenSender = await this.setSenderTrack(peer, peer.screenSender, screenTrack);
+
+    if (
+      audioTrackChanged &&
+      audioTrack &&
+      peer.pc.signalingState === "stable" &&
+      !this.negotiating.has(peer.remoteUid)
+    ) {
+      await this.negotiate(peer);
+    }
   }
 
   private async setSenderTrack(

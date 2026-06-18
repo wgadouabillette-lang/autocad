@@ -300,6 +300,9 @@ def run_text_render_pipeline(
     prompt: str,
     context: str,
     model_id: Optional[str] = None,
+    *,
+    uid: Optional[str] = None,
+    workspace_id: Optional[str] = None,
 ):
     """Modélisation Render à partir d'une description textuelle détaillée (sans image)."""
     from app.ai import llm
@@ -315,6 +318,10 @@ def run_text_render_pipeline(
         max_tokens=24576,
         temperature=0.0,
     )
+    if uid:
+        from app.ai import usage as ai_usage
+
+        ai_usage.track_llm_result(uid, cad_model, phase1, workspace_id)
     if phase1.error or not phase1.data:
         return phase1
 
@@ -342,6 +349,11 @@ def run_text_render_pipeline(
     )
     if phase2.error or not phase2.data:
         return phase2
+
+    if uid:
+        from app.ai import usage as ai_usage
+
+        ai_usage.track_llm_result(uid, cad_model, phase2, workspace_id)
 
     ops = ensure_render_operations(
         phase2.data.get("operations")
@@ -375,6 +387,9 @@ def run_modelling_pipeline(
     context: str,
     images: List[Tuple[str, str]],
     model_id: Optional[str] = None,
+    *,
+    uid: Optional[str] = None,
+    workspace_id: Optional[str] = None,
 ):
     """Analyse vision puis synthèse CAO (2 appels LLM)."""
     from app.ai import llm
@@ -399,6 +414,11 @@ def run_modelling_pipeline(
             images=images,
             system_override=PHASE1_SYSTEM + "\n\nEnsuite, inclus aussi operations[] dans le même JSON.",
         )
+        if uid:
+            from app.ai import usage as ai_usage
+
+            billing_model = getattr(result, "model_id", None) or model_id or vision_model
+            ai_usage.track_llm_result(uid, str(billing_model), result, workspace_id)
         if result.data and isinstance(result.data, dict):
             analysis = result.data
             result.data["operations"] = ensure_render_operations(
@@ -419,6 +439,10 @@ def run_modelling_pipeline(
         max_tokens=24576,
         temperature=0.0,
     )
+    if uid:
+        from app.ai import usage as ai_usage
+
+        ai_usage.track_llm_result(uid, vision_model, phase1, workspace_id)
     if phase1.error or not phase1.data:
         return phase1
 
@@ -448,6 +472,11 @@ def run_modelling_pipeline(
     )
     if phase2.error or not phase2.data:
         return phase2
+
+    if uid:
+        from app.ai import usage as ai_usage
+
+        ai_usage.track_llm_result(uid, cad_model, phase2, workspace_id)
 
     ops = ensure_render_operations(
         phase2.data.get("operations")

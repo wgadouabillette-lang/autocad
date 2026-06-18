@@ -27,6 +27,19 @@ export interface PromptDisplaySegment {
   mention: boolean;
 }
 
+export function getMentionMatchRanges(
+  text: string,
+  peopleHandles: string[] = [],
+): Array<{ start: number; end: number }> {
+  const re = buildMentionRegex(peopleHandles);
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const match of text.matchAll(re)) {
+    const start = match.index ?? 0;
+    ranges.push({ start, end: start + match[0].length });
+  }
+  return ranges;
+}
+
 export function parsePromptDisplaySegments(
   text: string,
   peopleHandles: string[] = [],

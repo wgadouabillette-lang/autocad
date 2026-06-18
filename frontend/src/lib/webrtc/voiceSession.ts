@@ -112,11 +112,10 @@ export function resolveVoiceRtcContext(input: {
   const { workspaceId, roomCalls, localInCall, localOpenChannelId, localFirebaseUid } = input;
   if (!localInCall || !localFirebaseUid || !workspaceId) return null;
 
-  if (localOpenChannelId && roomCalls) {
-    const channel = roomCalls.openChannels.find((entry) => entry.id === localOpenChannelId);
-    if (!channel) return null;
+  if (localOpenChannelId) {
+    const channel = roomCalls?.openChannels.find((entry) => entry.id === localOpenChannelId);
     const peerUids = uniquePeerUids(
-      channel.participants.map((participant) => participant.id),
+      channel?.participants.map((participant) => participant.id) ?? [],
       localFirebaseUid,
     );
     return {

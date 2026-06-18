@@ -16,6 +16,25 @@ _COMPLEX_RE = re.compile(
     re.I,
 )
 
+# Auto chat : GPT-4o mini vs Grok 3 mini selon la tâche.
+_CHAT_GPT_RE = re.compile(
+    r"(```|`\w+|json|sql|regex|typescript|javascript|python|api|bug|fix|error|"
+    r"liste|étape|step|how to|comment faire|calcul|formule|tableau|markdown|"
+    r"refactor|debug|compile|syntax|function|class |import |const |def )",
+    re.I,
+)
+
+_CHAT_GROK_RE = re.compile(
+    r"(brainstorm|idée|créatif|humour|blague|histoire|story|avis|opinion|"
+    r"discut|conversation|salut|coucou|pourquoi|explique-moi|resume|résume|"
+    r"@\w+|/gmail|/calendar|/notion|/figma|/outlook|/play)",
+    re.I,
+)
+
+
+def xai_mini_model() -> str:
+    return os.getenv("XAI_MINI_MODEL", "grok-3-mini").strip() or "grok-3-mini"
+
 
 def resolve_modelling_models(choice: Optional[str]) -> Tuple[str, str]:
     """Meilleurs modèles Grok pour @Modelling : vision puis raisonnement CAO."""
@@ -44,7 +63,7 @@ def resolve_model(
     mode = (work_mode or "agent").strip().lower()
 
     if key == "auto" and chat_only:
-        return _auto_chat_model()
+        return _auto_chat_model(prompt)
 
     if modelling and settings.xai_api_key:
         vision, _cad = resolve_modelling_models(choice)
@@ -57,8 +76,7 @@ def resolve_model(
     if key in {"grok", "grok-4.3", "grok-best", "xai", "grok-vision"}:
         return settings.xai_vision_model if has_images else settings.xai_model
     if key in {"grok-mini", "grok-3-mini"}:
-        mini = os.getenv("XAI_MINI_MODEL", "grok-3-mini")
-        return mini
+        return xai_mini_model()
     if key in {"gpt-4.1-nano", "gpt-4-1-nano"}:
         return settings.openai_auto_chat_model
     if key in {"gpt-4o-mini"}:
@@ -88,15 +106,52 @@ def decode_images(raw: Optional[List[dict]]) -> List[tuple[str, str]]:
     return out
 
 
-def _auto_chat_model() -> str:
-    """Modèle chat économique pour le mode Auto (ex. GPT nano)."""
-    if settings.openai_api_key:
-        return settings.openai_auto_chat_model
-    if settings.xai_api_key:
-        return settings.xai_model
-    if settings.anthropic_api_key:
-        return OPUS_47
-    return settings.openai_auto_chat_model
+def _auto_chat_model(prompt: str) -> str:
+    """Auto chat : choisit GPT-4o mini ou Grok 3 mini selon la question (clé API du provider)."""
+    openai_mini = settings.openai_model
+    grok_mini = xai_mini_model()
+    has_openai = bool(settings.openai_api_key)
+    has_xai = bool(settings.xai_api_key)
+
+    if has_openai and not has_xai:
+        return openai_mini
+    if has_xai and not has_openai:
+        return grok_mini
+    if not has_openai and not has_xai:
+        if settings.anthropic_api_key:
+            return OPUS_47
+        return openai_mini
+
+    text = (prompt or "").strip()
+    score_gpt = 0
+    score_grok = 0
+
+    if _CHAT_GPT_RE.search(text):
+        score_gpt += 2
+    if len(text) > 220:
+        score_gpt += 1
+    if text.count("\n") >= 2:
+        score_gpt += 1
+
+    if _CHAT_GROK_RE.search(text):
+        score_grok += 2
+    low = text.lower()
+    if low in {"hey", "hi", "hello", "yo", "salut", "bonjour", "coucou", "hola", "thanks", "merci"}:
+        score_grok += 2
+    if _COMPLEX_RE.search(text):
+        score_grok += 1
+
+    if score_gpt > score_grok:
+        return openai_mini
+    if score_grok > score_gpt:
+        return grok_mini
+
+    provider = (settings.llm_provider or "auto").strip().lower()
+    if provider == "openai" and has_openai:
+        return openai_mini
+    if provider == "xai" and has_xai:
+        return grok_mini
+    return grok_mini if has_xai else openai_mini
 
 
 def _auto_model(prompt: str, *, has_images: bool = False) -> str:

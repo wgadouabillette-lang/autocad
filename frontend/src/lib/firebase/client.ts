@@ -3,6 +3,7 @@ import {
   getAuth,
   getRedirectResult,
   GoogleAuthProvider,
+  FacebookAuthProvider,
   OAuthProvider,
   isSignInWithEmailLink,
   onAuthStateChanged,
@@ -42,17 +43,19 @@ microsoftProvider.addScope("profile");
 microsoftProvider.addScope("openid");
 microsoftProvider.addScope("User.Read");
 
-const appleProvider = new OAuthProvider("apple.com");
-appleProvider.addScope("email");
-appleProvider.addScope("name");
+const facebookProvider = new FacebookAuthProvider();
+facebookProvider.addScope("email");
+facebookProvider.addScope("public_profile");
 
-export type FirebaseAuthProvider = "google" | "microsoft" | "apple";
+export type FirebaseAuthProvider = "google" | "microsoft" | "facebook";
 
 const EMAIL_LINK_STORAGE_KEY = "forma-email-for-sign-in";
 
 const OAUTH_POPUP_HOSTS = [
   "accounts.google.com",
-  "appleid.apple.com",
+  "facebook.com",
+  "www.facebook.com",
+  "m.facebook.com",
   "login.microsoftonline.com",
   "live.com",
   "microsoft.com",
@@ -71,7 +74,7 @@ function isOAuthPopupUrl(url: string): boolean {
 export function providerForId(id: FirebaseAuthProvider) {
   if (id === "google") return googleProvider;
   if (id === "microsoft") return microsoftProvider;
-  return appleProvider;
+  return facebookProvider;
 }
 
 export class OAuthRedirectStartedError extends Error {

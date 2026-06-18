@@ -1,8 +1,8 @@
 import { HttpsError } from "firebase-functions/v2/https";
-import { getFirestore } from "firebase-admin/firestore";
 import { hasAnyLlmKey, loadLlmKeys, pickProvider } from "./keys";
 import { completeChatText, type ChatMessage } from "./llm";
 import { resolveChatModel, resolveProviderForModel } from "./models";
+import { checkUsageGate, hasEnterpriseWorkspaceAccess, getUserSubscriptionState, trackLlmResult } from "./usage";
 
 const CHAT_SYSTEM = `You are a helpful assistant in a team workspace.
 Reply naturally and conversationally in the same language as the user.
@@ -37,6 +37,7 @@ export interface AiChatRequest {
   ai_model?: string;
   messages?: Array<{ role?: string; content?: string }>;
   chat_instructions?: string;
+  workspace_id?: string;
 }
 
 export interface AiChatResponse {
@@ -65,7 +66,7 @@ function rulesReply(prompt: string): string {
 }
 
 const FREE_PLAN_UPGRADE =
-  "Passez au plan **Pro** dans **Paramètres → Facturation** pour débloquer l'assistant IA.";
+  "Passez au plan **Pro** ou activez **Entreprise** sur ce workspace dans **Paramètres → Facturation**.";
 
 function freePlanReply(prompt: string): string {
   const low = prompt.trim().toLowerCase();
@@ -86,9 +87,10 @@ function freePlanReply(prompt: string): string {
   );
 }
 
-async function loadSubscriptionPlan(uid: string): Promise<"free" | "pro"> {
-  const snap = await getFirestore().doc(`users/${uid}`).get();
-  return snap.data()?.subscriptionPlan === "pro" ? "pro" : "free";
+async function hasAiBillingAccess(uid: string, workspaceId?: string): Promise<boolean> {
+  const personal = (await getUserSubscriptionState(uid)).plan === "pro";
+  if (personal) return true;
+  return hasEnterpriseWorkspaceAccess(uid, workspaceId);
 }
 
 function parseHistory(raw: AiChatRequest["messages"]): ChatMessage[] {
@@ -109,6 +111,9 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
   const chatSystem = buildChatSystem(chatInstructions);
   const history = parseHistory(data.messages);
 
+  const workspaceId =
+    typeof data.workspace_id === "string" ? data.workspace_id.trim().toLowerCase() : "";
+
   if (!prompt) {
     return {
       message: "Say something and I'll reply.",
@@ -118,11 +123,21 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
     };
   }
 
-  const plan = await loadSubscriptionPlan(uid);
-  if (plan !== "pro") {
+  const aiAllowed = await hasAiBillingAccess(uid, workspaceId || undefined);
+  if (!aiAllowed) {
     return {
       message: freePlanReply(prompt),
       source: "free_plan",
+      ai_model_fallback: false,
+      effective_ai_model: aiModel,
+    };
+  }
+
+  const usageGate = await checkUsageGate(uid, workspaceId || undefined);
+  if (usageGate) {
+    return {
+      message: usageGate,
+      source: "quota",
       ai_model_fallback: false,
       effective_ai_model: aiModel,
     };
@@ -158,15 +173,16 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
     userPrompt: prompt,
   }).catch((err: unknown) => {
     console.error("completeChatText failed", err);
-    return { message: null, error: String(err), rateLimited: false };
+    return { message: null, error: String(err), rateLimited: false, inputTokens: 0, outputTokens: 0, modelId: modelId };
   });
 
   if (result.message) {
+    await trackLlmResult(uid, modelId, result, workspaceId || undefined);
     return {
       message: result.message,
       source: provider,
       ai_model_fallback: false,
-      effective_ai_model: aiModel,
+      effective_ai_model: modelId,
     };
   }
 
@@ -184,14 +200,15 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
         userPrompt: prompt,
       }).catch((err: unknown) => {
         console.error("completeChatText retry failed", err);
-        return { message: null, error: String(err), rateLimited: false };
+        return { message: null, error: String(err), rateLimited: false, inputTokens: 0, outputTokens: 0, modelId: modelId };
       });
       if (retry.message) {
+        await trackLlmResult(uid, fallbackModel, retry, workspaceId || undefined);
         return {
           message: `*(Modèle Auto — limite atteinte sur le modèle choisi.)*\n\n${retry.message}`,
           source: fallbackProvider,
           ai_model_fallback: true,
-          effective_ai_model: "auto",
+          effective_ai_model: fallbackModel,
         };
       }
     }

@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 from typing import Dict, List, Optional, Tuple
 
-from app.ai import llm, models, quota, text_to_cad
+from app.ai import llm, models, quota, text_to_cad, usage
 from app.ai.face_reference import (
     filter_operations_for_faces,
     parse_face_references,
@@ -154,6 +154,8 @@ def run(
     ai_model: str = "auto",
     work_mode: str = "agent",
     images: Optional[List[dict]] = None,
+    uid: Optional[str] = None,
+    workspace_id: Optional[str] = None,
 ) -> AgentResponse:
     source = "rules"
     message = ""
@@ -167,6 +169,16 @@ def run(
     llm_prompt = _augment_prompt(prompt, work_mode)
     selected_faces = parse_face_references(prompt)
     face_mode = bool(selected_faces)
+
+    gate = usage.check_usage_gate(uid, workspace_id)
+    if gate:
+        return AgentResponse(
+            document=doc,
+            message=gate,
+            actions=[],
+            rebuild=rebuild(doc, doc.meta.get("material", material)),
+            source="quota",
+        )
 
     if mode == "render" and not image_payload and not text_render:
         return AgentResponse(
@@ -197,10 +209,21 @@ def run(
         def _invoke_llm(resolved_model_id: str) -> llm.LlmResult:
             if modelling and image_payload:
                 return run_modelling_pipeline(
-                    llm_prompt, context, image_payload, resolved_model_id
+                    llm_prompt,
+                    context,
+                    image_payload,
+                    resolved_model_id,
+                    uid=uid,
+                    workspace_id=workspace_id,
                 )
             if modelling and text_render:
-                return run_text_render_pipeline(llm_prompt, context, resolved_model_id)
+                return run_text_render_pipeline(
+                    llm_prompt,
+                    context,
+                    resolved_model_id,
+                    uid=uid,
+                    workspace_id=workspace_id,
+                )
             return llm.complete_json(
                 llm_prompt,
                 context,
@@ -223,6 +246,18 @@ def run(
                 )
             ),
         )
+        effective_model = (
+            quota.resolve_auto_model_id(
+                prompt,
+                has_images=bool(image_payload),
+                modelling=modelling,
+                work_mode=mode,
+            )
+            if ai_model_fallback
+            else model_id
+        )
+        if not modelling:
+            usage.track_llm_result(uid, effective_model, llm_result, workspace_id)
         provider = llm.active_provider() or "llm"
 
         if llm_result.data:

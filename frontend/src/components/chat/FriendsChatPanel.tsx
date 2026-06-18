@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import clsx from "clsx";
-import { ArrowUp, FileImage, Paperclip, Smile, X } from "lucide-react";
+import { ArrowUp, FileImage, Paperclip, Smile, Trash2, UsersRound, X } from "lucide-react";
 import type { PeopleMessage, Person } from "../../lib/peopleChat";
 import { buildMessagePanelThreads, resolvePersonPhotoURL } from "../../lib/peopleChat";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -11,6 +11,7 @@ import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore
 import UserAvatar from "../UserAvatar";
 import PeopleChatEmojiPicker from "./PeopleChatEmojiPicker";
 import PeopleChatThreadMessages from "./PeopleChatThreadMessages";
+import DeletePeopleChatOverlay from "./DeletePeopleChatOverlay";
 
 const EMPTY_MESSAGES: PeopleMessage[] = [];
 
@@ -36,18 +37,10 @@ function buildAttachment(file: File): ComposerAttachment {
   };
 }
 
-function formatWhen(ts: number): string {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins} min`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} h`;
-  return `${Math.floor(hours / 24)} d`;
-}
 
 export default function FriendsChatPanel() {
   const friendThreads = usePeopleStore((s) => s.friendThreadsList());
+  const groupThreads = usePeopleStore((s) => s.groupThreads);
   const friends = usePeopleStore((s) => s.friends);
   const activeRoomId = useStore((s) => s.activeRoomId);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
@@ -67,12 +60,16 @@ export default function FriendsChatPanel() {
   const markThreadRead = usePeopleStore((s) => s.markThreadRead);
   const markFriendsTabSeen = usePeopleStore((s) => s.markFriendsTabSeen);
   const setActiveFriendThread = usePeopleStore((s) => s.setActiveFriendThread);
+  const deletePeopleThread = usePeopleStore((s) => s.deletePeopleThread);
+  const dismissedThreadIds = usePeopleStore((s) => s.dismissedThreadIds);
   const selectedThreadId = usePeopleStore((s) => s.activeFriendThreadId);
   const thread = usePeopleStore((s) =>
     selectedThreadId ? s.threadById(selectedThreadId) : undefined,
   );
   const messages = usePeopleStore((s) => {
     if (!selectedThreadId) return EMPTY_MESSAGES;
+    const group = s.groupThreads.find((item) => item.id === selectedThreadId);
+    if (group) return group.messages;
     for (const item of s.friendThreads) {
       if (item.id === selectedThreadId) return item.messages;
     }
@@ -86,6 +83,9 @@ export default function FriendsChatPanel() {
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesScrollRef = useRef<HTMLUListElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -138,25 +138,47 @@ export default function FriendsChatPanel() {
     return out;
   }, [presenceMembers, roomBlocks, firebaseUid]);
 
-  const combinedThreads = useMemo(
-    () =>
-      buildMessagePanelThreads({
-        workspaceId: activeRoomId,
-        friends,
-        friendThreads,
-        colleagueThreads,
-        workspaceMembers: workspaceMemberPeople,
-        localUserId: firebaseUid,
-      }),
-    [
-      activeRoomId,
+  const combinedThreads = useMemo(() => {
+    const direct = buildMessagePanelThreads({
+      workspaceId: activeRoomId,
       friends,
       friendThreads,
       colleagueThreads,
-      workspaceMemberPeople,
-      firebaseUid,
-    ],
-  );
+      workspaceMembers: workspaceMemberPeople,
+      localUserId: firebaseUid,
+    });
+    const groups = groupThreads.map((thread) => ({
+      id: thread.id,
+      personId: thread.personId,
+      personName: thread.groupName ?? thread.personName,
+      section: "groups" as const,
+      preview: thread.preview,
+      updatedAt: thread.updatedAt,
+      unread: thread.unread,
+      messages: thread.messages,
+      memberCount: thread.memberIds?.length ?? 0,
+    }));
+    return [...groups, ...direct]
+      .filter((thread) => !dismissedThreadIds.includes(thread.id))
+      .sort((a, b) => {
+      const aActive = a.messages.length > 0 || a.unread > 0 ? 1 : 0;
+      const bActive = b.messages.length > 0 || b.unread > 0 ? 1 : 0;
+      if (aActive !== bActive) return bActive - aActive;
+      if (aActive && bActive && b.updatedAt !== a.updatedAt) {
+        return b.updatedAt - a.updatedAt;
+      }
+      return a.personName.localeCompare(b.personName, "fr");
+    });
+  }, [
+    activeRoomId,
+    friends,
+    friendThreads,
+    groupThreads,
+    colleagueThreads,
+    workspaceMemberPeople,
+    firebaseUid,
+    dismissedThreadIds,
+  ]);
 
   const photoLookup = useMemo(
     () => ({ preferredWorkspaceId: activeRoomId, photoCache: personPhotoByUserId }),
@@ -200,6 +222,10 @@ export default function FriendsChatPanel() {
   }, [messages, selectedThreadId]);
 
   const openThread = (item: (typeof combinedThreads)[number]) => {
+    if (item.section === "groups") {
+      setActiveFriendThread(item.id);
+      return;
+    }
     const threadId =
       item.section === "friends"
         ? ensureFriendThread({
@@ -209,6 +235,24 @@ export default function FriendsChatPanel() {
           })
         : ensureColleagueThread(activeRoomId, item.personId, item.personName);
     setActiveFriendThread(threadId);
+  };
+
+  const deleteTarget = useMemo(
+    () => combinedThreads.find((item) => item.id === deleteTargetId) ?? null,
+    [combinedThreads, deleteTargetId],
+  );
+
+  const confirmDeleteThread = async () => {
+    if (!deleteTargetId || deleteBusy) return;
+    setDeleteError(null);
+    setDeleteBusy(true);
+    const result = await deletePeopleThread(deleteTargetId);
+    setDeleteBusy(false);
+    if (!result.ok) {
+      setDeleteError(result.error ?? "Impossible de supprimer la conversation.");
+      return;
+    }
+    setDeleteTargetId(null);
   };
 
   const submit = () => {
@@ -232,18 +276,25 @@ export default function FriendsChatPanel() {
   };
 
   if (thread) {
-    const partnerPhotoURL = resolvePersonPhotoURL(thread.personId, membersByWorkspace, photoLookup);
+    const partnerPhotoURL = thread.section === "groups"
+      ? undefined
+      : resolvePersonPhotoURL(thread.personId, membersByWorkspace, photoLookup);
     const canSubmit = draft.trim().length > 0 || attachments.length > 0;
+    const composerPlaceholder =
+      thread.section === "groups"
+        ? `Écrire dans ${thread.groupName ?? thread.personName}…`
+        : `Write to ${thread.personName}…`;
     return (
       <div className="chat-panel-layout relative overflow-hidden">
         <div className="flex min-h-0 flex-col overflow-hidden">
           <PeopleChatThreadMessages
-            partnerName={thread.personName}
+            partnerName={thread.groupName ?? thread.personName}
             partnerId={thread.personId}
             partnerPhotoURL={partnerPhotoURL}
             messages={messages}
             listRef={messagesScrollRef}
             className="chat-messages-scroll min-h-0 flex-1"
+            showAuthors={thread.section === "groups"}
           />
         </div>
 
@@ -329,7 +380,7 @@ export default function FriendsChatPanel() {
                   }
                 }}
                 rows={1}
-                placeholder={`Write to ${thread.personName}…`}
+                placeholder={composerPlaceholder}
                 className="min-h-[24px] max-h-[160px] w-full resize-none border-0 bg-transparent px-1 py-1 text-[12px] leading-tight text-muted-100 outline-none placeholder:text-muted-500"
               />
               <div className="flex h-[24px] items-center gap-2">
@@ -384,39 +435,88 @@ export default function FriendsChatPanel() {
       ) : (
         <ul className="friends-chat-panel__list">
           {combinedThreads.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className={clsx(
-                  "messages-overlay__thread-row",
-                  item.unread > 0 && "messages-overlay__thread-row--unread",
-                )}
-                onClick={() => openThread(item)}
-              >
-                <UserAvatar
-                  userId={item.personId}
-                  name={item.personName}
-                  photoURL={resolvePersonPhotoURL(item.personId, membersByWorkspace, photoLookup)}
-                  className="messages-overlay__avatar"
-                />
-                <span className="min-w-0 flex-1 text-left">
-                  <span className="messages-overlay__thread-name">{item.personName}</span>
-                  <span className="messages-overlay__thread-preview">
-                    {item.preview ||
-                      (item.section === "friends" ? "Friend · New conversation" : "Workspace member")}
-                  </span>
-                </span>
-                <span className="messages-overlay__thread-meta">
-                  {item.messages.length > 0 && <time>{formatWhen(item.updatedAt)}</time>}
-                  {item.unread > 0 && (
-                    <span className="messages-overlay__unread">{item.unread}</span>
+            <li key={item.id} className="messages-overlay__thread-item">
+              <div className="messages-overlay__thread-row-wrap">
+                <button
+                  type="button"
+                  className={clsx(
+                    "messages-overlay__thread-row messages-thread-card",
+                    item.unread > 0 && "messages-thread-card--unread",
                   )}
-                </span>
-              </button>
+                  onClick={() => openThread(item)}
+                >
+                  {item.section === "groups" ? (
+                    <span className="messages-overlay__avatar messages-overlay__avatar--group messages-thread-card__avatar">
+                      <UsersRound size={16} aria-hidden />
+                    </span>
+                  ) : (
+                    <UserAvatar
+                      userId={item.personId}
+                      name={item.personName}
+                      photoURL={resolvePersonPhotoURL(item.personId, membersByWorkspace, photoLookup)}
+                      className="messages-overlay__avatar messages-thread-card__avatar"
+                    />
+                  )}
+                  <span className="messages-thread-card__body">
+                    <span className="messages-overlay__thread-name">{item.personName}</span>
+                    <span className="messages-overlay__thread-preview">
+                      {item.preview ||
+                        (item.section === "groups"
+                          ? `Groupe · ${"memberCount" in item ? item.memberCount : 0} membres`
+                          : item.section === "friends"
+                            ? "Friend · New conversation"
+                            : "Workspace member")}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="messages-overlay__thread-delete"
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeleteTargetId(item.id);
+                  }}
+                  aria-label={
+                    item.section === "groups"
+                      ? `Supprimer le groupe ${item.personName}`
+                      : `Supprimer la conversation avec ${item.personName}`
+                  }
+                  title={item.section === "groups" ? "Supprimer le groupe" : "Supprimer la conversation"}
+                >
+                  <Trash2 size={14} strokeWidth={2} aria-hidden />
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
+
+      {deleteTarget ? (
+        <DeletePeopleChatOverlay
+          title={
+            deleteTarget.section === "groups"
+              ? `Supprimer ${deleteTarget.personName} ?`
+              : `Supprimer la conversation avec ${deleteTarget.personName} ?`
+          }
+          hint={
+            deleteTarget.section === "groups"
+              ? "Ce groupe et tous ses messages seront supprimés définitivement pour tous les membres."
+              : "Cette conversation et tous ses messages seront supprimés définitivement pour les deux participants."
+          }
+          busy={deleteBusy}
+          onConfirm={() => void confirmDeleteThread()}
+          onCancel={() => {
+            if (deleteBusy) return;
+            setDeleteTargetId(null);
+            setDeleteError(null);
+          }}
+        />
+      ) : null}
+      {deleteError ? (
+        <p className="friends-chat-panel__delete-error" role="alert">
+          {deleteError}
+        </p>
+      ) : null}
     </div>
   );
 }

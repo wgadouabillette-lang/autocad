@@ -33,6 +33,8 @@ import { useActiveVoicePoll } from "../hooks/useActiveVoicePoll";
 import { useVoicePollStore } from "../store/useVoicePollStore";
 import { useStore } from "../store/useStore";
 import { useMobileLayout } from "../hooks/useMobileLayout";
+import { useConnectors } from "../hooks/useConnectors";
+import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
 
 const ICON_SIZE = 19;
@@ -90,6 +92,8 @@ export default function BottomHeader() {
   const calendarOpen = chatPanelOpen && chatPanelMode === "calendar";
   const chatOpen = chatPanelOpen && chatPanelMode === "agent";
   const subscriptionPlan = useStore((s) => s.subscriptionPlan);
+  const billingManaged = useStore((s) => s.billingManaged);
+  const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
   const roomCalls = useCallsStore((s) => s.callsByRoom[activeRoomId]);
   const localOpenChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
   const inOpenChannel = inBlockCall && !!localOpenChannelId;
@@ -118,14 +122,20 @@ export default function BottomHeader() {
   const showPollControl = viewMode === "blocks";
   const showAssistButtons =
     inGroupCall &&
-    hasAiNotesAccess(subscriptionPlan) &&
-    hasFollowUpAccess(subscriptionPlan);
+    hasAiNotesAccess(subscriptionPlan, billingManaged, workspaceEnterpriseActive) &&
+    hasFollowUpAccess(subscriptionPlan, billingManaged, workspaceEnterpriseActive);
   const aiNotesActive = useAiNotesStore((s) => s.active);
   const aiNotesBusy = useAiNotesStore((s) => s.busy);
   const toggleAiNotes = useAiNotesStore((s) => s.toggle);
   const followUpActive = useFollowUpCaptureStore((s) => s.active);
   const followUpBusy = useFollowUpCaptureStore((s) => s.busy);
   const toggleFollowUp = useFollowUpCaptureStore((s) => s.toggle);
+  const setChatPanelOpen = useStore((s) => s.setChatPanelOpen);
+  const setChatPanelMode = useStore((s) => s.setChatPanelMode);
+  const { connectedIds, connect, connectingId, statuses } = useConnectors();
+  const spotifyStatus = statuses.find((s) => s.id === "spotify");
+  const spotifyConnected = connectedIds.has("spotify");
+  const spotifyConfigured = spotifyStatus?.configured ?? false;
 
   useEffect(() => {
     ensureRoom(activeRoomId);
@@ -162,6 +172,39 @@ export default function BottomHeader() {
       badge={notificationBadge}
     >
       <Bell size={ICON_SIZE} />
+    </BottomBarButton>
+  );
+
+  const spotifyLabel = spotifyConnected
+    ? spotifyStatus?.accountLabel
+      ? `Spotify · ${spotifyStatus.accountLabel}`
+      : "Spotify connecté"
+    : spotifyConfigured
+      ? "Connecter Spotify"
+      : "Spotify (non configuré)";
+
+  const spotifyButton = (
+    <BottomBarButton
+      label={spotifyLabel}
+      onClick={() => {
+        if (!spotifyConnected) {
+          void connect("spotify");
+          return;
+        }
+        setChatPanelMode("agent");
+        setChatPanelOpen(true);
+      }}
+      active={spotifyConnected}
+      disabled={!spotifyConfigured || connectingId === "spotify"}
+    >
+      <img
+        src={connectorIconPath(CONNECTOR_ICON_FILES.spotify)}
+        alt=""
+        className="bottom-bar-btn__connector-icon"
+        width={ICON_SIZE}
+        height={ICON_SIZE}
+        draggable={false}
+      />
     </BottomBarButton>
   );
 
@@ -315,6 +358,7 @@ export default function BottomHeader() {
           />
           <BottomBarCapsule>
             {notificationButton}
+            {spotifyButton}
             {callControls}
             {utilityControls}
           </BottomBarCapsule>
@@ -330,7 +374,10 @@ export default function BottomHeader() {
         className="bottom-bar-capsule-anchor app-bottom-header__cluster"
       >
         <NotificationsPanel anchorRef={notificationsAnchorRef} underChatPanel={false} />
-        <BottomBarCapsule>{notificationButton}</BottomBarCapsule>
+        <BottomBarCapsule>
+          {notificationButton}
+          {spotifyButton}
+        </BottomBarCapsule>
       </div>
 
       <BottomBarCapsule>{callControls}</BottomBarCapsule>

@@ -137,7 +137,7 @@ interface CallsState extends CallControls {
   removeOpenChannel: (roomId: string, channelId: string) => void;
   purgeIdleOpenChannels: () => void;
   kickMember: (roomId: string, blockId: string) => void;
-  joinOpenChannel: (roomId: string, channelId: string) => void;
+  joinOpenChannel: (roomId: string, channelId: string) => Promise<void>;
   prefetchVoiceMedia: () => Promise<void>;
   getCallsViewMode: (workspaceId: string) => CallsViewMode;
   openTheaterView: (workspaceId: string) => void;
@@ -824,7 +824,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     });
   },
 
-  joinOpenChannel: (roomId, channelId) => {
+  joinOpenChannel: async (roomId, channelId) => {
     const state = roomState(get, roomId);
     const channel = state.openChannels.find((c) => c.id === channelId);
     if (!channel || channel.isDraft) return;
@@ -832,6 +832,17 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const localBlock = findLocalBlock(state.blocks);
     const localUser = localBlock?.participants.find((p) => p.isLocal);
     if (!localUser) return;
+
+    try {
+      if (!hasLocalMediaStream()) {
+        await acquireLocalMedia({ audio: true, video: get().cameraOn });
+      }
+      setMicrophoneEnabled(!get().muted);
+      syncStreamState(set);
+    } catch (error) {
+      set({ mediaError: mediaMessage(error, "Impossible d'accéder au micro.") });
+      return;
+    }
 
     set((s) => {
       const current = s.callsByRoom[roomId];
@@ -873,25 +884,17 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     });
     pushVoicePresence(get, roomId);
     playVoiceJoinSound();
-
-    void (async () => {
-      try {
-        if (!hasLocalMediaStream()) {
-          await acquireLocalMedia({ audio: true, video: get().cameraOn });
-        }
-        setMicrophoneEnabled(!get().muted);
-        syncStreamState(set);
-        set({ mediaError: null });
-      } catch (error) {
-        set({ mediaError: mediaMessage(error, "Impossible d'accéder au micro.") });
-      }
-    })();
   },
 
   prefetchVoiceMedia: async () => {
     if (hasLocalMediaStream()) return;
+    const activeRoomId = useStore.getState().activeRoomId;
+    if (activeRoomId && get().isLocalInCall(activeRoomId)) return;
     try {
       await acquireLocalMedia({ audio: true, video: false });
+      if (!get().isLocalInCall(activeRoomId)) {
+        setMicrophoneEnabled(false);
+      }
       syncStreamState(set);
     } catch {
       // Permission refusée ou indisponible — join retentera au clic.

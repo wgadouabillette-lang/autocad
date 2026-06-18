@@ -271,6 +271,13 @@ body {
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
   }
+  .prompt-skill-chip {
+    color: rgb(168 182 210);
+    background-color: rgb(59 111 232 / 0.1);
+    border-radius: 0.25rem;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
   .input {
     @apply w-full rounded-lg px-3 py-2 text-sm text-muted-200
       focus:outline-none focus:border-muted-400 placeholder:text-muted-500;
@@ -308,6 +315,9 @@ body {
   }
   .bottom-bar-btn > svg {
     @apply relative z-0;
+  }
+  .bottom-bar-btn > img.bottom-bar-btn__connector-icon {
+    @apply relative z-0 h-[19px] w-[19px] object-contain;
   }
   .header-chrome-control {
     @apply relative isolate inline-flex overflow-hidden rounded-full border-0 transition-[box-shadow,filter];
@@ -526,8 +536,8 @@ body {
   .auth-provider-icon {
     @apply h-[18px] w-[18px] shrink-0;
   }
-  .auth-provider-icon--apple {
-    @apply h-[21px] w-[21px] text-muted-100;
+  .auth-provider-icon--facebook {
+    @apply h-[18px] w-[18px];
   }
   .auth-page__email-form {
     @apply mt-6 flex flex-col gap-2.5;
@@ -977,7 +987,7 @@ body {
   }
   .settings-view__frame {
     @apply flex min-h-0 flex-col overflow-hidden;
-    width: min(100%, 44rem);
+    width: min(100%, calc(44rem + 75px));
     height: 100%;
   }
   .settings-view__profile {
@@ -1020,11 +1030,14 @@ body {
   }
   .settings-view__layout {
     display: grid;
-    grid-template-columns: 11.5rem minmax(0, 32rem);
+    grid-template-columns: 11.5rem minmax(0, calc(32rem + 75px));
     grid-template-rows: minmax(0, 1fr);
     min-height: 0;
     flex: 1;
     overflow: hidden;
+    justify-content: center;
+    width: 100%;
+    margin-inline: auto;
   }
   .settings-view__tabs-empty {
     @apply px-2.5 py-2 text-[12px] text-muted-500;
@@ -1077,7 +1090,7 @@ body {
     @apply text-muted-200;
   }
   .settings-view__panel {
-    @apply flex h-full min-h-0 min-w-0 flex-col overflow-hidden pl-6 pr-2;
+    @apply flex h-full min-h-0 min-w-0 flex-col overflow-hidden px-6;
   }
   .settings-view__panel-header {
     @apply shrink-0;
@@ -1375,14 +1388,33 @@ body {
     @apply cursor-not-allowed opacity-50;
   }
   .settings-plan-grid {
-    @apply grid max-w-2xl gap-3;
+    @apply mb-6 grid w-full max-w-2xl gap-3;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .settings-plan-grid__full {
+    grid-column: 1 / -1;
+    @apply mb-0;
+  }
   .settings-plan-card {
-    @apply flex flex-col rounded-xl border border-ink-700 bg-ink-850 p-4 text-left transition-colors
-      hover:border-ink-600 hover:bg-ink-800;
+    @apply flex h-full cursor-pointer flex-col rounded-xl border border-ink-700 bg-ink-850 p-4 text-left
+      transition-colors;
     appearance: none;
     -webkit-appearance: none;
+  }
+  .settings-plan-card:hover:not(:disabled) {
+    @apply border-ink-600 bg-ink-800;
+  }
+  .settings-plan-card:disabled {
+    @apply cursor-not-allowed opacity-55;
+  }
+  .settings-plan-card:disabled:hover {
+    @apply border-ink-700 bg-ink-850;
+  }
+  .settings-plan-card--static {
+    @apply cursor-default;
+  }
+  .settings-plan-card--static:hover {
+    @apply border-ink-700 bg-ink-850;
   }
   .settings-plan-card--active {
     @apply border-muted-400 bg-ink-750;
@@ -1405,6 +1437,54 @@ body {
   .settings-plan-card__features li::before {
     content: "·";
     @apply mr-1.5 text-muted-500;
+  }
+  .settings-plan-card__action {
+    @apply mt-3 border-t border-ink-700 pt-3 text-[11px] font-medium text-muted-400;
+  }
+  .settings-usage-summary {
+    @apply flex flex-col gap-2;
+  }
+  .settings-usage-summary__row {
+    @apply flex items-center justify-between gap-3 text-sm text-muted-200;
+  }
+  .settings-usage-summary__row--muted {
+    @apply text-xs text-muted-400;
+  }
+  .settings-usage-bar {
+    @apply h-2 w-full overflow-hidden rounded-full bg-white/10;
+  }
+  .settings-usage-bar__fill {
+    @apply h-full rounded-full bg-emerald-500/80 transition-[width] duration-300;
+  }
+  .settings-usage-bar__fill--warn {
+    @apply bg-amber-500/90;
+  }
+  .settings-usage-bar__fill--full {
+    @apply bg-red-500/90;
+  }
+  .settings-usage-percent {
+    @apply mb-3 flex items-baseline gap-3;
+  }
+  .settings-usage-percent__value {
+    @apply text-4xl font-semibold tabular-nums tracking-tight text-white;
+  }
+  .settings-usage-percent__label {
+    @apply text-sm text-muted-400;
+  }
+  .settings-usage-rates {
+    @apply mt-4 text-xs text-muted-300;
+  }
+  .settings-usage-rates summary {
+    @apply cursor-pointer select-none text-muted-200 hover:text-white;
+  }
+  .settings-usage-rates__list {
+    @apply mt-2 flex flex-col gap-1.5;
+  }
+  .settings-usage-rates__list li {
+    @apply flex flex-wrap items-center gap-x-2 gap-y-0.5;
+  }
+  .settings-usage-rates__provider {
+    @apply text-muted-500;
   }
   .forma-capsule {
     @apply relative isolate overflow-hidden border-0;
@@ -3095,11 +3175,15 @@ body {
   .chat-panel-header__thread-avatar img.user-avatar {
     @apply h-5 w-5 object-cover;
   }
+  .chat-panel-header__thread-avatar--group {
+    @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-300;
+    background-color: var(--forma-tint-08);
+  }
   .chat-panel-header__thread-name {
     @apply truncate text-[12.5px] font-semibold text-muted-100;
   }
   .chat-panel-mode-tabs {
-    @apply w-full min-w-0 shrink-0 py-1.5 pr-0;
+    @apply w-full min-w-0 shrink-0 py-0.5 pr-0;
     padding-left: 18px;
   }
   .chat-panel-mode-tabs__fade-wrap {
@@ -3119,7 +3203,7 @@ body {
     );
   }
   .chat-panel-mode-tabs__scroll {
-    @apply min-w-0 overflow-x-auto overflow-y-visible py-0.5;
+    @apply min-w-0 overflow-x-auto overflow-y-visible py-0;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -3129,19 +3213,18 @@ body {
     display: none;
   }
   .chat-panel-mode-tabs__nav {
-    @apply flex w-max min-w-full flex-nowrap items-center gap-1.5;
+    @apply flex w-max min-w-full flex-nowrap items-center gap-1;
   }
   .chat-panel-mode-tabs__tail {
     @apply shrink-0 self-stretch;
     width: 12px;
   }
   .chat-panel-mode-tabs__btn {
-    @apply relative inline-flex shrink-0 items-center gap-1 overflow-visible whitespace-nowrap rounded-md px-3
-      py-1 text-[10px] font-medium text-muted-400 transition-colors;
+    @apply relative inline-flex shrink-0 items-center gap-1 overflow-visible whitespace-nowrap rounded-md px-2.5
+      py-0.5 text-[10px] font-medium text-muted-400 transition-colors;
     appearance: none;
     -webkit-appearance: none;
     border: none;
-    background-color: var(--forma-chat-composer-bg);
   }
   .chat-panel-mode-tabs__icon-wrap {
     @apply relative inline-flex shrink-0 items-center justify-center;
@@ -3154,11 +3237,9 @@ body {
   }
   .chat-panel-mode-tabs__btn:hover {
     @apply text-white;
-    background-color: var(--forma-control-hover-bg);
   }
   .chat-panel-mode-tabs__btn.is-active {
     @apply text-white;
-    background-color: var(--forma-chat-composer-bg);
   }
   .chat-panel-layout {
     display: grid;
@@ -3483,6 +3564,21 @@ body {
   .chat-connectors-list--from-bottom .chat-connectors-row {
     animation-name: chat-connectors-cascade-from-bottom;
   }
+  .chat-skills-list {
+    @apply gap-0;
+  }
+  .chat-skills-row {
+    @apply w-full cursor-pointer border-0 bg-transparent px-3 py-1.5 text-left;
+  }
+  .chat-skills-row--active,
+  .chat-skills-row:hover {
+    @apply rounded-lg bg-ink-750;
+  }
+  .chat-skills-pro-badge {
+    @apply shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none;
+    color: rgb(168 182 210);
+    background-color: rgb(59 111 232 / 0.1);
+  }
   .chat-connectors-list--settings {
     @apply mt-1 max-w-lg gap-1.5;
   }
@@ -3502,6 +3598,30 @@ body {
       opacity: 1;
       transform: translateY(0);
     }
+  }
+  .connector-plugin-preview-wrap {
+    @apply mt-4 rounded-lg border border-ink-700 bg-ink-850 px-3 py-3;
+  }
+  .connector-plugin-preview-wrap .settings-section__label {
+    @apply mb-2 text-xs font-medium text-muted-300;
+  }
+  .connector-plugin-preview__list {
+    @apply m-0 flex list-none flex-col gap-2 p-0;
+  }
+  .connector-plugin-preview__item {
+    @apply flex flex-col gap-0.5;
+  }
+  .connector-plugin-preview__title {
+    @apply text-sm text-muted-200;
+  }
+  .connector-plugin-preview__link {
+    @apply underline-offset-2 hover:underline;
+  }
+  .connector-plugin-preview__meta {
+    @apply text-[11px] leading-snug text-muted-400;
+  }
+  .connector-plugin-preview__error {
+    @apply text-[11px] text-red-400;
   }
   .group-call-actions {
     position: absolute;
@@ -3757,10 +3877,75 @@ body {
     @apply px-3 py-6 text-center text-[11px] leading-relaxed text-muted-500;
   }
   .messages-overlay__thread-row {
-    @apply flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-ink-800;
+    @apply flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors;
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background-color: transparent;
   }
-  .messages-overlay__thread-row--unread {
-    background-color: var(--forma-tint-03);
+  .messages-thread-card {
+    @apply relative gap-2.5 rounded-xl border border-ink-700 px-3 py-2 transition-[border-color,background-color,transform,box-shadow]
+      duration-150 ease-out;
+    background-color: var(--forma-elevated);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.02);
+  }
+  .messages-thread-card:hover {
+    @apply border-ink-600;
+    background-color: var(--forma-control-hover-bg);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px -14px rgb(0 0 0 / 0.55);
+  }
+  .messages-thread-card:active {
+    transform: translateY(0);
+  }
+  .messages-overlay__thread-item {
+    @apply list-none px-3;
+  }
+  .messages-overlay__thread-row-wrap {
+    @apply relative;
+  }
+  .messages-overlay__thread-row-wrap .messages-thread-card {
+    @apply pr-3;
+  }
+  .messages-overlay__thread-row-wrap .chat-history-row {
+    @apply pr-10;
+  }
+  .messages-overlay__thread-row-wrap:hover .chat-history-row time {
+    @apply opacity-0;
+  }
+  .messages-overlay__thread-delete {
+    @apply absolute right-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg
+      border border-transparent text-muted-500 opacity-0 transition-all hover:border-red-500/20
+      hover:bg-red-500/10 hover:text-red-300 focus-visible:opacity-100 focus-visible:outline-none;
+  }
+  .messages-overlay__thread-row-wrap:hover .messages-overlay__thread-delete,
+  .messages-overlay__thread-delete:focus-visible {
+    @apply opacity-100;
+  }
+  .friends-chat-panel__delete-error {
+    @apply px-3 py-2 text-center text-[11px] text-red-300;
+  }
+  .messages-thread-card--unread {
+    border-color: rgb(59 111 232 / 0.28);
+    background-color: rgb(59 111 232 / 0.06);
+  }
+  .messages-thread-card--unread:hover {
+    border-color: rgb(59 111 232 / 0.42);
+    background-color: rgb(59 111 232 / 0.1);
+  }
+  .messages-thread-card__body {
+    @apply min-w-0 flex-1 text-left;
+  }
+  .messages-thread-card__aside {
+    @apply flex shrink-0 flex-col items-end gap-1;
+  }
+  .messages-thread-card .messages-overlay__avatar,
+  .messages-thread-card .messages-overlay__avatar.user-avatar,
+  .messages-thread-card .messages-overlay__avatar img.user-avatar {
+    @apply h-10 w-10 ring-2 ring-ink-800;
+  }
+  .messages-thread-card .messages-overlay__avatar img.user-avatar {
+    @apply h-10 w-10;
   }
   .messages-overlay__avatar,
   .messages-overlay__avatar.user-avatar,
@@ -3771,6 +3956,17 @@ body {
   .messages-overlay__avatar img.user-avatar {
     @apply h-8 w-8 object-cover;
   }
+  .messages-overlay__avatar--group {
+    @apply text-blue-300;
+    background-color: rgb(59 111 232 / 0.12);
+    --tw-ring-color: rgb(59 111 232 / 0.18);
+  }
+  .messages-thread-card .messages-overlay__thread-name {
+    @apply text-[13px] leading-tight;
+  }
+  .messages-thread-card .messages-overlay__thread-preview {
+    @apply mt-0 leading-tight;
+  }
   .messages-overlay__thread-name {
     @apply block truncate text-[12px] font-semibold text-muted-100;
   }
@@ -3778,7 +3974,12 @@ body {
     @apply mt-0.5 block truncate text-[11px] text-muted-400;
   }
   .messages-overlay__thread-meta {
-    @apply flex shrink-0 flex-col items-end gap-1 text-[10px] tabular-nums text-muted-500;
+    @apply text-[10px] tabular-nums text-muted-500 transition-opacity;
+  }
+  .messages-thread-card .messages-overlay__unread {
+    @apply h-[18px] min-w-[18px] px-1.5 text-[10px] text-white;
+    background-color: rgb(59 111 232);
+    box-shadow: 0 0 0 2px var(--forma-elevated);
   }
   .messages-overlay__unread {
     @apply inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[9px] font-semibold
@@ -4395,6 +4596,78 @@ body {
   .join-knock__hint {
     @apply mt-2 text-[12px] leading-relaxed text-muted-500;
   }
+  .group-chat-create-overlay {
+    @apply w-[min(24rem,calc(100vw-2rem))] max-h-[min(32rem,calc(100vh-3rem))] items-stretch overflow-y-auto text-left;
+  }
+  .group-chat-create-overlay__icon {
+    @apply mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl text-muted-200;
+    background-color: var(--forma-tint-08);
+  }
+  .group-chat-create-overlay__form {
+    @apply mt-4 flex w-full flex-col gap-3;
+  }
+  .group-chat-create-overlay__label {
+    @apply text-[11px] font-semibold uppercase tracking-wide text-muted-500;
+  }
+  .group-chat-create-overlay__input {
+    @apply w-full rounded-xl border px-3 py-2 text-[13px] text-muted-100 outline-none;
+    border-color: var(--forma-overlay-border);
+    background-color: var(--forma-chat-composer-bg);
+  }
+  .group-chat-create-overlay__input:focus {
+    border-color: var(--forma-tint-24);
+  }
+  .group-chat-create-overlay__members {
+    @apply flex max-h-52 flex-col gap-1 overflow-y-auto rounded-xl border p-1;
+    border-color: var(--forma-overlay-border);
+    background-color: var(--forma-chat-composer-bg);
+  }
+  .group-chat-create-overlay__member {
+    @apply flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors;
+  }
+  .group-chat-create-overlay__member:hover {
+    background-color: var(--forma-tint-06);
+  }
+  .group-chat-create-overlay__member--selected {
+    background-color: var(--forma-tint-10);
+  }
+  .group-chat-create-overlay__avatar.user-avatar,
+  .group-chat-create-overlay__avatar img.user-avatar {
+    @apply h-7 w-7 shrink-0 overflow-hidden rounded-full text-[10px] font-semibold text-muted-100;
+  }
+  .group-chat-create-overlay__avatar img.user-avatar {
+    @apply h-7 w-7 object-cover;
+  }
+  .group-chat-create-overlay__member-name {
+    @apply block truncate text-[12px] font-medium text-muted-100;
+  }
+  .group-chat-create-overlay__member-meta {
+    @apply min-w-0 flex-1;
+  }
+  .group-chat-create-overlay__member-kind {
+    @apply mt-0.5 block text-[10px] font-medium text-muted-500;
+  }
+  .group-chat-create-overlay__check {
+    @apply w-4 shrink-0 text-center text-[12px] font-semibold text-muted-200;
+  }
+  .group-chat-create-overlay__empty {
+    @apply rounded-xl border px-3 py-3 text-[12px] leading-relaxed text-muted-500;
+    border-color: var(--forma-overlay-border);
+    background-color: var(--forma-chat-composer-bg);
+  }
+  .group-chat-create-overlay__error {
+    @apply text-[12px] text-red-300;
+  }
+  .group-chat-create-overlay__actions {
+    @apply flex gap-2 pt-1;
+  }
+  .group-chat-create-overlay__ghost,
+  .group-chat-create-overlay__submit {
+    @apply forma-action-btn flex-1 text-[12px];
+  }
+  .group-chat-create-overlay__submit:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
   .join-knock__actions {
     @apply mt-5 flex w-full justify-center;
   }
@@ -4535,7 +4808,7 @@ body {
     @apply text-muted-400;
   }
   .manual-notes-panel {
-    @apply grid min-h-0 min-w-0 flex-1 overflow-hidden;
+    @apply relative grid min-h-0 min-w-0 flex-1 overflow-hidden;
     grid-template-rows: auto auto 1fr;
   }
   .manual-notes-panel__title-input {
@@ -4580,6 +4853,248 @@ body {
   .manual-notes-panel__tool--ai.is-active {
     background-color: color-mix(in srgb, currentColor 25%, transparent);
   }
+  .manual-notes-panel--recap {
+    grid-template-rows: auto 1fr;
+  }
+  .recap-composer-line {
+    @apply relative flex min-h-[28px] w-full flex-col gap-1 py-0.5;
+  }
+  .recap-composer-line__row {
+    @apply flex min-w-0 items-center gap-2;
+  }
+  .recap-composer-line__prefix {
+    @apply shrink-0 text-[12px] font-semibold text-muted-300;
+  }
+  .recap-composer-line__chip,
+  .recap-composer-line__placeholder {
+    @apply inline-flex min-h-[24px] min-w-0 flex-1 items-center gap-1.5 rounded-md border border-ink-700
+      bg-ink-850 px-2 text-left text-[11px] font-medium text-muted-100 transition-colors
+      hover:border-ink-600 hover:bg-ink-750;
+  }
+  .recap-composer-line__placeholder {
+    @apply text-muted-500;
+  }
+  .recap-composer-line__duration {
+    @apply shrink-0 text-[10px] text-muted-500;
+  }
+  .recap-composer-line__import {
+    @apply inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium
+      text-muted-400 transition-colors hover:bg-ink-800 hover:text-muted-200;
+  }
+  .recap-composer-line__menu {
+    @apply absolute bottom-full left-0 z-30 mb-1 max-h-40 w-full min-w-[14rem] overflow-y-auto
+      rounded-lg border border-ink-700 bg-ink-850 py-1 shadow-xl;
+  }
+  .recap-composer-line__empty {
+    @apply px-3 py-2 text-[11px] leading-snug text-muted-500;
+  }
+  .recap-composer-line__menu-item {
+    @apply flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-ink-750;
+  }
+  .recap-composer-line__menu-item--active {
+    @apply bg-ink-750;
+  }
+  .recap-note-reveal {
+    animation: recap-note-reveal 0.88s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .recap-note-reveal--generating .manual-notes-panel {
+    animation: recap-note-content-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+  }
+  .recap-generating {
+    @apply mx-4 mb-3 mt-2 flex min-h-0 flex-1 flex-col gap-4;
+  }
+  .recap-generating__status {
+    @apply text-center text-[12px] font-medium text-muted-400;
+  }
+  .recap-generating__skeleton {
+    @apply flex flex-1 flex-col gap-3;
+  }
+  .recap-generating__error {
+    @apply mx-4 mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200;
+  }
+  .recap-generating-shimmer {
+    @apply h-3 rounded-md bg-ink-750;
+    background-image: linear-gradient(
+      90deg,
+      rgb(38 38 38 / 0.35) 0%,
+      rgb(82 82 82 / 0.55) 50%,
+      rgb(38 38 38 / 0.35) 100%
+    );
+    background-size: 200% 100%;
+    animation: forma-shimmer 1.6s ease-in-out infinite;
+  }
+  .recap-generating-shimmer--title {
+    @apply h-5 w-2/3;
+  }
+  .recap-generating-shimmer--heading {
+    @apply mt-2 h-4 w-1/3;
+  }
+  .recap-generating-shimmer--line {
+    @apply h-3;
+  }
+  .recap-generating-shimmer--w60 {
+    width: 60%;
+  }
+  .recap-generating-shimmer--w75 {
+    width: 75%;
+  }
+  .recap-generating-shimmer--w85 {
+    width: 85%;
+  }
+  .recap-generating-shimmer--w90 {
+    width: 90%;
+  }
+  .recap-generating-shimmer--w100 {
+    @apply w-full;
+  }
+  @keyframes recap-note-reveal {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, 14px, 0) scale(0.985);
+      filter: blur(6px);
+    }
+    55% {
+      opacity: 1;
+      filter: blur(0);
+    }
+    100% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      filter: blur(0);
+    }
+  }
+  @keyframes recap-note-content-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 8px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+  .handoff-select-row {
+    @apply flex items-start gap-2;
+  }
+  .handoff-select-row--active {
+    @apply rounded-lg px-1 py-0.5;
+  }
+  .handoff-select-row--selected {
+    background-color: rgb(59 111 232 / 0.08);
+  }
+  .handoff-select-row__check {
+    @apply mt-2 h-4 w-4 shrink-0 rounded border border-ink-600 bg-ink-850 transition-colors;
+  }
+  .handoff-select-row__check.is-checked {
+    @apply border-blue-400 bg-blue-500/30;
+    box-shadow: inset 0 0 0 2px rgb(96 165 250 / 0.8);
+  }
+  .handoff-select-row__bubble {
+    @apply min-w-0 flex-1;
+  }
+  .handoff-composer-bar {
+    @apply flex w-full flex-col gap-2 py-0.5;
+  }
+  .handoff-composer-bar__header {
+    @apply flex items-center gap-2;
+  }
+  .handoff-composer-bar__prefix {
+    @apply shrink-0 text-[12px] font-semibold text-muted-300;
+  }
+  .handoff-composer-bar__count {
+    @apply min-w-0 flex-1 text-[11px] text-muted-400;
+  }
+  .handoff-composer-bar__cancel {
+    @apply inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-400 hover:bg-ink-800 hover:text-muted-200;
+  }
+  .handoff-composer-bar__error {
+    @apply text-[11px] text-red-300;
+  }
+  .handoff-composer-bar__actions {
+    @apply flex justify-end;
+  }
+  .handoff-composer-bar__send {
+    @apply inline-flex items-center gap-1.5 rounded-md bg-ink-750 px-3 py-1.5 text-[11px] font-medium text-muted-100 transition-colors hover:bg-ink-700 disabled:opacity-40;
+  }
+  .handoff-recipient-picker__label {
+    @apply text-[10px] font-semibold uppercase tracking-wide text-muted-500;
+  }
+  .handoff-recipient-picker__list {
+    @apply mt-1 flex max-h-28 flex-wrap gap-1 overflow-y-auto;
+  }
+  .handoff-recipient-picker__item {
+    @apply inline-flex max-w-full items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[10px] font-medium text-muted-300 transition-colors hover:border-ink-600 hover:text-muted-100;
+  }
+  .handoff-recipient-picker__item--active {
+    @apply border-blue-400/50 bg-blue-500/10 text-muted-100;
+  }
+  .handoff-inbox-card {
+    @apply flex w-full max-w-[18rem] gap-2 rounded-xl border border-ink-700 bg-ink-850 p-3;
+  }
+  .handoff-inbox-card__icon {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-300;
+  }
+  .handoff-inbox-card__body {
+    @apply min-w-0 flex-1;
+  }
+  .handoff-inbox-card__title {
+    @apply text-[12px] font-semibold text-muted-100;
+  }
+  .handoff-inbox-card__subtitle {
+    @apply mt-0.5 text-[11px] font-medium text-muted-300;
+  }
+  .handoff-inbox-card__preview {
+    @apply mt-1 line-clamp-2 text-[10px] leading-snug text-muted-500;
+  }
+  .handoff-inbox-card__open {
+    @apply mt-2 rounded-md bg-ink-750 px-2.5 py-1 text-[10px] font-semibold text-muted-100 transition-colors hover:bg-ink-700;
+  }
+  .handoff-preview-banner {
+    @apply flex items-start gap-3 rounded-xl border border-ink-700 bg-ink-850 px-3 py-2.5;
+  }
+  .handoff-preview-banner__back {
+    @apply inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-muted-300 transition-colors hover:bg-ink-800 hover:text-muted-100;
+  }
+  .handoff-preview-banner__eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-wide text-blue-300/90;
+  }
+  .handoff-preview-banner__title {
+    @apply text-[13px] font-semibold text-muted-100;
+  }
+  .handoff-preview-banner__meta {
+    @apply text-[11px] text-muted-500;
+  }
+  .handoff-preview-note {
+    @apply px-1;
+  }
+  .handoff-preview-note__title {
+    @apply mb-2 text-[18px] font-semibold text-muted-100;
+  }
+  .handoff-note-overlay {
+    @apply absolute inset-0 z-20 flex items-end justify-center p-3;
+    background-color: var(--forma-overlay);
+  }
+  .handoff-note-overlay__panel {
+    @apply w-full max-w-sm rounded-xl border border-ink-700 bg-ink-850 p-3 shadow-xl;
+  }
+  .handoff-note-overlay__header {
+    @apply mb-2 flex items-center justify-between;
+  }
+  .handoff-note-overlay__title {
+    @apply text-[13px] font-semibold text-muted-100;
+  }
+  .handoff-note-overlay__close {
+    @apply inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-400 hover:bg-ink-800 hover:text-muted-200;
+  }
+  .handoff-note-overlay__note-name {
+    @apply mb-2 truncate text-[12px] text-muted-400;
+  }
+  .handoff-note-overlay__error {
+    @apply mt-2 text-[11px] text-red-300;
+  }
+  .handoff-note-overlay__send {
+    @apply mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-ink-750 px-3 py-2 text-[12px] font-medium text-muted-100 transition-colors hover:bg-ink-700 disabled:opacity-40;
+  }
   @keyframes manual-notes-ai-hue {
     0% {
       color: #a855f7;
@@ -4610,7 +5125,7 @@ body {
     @apply px-4 py-8 text-center text-[12px] leading-relaxed text-muted-500;
   }
   .friends-chat-panel__list {
-    @apply min-h-0 flex-1 overflow-y-auto py-1;
+    @apply flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto py-2;
   }
   .friends-chat-panel__thread {
     @apply min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3;
@@ -5193,6 +5708,17 @@ body {
   }
 }
 
+/* Tabs panel — fond uniquement au hover */
+.chat-panel-mode-tabs__btn:not(:hover),
+.chat-panel-mode-tabs__btn.is-active:not(:hover) {
+  background: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+.chat-panel-mode-tabs__btn:hover {
+  background-color: var(--forma-control-hover-bg) !important;
+}
+
 /* Composeur chat — fond + bordure (priorité sur Tailwind) */
 .chat-composer {
   background-color: var(--forma-chat-composer-bg) !important;
@@ -5210,12 +5736,7 @@ body {
 }
 
 .manage-prompt-line {
-  @apply relative w-full;
-}
-
-.manage-prompt-line__close {
-  @apply absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded-full
-    text-muted-500 transition-colors hover:text-muted-200;
+  @apply w-full;
 }
 
 .manage-prompt-line__text {
@@ -5234,12 +5755,6 @@ body {
   @apply mx-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md align-middle
     text-muted-500 transition-colors hover:text-muted-200;
   background-color: rgb(59 111 232 / 0.08);
-}
-
-.manage-prompt-line__remove-task {
-  @apply absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full
-    text-muted-500 transition-colors hover:text-muted-200;
-  background-color: var(--forma-content-bg);
 }
 
 .manage-prompt-chip {
@@ -5261,6 +5776,104 @@ body {
 
 .manage-prompt-chip__input::placeholder {
   color: rgb(168 182 210 / 0.5);
+}
+
+.create-group-prompt-line {
+  @apply min-h-[24px] w-full py-0.5;
+}
+
+.create-group-prompt-chip {
+  @apply inline-flex w-fit max-w-full min-h-[1.625rem] min-w-[2.75rem] max-w-full flex-wrap items-center
+    gap-1 rounded-lg px-2 py-1 align-middle;
+  background-color: rgb(59 111 232 / 0.1);
+}
+
+.chat-user-bubble--play-prompt {
+  max-width: 100%;
+}
+
+.play-prompt-line__text {
+  @apply m-0 flex flex-wrap items-baseline gap-1.5 text-[12px] leading-relaxed;
+}
+
+.play-prompt-line__slash {
+  @apply font-semibold text-muted-300;
+}
+
+.play-prompt-chip {
+  @apply inline-flex max-w-full rounded-lg px-2 py-px text-[12px] font-medium;
+  background-color: rgb(29 185 84 / 0.12);
+  color: rgb(134 239 172);
+}
+
+.play-prompt-chip--readonly {
+  @apply break-words;
+}
+
+.spotify-track-card {
+  @apply mb-3 flex max-w-full items-center gap-3 rounded-xl border p-2.5;
+  border-color: rgb(29 185 84 / 0.22);
+  background: linear-gradient(135deg, rgb(29 185 84 / 0.08), rgb(24 46 82 / 0.35));
+}
+
+.spotify-track-card__art {
+  @apply h-14 w-14 shrink-0 overflow-hidden rounded-lg;
+}
+
+.spotify-track-card__img,
+.spotify-track-card__fallback {
+  @apply h-full w-full object-cover;
+}
+
+.spotify-track-card__body {
+  @apply min-w-0 flex-1;
+}
+
+.spotify-track-card__label {
+  @apply mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide;
+  color: rgb(134 239 172);
+}
+
+.spotify-track-card__logo {
+  @apply h-3.5 w-3.5 object-contain;
+}
+
+.spotify-track-card__title {
+  @apply block truncate text-[13px] font-semibold text-white hover:underline;
+}
+
+.spotify-track-card__meta {
+  @apply mt-0.5 truncate text-[11px] text-muted-300;
+}
+
+.create-group-prompt-chip__prefix {
+  @apply shrink-0 text-[12px] font-semibold;
+  color: rgb(168 182 210);
+}
+
+.create-group-prompt-chip__input {
+  @apply min-w-[0.5rem] flex-1 border-0 bg-transparent p-0 text-[12px] font-medium outline-none;
+  color: rgb(168 182 210);
+  field-sizing: content;
+}
+
+.create-group-prompt-chip__member {
+  @apply inline-flex max-w-full items-center rounded-md px-1.5 py-px text-[11px] font-medium
+    text-muted-200;
+  background-color: var(--forma-tint-12);
+}
+
+.create-group-prompt-line__menu {
+  @apply absolute bottom-full left-0 z-20 mb-1 w-full min-w-[14rem] rounded-lg border border-ink-700
+    bg-ink-850 py-1 shadow-xl;
+}
+
+.create-group-prompt-line__menu-item {
+  @apply flex w-full gap-2 px-3 py-2 text-left transition-colors hover:bg-ink-750;
+}
+
+.create-group-prompt-line__menu-item--active {
+  @apply bg-ink-750;
 }
 
 /* Formes des segments bottom bar (hors @layer — conservé au build) */

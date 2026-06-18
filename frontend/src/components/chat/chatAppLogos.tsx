@@ -33,6 +33,11 @@ export function FigmaLogo() {
   return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.figma)} />;
 }
 
+/** Spotify */
+export function SpotifyLogo() {
+  return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.spotify)} />;
+}
+
 export type ChatAppLogoComponent = () => JSX.Element;
 
 export const CHAT_APP_LOGOS = {
@@ -41,4 +46,5 @@ export const CHAT_APP_LOGOS = {
   outlook: OutlookLogo,
   notion: NotionLogo,
   figma: FigmaLogo,
+  spotify: SpotifyLogo,
 } as const;

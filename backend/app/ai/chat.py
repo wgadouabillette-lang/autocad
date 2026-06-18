@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from app.ai import llm, models, quota
+from app.ai import llm, models, quota, usage
 from app.models.schemas import ChatMessage, ChatResponse
 
 
@@ -59,9 +59,15 @@ def run(
     messages: Optional[List[ChatMessage]] = None,
     ai_model: str = "auto",
     chat_instructions: str = "",
+    uid: Optional[str] = None,
+    workspace_id: Optional[str] = None,
 ) -> ChatResponse:
     if not prompt.strip():
         return ChatResponse(message="Say something and I'll reply.", source="rules")
+
+    gate = usage.check_usage_gate(uid, workspace_id)
+    if gate:
+        return ChatResponse(message=gate, source="quota")
 
     history = [
         {"role": m.role, "content": m.content}
@@ -90,7 +96,13 @@ def run(
                 model_id=quota.resolve_auto_model_id(prompt, work_mode="agent", chat_only=True),
             ),
         )
-        provider = llm.active_provider() or "llm"
+        effective = (
+            quota.resolve_auto_model_id(prompt, work_mode="agent", chat_only=True)
+            if fallback
+            else model_id
+        )
+        usage.track_llm_result(uid, result.model_id or effective, result, workspace_id)
+        provider = llm.provider_for_model(model_id) or llm.active_provider() or "llm"
         if result.data and result.data.get("message"):
             message = str(result.data["message"]).strip()
             if fallback:
@@ -99,7 +111,7 @@ def run(
                 message=message,
                 source=provider,
                 ai_model_fallback=fallback,
-                effective_ai_model="auto" if fallback else ai_model,
+                effective_ai_model=effective,
             )
         if result.error:
             return ChatResponse(message=_rules_reply(prompt), source="rules")

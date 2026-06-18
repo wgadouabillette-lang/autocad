@@ -16,6 +16,10 @@ from app.core.firebase import FirebaseUser, firestore_available
 router = APIRouter(prefix="/api/connectors", tags=["connectors"])
 
 
+class SpotifyPlayBody(BaseModel):
+    query: str = Field(min_length=1, max_length=200)
+
+
 class ConnectorStatusOut(BaseModel):
     connected: bool
     configured: bool
@@ -212,3 +216,217 @@ async def figma_me(user: FirebaseUser = Depends(require_firebase_user)):
         "email": data.get("email"),
         "handle": data.get("handle"),
     }
+
+
+@router.get("/figma/files")
+async def figma_files(
+    max_results: int = Query(default=10, alias="maxResults", ge=1, le=25),
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    import os
+
+    token = await _require_token(user.uid, "figma")
+    team_id = os.getenv("FIGMA_TEAM_ID", "").strip()
+
+    profile: dict[str, Any] = {}
+    async with httpx.AsyncClient(timeout=25) as client:
+        me_r = await client.get(
+            "https://api.figma.com/v1/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if me_r.status_code == 200:
+        data = me_r.json()
+        profile = {
+            "id": data.get("id"),
+            "email": data.get("email"),
+            "handle": data.get("handle"),
+        }
+
+    if not team_id:
+        return {
+            "files": [],
+            "profile": profile,
+            "hint": "Ajoutez FIGMA_TEAM_ID dans backend/.env pour lister les fichiers Figma.",
+        }
+
+    files: list[dict[str, Any]] = []
+    async with httpx.AsyncClient(timeout=25) as client:
+        projects_r = await client.get(
+            f"https://api.figma.com/v1/teams/{team_id}/projects",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if projects_r.status_code != 200:
+        raise HTTPException(projects_r.status_code, projects_r.text or "Figma projects error.")
+
+    async with httpx.AsyncClient(timeout=25) as client:
+        for project in projects_r.json().get("projects") or []:
+            if not isinstance(project, dict):
+                continue
+            project_id = project.get("id")
+            if not project_id:
+                continue
+            files_r = await client.get(
+                f"https://api.figma.com/v1/projects/{project_id}/files",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if files_r.status_code != 200:
+                continue
+            for item in files_r.json().get("files") or []:
+                if not isinstance(item, dict):
+                    continue
+                files.append(
+                    {
+                        "key": item.get("key"),
+                        "name": item.get("name") or "Sans titre",
+                        "lastModified": item.get("last_modified") or "",
+                        "projectName": project.get("name") or "",
+                    }
+                )
+                if len(files) >= max_results:
+                    break
+            if len(files) >= max_results:
+                break
+
+    return {"files": files[:max_results]}
+
+
+def _spotify_track_summary(item: dict[str, Any]) -> dict[str, Any] | None:
+    track = item.get("item") if isinstance(item.get("item"), dict) else item
+    if not isinstance(track, dict):
+        return None
+    artists = track.get("artists") or []
+    artist_names = ", ".join(
+        str(a.get("name"))
+        for a in artists
+        if isinstance(a, dict) and a.get("name")
+    )
+    album = track.get("album") if isinstance(track.get("album"), dict) else {}
+    external = track.get("external_urls") if isinstance(track.get("external_urls"), dict) else {}
+    return {
+        "id": track.get("id"),
+        "name": track.get("name") or "Sans titre",
+        "artists": artist_names,
+        "album": album.get("name") or "",
+        "url": external.get("spotify") or "",
+        "durationMs": track.get("duration_ms"),
+    }
+
+
+@router.get("/spotify/status")
+async def spotify_status(user: FirebaseUser = Depends(require_firebase_user)):
+    return _status(user.uid, "spotify").model_dump(by_alias=True)
+
+
+@router.get("/spotify/playback")
+async def spotify_playback(user: FirebaseUser = Depends(require_firebase_user)):
+    token = await _require_token(user.uid, "spotify")
+    async with httpx.AsyncClient(timeout=25) as client:
+        r = await client.get(
+            "https://api.spotify.com/v1/me/player",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if r.status_code == 204:
+        return {"playing": False, "track": None, "device": None}
+    if r.status_code != 200:
+        raise HTTPException(r.status_code, r.text or "Spotify API error.")
+    data = r.json()
+    device = data.get("device") if isinstance(data.get("device"), dict) else {}
+    track = _spotify_track_summary(data)
+    return {
+        "playing": bool(data.get("is_playing")),
+        "track": track,
+        "device": device.get("name") or None,
+        "progressMs": data.get("progress_ms"),
+    }
+
+
+@router.get("/spotify/me")
+async def spotify_me(user: FirebaseUser = Depends(require_firebase_user)):
+    token = await _require_token(user.uid, "spotify")
+    async with httpx.AsyncClient(timeout=25) as client:
+        r = await client.get(
+            "https://api.spotify.com/v1/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if r.status_code != 200:
+        raise HTTPException(r.status_code, r.text or "Spotify API error.")
+    data = r.json()
+    return {
+        "id": data.get("id"),
+        "email": data.get("email"),
+        "displayName": data.get("display_name"),
+        "product": data.get("product"),
+    }
+
+
+def _spotify_track_card(track: dict[str, Any]) -> dict[str, Any]:
+    artists = track.get("artists") or []
+    artist_names = ", ".join(
+        str(a.get("name"))
+        for a in artists
+        if isinstance(a, dict) and a.get("name")
+    )
+    album = track.get("album") if isinstance(track.get("album"), dict) else {}
+    images = album.get("images") if isinstance(album.get("images"), list) else []
+    image_url = None
+    if images:
+        image_url = images[min(1, len(images) - 1)].get("url") if isinstance(images[0], dict) else None
+    external = track.get("external_urls") if isinstance(track.get("external_urls"), dict) else {}
+    return {
+        "id": track.get("id"),
+        "name": track.get("name") or "Sans titre",
+        "artists": artist_names,
+        "album": album.get("name") or "",
+        "imageUrl": image_url,
+        "url": external.get("spotify") or "",
+    }
+
+
+@router.post("/spotify/play")
+async def spotify_play(
+    body: SpotifyPlayBody,
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    token = await _require_token(user.uid, "spotify")
+    query = body.query.strip()
+    async with httpx.AsyncClient(timeout=25) as client:
+        search_r = await client.get(
+            "https://api.spotify.com/v1/search",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"q": query, "type": "track", "limit": 1},
+        )
+    if search_r.status_code != 200:
+        raise HTTPException(search_r.status_code, search_r.text or "Spotify search error.")
+
+    items = search_r.json().get("tracks", {}).get("items") or []
+    if not items or not isinstance(items[0], dict):
+        raise HTTPException(404, "Aucune piste trouvée pour cette recherche.")
+
+    track = items[0]
+    track_id = track.get("id")
+    if not track_id:
+        raise HTTPException(404, "Aucune piste trouvée pour cette recherche.")
+
+    uri = f"spotify:track:{track_id}"
+    async with httpx.AsyncClient(timeout=25) as client:
+        play_r = await client.put(
+            "https://api.spotify.com/v1/me/player/play",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"uris": [uri]},
+        )
+
+    if play_r.status_code == 404:
+        raise HTTPException(
+            409,
+            "Aucun appareil Spotify actif. Ouvrez Spotify sur votre téléphone, ordinateur ou navigateur.",
+        )
+    if play_r.status_code == 403:
+        raise HTTPException(
+            403,
+            "Le contrôle à distance Spotify nécessite un compte Premium.",
+        )
+    if play_r.status_code not in (200, 204):
+        raise HTTPException(play_r.status_code, play_r.text or "Impossible de lancer la lecture.")
+
+    card = _spotify_track_card(track)
+    return {"playing": True, "track": card, "device": None}

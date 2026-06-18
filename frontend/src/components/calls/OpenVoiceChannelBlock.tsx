@@ -18,7 +18,6 @@ export default function OpenVoiceChannelBlock({ index = 0, channel }: OpenVoiceC
   const inCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
   const localChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
   const joinOpenChannel = useCallsStore((s) => s.joinOpenChannel);
-  const prefetchVoiceMedia = useCallsStore((s) => s.prefetchVoiceMedia);
   const confirmOpenChannel = useCallsStore((s) => s.confirmOpenChannel);
   const removeOpenChannel = useCallsStore((s) => s.removeOpenChannel);
 
@@ -34,10 +33,6 @@ export default function OpenVoiceChannelBlock({ index = 0, channel }: OpenVoiceC
   const canJoin = !isHere && !isDraft;
   const statusLabel = isHere ? "En appel" : hasRemoteParticipants ? "Rejoindre" : "Vide";
 
-  useEffect(() => {
-    if (!canJoin) return;
-    void prefetchVoiceMedia();
-  }, [canJoin, prefetchVoiceMedia, channel.id]);
   const localAiStroke = useLocalAiStroke();
   const remoteAiStroke = useRemoteAiStroke(
     activeRoomId,
@@ -173,7 +168,7 @@ export default function OpenVoiceChannelBlock({ index = 0, channel }: OpenVoiceC
           </button>
         }
         onMainClick={
-          canJoin ? () => joinOpenChannel(activeRoomId, channel.id) : undefined
+          canJoin ? () => void joinOpenChannel(activeRoomId, channel.id) : undefined
         }
         mainDisabled={!canJoin}
         mainAriaLabel={`${statusLabel} — ${channel.name}`}

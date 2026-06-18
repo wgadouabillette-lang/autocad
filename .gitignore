@@ -3,11 +3,16 @@ backend/.venv/
 __pycache__/
 *.pyc
 backend/.env
+backend/connector_tokens/
 
 # Node
 frontend/node_modules/
 frontend/dist/
 frontend/.env
+frontend/.env.local
+functions/.env
+functions/.env.*
+!functions/.env.example
 functions/node_modules/
 functions/lib/
 

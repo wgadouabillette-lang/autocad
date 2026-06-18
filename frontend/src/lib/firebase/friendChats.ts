@@ -2,7 +2,10 @@ import {
   addDoc,
   collection,
   doc,
+  getDocs,
+  limit,
   onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -20,7 +23,23 @@ export interface CloudFriendMessage {
   text: string;
   clientCreatedAt?: number;
   createdAt?: { seconds: number; nanoseconds: number } | null;
+  kind?: "text" | "handoff";
+  handoffId?: string;
+  handoffTitle?: string;
+  handoffPreview?: string;
 }
+
+export interface CloudFriendChat {
+  id: string;
+  participants: string[];
+  updatedAt?: { seconds: number; nanoseconds: number } | null;
+  lastPreview?: string;
+  lastMessageAuthorUid?: string;
+  lastMessageKind?: "text" | "handoff";
+  lastHandoffTitle?: string;
+}
+
+export const FRIEND_CHAT_MESSAGE_PAGE_SIZE = 80;
 
 export function friendChatId(uidA: string, uidB: string): string {
   return [uidA, uidB].sort().join("_");
@@ -57,9 +76,17 @@ export async function sendFriendChatMessage(
   authorName: string,
   participants: string[],
   text: string,
+  extras?: {
+    kind?: "text" | "handoff";
+    handoffId?: string;
+    handoffTitle?: string;
+    handoffPreview?: string;
+  },
 ): Promise<void> {
   const trimmed = text.trim();
   if (!trimmed) return;
+  const previewText =
+    extras?.kind === "handoff" ? extras.handoffTitle?.trim() || trimmed : trimmed;
   await addDoc(messagesCol(chatId), {
     authorUid,
     authorName: authorName.trim() || authorUid,
@@ -67,12 +94,100 @@ export async function sendFriendChatMessage(
     participants: [...participants].sort(),
     clientCreatedAt: Date.now(),
     createdAt: serverTimestamp(),
+    ...(extras?.kind === "handoff" && extras.handoffId
+      ? {
+          kind: "handoff",
+          handoffId: extras.handoffId,
+          handoffTitle: extras.handoffTitle ?? "",
+          handoffPreview: extras.handoffPreview ?? "",
+        }
+      : {}),
   });
   await setDoc(
     chatRef(chatId),
-    { participants: [...participants].sort(), updatedAt: serverTimestamp() },
+    {
+      participants: [...participants].sort(),
+      updatedAt: serverTimestamp(),
+      lastPreview: previewText.slice(0, 200),
+      lastMessageAuthorUid: authorUid,
+      lastMessageKind: extras?.kind === "handoff" ? "handoff" : "text",
+      ...(extras?.kind === "handoff" && extras.handoffTitle
+        ? { lastHandoffTitle: extras.handoffTitle.slice(0, 200) }
+        : {}),
+    },
     { merge: true },
   );
+}
+
+function mapChatDoc(docSnap: QueryDocumentSnapshot<DocumentData>): CloudFriendChat {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    participants: Array.isArray(data.participants)
+      ? data.participants.filter((id): id is string => typeof id === "string")
+      : [],
+    updatedAt: data.updatedAt ?? null,
+    lastPreview: typeof data.lastPreview === "string" ? data.lastPreview : undefined,
+    lastMessageAuthorUid:
+      typeof data.lastMessageAuthorUid === "string" ? data.lastMessageAuthorUid : undefined,
+    lastMessageKind:
+      data.lastMessageKind === "handoff" || data.lastMessageKind === "text"
+        ? data.lastMessageKind
+        : undefined,
+    lastHandoffTitle:
+      typeof data.lastHandoffTitle === "string" ? data.lastHandoffTitle : undefined,
+  };
+}
+
+function chatUpdatedAtMillis(chat: CloudFriendChat): number {
+  const updatedAt = chat.updatedAt;
+  if (updatedAt && typeof updatedAt === "object" && "seconds" in updatedAt) {
+    return updatedAt.seconds * 1000 + Math.floor(updatedAt.nanoseconds / 1_000_000);
+  }
+  return 0;
+}
+
+/** Métadonnées des conversations (sans messages) — léger pour l'inbox. */
+export function watchFriendChats(
+  localUid: string,
+  onChange: (chats: CloudFriendChat[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  if (!localUid) {
+    onChange([]);
+    return () => {};
+  }
+
+  const chatsQuery = query(
+    collection(db, "friendChats"),
+    where("participants", "array-contains", localUid),
+  );
+
+  return onSnapshot(
+    chatsQuery,
+    (snap) => {
+      onChange(
+        snap.docs
+          .map((docSnap) => mapChatDoc(docSnap))
+          .sort((a, b) => chatUpdatedAtMillis(b) - chatUpdatedAtMillis(a)),
+      );
+    },
+    onError,
+  );
+}
+
+export async function fetchLatestFriendMessage(
+  chatId: string,
+): Promise<CloudFriendMessage | null> {
+  const snap = await getDocs(
+    query(
+      messagesCol(chatId),
+      orderBy("clientCreatedAt", "desc"),
+      limit(1),
+    ),
+  );
+  if (snap.empty) return null;
+  return mapMessageDoc(snap.docs[0]!);
 }
 
 function mapMessageDoc(docSnap: QueryDocumentSnapshot<DocumentData>): CloudFriendMessage {
@@ -155,9 +270,19 @@ export function watchFriendChatMessages(
   chatId: string,
   onChange: (messages: CloudFriendMessage[]) => void,
   onError?: (error: Error) => void,
+  pageSize = FRIEND_CHAT_MESSAGE_PAGE_SIZE,
 ): Unsubscribe {
+  const messagesQuery =
+    pageSize > 0
+      ? query(
+          messagesCol(chatId),
+          orderBy("clientCreatedAt", "desc"),
+          limit(pageSize),
+        )
+      : messagesCol(chatId);
+
   return onSnapshot(
-    messagesCol(chatId),
+    messagesQuery,
     (snap) => {
       onChange(sortMessages(snap.docs.map((d) => mapMessageDoc(d))));
     },

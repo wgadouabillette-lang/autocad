@@ -10,6 +10,12 @@ const OPENAI_AUTO_CHAT = process.env.OPENAI_AUTO_CHAT_MODEL ?? "gpt-4.1-nano";
 const COMPLEX_RE =
   /analys|optimis|génér|convert|complex|ingénier|simul|calcul|contrainte|trou|perçag|pattern|réseau|miroir|symétri|plusieurs|paramétr/i;
 
+const CHAT_GPT_RE =
+  /```|`\w+|json|sql|regex|typescript|javascript|python|api|bug|fix|error|liste|étape|step|how to|comment faire|calcul|formule|tableau|markdown|refactor|debug|compile|syntax|function|class |import |const |def /i;
+
+const CHAT_GROK_RE =
+  /brainstorm|idée|créatif|humour|blague|histoire|story|avis|opinion|discut|conversation|salut|coucou|pourquoi|explique-moi|resume|résume|@\w+|\/gmail|\/calendar|\/notion|\/figma|\/outlook|\/play/i;
+
 function providerForModelId(modelId: string, keys: LlmKeySet): LlmProvider | null {
   const id = modelId.toLowerCase();
   if (id.includes("claude") || id.includes("opus")) {
@@ -24,11 +30,35 @@ function providerForModelId(modelId: string, keys: LlmKeySet): LlmProvider | nul
   return keys.xai ? "xai" : keys.openai ? "openai" : keys.anthropic ? "anthropic" : null;
 }
 
-function autoChatModel(keys: LlmKeySet): string {
-  if (keys.openai) return OPENAI_AUTO_CHAT;
-  if (keys.xai) return XAI_MODEL;
-  if (keys.anthropic) return OPUS_47;
-  return OPENAI_AUTO_CHAT;
+function autoChatModel(prompt: string, keys: LlmKeySet): string {
+  const hasOpenai = Boolean(keys.openai);
+  const hasXai = Boolean(keys.xai);
+
+  if (hasOpenai && !hasXai) return OPENAI_MODEL;
+  if (hasXai && !hasOpenai) return XAI_MINI_MODEL;
+  if (!hasOpenai && !hasXai) {
+    if (keys.anthropic) return OPUS_47;
+    return OPENAI_MODEL;
+  }
+
+  const text = prompt.trim();
+  let scoreGpt = 0;
+  let scoreGrok = 0;
+
+  if (CHAT_GPT_RE.test(text)) scoreGpt += 2;
+  if (text.length > 220) scoreGpt += 1;
+  if (text.split("\n").length >= 3) scoreGpt += 1;
+
+  if (CHAT_GROK_RE.test(text)) scoreGrok += 2;
+  const low = text.toLowerCase();
+  if (["hey", "hi", "hello", "yo", "salut", "bonjour", "coucou", "hola", "thanks", "merci"].includes(low)) {
+    scoreGrok += 2;
+  }
+  if (COMPLEX_RE.test(text)) scoreGrok += 1;
+
+  if (scoreGpt > scoreGrok) return OPENAI_MODEL;
+  if (scoreGrok > scoreGpt) return XAI_MINI_MODEL;
+  return hasXai ? XAI_MINI_MODEL : OPENAI_MODEL;
 }
 
 function autoModel(prompt: string, keys: LlmKeySet): string {
@@ -45,7 +75,7 @@ function autoModel(prompt: string, keys: LlmKeySet): string {
 
 export function resolveChatModel(aiModel: string, prompt: string, keys: LlmKeySet): string {
   const key = (aiModel || "auto").trim().toLowerCase();
-  if (key === "auto") return autoChatModel(keys);
+  if (key === "auto") return autoChatModel(prompt, keys);
   if (key === "grok" || key === "xai" || key === "grok-4.3" || key === "grok-best") {
     return keys.xai ? XAI_MODEL : autoModel(prompt, keys);
   }

@@ -31,6 +31,12 @@ export const CHAT_CONNECTORS = [
     slash: "/figma",
     Logo: CHAT_APP_LOGOS.figma,
   },
+  {
+    id: "spotify",
+    label: "Spotify",
+    slash: "/play",
+    Logo: CHAT_APP_LOGOS.spotify,
+  },
 ] as const;
 
 export type ChatConnectorId = (typeof CHAT_CONNECTORS)[number]["id"];

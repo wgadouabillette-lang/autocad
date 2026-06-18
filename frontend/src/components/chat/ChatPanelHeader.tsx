@@ -1,16 +1,19 @@
 import clsx from "clsx";
-import { useMemo } from "react";
-import { ArrowLeft, Calendar, History, Maximize2, Minimize2, Plus, Users } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowLeft, Calendar, History, Maximize2, Minimize2, Plus, Users, UsersRound } from "lucide-react";
 import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { isVoiceAssistPanelMode } from "../../lib/voiceAssistPanel";
 import { resolvePersonPhotoURL } from "../../lib/peopleChat";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
+import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import UserAvatar from "../UserAvatar";
+import CreateGroupChatOverlay from "./CreateGroupChatOverlay";
 
 export default function ChatPanelHeader() {
   const isMobileLayout = useMobileLayout();
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const startNewChat = useStore((s) => s.startNewChat);
   const startNewManualNote = useStore((s) => s.startNewManualNote);
   const showChatHistory = useStore((s) => s.showChatHistory);
@@ -21,6 +24,7 @@ export default function ChatPanelHeader() {
   const toggleChatPanelExpanded = useStore((s) => s.toggleChatPanelExpanded);
   const activeFriendThreadId = usePeopleStore((s) => s.activeFriendThreadId);
   const friendThreads = usePeopleStore((s) => s.friendThreads);
+  const groupThreads = usePeopleStore((s) => s.groupThreads);
   const colleagueThreadsByWorkspace = usePeopleStore((s) => s.colleagueThreadsByWorkspace);
   const personPhotoByUserId = usePeopleStore((s) => s.personPhotoByUserId);
   const setActiveFriendThread = usePeopleStore((s) => s.setActiveFriendThread);
@@ -28,6 +32,8 @@ export default function ChatPanelHeader() {
   const membersByWorkspace = useWorkspacePresenceStore((s) => s.membersByWorkspace);
   const activeFriendThread = useMemo(() => {
     if (!activeFriendThreadId) return undefined;
+    const group = groupThreads.find((thread) => thread.id === activeFriendThreadId);
+    if (group) return group;
     const friend = friendThreads.find((thread) => thread.id === activeFriendThreadId);
     if (friend) return friend;
     for (const threads of Object.values(colleagueThreadsByWorkspace)) {
@@ -35,9 +41,10 @@ export default function ChatPanelHeader() {
       if (found) return found;
     }
     return undefined;
-  }, [activeFriendThreadId, friendThreads, colleagueThreadsByWorkspace]);
+  }, [activeFriendThreadId, friendThreads, groupThreads, colleagueThreadsByWorkspace]);
   const friendsMode = chatPanelMode === "friends";
   const inFriendThread = friendsMode && !!activeFriendThread;
+  const inGroupThread = inFriendThread && activeFriendThread?.section === "groups";
   const theaterMode = chatPanelMode === "theater";
   const calendarMode = chatPanelMode === "calendar";
   const voiceAssistMode = isVoiceAssistPanelMode(chatPanelMode);
@@ -45,6 +52,7 @@ export default function ChatPanelHeader() {
   const agentMode = chatPanelMode === "agent";
   const showAgentTools = agentMode;
   const showNotesTools = aiNotesMode;
+  const openCalendarComposer = useCalendarOverlayStore((s) => s.openComposer);
 
   return (
     <div className="chat-panel-header grid w-full min-w-0 grid-cols-[1fr_auto_1fr] items-center gap-1">
@@ -58,6 +66,28 @@ export default function ChatPanelHeader() {
             aria-label="Back to messages"
           >
             <ArrowLeft size={14} />
+          </button>
+        ) : null}
+        {friendsMode && !inFriendThread ? (
+          <button
+            type="button"
+            className="toolbar-btn"
+            onClick={() => setCreateGroupOpen(true)}
+            title="Créer un groupe"
+            aria-label="Créer un groupe"
+          >
+            <UsersRound size={14} />
+          </button>
+        ) : null}
+        {calendarMode ? (
+          <button
+            type="button"
+            className="toolbar-btn"
+            onClick={() => openCalendarComposer()}
+            title="Nouvel événement"
+            aria-label="Nouvel événement"
+          >
+            <Plus size={14} />
           </button>
         ) : null}
         {showAgentTools && (
@@ -111,17 +141,25 @@ export default function ChatPanelHeader() {
       <h2 className="chat-panel-header__title pointer-events-none min-w-0 select-none text-xs font-semibold tracking-wide text-muted-200">
         {inFriendThread && activeFriendThread ? (
           <span className="chat-panel-header__thread-identity">
-            <UserAvatar
-              userId={activeFriendThread.personId}
-              name={activeFriendThread.personName}
-              photoURL={resolvePersonPhotoURL(
-                activeFriendThread.personId,
-                membersByWorkspace,
-                { preferredWorkspaceId: activeRoomId, photoCache: personPhotoByUserId },
-              )}
-              className="chat-panel-header__thread-avatar"
-            />
-            <span className="chat-panel-header__thread-name">{activeFriendThread.personName}</span>
+            {inGroupThread ? (
+              <span className="chat-panel-header__thread-avatar chat-panel-header__thread-avatar--group">
+                <UsersRound size={12} aria-hidden />
+              </span>
+            ) : (
+              <UserAvatar
+                userId={activeFriendThread.personId}
+                name={activeFriendThread.personName}
+                photoURL={resolvePersonPhotoURL(
+                  activeFriendThread.personId,
+                  membersByWorkspace,
+                  { preferredWorkspaceId: activeRoomId, photoCache: personPhotoByUserId },
+                )}
+                className="chat-panel-header__thread-avatar"
+              />
+            )}
+            <span className="chat-panel-header__thread-name">
+              {activeFriendThread.groupName ?? activeFriendThread.personName}
+            </span>
           </span>
         ) : friendsMode ? (
           "Friends"
@@ -163,6 +201,13 @@ export default function ChatPanelHeader() {
           </button>
         )}
       </div>
+
+      {createGroupOpen ? (
+        <CreateGroupChatOverlay
+          workspaceId={activeRoomId}
+          onClose={() => setCreateGroupOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

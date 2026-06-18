@@ -29,9 +29,12 @@ const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "forma-cad-dev";
 
 const OAUTH_POPUP_PREFIXES = [
   "https://accounts.google.com/",
-  "https://appleid.apple.com/",
+  "https://www.facebook.com/",
+  "https://facebook.com/",
   "https://login.microsoftonline.com/",
   "https://forma-cad-dev.firebaseapp.com/",
+  "https://checkout.stripe.com/",
+  "https://billing.stripe.com/",
 ];
 
 let backendProc = null;

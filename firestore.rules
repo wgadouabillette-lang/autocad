@@ -30,6 +30,23 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    // subscriptionPlan / billingManaged / onDemandUsageEnabled : webhook Stripe uniquement (Admin SDK).
+    function billingFieldsUnchanged() {
+      let data = request.resource.data;
+      let existing = resource.data;
+      return (!('subscriptionPlan' in data) || data.subscriptionPlan == existing.get('subscriptionPlan', 'free'))
+        && (!('onDemandUsageEnabled' in data)
+          || data.onDemandUsageEnabled == existing.get('onDemandUsageEnabled', false))
+        && (!('billingManaged' in data) || data.billingManaged == existing.get('billingManaged', false));
+    }
+
+    function billingFieldsSafeOnCreate() {
+      let data = request.resource.data;
+      return (!('subscriptionPlan' in data) || data.subscriptionPlan == 'free')
+        && (!('onDemandUsageEnabled' in data) || data.onDemandUsageEnabled == false)
+        && (!('billingManaged' in data) || data.billingManaged == false);
+    }
+
     function isValidDirectoryProfile(uid) {
       let data = request.resource.data;
       return data.keys().hasAll(['uid', 'email', 'displayName', 'updatedAt'])
@@ -115,7 +132,21 @@ service cloud.firestore {
         && data.accent is string
         && data.ownerName is string
         && data.ownerName.size() >= 1
-        && data.ownerName.size() <= 120;
+        && data.ownerName.size() <= 120
+        && workspaceEnterpriseFieldsUnchanged();
+    }
+
+    function workspaceEnterpriseFieldsUnchanged() {
+      let data = request.resource.data;
+      let existing = resource.data;
+      return (!('enterpriseSubscriptionPlan' in data)
+          || data.enterpriseSubscriptionPlan == existing.get('enterpriseSubscriptionPlan', 'free'))
+        && (!('enterpriseBillingManaged' in data)
+          || data.enterpriseBillingManaged == existing.get('enterpriseBillingManaged', false))
+        && (!('enterpriseMemberCount' in data)
+          || data.enterpriseMemberCount == existing.get('enterpriseMemberCount', 0))
+        && (!('enterpriseSeatCount' in data)
+          || data.enterpriseSeatCount == existing.get('enterpriseSeatCount', 0));
     }
 
     function isValidJoinRequestCreate(requesterUid) {
@@ -270,9 +301,10 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if isOwner(uid);
-      allow create: if isOwner(uid) && isValidProfile();
+      allow create: if isOwner(uid) && isValidProfile() && billingFieldsSafeOnCreate();
       allow update: if isOwner(uid) && isValidProfile()
-        && request.resource.data.email == resource.data.email;
+        && request.resource.data.email == resource.data.email
+        && billingFieldsUnchanged();
 
       match /workspaces/{workspaceId} {
         allow read, write: if isOwner(uid);
@@ -331,6 +363,33 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    function isValidHandoffMessage() {
+      let data = request.resource.data;
+      return (!('kind' in data) || data.kind == 'text'
+        || (data.kind == 'handoff'
+          && data.handoffId is string
+          && data.handoffId.size() > 0
+          && data.handoffId.size() <= 128))
+        && (!('handoffTitle' in data) || data.handoffTitle is string)
+        && (!('handoffPreview' in data) || data.handoffPreview is string);
+    }
+
+    function canReadHandoff(handoffId) {
+      let doc = get(/databases/$(database)/documents/handoffs/$(handoffId));
+      return doc.data.senderUid == request.auth.uid
+        || (doc.data.targetType == 'dm'
+          && doc.data.recipientUid == request.auth.uid)
+        || (doc.data.targetType == 'group'
+          && doc.data.groupId is string
+          && get(/databases/$(database)/documents/groupChats/$(doc.data.groupId)).data.participants is list
+          && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(doc.data.groupId)).data.participants);
+    }
+
+    match /handoffs/{handoffId} {
+      allow read: if isSignedIn() && canReadHandoff(handoffId);
+      allow create, update, delete: if false;
+    }
+
     match /friendChats/{chatId} {
       allow read: if isSignedIn()
         && resource.data.participants is list
@@ -342,7 +401,9 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && request.auth.uid in resource.data.participants
         && request.resource.data.participants == resource.data.participants;
-      allow delete: if false;
+      allow delete: if isSignedIn()
+        && resource.data.participants is list
+        && request.auth.uid in resource.data.participants;
 
       match /messages/{messageId} {
         allow read: if canReadFriendChatMessage(chatId);
@@ -355,15 +416,62 @@ service cloud.firestore {
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 4000
-          && request.resource.data.createdAt is timestamp;
-        allow update, delete: if false;
+          && request.resource.data.createdAt is timestamp
+          && isValidHandoffMessage();
+        allow update: if false;
+        allow delete: if isSignedIn() && isFriendChatMember(chatId);
+      }
+    }
+
+    match /groupChats/{groupId} {
+      allow read: if isSignedIn()
+        && resource.data.participants is list
+        && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn()
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() >= 2
+        && request.resource.data.participants.size() <= 32
+        && request.auth.uid in request.resource.data.participants
+        && request.resource.data.creatorUid == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 80;
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.participants
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() >= 2
+        && request.resource.data.participants.size() <= 32
+        && request.auth.uid in request.resource.data.participants;
+      allow delete: if isSignedIn()
+        && resource.data.participants is list
+        && request.auth.uid in resource.data.participants;
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn()
+          && get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants is list
+          && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants;
+        allow create: if isSignedIn()
+          && get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants is list
+          && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.participants is list
+          && request.auth.uid in request.resource.data.participants
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 4000
+          && request.resource.data.createdAt is timestamp
+          && isValidHandoffMessage();
+        allow update: if false;
+        allow delete: if isSignedIn()
+          && get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants is list
+          && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants;
       }
     }
 
     match /desktopAuthSessions/{sessionId} {
       allow create: if request.auth != null
         && request.resource.data.keys().hasAll(["provider", "idToken", "createdAt"])
-        && request.resource.data.provider in ["google", "microsoft", "apple"]
+        && request.resource.data.provider in ["google", "microsoft", "facebook"]
         && request.resource.data.idToken is string
         && request.resource.data.idToken.size() > 100;
       allow read, delete: if true;
@@ -400,6 +508,11 @@ service cloud.firestore {
           && request.resource.data.email.size() <= 320
           && request.resource.data.joinedAt is timestamp;
         allow delete: if isSharedWorkspaceOwner(workspaceId);
+      }
+
+      match /private/{privateDoc} {
+        allow read: if privateDoc == 'billing' && isSharedWorkspaceOwner(workspaceId);
+        allow write: if false;
       }
 
       match /presence/{uid} {

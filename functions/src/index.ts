@@ -4,10 +4,11 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { runAiChat, assertAuthenticated } from "./ai/chat";
+import "./loadSecrets";
 
 initializeApp();
 
-setGlobalOptions({ region: "us-central1" });
+setGlobalOptions({ region: "europe-west1" });
 
 const db = getFirestore();
 
@@ -167,3 +168,5 @@ export const claimDesktopAuthSession = onCall({ cors: true }, async (request) =>
   await ref.delete();
   return { status: "ready" as const, customToken };
 });
+
+export { stripeWebhook } from "./billing/stripeWebhook";

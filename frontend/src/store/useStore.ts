@@ -40,7 +40,7 @@ import { applyDocumentTheme, resolveEffectiveTheme } from "../lib/theme";
 import { writeLastActiveWorkspace } from "../lib/lastActiveWorkspace";
 import { normalizeWorkspaceId } from "../lib/workspaces";
 import { debugLog } from "../lib/debugLog";
-import type { ChatSessionKind } from "../lib/chatSessionKinds";
+import { isRecordingSession, normalizeChatSessionKind, type ChatSessionKind } from "../lib/chatSessionKinds";
 import {
   augmentPromptWithRecipients,
   dispatchMessagesToMentionedPeople,
@@ -56,13 +56,16 @@ import {
   localRulesReply,
 } from "../lib/chatRulesFallback";
 import { waitMinChatProcessing } from "../lib/chatProcessing";
-import { isManageSchedulePrompt } from "../lib/chatSkills";
+import { isManageSchedulePrompt, isPlaySkillPrompt } from "../lib/chatSkills";
 import { runManageScheduleSkill } from "../lib/manageScheduleSkill";
+import { parsePlaySkillQuery, runPlaySkill } from "../lib/playSkill";
 import type { ManageSchedulePromptDraft } from "../lib/manageSchedulePrompt";
+import type { SpotifyTrackCard } from "../lib/connectorsApi";
 import { useCalendarOverlayStore } from "./useCalendarOverlayStore";
 import { auth } from "../lib/firebase/client";
 import {
   deleteChatSession as fbDeleteChatSession,
+  loadChatSessionById,
   saveChatSession as fbSaveChatSession,
 } from "../lib/firebase/userData";
 import { deleteRecordingBlob } from "../lib/recordingsStorage";
@@ -71,6 +74,8 @@ export interface ChatMessage {
   text: string;
   source?: string;
   managePrompt?: ManageSchedulePromptDraft;
+  playQuery?: string;
+  spotifyTrack?: SpotifyTrackCard;
   actions?: { kind: string; description: string }[];
 }
 
@@ -261,6 +266,8 @@ interface State {
   colorTheme: ColorThemePreference;
   subscriptionPlan: SubscriptionPlan;
   onDemandUsageEnabled: boolean;
+  billingManaged: boolean;
+  workspaceEnterpriseActive: boolean;
   agentChatInstructions: string;
   agentFollowUpInstructions: string;
   agentAiNotesInstructions: string;
@@ -338,6 +345,7 @@ interface State {
   openManualNote: (id: string) => void;
   openRecordingSession: (id: string) => void;
   deleteRecordingSession: (sessionId: string) => Promise<void>;
+  deleteHistorySession: (sessionId: string) => Promise<void>;
   saveFollowUpNoteSession: (input: {
     recap: string;
     actions: { title: string; detail?: string; dueDate: string }[];
@@ -531,6 +539,10 @@ export const useStore = create<State>((set, get) => ({
   aiModel: "auto",
   ...bootUserPreferences,
   photoURL: bootUserPreferences.photoURL ?? null,
+  subscriptionPlan: "free",
+  onDemandUsageEnabled: false,
+  billingManaged: false,
+  workspaceEnterpriseActive: false,
   chatPanelExpanded: false,
   chatPanelLeaveAnimating: false,
   aiRun: null,
@@ -621,25 +633,16 @@ export const useStore = create<State>((set, get) => ({
     useCallsStore.getState().syncLocalParticipantProfile({ photoURL });
   },
 
-  setSubscriptionPlan: (plan) => {
-    const onDemandUsageEnabled = plan === "pro" ? get().onDemandUsageEnabled : false;
-    set({ subscriptionPlan: plan, onDemandUsageEnabled });
-    writeUserPreferences(
-      userPreferencesSnapshot({ ...get(), subscriptionPlan: plan, onDemandUsageEnabled }),
-    );
+  setSubscriptionPlan: (_plan) => {
+    // Le forfait est géré uniquement par Stripe (webhook → Firestore billingManaged).
   },
 
-  setOnDemandUsageEnabled: (enabled) => {
-    if (get().subscriptionPlan !== "pro") return;
-    set({ onDemandUsageEnabled: enabled });
-    writeUserPreferences(userPreferencesSnapshot({ ...get(), onDemandUsageEnabled: enabled }));
+  setOnDemandUsageEnabled: (_enabled) => {
+    // Géré par Stripe (webhook → Firestore).
   },
 
   toggleOnDemandUsage: () => {
-    if (get().subscriptionPlan !== "pro") return;
-    const onDemandUsageEnabled = !get().onDemandUsageEnabled;
-    set({ onDemandUsageEnabled });
-    writeUserPreferences(userPreferencesSnapshot({ ...get(), onDemandUsageEnabled }));
+    // Géré par Stripe (webhook → Firestore).
   },
 
   setAgentChatInstructions: (value) => {
@@ -851,6 +854,12 @@ export const useStore = create<State>((set, get) => ({
             ...(options?.managePrompt
               ? { source: "manage-prompt", managePrompt: options.managePrompt }
               : {}),
+            ...(isPlaySkillPrompt(displayText)
+              ? {
+                  source: "play-prompt",
+                  playQuery: parsePlaySkillQuery(displayText) ?? undefined,
+                }
+              : {}),
           },
         ],
         s.openChatTabs,
@@ -865,7 +874,95 @@ export const useStore = create<State>((set, get) => ({
         await waitUntilAborted(signal);
         return;
       }
-      if (!hasAiAccess(get().subscriptionPlan)) {
+
+      if (isPlaySkillPrompt(displayText)) {
+        get().tickAiRunStep();
+        const playQuery = parsePlaySkillQuery(displayText);
+        if (!playQuery) {
+          const assistantText =
+            "Indiquez un titre ou un artiste après `/play`, par exemple : `/play Bohemian Rhapsody`.";
+          await waitMinChatProcessing(processingStartedAt, signal);
+          set((s) => ({
+            ...patchChatState(
+              [...s.chat, { role: "assistant", text: assistantText, source: "play-skill" }],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "done",
+              finishedAt: Date.now(),
+              summary: assistantText.slice(0, 140),
+              message: assistantText,
+              source: "play-skill",
+              steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+            },
+          }));
+          writeAutosave(get());
+          return;
+        }
+
+        try {
+          const playResult = await runPlaySkill(playQuery, signal);
+          await waitMinChatProcessing(processingStartedAt, signal);
+          const assistantText = playResult.summary;
+          const summary =
+            assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
+          set((s) => ({
+            ...patchChatState(
+              [
+                ...s.chat,
+                {
+                  role: "assistant",
+                  text: assistantText,
+                  source: "play-skill",
+                  spotifyTrack: playResult.track ?? undefined,
+                },
+              ],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "done",
+              finishedAt: Date.now(),
+              summary,
+              message: assistantText,
+              source: "play-skill",
+              steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+            },
+          }));
+          writeAutosave(get());
+          return;
+        } catch (playErr: unknown) {
+          if (playErr instanceof DOMException && playErr.name === "AbortError") throw playErr;
+          const message =
+            playErr instanceof Error
+              ? playErr.message
+              : "Impossible de lancer la lecture Spotify.";
+          await waitMinChatProcessing(processingStartedAt, signal);
+          set((s) => ({
+            ...patchChatState(
+              [...s.chat, { role: "assistant", text: message, source: "play-skill" }],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "error",
+              finishedAt: Date.now(),
+              summary: message.slice(0, 140),
+              error: message,
+              source: "play-skill",
+              steps: [{ id: "1", label: "Spotify", detail: message, status: "error" }],
+            },
+          }));
+          writeAutosave(get());
+          return;
+        }
+      }
+
+      if (!hasAiAccess(get().subscriptionPlan, get().billingManaged, get().workspaceEnterpriseActive)) {
         const assistantText = freePlanAiReply(displayText);
         await waitMinChatProcessing(processingStartedAt, signal);
         set((s) => ({
@@ -929,7 +1026,14 @@ export const useStore = create<State>((set, get) => ({
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role, content: m.text }));
       get().tickAiRunStep();
-      const res = await api.chat(apiPrompt, aiModel, history, signal, agentChatInstructions);
+      const res = await api.chat(
+        apiPrompt,
+        aiModel,
+        history,
+        signal,
+        agentChatInstructions,
+        activeRoomId,
+      );
       handleAiModelFallback(res, get().setAiModel);
 
       let assistantText = stripDispatchBlock(res.message) || res.message;
@@ -1058,7 +1162,7 @@ export const useStore = create<State>((set, get) => ({
     switchedFromRender,
     switchedToRender,
   ) => {
-    const { document, material, aiModel, chatWorkMode, activeAiRequests } = get();
+    const { document, material, aiModel, chatWorkMode, activeAiRequests, activeRoomId } = get();
     const displayText = userChatText ?? prompt;
     const hasImages = imageFiles.length > 0;
     set((s) => ({ activeAiRequests: s.activeAiRequests + 1 }));
@@ -1079,7 +1183,7 @@ export const useStore = create<State>((set, get) => ({
         await waitUntilAborted(signal);
         return;
       }
-      if (!hasAiAccess(get().subscriptionPlan)) {
+      if (!hasAiAccess(get().subscriptionPlan, get().billingManaged, get().workspaceEnterpriseActive)) {
         const assistantText = freePlanAiReply(displayText);
         set((s) => ({
           ...patchChatState(
@@ -1114,6 +1218,7 @@ export const useStore = create<State>((set, get) => ({
         mode,
         signal,
         images,
+        activeRoomId,
       );
       handleAiModelFallback(res, get().setAiModel);
       let assistantText = res.message;
@@ -1218,7 +1323,7 @@ export const useStore = create<State>((set, get) => ({
       return get().sendAgent(prompt, imageFiles, displayText, mode);
     }
 
-    const { material, aiModel, chatWorkMode, activeAiRequests } = get();
+    const { material, aiModel, chatWorkMode, activeAiRequests, activeRoomId } = get();
     set((s) => ({ activeAiRequests: s.activeAiRequests + 1 }));
     const mode: WorkMode =
       workModeOverride ?? effectiveWorkMode(activeAiRequests + 1, chatWorkMode);
@@ -1238,7 +1343,7 @@ export const useStore = create<State>((set, get) => ({
         return;
       }
       get().tickAiRunStep();
-      const res = await api.textToCad(prompt, material, aiModel, mode, signal);
+      const res = await api.textToCad(prompt, material, aiModel, mode, signal, activeRoomId);
       handleAiModelFallback(res, get().setAiModel);
       const actions = res.actions?.map((a) => ({ kind: a.kind, description: a.description })) ?? [];
       const actionSteps = actions.map((a, i) => ({
@@ -1546,6 +1651,9 @@ export const useStore = create<State>((set, get) => ({
 
   closeChatPanel: () => {
     if (!get().chatPanelOpen) return;
+    if (get().chatPanelMode === "friends") {
+      usePeopleStore.getState().setFriendChatPanelActive(false);
+    }
     set({
       chatPanelOpen: false,
       chatPanelExpanded: false,
@@ -1567,6 +1675,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   switchChatPanelMode: (mode) => {
+    const previousMode = get().chatPanelMode;
     set({
       chatPanelOpen: true,
       chatPanelMode: mode,
@@ -1575,6 +1684,12 @@ export const useStore = create<State>((set, get) => ({
       openPages: [],
     });
     writeUserPreferences(userPreferencesSnapshot({ ...get(), chatPanelOpen: true }));
+
+    if (mode === "friends") {
+      usePeopleStore.getState().setFriendChatPanelActive(true);
+    } else if (previousMode === "friends") {
+      usePeopleStore.getState().setFriendChatPanelActive(false);
+    }
   },
 
   openAgentPanel: () => get().switchChatPanelMode("agent"),
@@ -1696,15 +1811,19 @@ export const useStore = create<State>((set, get) => ({
     });
   },
 
-  deleteRecordingSession: async (sessionId) => {
+  deleteHistorySession: async (sessionId) => {
     const session = get().chatSessions.find((item) => item.id === sessionId);
-    if (!session?.recordingId) return;
+    if (!session) return;
+
+    const kind = normalizeChatSessionKind(session.kind);
+    if (kind !== "note" && kind !== "recording") return;
 
     const recordingId = session.recordingId;
     const nextOpenChatTabs = get().openChatTabs.filter((tab) => tab.id !== sessionId);
     const nextChatSessions = get().chatSessions.filter((item) => item.id !== sessionId);
-    const wasActive = get().activeChatTabId === sessionId;
-    const nextActiveId = wasActive
+    const wasActiveTab = get().activeChatTabId === sessionId;
+    const wasActiveNote = get().activeManualNoteId === sessionId;
+    const nextActiveId = wasActiveTab
       ? nextOpenChatTabs[nextOpenChatTabs.length - 1]?.id ?? ""
       : get().activeChatTabId;
 
@@ -1712,20 +1831,29 @@ export const useStore = create<State>((set, get) => ({
       chatSessions: nextChatSessions,
       openChatTabs: nextOpenChatTabs,
       activeChatTabId: nextActiveId,
+      activeManualNoteId: wasActiveNote ? null : get().activeManualNoteId,
+      manualNoteResetTick: wasActiveNote
+        ? get().manualNoteResetTick + 1
+        : get().manualNoteResetTick,
       showChatHistory: true,
-      chatPanelMode: "ai-notes",
     });
     writeAutosave(get());
 
     const uid = auth.currentUser?.uid;
     if (uid) {
       await fbDeleteChatSession(uid, sessionId).catch((error) => {
-        console.error("[recording] Firestore delete failed", error);
+        console.error("[history] Firestore delete failed", error);
       });
     }
-    await deleteRecordingBlob(recordingId).catch((error) => {
-      console.error("[recording] IndexedDB delete failed", error);
-    });
+    if (recordingId) {
+      await deleteRecordingBlob(recordingId).catch((error) => {
+        console.error("[recording] IndexedDB delete failed", error);
+      });
+    }
+  },
+
+  deleteRecordingSession: async (sessionId) => {
+    await get().deleteHistorySession(sessionId);
   },
 
   saveManualNote: ({ id, title, body }) => {
@@ -2109,27 +2237,46 @@ export const useStore = create<State>((set, get) => ({
   loadChatSession: (id) => {
     const session = get().chatSessions.find((s) => s.id === id);
     if (!session) return;
-    const { chat, openChatTabs, activeChatTabId } = get();
-    const synced = updateActiveTabInTabs(openChatTabs, activeChatTabId, chat);
-    const existing = synced.find((t) => t.id === id);
-    if (existing) {
-      get().switchChatTab(id);
+
+    const openLoadedSession = (loaded: ChatSession) => {
+      const { chat, openChatTabs, activeChatTabId } = get();
+      const synced = updateActiveTabInTabs(openChatTabs, activeChatTabId, chat);
+      const existing = synced.find((t) => t.id === id);
+      if (existing) {
+        get().switchChatTab(id);
+        return;
+      }
+      const tab: ChatSession = {
+        ...loaded,
+        messages: structuredClone(loaded.messages),
+      };
+      const stack = get().chatNavStack.slice(0, get().chatNavPointer + 1);
+      stack.push(tab.id);
+      set({
+        openChatTabs: [...synced, tab],
+        activeChatTabId: tab.id,
+        chat: structuredClone(loaded.messages),
+        chatNavStack: stack,
+        chatNavPointer: stack.length - 1,
+        showChatHistory: false,
+        chatPanelOpen: true,
+      });
+    };
+
+    const needsFullLoad =
+      session.messages.length === 0 && !isRecordingSession(session);
+    const uid = auth.currentUser?.uid;
+    if (needsFullLoad && uid) {
+      void loadChatSessionById(uid, id).then((full) => {
+        if (!full) return;
+        set((state) => ({
+          chatSessions: state.chatSessions.map((item) => (item.id === id ? full : item)),
+        }));
+        openLoadedSession(full);
+      });
       return;
     }
-    const tab: ChatSession = {
-      ...session,
-      messages: structuredClone(session.messages),
-    };
-    const stack = get().chatNavStack.slice(0, get().chatNavPointer + 1);
-    stack.push(tab.id);
-    set({
-      openChatTabs: [...synced, tab],
-      activeChatTabId: tab.id,
-      chat: structuredClone(session.messages),
-      chatNavStack: stack,
-      chatNavPointer: stack.length - 1,
-      showChatHistory: false,
-      chatPanelOpen: true,
-    });
+
+    openLoadedSession(session);
   },
 }));

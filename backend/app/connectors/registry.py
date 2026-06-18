@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import urlencode
 
-ProviderId = Literal["google", "microsoft", "notion", "figma"]
+ProviderId = Literal["google", "microsoft", "notion", "figma", "spotify"]
 
-CONNECTOR_IDS = ("calendar", "gmail", "outlook", "notion", "figma")
+CONNECTOR_IDS = ("calendar", "gmail", "outlook", "notion", "figma", "spotify")
 
 
 @dataclass(frozen=True)
@@ -66,6 +66,18 @@ CONNECTORS: dict[str, ConnectorDef] = {
         provider="figma",
         scopes=("file_read",),
     ),
+    "spotify": ConnectorDef(
+        id="spotify",
+        label="Spotify",
+        provider="spotify",
+        scopes=(
+            "user-read-playback-state",
+            "user-modify-playback-state",
+            "user-read-currently-playing",
+            "user-read-email",
+            "user-read-private",
+        ),
+    ),
 }
 
 
@@ -96,6 +108,8 @@ def provider_configured(provider: ProviderId) -> bool:
         return bool(os.getenv("NOTION_CLIENT_ID") and os.getenv("NOTION_CLIENT_SECRET"))
     if provider == "figma":
         return bool(os.getenv("FIGMA_CLIENT_ID") and os.getenv("FIGMA_CLIENT_SECRET"))
+    if provider == "spotify":
+        return bool(os.getenv("SPOTIFY_CLIENT_ID") and os.getenv("SPOTIFY_CLIENT_SECRET"))
     return False
 
 
@@ -144,6 +158,17 @@ def microsoft_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
     return f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize?{urlencode(params)}"
 
 
+def spotify_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
+    params = {
+        "client_id": os.getenv("SPOTIFY_CLIENT_ID", ""),
+        "response_type": "code",
+        "redirect_uri": callback_url(),
+        "scope": " ".join(scopes),
+        "state": state,
+    }
+    return f"https://accounts.spotify.com/authorize?{urlencode(params)}"
+
+
 def figma_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
     params = {
         "client_id": os.getenv("FIGMA_CLIENT_ID", ""),
@@ -165,4 +190,6 @@ def build_authorize_url(connector_id: str, state: str) -> str:
         return notion_authorize_url(state)
     if spec.provider == "figma":
         return figma_authorize_url(state, spec.scopes)
+    if spec.provider == "spotify":
+        return spotify_authorize_url(state, spec.scopes)
     raise ValueError(f"Unknown provider: {spec.provider}")

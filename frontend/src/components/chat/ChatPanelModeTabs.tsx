@@ -11,6 +11,8 @@ export default function ChatPanelModeTabs() {
   const switchChatPanelMode = useStore((s) => s.switchChatPanelMode);
   const activeRoomId = useStore((s) => s.activeRoomId);
   const subscriptionPlan = useStore((s) => s.subscriptionPlan);
+  const billingManaged = useStore((s) => s.billingManaged);
+  const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
   const inTheaterView = useCallsStore(
     (s) => s.getCallsViewMode(activeRoomId) === "theater",
   );
@@ -33,7 +35,12 @@ export default function ChatPanelModeTabs() {
     return personIds.size;
   }, [friendThreads, colleagueThreadsByWorkspace, friendsTabSeenAt]);
   const hasUnreadPeopleMessages = unreadPeopleChats > 0;
-  const tabs = chatPanelModeTabs(subscriptionPlan, inTheaterView);
+  const tabs = chatPanelModeTabs(
+    subscriptionPlan,
+    inTheaterView,
+    billingManaged,
+    workspaceEnterpriseActive,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const [fadeRight, setFadeRight] = useState(false);
 
@@ -82,7 +89,10 @@ export default function ChatPanelModeTabs() {
                   key={tab.id}
                   type="button"
                   role="tab"
-                  className={clsx("chat-panel-mode-tabs__btn", active && "is-active")}
+                  className={clsx(
+                    "chat-panel-mode-tabs__btn !bg-transparent hover:!bg-[var(--forma-control-hover-bg)]",
+                    active && "is-active",
+                  )}
                   onClick={() => selectTab(tab.id)}
                   aria-selected={active}
                   aria-pressed={active}

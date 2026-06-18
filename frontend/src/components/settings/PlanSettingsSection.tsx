@@ -1,23 +1,36 @@
 import clsx from "clsx";
-import { useEffect } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { useStore } from "../../store/useStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useBilling } from "../../hooks/useBilling";
+import type { UsageStatus } from "../../lib/billingApi";
+import EnterprisePlanSection, { resolveEnterpriseWorkspace } from "./EnterprisePlanSection";
+import OnDemandLimitSection from "./OnDemandLimitSection";
 import {
   SUBSCRIPTION_PLANS,
   canEnableOnDemandUsage,
-  type SubscriptionPlan,
 } from "../../lib/subscriptionPlans";
 
 const PRO_PLAN = SUBSCRIPTION_PLANS.find((plan) => plan.id === "pro");
 
-export default function PlanSettingsSection() {
+interface PlanSettingsSectionProps {
+  personalUsage?: UsageStatus | null;
+  usageLoading?: boolean;
+  onUsageRefresh?: () => Promise<void>;
+}
+
+export default function PlanSettingsSection({
+  personalUsage = null,
+  usageLoading = false,
+  onUsageRefresh,
+}: PlanSettingsSectionProps) {
   const subscriptionPlan = useStore((s) => s.subscriptionPlan);
   const onDemandUsageEnabled = useStore((s) => s.onDemandUsageEnabled);
-  const setSubscriptionPlan = useStore((s) => s.setSubscriptionPlan);
-  const toggleOnDemandUsage = useStore((s) => s.toggleOnDemandUsage);
+  const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
+  const activeRoomId = useStore((s) => s.activeRoomId);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const onDemandAvailable = canEnableOnDemandUsage(subscriptionPlan);
+  const isPro = subscriptionPlan === "pro";
   const {
     stripeEnabled,
     billingManaged,
@@ -25,86 +38,117 @@ export default function PlanSettingsSection() {
     proPriceLabel,
     loading,
     error,
+    setBillingError,
+    externalCheckoutOpen,
     checkoutPro,
+    checkoutEnterprise,
     openPortal,
+    openEnterprisePortal,
+    prefetchCheckout,
     setOnDemand,
-    refreshProfile,
+    setOnDemandLimit,
+    enterpriseEnabled,
+    enterpriseWorkspaces,
+    enterpriseSeatPriceLabel,
   } = useBilling();
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") === "success") {
-      void refreshProfile();
-    }
-  }, [refreshProfile]);
-
-  const handlePlanSelect = (plan: SubscriptionPlan) => {
-    if (plan !== "pro") return;
-
-    if (subscriptionPlan === "pro" && billingManaged) {
+  const handleUpgrade = () => {
+    if (!isAuthenticated || !stripeEnabled || loading) return;
+    if (isPro && billingManaged) {
       void openPortal();
       return;
     }
-    if (stripeEnabled) {
-      void checkoutPro();
+    void checkoutPro();
+  };
+
+  const handleEnterprise = () => {
+    if (!isAuthenticated || loading) return;
+
+    const target = resolveEnterpriseWorkspace(enterpriseWorkspaces, activeRoomId);
+    if (!target) {
+      setBillingError("Aucun workspace éligible pour Entreprise.");
       return;
     }
-    if (!isAuthenticated) {
+    if (target.enterpriseActive) {
+      void openEnterprisePortal(target.workspaceId);
       return;
     }
-    if (!stripeEnabled) {
-      setSubscriptionPlan(plan);
+    if (!target.eligible) {
+      setBillingError(
+        `Le workspace « ${target.name} » requiert au moins ${target.minMembers} membres.`,
+      );
+      return;
     }
+    void checkoutEnterprise(target.workspaceId);
   };
 
   const handleOnDemandToggle = () => {
     if (!onDemandAvailable) return;
     if (stripeEnabled && stripeOnDemand) {
-      void setOnDemand(!onDemandUsageEnabled);
-      return;
+      void setOnDemand(!onDemandUsageEnabled, 25);
     }
-    toggleOnDemandUsage();
+  };
+
+  const handleSetLimit = async (limitUsd: number | null) => {
+    await setOnDemandLimit(limitUsd);
+    await onUsageRefresh?.();
   };
 
   if (!PRO_PLAN) return null;
 
   return (
     <>
-      {(stripeEnabled || !isAuthenticated || billingManaged || error) && (
+      {!isAuthenticated && (
         <section className="settings-section">
-          {stripeEnabled && (
-            <p className="settings-section__hint">
-              Pro : {proPriceLabel} — le clic ouvre Stripe Checkout pour payer en ligne.
-            </p>
-          )}
-          {!isAuthenticated && stripeEnabled && (
-            <p className="settings-section__hint text-amber-300">
-              Connectez-vous pour souscrire à Pro et ouvrir la page de paiement.
-            </p>
-          )}
-          {billingManaged && (
-            <p className="settings-section__hint">
-              Abonnement géré par Stripe — modifications via le portail client.
-            </p>
-          )}
-          {error && <p className="settings-section__hint text-red-400">{error}</p>}
+          <p className="settings-section__hint text-amber-300">
+            Connectez-vous pour souscrire à Pro et ouvrir la page de paiement Stripe.
+          </p>
+        </section>
+      )}
+      {isAuthenticated && !stripeEnabled && (
+        <section className="settings-section">
+          <p className="settings-section__hint text-amber-300">
+            Stripe n&apos;est pas configuré sur le serveur (clés manquantes dans backend/.env).
+          </p>
+        </section>
+      )}
+      {externalCheckoutOpen && (
+        <section className="settings-section">
+          <p className="settings-section__hint text-amber-300">
+            Stripe est ouvert dans un autre onglet. Restez ici — votre forfait se mettra à jour
+            automatiquement dès confirmation du paiement.
+          </p>
+        </section>
+      )}
+      {error && (
+        <section className="settings-section">
+          <p className="settings-section__hint text-red-400">{error}</p>
         </section>
       )}
 
       <div className="settings-plan-grid">
         <button
           type="button"
-          disabled={loading}
-          onClick={() => handlePlanSelect("pro")}
           className={clsx(
-            "settings-plan-card",
-            subscriptionPlan === "pro" && "settings-plan-card--active",
+            "settings-plan-card w-full",
+            isPro && billingManaged && "settings-plan-card--active",
           )}
+          disabled={loading || !isAuthenticated || !stripeEnabled}
+          onClick={handleUpgrade}
+          onPointerEnter={prefetchCheckout}
+          aria-label={
+            isPro && billingManaged
+              ? "Gérer l'abonnement Pro via Stripe"
+              : "Souscrire au forfait Pro via Stripe Checkout"
+          }
         >
           <div className="settings-plan-card__header">
             <span className="settings-plan-card__name">{PRO_PLAN.label}</span>
-            <span className="settings-plan-card__price">
+            <span className="settings-plan-card__price inline-flex items-center gap-1">
               {stripeEnabled ? proPriceLabel : PRO_PLAN.price}
+              {stripeEnabled && !loading && (
+                <ArrowUpRight size={13} strokeWidth={2.25} className="shrink-0 opacity-70" aria-hidden />
+              )}
             </span>
           </div>
           <p className="settings-plan-card__desc">{PRO_PLAN.description}</p>
@@ -113,19 +157,37 @@ export default function PlanSettingsSection() {
               <li key={feature}>{feature}</li>
             ))}
           </ul>
-          {stripeEnabled && subscriptionPlan !== "pro" && (
-            <p className="settings-plan-card__desc">Cliquer pour ouvrir la page de paiement Stripe</p>
+          {loading && (
+            <p className="settings-plan-card__action">
+              {externalCheckoutOpen
+                ? "En attente de confirmation Stripe…"
+                : "Ouverture de Stripe…"}
+            </p>
           )}
-          {stripeEnabled && subscriptionPlan === "pro" && (
-            <p className="settings-plan-card__desc">Cliquer pour gérer l&apos;abonnement via Stripe</p>
+          {!loading && isPro && billingManaged && (
+            <p className="settings-plan-card__action">Gérer l&apos;abonnement Stripe</p>
           )}
         </button>
-      </div>
 
-      <section className="settings-section settings-section--card">
-        <h3 className="settings-section__label">On-demand usage</h3>
+        <EnterprisePlanSection
+          loading={loading}
+          externalCheckoutOpen={externalCheckoutOpen}
+          enterpriseEnabled={enterpriseEnabled}
+          enterpriseSeatPriceLabel={enterpriseSeatPriceLabel}
+          workspaceEnterpriseActive={workspaceEnterpriseActive}
+          disabled={
+            loading ||
+            !isAuthenticated ||
+            (!enterpriseEnabled && !workspaceEnterpriseActive)
+          }
+          onClick={handleEnterprise}
+          onPrefetchCheckout={prefetchCheckout}
+        />
+
+        <section className="settings-section settings-section--card settings-plan-grid__full">
+        <h3 className="settings-section__label">Usage à la demande</h3>
         <p className="settings-section__hint">
-          Optional pay-as-you-go add-on on top of your Pro subscription.
+          Add-on optionnel facturé au-delà de votre forfait Pro (via Stripe metered).
         </p>
         <button
           type="button"
@@ -138,21 +200,32 @@ export default function PlanSettingsSection() {
           )}
         >
           <span className="settings-option__title">
-            {onDemandUsageEnabled ? "Add-on enabled" : "Enable on-demand usage"}
+            {onDemandUsageEnabled ? "Add-on activé" : "Activer l'usage à la demande"}
           </span>
           <span className="settings-option__subtitle">
             {!onDemandAvailable
-              ? "Subscribe to Pro to unlock this option."
+              ? "Abonnement Pro requis."
               : stripeEnabled && !stripeOnDemand
-                ? "Add-on not configured on the server."
+                ? "Add-on non configuré côté serveur."
                 : onDemandUsageEnabled
                   ? billingManaged
-                    ? "Synced with your Stripe subscription."
-                    : "Billed per request, in addition to your monthly quota."
-                  : "Billed per request, in addition to your monthly quota."}
+                    ? "Synchronisé avec votre abonnement Stripe."
+                    : "Facturation au fil des requêtes, en plus du forfait mensuel."
+                  : "Par défaut plafond 25 $ — modifiable après activation."}
           </span>
         </button>
+
+        {onDemandUsageEnabled && onDemandAvailable && (
+          <OnDemandLimitSection
+            usage={personalUsage}
+            loading={usageLoading}
+            saving={loading}
+            error={error}
+            onSetLimit={handleSetLimit}
+          />
+        )}
       </section>
+      </div>
     </>
   );
 }

@@ -9,6 +9,9 @@ export interface LlmResult {
   message: string | null;
   error: string | null;
   rateLimited: boolean;
+  inputTokens: number;
+  outputTokens: number;
+  modelId: string;
 }
 
 const XAI_BASE = process.env.XAI_API_BASE ?? "https://api.x.ai/v1";
@@ -49,14 +52,37 @@ async function openAiCompatChat(
       message: null,
       error: detail,
       rateLimited: response.status === 402 || response.status === 429,
+      inputTokens: 0,
+      outputTokens: 0,
+      modelId: model,
     };
   }
   const data = (await response.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
+    usage?: { prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number };
   };
   const text = data.choices?.[0]?.message?.content?.trim() ?? "";
-  if (!text) return { message: null, error: "Empty AI response.", rateLimited: false };
-  return { message: text, error: null, rateLimited: false };
+  const usage = data.usage ?? {};
+  const inputTokens = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0);
+  const outputTokens = Number(usage.completion_tokens ?? usage.output_tokens ?? 0);
+  if (!text) {
+    return {
+      message: null,
+      error: "Empty AI response.",
+      rateLimited: false,
+      inputTokens: Math.max(0, inputTokens),
+      outputTokens: Math.max(0, outputTokens),
+      modelId: model,
+    };
+  }
+  return {
+    message: text,
+    error: null,
+    rateLimited: false,
+    inputTokens: Math.max(0, inputTokens),
+    outputTokens: Math.max(0, outputTokens),
+    modelId: model,
+  };
 }
 
 async function anthropicChat(
@@ -85,10 +111,14 @@ async function anthropicChat(
       message: null,
       error: detail,
       rateLimited: response.status === 402 || response.status === 429,
+      inputTokens: 0,
+      outputTokens: 0,
+      modelId: model,
     };
   }
   const data = (await response.json()) as {
     content?: Array<{ type?: string; text?: string }>;
+    usage?: { input_tokens?: number; output_tokens?: number };
   };
   const text =
     data.content
@@ -96,8 +126,26 @@ async function anthropicChat(
       .map((block) => block.text ?? "")
       .join("")
       .trim() ?? "";
-  if (!text) return { message: null, error: "Empty AI response.", rateLimited: false };
-  return { message: text, error: null, rateLimited: false };
+  const inputTokens = Math.max(0, Number(data.usage?.input_tokens ?? 0));
+  const outputTokens = Math.max(0, Number(data.usage?.output_tokens ?? 0));
+  if (!text) {
+    return {
+      message: null,
+      error: "Empty AI response.",
+      rateLimited: false,
+      inputTokens,
+      outputTokens,
+      modelId: model,
+    };
+  }
+  return {
+    message: text,
+    error: null,
+    rateLimited: false,
+    inputTokens,
+    outputTokens,
+    modelId: model,
+  };
 }
 
 export async function completeChatText(input: {

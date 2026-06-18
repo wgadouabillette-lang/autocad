@@ -28,6 +28,8 @@ async def get_valid_access_token(uid: str, connector_id: str) -> str | None:
         return str(token) if token else None
     if spec.provider == "figma":
         return await _get_valid_figma_token(uid, connector_id)
+    if spec.provider == "spotify":
+        return await _get_valid_spotify_token(uid, connector_id)
     return None
 
 
@@ -128,6 +130,35 @@ async def _get_valid_figma_token(uid: str, connector_id: str) -> str | None:
     return str(token) if token else None
 
 
+async def _get_valid_spotify_token(uid: str, connector_id: str) -> str | None:
+    entry = get_connection(uid, connector_id)
+    if not entry:
+        return None
+
+    access_token = entry.get("access_token")
+    if not access_token:
+        return None
+
+    expires_at = entry.get("expires_at")
+    if isinstance(expires_at, (int, float)) and time.time() < float(expires_at) - 60:
+        return str(access_token)
+
+    refresh_token = entry.get("refresh_token")
+    if not refresh_token:
+        return str(access_token)
+
+    try:
+        refreshed = await _refresh_spotify(refresh_token)
+    except Exception as exc:
+        logger.warning("Spotify token refresh failed for %s/%s: %s", uid, connector_id, exc)
+        return str(access_token)
+
+    merged = _merge_token_entry(entry, refreshed, "spotify")
+    set_connection(uid, connector_id, "spotify", merged)
+    token = merged.get("access_token")
+    return str(token) if token else None
+
+
 def _merge_token_entry(entry: dict[str, Any], refreshed: dict[str, Any], provider: str) -> dict[str, Any]:
     access_token = refreshed.get("access_token") or entry.get("access_token")
     merged = {
@@ -183,6 +214,28 @@ async def _refresh_figma(refresh_token: str) -> dict[str, Any]:
                 "client_secret": os.getenv("FIGMA_CLIENT_SECRET", ""),
                 "refresh_token": refresh_token,
                 "grant_type": "refresh_token",
+            },
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+async def _refresh_spotify(refresh_token: str) -> dict[str, Any]:
+    import base64
+
+    client_id = os.getenv("SPOTIFY_CLIENT_ID", "")
+    client_secret = os.getenv("SPOTIFY_CLIENT_SECRET", "")
+    basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            "https://accounts.spotify.com/api/token",
+            headers={
+                "Authorization": f"Basic {basic}",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
             },
         )
         r.raise_for_status()

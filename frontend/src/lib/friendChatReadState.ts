@@ -72,6 +72,14 @@ export function setLastReadAt(
   writeMap(localUid, map);
 }
 
+export function clearLastReadAt(localUid: string, partnerId: string): void {
+  if (!localUid || !partnerId) return;
+  const map = readMap(localUid);
+  if (!(partnerId in map)) return;
+  delete map[partnerId];
+  writeMap(localUid, map);
+}
+
 export function clearReadState(localUid: string): void {
   if (!localUid) return;
   try {

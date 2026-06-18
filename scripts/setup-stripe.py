@@ -187,8 +187,8 @@ def main() -> int:
     parser.add_argument(
         "--on-demand-unit",
         type=int,
-        default=int(os.getenv("STRIPE_ON_DEMAND_UNIT_CENTS", "5")),
-        help="Prix unitaire on-demand en centimes (défaut : 5 = 0,05 €/requête).",
+        default=int(os.getenv("STRIPE_ON_DEMAND_UNIT_CENTS", "1")),
+        help="Prix unitaire on-demand en centimes (défaut : 1 = 0,01 $/unité, aligné sur l'usage IA retail).",
     )
     args = parser.parse_args()
 

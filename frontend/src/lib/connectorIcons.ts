@@ -9,4 +9,5 @@ export const CONNECTOR_ICON_FILES = {
   outlook: "outlook.svg",
   notion: "notion.svg",
   figma: "figma.svg",
+  spotify: "spotify.svg",
 } as const;

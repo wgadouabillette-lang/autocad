@@ -73,6 +73,13 @@ async def exchange_code(connector_id: str, uid: str, code: str) -> dict[str, Any
             user = owner.get("user") or {}
             if isinstance(user, dict) and user.get("email"):
                 tokens["account_email"] = str(user["email"])
+    elif spec.provider == "spotify":
+        tokens = await _exchange_spotify(code)
+        profile = await _fetch_spotify_profile(tokens.get("access_token"))
+        if profile.get("email"):
+            tokens["account_email"] = profile["email"]
+        if profile.get("display_name"):
+            tokens["account_name"] = profile["display_name"]
     else:
         raise ValueError(f"Unsupported provider: {spec.provider}")
 
@@ -226,5 +233,53 @@ async def _exchange_figma(code: str) -> dict[str, Any]:
         "refresh_token": data.get("refresh_token"),
         "expires_in": data.get("expires_in"),
         "user_id": data.get("user_id_string"),
+    }
+
+
+async def _exchange_spotify(code: str) -> dict[str, Any]:
+    import os
+
+    client_id = os.getenv("SPOTIFY_CLIENT_ID", "")
+    client_secret = os.getenv("SPOTIFY_CLIENT_SECRET", "")
+    basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            "https://accounts.spotify.com/api/token",
+            headers={
+                "Authorization": f"Basic {basic}",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": callback_url(),
+            },
+        )
+        r.raise_for_status()
+        data = r.json()
+    return {
+        "access_token": data.get("access_token"),
+        "refresh_token": data.get("refresh_token"),
+        "expires_in": data.get("expires_in"),
+        "token_type": data.get("token_type"),
+        "scope": data.get("scope"),
+    }
+
+
+async def _fetch_spotify_profile(access_token: Any) -> dict[str, Any]:
+    if not access_token:
+        return {}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(
+            "https://api.spotify.com/v1/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if r.status_code != 200:
+        return {}
+    data = r.json()
+    return {
+        "email": data.get("email"),
+        "display_name": data.get("display_name"),
+        "id": data.get("id"),
     }
 

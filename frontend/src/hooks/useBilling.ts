@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { billingApi, type BillingConfig } from "../lib/billingApi";
+import {
+  effectiveOnDemandUsage,
+  effectiveSubscriptionPlan,
+} from "../lib/subscriptionPlans";
+import { billingApi, warmCheckoutAuth, type BillingConfig, type EnterpriseWorkspaceOption } from "../lib/billingApi";
 import { hasFormaDesktop } from "../lib/formaDesktop";
 import { loadUserProfile, watchUserProfile } from "../lib/firebase/userData";
 import { useAuthStore } from "../store/useAuthStore";
@@ -10,25 +14,44 @@ const DEFAULT_CONFIG: BillingConfig = {
   onDemandAvailable: false,
   billingManaged: false,
   proPriceLabel: "$30 / month",
+  enterpriseEnabled: false,
+  enterpriseMinMembers: 10,
+  enterpriseSeatPriceLabel: "$18 / seat / month",
 };
 
-async function openCheckoutUrl(url: string): Promise<{ openedExternal: boolean }> {
-  if (hasFormaDesktop() && window.formaDesktop?.openExternal) {
-    try {
-      await window.formaDesktop.openExternal(url);
-      return { openedExternal: true };
-    } catch {
-      // Fall back to in-window navigation if the bridge call fails.
-    }
+function isStripeCheckoutUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.hostname.endsWith(".stripe.com");
+  } catch {
+    return false;
   }
-  window.location.assign(url);
-  return { openedExternal: false };
+}
+
+function openStripeUrl(url: string): "external" | "tab" | "blocked" {
+  if (!isStripeCheckoutUrl(url)) {
+    throw new Error("URL Stripe invalide renvoyée par le serveur.");
+  }
+
+  if (hasFormaDesktop() && window.formaDesktop?.openExternal) {
+    void window.formaDesktop.openExternal(url);
+    return "external";
+  }
+
+  const tab = window.open(url, "_blank", "noopener,noreferrer");
+  if (!tab) {
+    return "blocked";
+  }
+  tab.focus?.();
+  return "tab";
 }
 
 export function useBilling() {
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const billingManaged = useStore((s) => s.billingManaged);
   const [config, setConfig] = useState<BillingConfig | null>(null);
+  const [enterpriseWorkspaces, setEnterpriseWorkspaces] = useState<EnterpriseWorkspaceOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [externalCheckoutOpen, setExternalCheckoutOpen] = useState(false);
@@ -44,38 +67,57 @@ export function useBilling() {
     }
   }, []);
 
+  const loadEnterpriseWorkspaces = useCallback(async () => {
+    if (!isAuthenticated) {
+      setEnterpriseWorkspaces([]);
+      return [];
+    }
+    try {
+      const { workspaces } = await billingApi.enterpriseWorkspaces();
+      setEnterpriseWorkspaces(workspaces);
+      return workspaces;
+    } catch {
+      setEnterpriseWorkspaces([]);
+      return [];
+    }
+  }, [isAuthenticated]);
+
   useEffect(() => {
     void loadConfig();
-  }, [firebaseUid, isAuthenticated, loadConfig]);
+    void loadEnterpriseWorkspaces();
+    if (isAuthenticated) {
+      warmCheckoutAuth();
+    }
+  }, [firebaseUid, isAuthenticated, loadConfig, loadEnterpriseWorkspaces]);
 
-  // Real-time sync of the user's plan from Firestore. The Stripe webhook writes
-  // `subscriptionPlan` / `onDemandUsageEnabled` on `users/{uid}` after payment,
-  // so the desktop (Mac/Win) and web apps both reflect the change instantly.
   useEffect(() => {
     if (!firebaseUid) return;
     const unsubscribe = watchUserProfile(firebaseUid, (profile) => {
       if (!profile) return;
+      const managed = profile.billingManaged === true;
+      const subscriptionPlan = effectiveSubscriptionPlan(profile.subscriptionPlan, managed);
+      const onDemandUsageEnabled = effectiveOnDemandUsage(
+        subscriptionPlan,
+        profile.onDemandUsageEnabled,
+        managed,
+      );
       useStore.setState((state) => {
         const patch: Partial<{
-          subscriptionPlan: typeof profile.subscriptionPlan;
+          subscriptionPlan: typeof subscriptionPlan;
           onDemandUsageEnabled: boolean;
+          billingManaged: boolean;
         }> = {};
-        if (
-          profile.subscriptionPlan &&
-          profile.subscriptionPlan !== state.subscriptionPlan
-        ) {
-          patch.subscriptionPlan = profile.subscriptionPlan;
+        if (subscriptionPlan !== state.subscriptionPlan) {
+          patch.subscriptionPlan = subscriptionPlan;
         }
-        if (
-          typeof profile.onDemandUsageEnabled === "boolean" &&
-          profile.onDemandUsageEnabled !== state.onDemandUsageEnabled
-        ) {
-          patch.onDemandUsageEnabled = profile.onDemandUsageEnabled;
+        if (onDemandUsageEnabled !== state.onDemandUsageEnabled) {
+          patch.onDemandUsageEnabled = onDemandUsageEnabled;
+        }
+        if (managed !== state.billingManaged) {
+          patch.billingManaged = managed;
         }
         return Object.keys(patch).length > 0 ? patch : state;
       });
-      // When a plan change lands while we were waiting on an external checkout,
-      // clear the pending UI so the user gets immediate feedback.
       setExternalCheckoutOpen(false);
       setLoading(false);
     });
@@ -86,55 +128,66 @@ export function useBilling() {
     if (!firebaseUid) return;
     const profile = await loadUserProfile(firebaseUid);
     if (!profile) return;
+    const managed = profile.billingManaged === true;
+    const subscriptionPlan = effectiveSubscriptionPlan(profile.subscriptionPlan, managed);
+    const onDemandUsageEnabled = effectiveOnDemandUsage(
+      subscriptionPlan,
+      profile.onDemandUsageEnabled,
+      managed,
+    );
     useStore.setState({
-      subscriptionPlan: profile.subscriptionPlan,
-      onDemandUsageEnabled: profile.onDemandUsageEnabled,
+      subscriptionPlan,
+      onDemandUsageEnabled,
+      billingManaged: managed,
     });
     await loadConfig();
   }, [firebaseUid, loadConfig]);
 
-  const checkoutPro = useCallback(async () => {
-    if (!isAuthenticated) {
-      setError("Connectez-vous pour souscrire à Pro.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const { url } = await billingApi.checkoutPro();
-      const { openedExternal } = await openCheckoutUrl(url);
-      if (openedExternal) {
+  const startStripeFlow = useCallback(
+    async (fetchUrl: () => Promise<{ url: string }>, options?: { waitForUpdate?: boolean }) => {
+      const waitForUpdate = options?.waitForUpdate !== false;
+      if (!isAuthenticated) {
+        setError("Connectez-vous pour gérer la facturation.");
+        return;
+      }
+
+      setError(null);
+      setLoading(true);
+
+      try {
+        const { url } = await fetchUrl();
+        const mode = openStripeUrl(url);
+        if (mode === "blocked") {
+          setError("Autorisez les pop-ups pour ouvrir Stripe, puis réessayez.");
+          setLoading(false);
+          return;
+        }
         setExternalCheckoutOpen(true);
+        if (!waitForUpdate) {
+          setLoading(false);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Stripe indisponible.");
         setLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Checkout impossible.");
-      setLoading(false);
+    },
+    [isAuthenticated],
+  );
+
+  const checkoutPro = useCallback(async () => {
+    if (!config?.enabled) {
+      setError("Stripe Pro n'est pas configuré sur le serveur (backend/.env).");
+      return;
     }
-  }, [isAuthenticated]);
+    await startStripeFlow(() => billingApi.checkoutPro());
+  }, [config?.enabled, startStripeFlow]);
 
   const openPortal = useCallback(async () => {
-    if (!isAuthenticated) {
-      setError("Connectez-vous pour gérer votre abonnement.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const { url } = await billingApi.portal();
-      const { openedExternal } = await openCheckoutUrl(url);
-      if (openedExternal) {
-        setExternalCheckoutOpen(true);
-        setLoading(false);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Portail facturation indisponible.");
-      setLoading(false);
-    }
-  }, [isAuthenticated]);
+    await startStripeFlow(() => billingApi.portal(), { waitForUpdate: false });
+  }, [startStripeFlow]);
 
   const setOnDemand = useCallback(
-    async (enabled: boolean) => {
+    async (enabled: boolean, limitUsd: number | null = 25) => {
       if (!isAuthenticated) {
         setError("Connectez-vous pour modifier l'usage à la demande.");
         return;
@@ -143,7 +196,7 @@ export function useBilling() {
       setError(null);
       try {
         if (enabled) {
-          await billingApi.enableOnDemand();
+          await billingApi.enableOnDemand(limitUsd);
         } else {
           await billingApi.disableOnDemand();
         }
@@ -157,22 +210,77 @@ export function useBilling() {
     [isAuthenticated, refreshProfile],
   );
 
+  const setOnDemandLimit = useCallback(
+    async (limitUsd: number | null) => {
+      if (!isAuthenticated) {
+        setError("Connectez-vous pour modifier le plafond à la demande.");
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        await billingApi.setOnDemandLimit(limitUsd);
+        await refreshProfile();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Mise à jour du plafond impossible.");
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [isAuthenticated, refreshProfile],
+  );
+
   const dismissExternalCheckoutNotice = useCallback(() => {
     setExternalCheckoutOpen(false);
+    setLoading(false);
+  }, []);
+
+  const checkoutEnterprise = useCallback(
+    async (workspaceId: string) => {
+      if (!config?.enterpriseEnabled) {
+        setError("Stripe Entreprise n'est pas configuré sur le serveur (backend/.env).");
+        return;
+      }
+      await startStripeFlow(() => billingApi.checkoutEnterprise(workspaceId));
+    },
+    [config?.enterpriseEnabled, startStripeFlow],
+  );
+
+  const openEnterprisePortal = useCallback(
+    async (workspaceId: string) => {
+      await startStripeFlow(() => billingApi.enterprisePortal(workspaceId), { waitForUpdate: false });
+    },
+    [startStripeFlow],
+  );
+
+  const prefetchCheckout = useCallback(() => {
+    warmCheckoutAuth();
   }, []);
 
   return {
     config,
     loading,
     error,
+    setBillingError: setError,
     externalCheckoutOpen,
     dismissExternalCheckoutNotice,
     checkoutPro,
+    checkoutEnterprise,
     openPortal,
+    openEnterprisePortal,
+    prefetchCheckout,
     setOnDemand,
+    setOnDemandLimit,
     refreshProfile,
+    enterpriseWorkspaces,
+    loadEnterpriseWorkspaces,
     stripeEnabled: Boolean(config?.enabled),
-    billingManaged: Boolean(config?.billingManaged),
+    enterpriseEnabled: Boolean(config?.enterpriseEnabled),
+    enterpriseMinMembers: config?.enterpriseMinMembers ?? DEFAULT_CONFIG.enterpriseMinMembers,
+    enterpriseSeatPriceLabel:
+      config?.enterpriseSeatPriceLabel ?? DEFAULT_CONFIG.enterpriseSeatPriceLabel,
+    billingManaged,
     onDemandAvailable: Boolean(config?.onDemandAvailable),
     proPriceLabel: config?.proPriceLabel ?? DEFAULT_CONFIG.proPriceLabel,
   };

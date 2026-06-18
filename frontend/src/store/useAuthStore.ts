@@ -13,7 +13,7 @@ import {
 } from "../lib/firebase/client";
 import { formatAuthError } from "../lib/firebase/authErrors";
 import {
-  loadChatSessions,
+  loadChatSessionSummaries,
   loadLatestProjectSnapshot,
   loadUserProfile,
   loadUserWorkspaces,
@@ -24,7 +24,16 @@ import {
 } from "../lib/firebase/userData";
 import { removeProfilePhoto, uploadProfilePhoto } from "../lib/firebase/profilePhoto";
 import { pushProfileToJoinedWorkspaces } from "../lib/firebase/workspacePresence";
-import { writeUserPreferences, normalizeSidePanelSide, type SidePanelSide, type UserPreferences } from "../lib/userPreferences";
+import {
+  effectiveOnDemandUsage,
+  effectiveSubscriptionPlan,
+} from "../lib/subscriptionPlans";
+import {
+  writeUserPreferences,
+  normalizeSidePanelSide,
+  type SidePanelSide,
+  type UserPreferences,
+} from "../lib/userPreferences";
 import type { AiModel } from "../lib/aiModels";
 import { isValidAiModel } from "../lib/aiModels";
 import { isLegacyPublicWorkspaceId } from "../lib/workspaces";
@@ -81,7 +90,7 @@ function providerFromUser(user: User): AuthProvider | null {
   const providerId = user.providerData[0]?.providerId;
   if (providerId === "google.com") return "google";
   if (providerId === "microsoft.com") return "microsoft";
-  if (providerId === "apple.com") return "apple";
+  if (providerId === "facebook.com") return "facebook";
   return null;
 }
 
@@ -113,6 +122,13 @@ function resolveProfileSidePanelSide(profile: UserProfileDoc): SidePanelSide {
 
 function applyLocalProfile(profile: UserProfileDoc) {
   const sidePanelSide = resolveProfileSidePanelSide(profile);
+  const billingManaged = profile.billingManaged === true;
+  const subscriptionPlan = effectiveSubscriptionPlan(profile.subscriptionPlan, billingManaged);
+  const onDemandUsageEnabled = effectiveOnDemandUsage(
+    subscriptionPlan,
+    profile.onDemandUsageEnabled,
+    billingManaged,
+  );
   useStore.setState({
     chatWorkMode: profile.chatWorkMode,
     autoWorkModeSwitch: profile.autoWorkModeSwitch,
@@ -128,8 +144,9 @@ function applyLocalProfile(profile: UserProfileDoc) {
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
     colorTheme: profile.colorTheme === "light" || profile.colorTheme === "system" ? profile.colorTheme : "dark",
-    subscriptionPlan: profile.subscriptionPlan,
-    onDemandUsageEnabled: profile.onDemandUsageEnabled,
+    subscriptionPlan,
+    onDemandUsageEnabled,
+    billingManaged,
     agentChatInstructions: profile.agentChatInstructions ?? "",
     agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
@@ -150,8 +167,8 @@ function applyLocalProfile(profile: UserProfileDoc) {
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
     colorTheme: profile.colorTheme === "light" || profile.colorTheme === "system" ? profile.colorTheme : "dark",
-    subscriptionPlan: profile.subscriptionPlan,
-    onDemandUsageEnabled: profile.onDemandUsageEnabled,
+    subscriptionPlan: "free",
+    onDemandUsageEnabled: false,
     agentChatInstructions: profile.agentChatInstructions ?? "",
     agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
@@ -164,7 +181,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
 
 function profileFromStore(user: User): UserProfileDoc {
   const state = useStore.getState();
-  return {
+  const profile: UserProfileDoc = {
     email: user.email?.trim().toLowerCase() ?? state.userEmail,
     photoURL: state.photoURL ?? user.photoURL ?? undefined,
     chatWorkMode: state.chatWorkMode,
@@ -186,6 +203,7 @@ function profileFromStore(user: User): UserProfileDoc {
     agentFollowUpInstructions: state.agentFollowUpInstructions,
     agentAiNotesInstructions: state.agentAiNotesInstructions,
   };
+  return profile;
 }
 
 async function saveUserAccountProfile(uid: string, profile: UserProfileDoc): Promise<void> {
@@ -209,8 +227,6 @@ function profileSyncKey(profile: UserProfileDoc): string {
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide: profile.sidePanelSide,
     colorTheme: profile.colorTheme,
-    subscriptionPlan: profile.subscriptionPlan,
-    onDemandUsageEnabled: profile.onDemandUsageEnabled,
     agentChatInstructions: profile.agentChatInstructions ?? "",
     agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
@@ -259,8 +275,6 @@ function startProfileAutosync(
       state.chatPanelOpen === previousState.chatPanelOpen &&
       state.sidePanelSide === previousState.sidePanelSide &&
       state.colorTheme === previousState.colorTheme &&
-      state.subscriptionPlan === previousState.subscriptionPlan &&
-      state.onDemandUsageEnabled === previousState.onDemandUsageEnabled &&
       state.aiModel === previousState.aiModel
     ) {
       return;
@@ -288,7 +302,7 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
   const [profile, workspaces, chatSessions, project] = await Promise.all([
     loadUserProfile(uid),
     loadUserWorkspaces(uid),
-    loadChatSessions(uid),
+    loadChatSessionSummaries(uid),
     loadLatestProjectSnapshot(uid),
   ]);
 
@@ -358,7 +372,7 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
       memberships: useWorkspacesStore.getState().memberships,
     }).catch(() => {});
     void saveUserAccountProfile(uid, {
-      ...(profile ?? profileFromStore(auth.currentUser!)),
+      ...profileFromStore(auth.currentUser!),
       workspaceSetupCompleted: true,
     }).catch(() => {});
   }
@@ -523,6 +537,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     await signOutUser();
     useStore.getState().setPhotoURL(null);
+    useStore.setState({
+      subscriptionPlan: "free",
+      onDemandUsageEnabled: false,
+      billingManaged: false,
+    });
     set({
       isAuthenticated: false,
       authEmail: null,

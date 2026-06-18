@@ -90,9 +90,9 @@ export function readUserPreferences(): UserPreferences {
       audioNoiseSuppression: data.audioNoiseSuppression !== false,
       chatPanelOpen: data.chatPanelOpen !== false,
       sidePanelSide: normalizeSidePanelSide(data.sidePanelSide),
-      subscriptionPlan: data.subscriptionPlan === "pro" ? "pro" : "free",
-      onDemandUsageEnabled:
-        data.subscriptionPlan === "pro" && Boolean(data.onDemandUsageEnabled),
+      // Forfait : toujours gratuit en local — seul Firestore + billingManaged (webhook) active Pro.
+      subscriptionPlan: "free",
+      onDemandUsageEnabled: false,
       agentChatInstructions:
         typeof data.agentChatInstructions === "string" ? data.agentChatInstructions : "",
       agentFollowUpInstructions:
@@ -106,5 +106,12 @@ export function readUserPreferences(): UserPreferences {
 }
 
 export function writeUserPreferences(prefs: UserPreferences) {
-  localStorage.setItem(KEY, JSON.stringify(prefs));
+  localStorage.setItem(
+    KEY,
+    JSON.stringify({
+      ...prefs,
+      subscriptionPlan: "free",
+      onDemandUsageEnabled: false,
+    }),
+  );
 }

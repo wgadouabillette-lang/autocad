@@ -46,6 +46,7 @@ async function chatViaCloudOrBackend(
   messages: { role: string; content: string }[],
   signal?: AbortSignal,
   chatInstructions?: string,
+  workspaceId?: string,
 ): Promise<ChatResponse> {
   const token = await getAuthIdToken();
   const payload = {
@@ -53,6 +54,7 @@ async function chatViaCloudOrBackend(
     ai_model: aiModel,
     messages,
     ...(chatInstructions?.trim() ? { chat_instructions: chatInstructions.trim() } : {}),
+    ...(workspaceId?.trim() ? { workspace_id: workspaceId.trim().toLowerCase() } : {}),
   };
   if (token) {
     try {
@@ -100,6 +102,7 @@ export const api = {
     workMode: string,
     signal?: AbortSignal,
     images: AgentImagePayload[] = [],
+    workspaceId?: string,
   ) {
     return jsonPost<AgentResponse>(
       "/agent",
@@ -110,12 +113,20 @@ export const api = {
         ai_model: aiModel,
         work_mode: workMode,
         images,
+        ...(workspaceId?.trim() ? { workspace_id: workspaceId.trim().toLowerCase() } : {}),
       },
       signal,
     );
   },
 
-  textToCad(prompt: string, material: string, aiModel: string, workMode: string, signal?: AbortSignal) {
+  textToCad(
+    prompt: string,
+    material: string,
+    aiModel: string,
+    workMode: string,
+    signal?: AbortSignal,
+    workspaceId?: string,
+  ) {
     return jsonPost<AgentResponse>(
       "/text-to-cad",
       {
@@ -123,6 +134,7 @@ export const api = {
         material,
         ai_model: aiModel,
         work_mode: workMode,
+        ...(workspaceId?.trim() ? { workspace_id: workspaceId.trim().toLowerCase() } : {}),
       },
       signal,
     );
@@ -134,8 +146,16 @@ export const api = {
     messages: { role: string; content: string }[],
     signal?: AbortSignal,
     chatInstructions?: string,
+    workspaceId?: string,
   ) {
-    return chatViaCloudOrBackend(prompt, aiModel, messages, signal, chatInstructions);
+    return chatViaCloudOrBackend(
+      prompt,
+      aiModel,
+      messages,
+      signal,
+      chatInstructions,
+      workspaceId,
+    );
   },
 
   analyze(document: CadDocument, material: string, load_n: number, min_wall_mm: number) {
@@ -157,6 +177,45 @@ export const api = {
     const r = await fetch(`${BASE}/import-mesh`, { method: "POST", body: fd, headers });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json();
+  },
+
+  async recap(input: {
+    file: Blob;
+    filename: string;
+    title: string;
+    durationMs: number;
+    signal?: AbortSignal;
+  }): Promise<{ title: string; body_html: string; transcript?: string }> {
+    const fd = new FormData();
+    fd.append("file", input.file, input.filename);
+    fd.append("title", input.title);
+    fd.append("duration_ms", String(input.durationMs));
+    const headers: Record<string, string> = {};
+    const token = await getAuthIdToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const r = await fetch(`${BASE}/recap`, {
+      method: "POST",
+      body: fd,
+      headers,
+      signal: input.signal,
+    });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    return r.json();
+  },
+
+  async createHandoff(body: {
+    kind: "ai-segment" | "manual-note";
+    targetType: "dm" | "group";
+    recipientUid?: string;
+    groupId?: string;
+    messageIndices?: number[];
+    messages?: { role: string; text: string }[];
+    noteTitle?: string;
+    noteBodyHtml?: string;
+    sourceSessionId?: string;
+    title?: string;
+  }): Promise<{ handoffId: string; inboxText: string; title: string; preview: string }> {
+    return jsonPost("/handoffs", body);
   },
 
   async importDrawing(

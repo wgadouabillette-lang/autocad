@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import {
   createThreadForPerson,
+  createGroupThread,
+  threadIdForGroup,
+  groupIdFromThreadId,
+  buildEligibleGroupChatMembers,
+  canAddPersonToGroupChat,
+  collectAllWorkspaceMembers,
+  isCloudCapablePersonId,
   type FriendRequest,
   type PeopleMessage,
   type PeopleThread,
@@ -22,16 +29,31 @@ import {
   partnerUidFromChatId,
   sendFriendChatMessage,
   watchFriendChatMessages,
+  watchFriendChats,
+  type CloudFriendChat,
   type CloudFriendMessage,
 } from "../lib/firebase/friendChats";
+import {
+  createGroupChatDoc,
+  sendGroupChatMessage,
+  watchGroupChatMessages,
+  watchGroupChats,
+  type CloudGroupChat,
+} from "../lib/firebase/groupChats";
+import { deleteFriendChat, deleteGroupChat } from "../lib/firebase/deletePeopleChats";
 import type { Unsubscribe } from "firebase/firestore";
 import { auth } from "../lib/firebase/client";
 import {
+  clearLastReadAt,
   getFriendsTabSeenAt,
   getLastReadAt,
   setFriendsTabSeenAt,
   setLastReadAt,
 } from "../lib/friendChatReadState";
+import {
+  dismissThreadId,
+  getDismissedThreadIds,
+} from "../lib/peopleChatDismissals";
 import { useNotificationsStore } from "./useNotificationsStore";
 import { useStore } from "./useStore";
 import { useWorkspacePresenceStore } from "./useWorkspacePresenceStore";
@@ -46,43 +68,24 @@ function isCloudCapableFriend(personId: string): boolean {
   return true;
 }
 
-function collectCloudChatPartners(state: PeopleState, uid: string): Person[] {
-  const byId = new Map<string, Person>();
-
-  for (const friend of state.friends) {
-    if (friend.id !== uid && isCloudCapableFriend(friend.id)) {
-      byId.set(friend.id, friend);
-    }
+function firestoreUpdatedAtMillis(
+  updatedAt?: { seconds: number; nanoseconds: number } | null,
+): number {
+  if (updatedAt && typeof updatedAt === "object" && "seconds" in updatedAt) {
+    return updatedAt.seconds * 1000 + Math.floor(updatedAt.nanoseconds / 1_000_000);
   }
+  return 0;
+}
 
-  for (const threads of Object.values(state.colleagueThreadsByWorkspace)) {
-    for (const thread of threads) {
-      if (
-        thread.personId !== uid &&
-        isCloudCapableFriend(thread.personId) &&
-        !byId.has(thread.personId)
-      ) {
-        byId.set(thread.personId, {
-          id: thread.personId,
-          name: thread.personName,
-          handle: thread.personId,
-        });
-      }
-    }
+function previewFromDocMeta(meta: {
+  lastMessageKind?: "text" | "handoff";
+  lastHandoffTitle?: string;
+  lastPreview?: string;
+}): string {
+  if (meta.lastMessageKind === "handoff") {
+    return meta.lastHandoffTitle?.trim() || meta.lastPreview?.trim() || "";
   }
-
-  for (const members of Object.values(useWorkspacePresenceStore.getState().membersByWorkspace)) {
-    for (const [memberUid, entry] of Object.entries(members)) {
-      if (memberUid === uid || !isCloudCapableFriend(memberUid) || byId.has(memberUid)) continue;
-      byId.set(memberUid, {
-        id: memberUid,
-        name: entry.displayName.trim() || "Membre",
-        handle: memberUid,
-      });
-    }
-  }
-
-  return [...byId.values()];
+  return meta.lastPreview?.trim() || "";
 }
 
 function ensureColleagueThreadsForPartner(
@@ -124,12 +127,16 @@ function ensureColleagueThreadsForPartner(
 }
 
 const inboxState = {
-  unsub: null as Unsubscribe | null,
-  partnerUnsubs: new Map<string, Unsubscribe>(),
   uid: null as string | null,
-  initialized: false,
-  mode: null as "inbox" | "partners" | null,
+  panelActive: false,
+  friendMetadataUnsub: null as Unsubscribe | null,
+  groupMetadataUnsub: null as Unsubscribe | null,
+  threadMessageUnsub: null as Unsubscribe | null,
+  activeThreadId: null as string | null,
   errorNotified: false,
+};
+const groupInboxState = {
+  uid: null as string | null,
 };
 const seenMessageIdsByFriend = new Map<string, Set<string>>();
 const pendingCloudMessages = new Map<
@@ -215,13 +222,16 @@ interface PeopleState {
   friends: Person[];
   friendRequests: FriendRequest[];
   friendThreads: PeopleThread[];
+  groupThreads: PeopleThread[];
   colleagueThreadsByWorkspace: Record<string, PeopleThread[]>;
   activeFriendThreadId: string | null;
   personPhotoByUserId: Record<string, string>;
   friendsTabSeenAt: number;
+  dismissedThreadIds: string[];
 
   friendThreadsList: () => PeopleThread[];
   colleagueThreadsForWorkspace: (workspaceId: string) => PeopleThread[];
+  eligibleGroupChatMembers: (workspaceId: string) => Person[];
   unreadCount: (workspaceId: string) => number;
   peopleMessagesUnreadCount: () => number;
   threadById: (id: string) => PeopleThread | undefined;
@@ -229,6 +239,7 @@ interface PeopleState {
 
   hydrateFriendRequests: (uid: string | null, email: string | null) => () => void;
   subscribeFriendChats: (uid: string | null) => void;
+  setFriendChatPanelActive: (active: boolean) => void;
   setActiveFriendThread: (threadId: string | null) => void;
   sendFriendRequest: (handle: string) => Promise<{ ok: boolean; error?: string }>;
   acceptFriendRequest: (requestId: string) => Promise<void>;
@@ -241,6 +252,11 @@ interface PeopleState {
     personName: string,
   ) => string;
   ensureFriendThread: (person: Person) => string;
+  createGroupChat: (
+    name: string,
+    memberIds: string[],
+  ) => Promise<{ ok: boolean; threadId?: string; error?: string }>;
+  deletePeopleThread: (threadId: string) => Promise<{ ok: boolean; error?: string }>;
   openMessageFromNotification: (personId: string, personName: string) => void;
   cachePersonPhoto: (userId: string, photoURL?: string | null) => void;
   hydratePersonPhotos: (personIds: string[]) => Promise<void>;
@@ -391,6 +407,7 @@ function notificationIdForFriendRequest(requestId: string): string {
 
 function persistThreadRead(state: PeopleState, threadId: string): void {
   const thread = state.friendThreads.find((t) => t.id === threadId)
+    ?? state.groupThreads.find((t) => t.id === threadId)
     ?? Object.values(state.colleagueThreadsByWorkspace)
       .flat()
       .find((t) => t.id === threadId);
@@ -412,11 +429,336 @@ function peopleMessagesUnreadTotal(state: PeopleState): number {
   };
 
   for (const thread of state.friendThreads) track(thread);
+  for (const thread of state.groupThreads) track(thread);
   for (const threads of Object.values(state.colleagueThreadsByWorkspace)) {
     for (const thread of threads) track(thread);
   }
 
   return [...byPerson.values()].reduce((sum, count) => sum + count, 0);
+}
+
+function clearGroupSubscriptions() {
+  groupInboxState.uid = null;
+}
+
+function releaseThreadMessageSubscription() {
+  inboxState.threadMessageUnsub?.();
+  inboxState.threadMessageUnsub = null;
+  inboxState.activeThreadId = null;
+}
+
+function clearInboxMetadataSubscriptions() {
+  inboxState.friendMetadataUnsub?.();
+  inboxState.friendMetadataUnsub = null;
+  inboxState.groupMetadataUnsub?.();
+  inboxState.groupMetadataUnsub = null;
+  releaseThreadMessageSubscription();
+}
+
+function syncFriendChatsMetadata(
+  set: (fn: (state: PeopleState) => Partial<PeopleState>) => void,
+  get: () => PeopleState,
+  uid: string,
+  chats: CloudFriendChat[],
+) {
+  set((state) => {
+    const activeThreadId = state.activeFriendThreadId;
+    let friendThreads = state.friendThreads;
+    let colleagueThreadsByWorkspace = state.colleagueThreadsByWorkspace;
+
+    for (const chat of chats) {
+      const partnerId = partnerUidFromChatId(chat.id, uid);
+      if (!partnerId) continue;
+
+      const threadId = threadIdForFriend(partnerId);
+      const updatedAt = firestoreUpdatedAtMillis(chat.updatedAt) || Date.now();
+      const preview = previewFromDocMeta(chat);
+      const lastReadAt = getLastReadAt(uid, partnerId);
+      const isUnread =
+        !!chat.lastMessageAuthorUid &&
+        chat.lastMessageAuthorUid !== uid &&
+        updatedAt > lastReadAt;
+      const isViewingPerson =
+        activeThreadId != null &&
+        state.threadById(activeThreadId)?.personId === partnerId;
+      const keepMessages =
+        inboxState.activeThreadId === threadId && inboxState.threadMessageUnsub != null;
+
+      const partner = resolvePartnerPerson(state, partnerId, []);
+      colleagueThreadsByWorkspace = ensureColleagueThreadsForPartner(
+        { ...state, friendThreads, colleagueThreadsByWorkspace },
+        partner,
+        useStore.getState().activeRoomId,
+      );
+
+      const isFriend = state.friends.some((friend) => friend.id === partnerId);
+      if (isFriend && !friendThreads.some((thread) => thread.id === threadId)) {
+        friendThreads = [
+          ...friendThreads,
+          {
+            id: threadId,
+            personId: partner.id,
+            personName: partner.name,
+            section: "friends" as const,
+            preview: "",
+            updatedAt,
+            unread: 0,
+            messages: [],
+          },
+        ];
+      }
+
+      const patchThread = (thread: PeopleThread): PeopleThread => {
+        if (thread.personId !== partnerId && thread.id !== threadId) return thread;
+        return {
+          ...thread,
+          personName: partner.name,
+          preview: preview || thread.preview,
+          updatedAt,
+          unread: isViewingPerson ? 0 : isUnread ? Math.max(thread.unread, 1) : thread.unread,
+          messages: keepMessages ? thread.messages : [],
+        };
+      };
+
+      friendThreads = friendThreads.map(patchThread);
+      colleagueThreadsByWorkspace = Object.fromEntries(
+        Object.entries(colleagueThreadsByWorkspace).map(([workspaceId, threads]) => [
+          workspaceId,
+          threads.map(patchThread),
+        ]),
+      );
+    }
+
+    return { friendThreads, colleagueThreadsByWorkspace };
+  });
+}
+
+function syncGroupChatsMetadata(
+  set: (fn: (state: PeopleState) => Partial<PeopleState>) => void,
+  get: () => PeopleState,
+  uid: string,
+  groups: CloudGroupChat[],
+) {
+  set((state) => {
+    const activeThreadId = state.activeFriendThreadId;
+    const groupThreads = groups.map((group) => {
+      const threadId = threadIdForGroup(group.id);
+      const updatedAt = firestoreUpdatedAtMillis(group.updatedAt) || Date.now();
+      const preview = previewFromDocMeta(group);
+      const lastReadAt = getLastReadAt(uid, group.id);
+      const isUnread =
+        !!group.lastMessageAuthorUid &&
+        group.lastMessageAuthorUid !== uid &&
+        updatedAt > lastReadAt;
+      const isViewing = activeThreadId === threadId;
+      const keepMessages =
+        inboxState.activeThreadId === threadId && inboxState.threadMessageUnsub != null;
+      const existing = state.groupThreads.find((thread) => thread.id === threadId);
+
+      const base = existing
+        ? {
+            ...existing,
+            personName: group.name,
+            groupName: group.name,
+            memberIds: group.participants,
+            memberNames: { ...existing.memberNames, ...group.memberNames },
+            creatorUid: group.creatorUid || existing.creatorUid,
+          }
+        : createGroupThread(
+            group.id,
+            group.name,
+            group.participants,
+            group.memberNames ?? {},
+            group.creatorUid,
+          );
+
+      return {
+        ...base,
+        preview: preview || base.preview,
+        updatedAt,
+        unread: isViewing ? 0 : isUnread ? Math.max(base.unread, 1) : base.unread,
+        messages: keepMessages ? base.messages : [],
+      };
+    });
+
+    return { groupThreads };
+  });
+}
+
+type PeopleStoreApi = {
+  set: (fn: (state: PeopleState) => Partial<PeopleState>) => void;
+  get: () => PeopleState;
+};
+
+function ensureThreadMessageSubscription(store: PeopleStoreApi, threadId: string) {
+  const uid = inboxState.uid;
+  if (!uid || !inboxState.panelActive) return;
+
+  if (inboxState.activeThreadId === threadId && inboxState.threadMessageUnsub) return;
+
+  releaseThreadMessageSubscription();
+  inboxState.activeThreadId = threadId;
+
+  const groupId = groupIdFromThreadId(threadId);
+  if (groupId) {
+    inboxState.threadMessageUnsub = watchGroupChatMessages(
+      groupId,
+      (messages) => {
+        const group = store.get().groupThreads.find((thread) => thread.id === threadId);
+        if (!group) return;
+        syncGroupChatMessages(
+          store.set,
+          store.get,
+          uid,
+          {
+            id: groupId,
+            name: group.groupName ?? group.personName,
+            participants: group.memberIds ?? [],
+            creatorUid: group.creatorUid ?? "",
+            memberNames: group.memberNames,
+          },
+          messages,
+        );
+      },
+      (error) => {
+        console.error(`Group chat ${groupId} unavailable`, error);
+      },
+    );
+    return;
+  }
+
+  const personId = personIdFromThreadId(threadId);
+  if (!personId) return;
+
+  const chatId = friendChatId(uid, personId);
+  void ensureFriendChat(uid, personId)
+    .catch(() => {})
+    .finally(() => {
+      if (inboxState.activeThreadId !== threadId || !inboxState.panelActive) return;
+      inboxState.threadMessageUnsub = watchFriendChatMessages(
+        chatId,
+        (cloudMessages) => {
+          syncInboxChat(store.set, store.get, uid, chatId, cloudMessages);
+        },
+        (error) => {
+          console.error(`Friend chat ${chatId} unavailable`, error);
+        },
+      );
+    });
+}
+
+function startInboxMetadataSubscriptions(store: PeopleStoreApi, uid: string) {
+  if (inboxState.friendMetadataUnsub || inboxState.groupMetadataUnsub) return;
+
+  inboxState.friendMetadataUnsub = watchFriendChats(
+    uid,
+    (chats) => {
+      syncFriendChatsMetadata(store.set, store.get, uid, chats);
+    },
+    (error) => {
+      const code = (error as { code?: string })?.code;
+      if (code === "permission-denied") {
+        console.warn(
+          "Friend chats: permissions Firestore manquantes. Déployez les règles : firebase deploy --only firestore:rules",
+        );
+        return;
+      }
+      console.error("Friend chats unavailable", error);
+    },
+  );
+
+  inboxState.groupMetadataUnsub = watchGroupChats(
+    uid,
+    (groups) => {
+      syncGroupChatsMetadata(store.set, store.get, uid, groups);
+    },
+    (error) => {
+      const code = (error as { code?: string })?.code;
+      if (code === "permission-denied") {
+        console.warn(
+          "Group chats: permissions Firestore manquantes. Déployez les règles : firebase deploy --only firestore:rules",
+        );
+        return;
+      }
+      console.error("Group chats unavailable", error);
+    },
+  );
+
+  groupInboxState.uid = uid;
+}
+
+function workspaceMembersForGroupPicker(): Person[] {
+  return collectAllWorkspaceMembers(useWorkspacePresenceStore.getState().membersByWorkspace);
+}
+
+function syncGroupChatMessages(
+  set: (fn: (state: PeopleState) => Partial<PeopleState>) => void,
+  get: () => PeopleState,
+  uid: string,
+  group: CloudGroupChat,
+  cloudMessages: CloudFriendMessage[],
+) {
+  const threadId = threadIdForGroup(group.id);
+  const mappedMessages = cloudMessages.map((m) => ({
+    id: m.id,
+    author: m.authorName,
+    authorUid: m.authorUid,
+    text: m.text,
+    at: cloudMessageTimestamp(m),
+    mine: m.authorUid === uid,
+    kind: m.kind,
+    handoffId: m.handoffId,
+    handoffTitle: m.handoffTitle,
+    handoffPreview: m.handoffPreview,
+  }));
+
+  const last = mappedMessages[mappedMessages.length - 1];
+  const preview = last?.kind === "handoff" ? last.handoffTitle || last.text : last?.text ?? "";
+  const updatedAt = last?.at ?? Date.now();
+  const viewing = get().activeFriendThreadId === threadId;
+  const newIncoming = cloudMessages.filter((m) => m.authorUid !== uid).length;
+
+  set((state) => {
+    const existing = state.groupThreads.find((thread) => thread.id === threadId);
+    const unreadDelta = viewing ? 0 : Math.max(0, newIncoming - (existing?.messages.length ?? 0));
+    const thread = existing
+      ? {
+          ...existing,
+          personName: group.name,
+          groupName: group.name,
+          memberIds: group.participants,
+          memberNames: {
+            ...existing.memberNames,
+            ...group.memberNames,
+          },
+          creatorUid: group.creatorUid || existing.creatorUid,
+          messages: mappedMessages,
+          preview,
+          updatedAt,
+          unread: viewing ? 0 : existing.unread + unreadDelta,
+        }
+      : createGroupThread(
+          group.id,
+          group.name,
+          group.participants,
+          group.memberNames ?? {},
+          group.creatorUid,
+        );
+
+    const patched = {
+      ...thread,
+      messages: mappedMessages,
+      preview,
+      updatedAt,
+      unread: viewing ? 0 : thread.unread,
+    };
+
+    const groupThreads = existing
+      ? state.groupThreads.map((item) => (item.id === threadId ? patched : item))
+      : [...state.groupThreads, patched];
+
+    return { groupThreads };
+  });
 }
 
 function syncInboxChat(
@@ -439,6 +781,10 @@ function syncInboxChat(
       text: m.text,
       at: cloudMessageTimestamp(m),
       mine: m.authorUid === uid,
+      kind: m.kind,
+      handoffId: m.handoffId,
+      handoffTitle: m.handoffTitle,
+      handoffPreview: m.handoffPreview,
     })),
   );
 
@@ -477,7 +823,7 @@ function syncInboxChat(
       ? persistedUnreadCount
       : newIncomingMessages.length;
     const last = mappedMessages[mappedMessages.length - 1];
-    const preview = last?.text ?? "";
+    const preview = last?.kind === "handoff" ? last.handoffTitle || last.text : last?.text ?? "";
     const updatedAt = last?.at ?? Date.now();
     const isViewingThread = (activeThreadId: string) =>
       state.activeFriendThreadId === activeThreadId || isViewingPerson;
@@ -532,56 +878,10 @@ function syncInboxChat(
   });
 }
 
-function clearPartnerSubscriptions() {
-  for (const unsub of inboxState.partnerUnsubs.values()) unsub();
-  inboxState.partnerUnsubs.clear();
-}
-
-type PeopleStoreApi = {
-  set: (fn: (state: PeopleState) => Partial<PeopleState>) => void;
-  get: () => PeopleState;
-};
-
-function startPartnerSubscriptions({ set, get }: PeopleStoreApi, uid: string) {
-  const cloudPartners = collectCloudChatPartners(get(), uid);
-  const activeIds = new Set(cloudPartners.map((partner) => partner.id));
-
-  for (const [key, unsub] of inboxState.partnerUnsubs.entries()) {
-    if (!activeIds.has(key)) {
-      unsub();
-      inboxState.partnerUnsubs.delete(key);
-    }
-  }
-
-  for (const partner of cloudPartners) {
-    if (inboxState.partnerUnsubs.has(partner.id)) continue;
-    const chatId = friendChatId(uid, partner.id);
-    void ensureFriendChat(uid, partner.id)
-      .catch(() => {})
-      .finally(() => {
-        if (inboxState.mode !== "partners" || inboxState.uid !== uid) return;
-        if (inboxState.partnerUnsubs.has(partner.id)) return;
-        const unsub = watchFriendChatMessages(
-          chatId,
-          (cloudMessages) => {
-            syncInboxChat(set, get, uid, chatId, cloudMessages);
-          },
-          (error) => {
-            console.error(`Friend chat ${chatId} unavailable`, error);
-          },
-        );
-        inboxState.partnerUnsubs.set(partner.id, unsub);
-      });
-  }
-}
-
-function startInboxSubscription(store: PeopleStoreApi, uid: string) {
-  inboxState.unsub?.();
-  inboxState.unsub = null;
-  // Per-partner listeners are more reliable than the friendChats collection query.
-  inboxState.mode = "partners";
-  startPartnerSubscriptions(store, uid);
-  inboxState.initialized = true;
+function stopInboxSubscriptions() {
+  clearInboxMetadataSubscriptions();
+  clearGroupSubscriptions();
+  seenMessageIdsByFriend.clear();
 }
 
 function syncFriendRequestNotifications(requests: FriendRequest[]) {
@@ -675,10 +975,12 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
   friends: [],
   friendRequests: [],
   friendThreads: [],
+  groupThreads: [],
   colleagueThreadsByWorkspace: {},
   activeFriendThreadId: null,
   personPhotoByUserId: {},
   friendsTabSeenAt: 0,
+  dismissedThreadIds: [],
 
   friendThreadsList: () => get().friendThreads,
 
@@ -692,17 +994,27 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
   colleagueThreadsForWorkspace: (workspaceId) =>
     get().colleagueThreadsByWorkspace[workspaceId] ?? EMPTY_PEOPLE_THREADS,
 
+  eligibleGroupChatMembers: (workspaceId) =>
+    buildEligibleGroupChatMembers({
+      friends: get().friends,
+      workspaceMembers: workspaceMembersForGroupPicker(),
+      localUserId: auth.currentUser?.uid,
+    }),
+
   unreadCount: (workspaceId) => {
     const friends = get().friendThreads.reduce((s, t) => s + t.unread, 0);
+    const groups = get().groupThreads.reduce((s, t) => s + t.unread, 0);
     const colleagues = (
       get().colleagueThreadsByWorkspace[workspaceId] ?? EMPTY_PEOPLE_THREADS
     ).reduce((s, t) => s + t.unread, 0);
-    return friends + colleagues;
+    return friends + groups + colleagues;
   },
 
   peopleMessagesUnreadCount: () => peopleMessagesUnreadTotal(get()),
 
   threadById: (id) => {
+    const group = get().groupThreads.find((t) => t.id === id);
+    if (group) return group;
     const friend = get().friendThreads.find((t) => t.id === id);
     if (friend) return friend;
     for (const threads of Object.values(get().colleagueThreadsByWorkspace)) {
@@ -886,6 +1198,69 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     const myName = useStore.getState().userDisplayName || "Vous";
     const state = get();
     const thread = state.threadById(threadId);
+
+    if (thread?.section === "groups") {
+      const groupId = groupIdFromThreadId(threadId);
+      if (!myUid || !groupId || !thread.memberIds?.includes(myUid)) {
+        useNotificationsStore.getState().push({
+          kind: "message",
+          title: "Message non envoyé",
+          body: "Connectez-vous pour envoyer un message de groupe.",
+        });
+        return;
+      }
+
+      const optimisticId = `msg-${Date.now()}`;
+      const msg: PeopleMessage = {
+        id: optimisticId,
+        author: "Vous",
+        text: trimmed,
+        at: Date.now(),
+        mine: true,
+      };
+
+      const patchGroup = (t: PeopleThread) =>
+        t.id === threadId
+          ? {
+              ...t,
+              messages: [...t.messages, msg],
+              preview: trimmed,
+              updatedAt: Date.now(),
+              unread: 0,
+            }
+          : t;
+
+      const rollbackGroup = (t: PeopleThread) => {
+        if (t.id !== threadId) return t;
+        const messages = t.messages.filter((m) => m.id !== optimisticId);
+        const last = messages[messages.length - 1];
+        return {
+          ...t,
+          messages,
+          preview: last?.text ?? "",
+          updatedAt: last?.at ?? t.updatedAt,
+        };
+      };
+
+      set({ groupThreads: get().groupThreads.map(patchGroup) });
+
+      void sendGroupChatMessage(
+        groupId,
+        myUid,
+        myName,
+        thread.memberIds,
+        trimmed,
+      ).catch((error) => {
+        set({ groupThreads: get().groupThreads.map(rollbackGroup) });
+        useNotificationsStore.getState().push({
+          kind: "message",
+          title: "Message non envoyé",
+          body: error instanceof Error ? error.message : "Erreur d'envoi.",
+        });
+      });
+      return;
+    }
+
     const person = resolvePersonForThread(state, threadId, thread);
     const rawPersonId = person?.id ?? thread?.personId ?? personIdFromThreadId(threadId);
     const cloudPersonId = rawPersonId ? resolveCloudFriendId(state, rawPersonId) : null;
@@ -999,42 +1374,54 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
 
   subscribeFriendChats: (uid) => {
     if (!uid) {
-      inboxState.unsub?.();
-      inboxState.unsub = null;
-      clearPartnerSubscriptions();
+      inboxState.panelActive = false;
+      stopInboxSubscriptions();
       inboxState.uid = null;
-      inboxState.initialized = false;
-      inboxState.mode = null;
       inboxState.errorNotified = false;
-      seenMessageIdsByFriend.clear();
       pendingCloudMessages.clear();
-      set({ friendsTabSeenAt: 0 });
+      set({ friendsTabSeenAt: 0, groupThreads: [], dismissedThreadIds: [] });
       return;
     }
 
-    set({ friendsTabSeenAt: getFriendsTabSeenAt(uid) });
-
-    if (inboxState.uid === uid && inboxState.mode === "partners") {
-      startPartnerSubscriptions({ set, get }, uid);
-      return;
-    }
-
-    if (inboxState.uid === uid && inboxState.mode === "inbox" && inboxState.unsub) {
-      return;
-    }
-
-    inboxState.unsub?.();
-    clearPartnerSubscriptions();
+    set({
+      friendsTabSeenAt: getFriendsTabSeenAt(uid),
+      dismissedThreadIds: getDismissedThreadIds(uid),
+    });
     inboxState.uid = uid;
-    inboxState.initialized = false;
-    inboxState.mode = null;
-    inboxState.errorNotified = false;
-    seenMessageIdsByFriend.clear();
+  },
 
-    startInboxSubscription({ set, get }, uid);
+  setFriendChatPanelActive: (active) => {
+    const uid = inboxState.uid;
+    if (!uid) return;
+
+    if (active) {
+      if (inboxState.panelActive) return;
+      inboxState.panelActive = true;
+      startInboxMetadataSubscriptions({ set, get }, uid);
+      const activeThreadId = get().activeFriendThreadId;
+      if (activeThreadId) {
+        ensureThreadMessageSubscription({ set, get }, activeThreadId);
+      }
+      return;
+    }
+
+    if (!inboxState.panelActive) return;
+    inboxState.panelActive = false;
+    clearInboxMetadataSubscriptions();
+    set((state) => ({
+      friendThreads: state.friendThreads.map((thread) => ({ ...thread, messages: [] })),
+      groupThreads: state.groupThreads.map((thread) => ({ ...thread, messages: [] })),
+      colleagueThreadsByWorkspace: Object.fromEntries(
+        Object.entries(state.colleagueThreadsByWorkspace).map(([workspaceId, threads]) => [
+          workspaceId,
+          threads.map((thread) => ({ ...thread, messages: [] })),
+        ]),
+      ),
+    }));
   },
 
   openMessageFromNotification: (personId, personName) => {
+    get().setFriendChatPanelActive(true);
     const workspaceId = workspaceIdForPartner(personId);
     const threadId = workspaceId
       ? get().ensureColleagueThread(workspaceId, personId, personName)
@@ -1073,6 +1460,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
   },
 
   setActiveFriendThread: (threadId) => {
+    const previousThreadId = get().activeFriendThreadId;
     set((state) => {
       if (state.activeFriendThreadId === threadId) return state;
       const next: Partial<PeopleState> = { activeFriendThreadId: threadId };
@@ -1087,9 +1475,21 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
             threads.map((t) => (t.id === threadId ? { ...t, unread: 0 } : t)),
           ]),
         );
+        next.groupThreads = state.groupThreads.map((t) =>
+          t.id === threadId ? { ...t, unread: 0 } : t,
+        );
       }
       return next as PeopleState;
     });
+
+    if (previousThreadId && previousThreadId !== threadId) {
+      releaseThreadMessageSubscription();
+    }
+    if (threadId && inboxState.panelActive) {
+      ensureThreadMessageSubscription({ set, get }, threadId);
+    } else if (!threadId) {
+      releaseThreadMessageSubscription();
+    }
   },
 
   markThreadRead: (threadId) => {
@@ -1099,6 +1499,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
 
     set({
       friendThreads: get().friendThreads.map(patch),
+      groupThreads: get().groupThreads.map(patch),
       colleagueThreadsByWorkspace: Object.fromEntries(
         Object.entries(get().colleagueThreadsByWorkspace).map(([ws, threads]) => [
           ws,
@@ -1106,6 +1507,139 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
         ]),
       ),
     });
+  },
+
+  createGroupChat: async (name, memberIds) => {
+    const trimmedName = name.trim();
+    const myUid = auth.currentUser?.uid;
+    if (!myUid) {
+      return { ok: false, error: "Connectez-vous pour créer un groupe." };
+    }
+    if (!trimmedName) {
+      return { ok: false, error: "Donnez un nom au groupe." };
+    }
+
+    const uniqueMemberIds = [...new Set(memberIds.filter((id) => id && id !== myUid))];
+    if (uniqueMemberIds.length < 1) {
+      return { ok: false, error: "Ajoutez au moins un membre au groupe." };
+    }
+
+    const eligibility = {
+      friends: get().friends,
+      workspaceMembers: workspaceMembersForGroupPicker(),
+      localUserId: myUid,
+    };
+    const invalid = uniqueMemberIds.find(
+      (memberId) => !canAddPersonToGroupChat(memberId, eligibility),
+    );
+    if (invalid) {
+      return {
+        ok: false,
+        error: "Vous ne pouvez ajouter que des amis ou des collègues de workspace.",
+      };
+    }
+
+    const memberNames: Record<string, string> = {
+      [myUid]: useStore.getState().userDisplayName || "Vous",
+    };
+    for (const memberId of uniqueMemberIds) {
+      const eligible = buildEligibleGroupChatMembers(eligibility).find(
+        (person) => person.id === memberId,
+      );
+      if (eligible) memberNames[memberId] = eligible.name;
+    }
+
+    const participants = [myUid, ...uniqueMemberIds];
+    const groupId = crypto.randomUUID();
+    const thread = createGroupThread(groupId, trimmedName, participants, memberNames, myUid);
+
+    try {
+      await createGroupChatDoc({
+        groupId,
+        name: trimmedName,
+        participants,
+        creatorUid: myUid,
+        memberNames,
+      });
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "Impossible de créer le groupe.",
+      };
+    }
+
+    set({
+      groupThreads: [...get().groupThreads.filter((item) => item.id !== thread.id), thread],
+      activeFriendThreadId: thread.id,
+    });
+    return { ok: true, threadId: thread.id };
+  },
+
+  deletePeopleThread: async (threadId) => {
+    const myUid = auth.currentUser?.uid;
+    const state = get();
+    const thread = state.threadById(threadId);
+    if (!thread) {
+      return { ok: false, error: "Conversation introuvable." };
+    }
+
+    try {
+      if (thread.section === "groups") {
+        const groupId = groupIdFromThreadId(threadId);
+        if (!groupId) return { ok: false, error: "Groupe introuvable." };
+        if (!myUid) {
+          return { ok: false, error: "Connectez-vous pour supprimer ce groupe." };
+        }
+        await deleteGroupChat(groupId);
+        if (inboxState.activeThreadId === threadId) {
+          releaseThreadMessageSubscription();
+        }
+      } else {
+        const cloudPersonId =
+          myUid && isCloudCapablePersonId(thread.personId)
+            ? resolveCloudFriendId(state, thread.personId)
+            : null;
+        if (myUid && cloudPersonId && isCloudCapableFriend(cloudPersonId)) {
+          await deleteFriendChat(friendChatId(myUid, cloudPersonId));
+          seenMessageIdsByFriend.delete(cloudPersonId);
+          if (inboxState.activeThreadId === threadId) {
+            releaseThreadMessageSubscription();
+          }
+        }
+        if (myUid) clearLastReadAt(myUid, thread.personId);
+      }
+
+      if (myUid) dismissThreadId(myUid, threadId);
+
+      set((current) => {
+        const dismissedThreadIds = [...new Set([...current.dismissedThreadIds, threadId])];
+        const colleagueThreadsByWorkspace =
+          thread.section === "colleagues" && thread.workspaceId
+            ? {
+                ...current.colleagueThreadsByWorkspace,
+                [thread.workspaceId]: (
+                  current.colleagueThreadsByWorkspace[thread.workspaceId] ?? []
+                ).filter((item) => item.id !== threadId),
+              }
+            : current.colleagueThreadsByWorkspace;
+
+        return {
+          dismissedThreadIds,
+          activeFriendThreadId:
+            current.activeFriendThreadId === threadId ? null : current.activeFriendThreadId,
+          friendThreads: current.friendThreads.filter((item) => item.id !== threadId),
+          groupThreads: current.groupThreads.filter((item) => item.id !== threadId),
+          colleagueThreadsByWorkspace,
+        };
+      });
+
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "Impossible de supprimer la conversation.",
+      };
+    }
   },
 
   ensureColleagueThread: (workspaceId, personId, personName) => {

@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { avatarColor, userInitials } from "../../lib/calls";
 import { formatDayLabel, toDateKey } from "../../lib/daySchedule";
 import { syncEventsToGoogleCalendar } from "../../lib/calendarSync";
+import { syncEventsToOutlookCalendar } from "../../lib/outlookCalendarSync";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
@@ -113,14 +114,25 @@ export default function CalendarEventComposer() {
 
     addEvents([eventPayload]);
 
-    void syncEventsToGoogleCalendar([
-      {
-        title: trimmedTitle,
-        detail: detailTrimmed || undefined,
-        dateKey: eventDate,
-        startMinutes,
-        endMinutes,
-      },
+    void Promise.all([
+      syncEventsToGoogleCalendar([
+        {
+          title: trimmedTitle,
+          detail: detailTrimmed || undefined,
+          dateKey: eventDate,
+          startMinutes,
+          endMinutes,
+        },
+      ]),
+      syncEventsToOutlookCalendar([
+        {
+          title: trimmedTitle,
+          detail: detailTrimmed || undefined,
+          dateKey: eventDate,
+          startMinutes,
+          endMinutes,
+        },
+      ]),
     ]).then(() => {
       window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
     });

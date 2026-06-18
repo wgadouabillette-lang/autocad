@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { touchWorkspacePresence, watchWorkspacePresence } from "../lib/firebase/workspacePresence";
+import { createPresenceHeartbeat } from "../lib/firebase/workspacePresenceHeartbeat";
 import { presenceActivityKey } from "../lib/presenceActivity";
 import { LOCAL_USER_ID } from "../lib/workspaces";
 import { useAuthStore } from "../store/useAuthStore";
@@ -9,10 +10,16 @@ import { useStore } from "../store/useStore";
 import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
 import { useWorkspacesStore } from "../store/useWorkspacesStore";
 
-const HEARTBEAT_MS = 15_000;
-
 function workspaceIdsFromKey(key: string): string[] {
   return key ? key.split("\n") : [];
+}
+
+function isLocalInAnyVoiceSession(workspaceIds: string[]): boolean {
+  const calls = useCallsStore.getState();
+  return workspaceIds.some(
+    (workspaceId) =>
+      calls.isLocalInCall(workspaceId) || !!calls.localOpenChannelByRoom[workspaceId],
+  );
 }
 
 export function useWorkspacePresence() {
@@ -64,11 +71,21 @@ export function useWorkspacePresence() {
       void Promise.all(workspaceIds.map((workspaceId) => pushPresence(workspaceId)));
     };
 
-    heartbeat();
-    const heartbeatTimer = window.setInterval(heartbeat, HEARTBEAT_MS);
+    const scheduler = createPresenceHeartbeat({
+      isHighFrequency: () => isLocalInAnyVoiceSession(workspaceIds),
+      onPulse: heartbeat,
+    });
+
+    scheduler.pulse();
+    scheduler.reschedule();
 
     const onVisible = () => {
-      if (document.visibilityState === "visible") heartbeat();
+      if (document.visibilityState === "visible") {
+        scheduler.pulse();
+        scheduler.reschedule();
+        return;
+      }
+      scheduler.stop();
     };
     document.addEventListener("visibilitychange", onVisible);
 
@@ -81,7 +98,8 @@ export function useWorkspacePresence() {
       });
       if (snapshot === voiceSnapshotRef.current) return;
       voiceSnapshotRef.current = snapshot;
-      heartbeat();
+      scheduler.pulse();
+      scheduler.reschedule();
     });
 
     const activitySnapshotRef = { current: "" };
@@ -92,11 +110,11 @@ export function useWorkspacePresence() {
       );
       if (snapshot === activitySnapshotRef.current) return;
       activitySnapshotRef.current = snapshot;
-      heartbeat();
+      scheduler.pulse();
     });
 
     return () => {
-      window.clearInterval(heartbeatTimer);
+      scheduler.stop();
       document.removeEventListener("visibilitychange", onVisible);
       unsubCalls();
       unsubActivity();

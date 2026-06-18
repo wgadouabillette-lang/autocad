@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import type { AuthProvider } from "../../store/useAuthStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { hasFormaDesktop } from "../../lib/formaDesktop";
-import { AppleIcon, GoogleIcon, MicrosoftIcon } from "./AuthProviderIcons";
+import { FacebookIcon, GoogleIcon, MicrosoftIcon } from "./AuthProviderIcons";
 
 const PROVIDERS: {
   id: AuthProvider;
@@ -11,7 +11,7 @@ const PROVIDERS: {
 }[] = [
   { id: "google", label: "Continue with Google", Icon: GoogleIcon },
   { id: "microsoft", label: "Continue with Microsoft", Icon: MicrosoftIcon },
-  { id: "apple", label: "Continue with Apple", Icon: AppleIcon },
+  { id: "facebook", label: "Continue with Facebook", Icon: FacebookIcon },
 ];
 
 const LYTE_SITE_URL = "https://lyte.app";

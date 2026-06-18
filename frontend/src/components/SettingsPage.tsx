@@ -49,7 +49,7 @@ const TAB_TITLES: Record<SettingsTab, string> = {
 const TAB_DESCRIPTIONS: Record<SettingsTab, string> = {
   general: "Profil, interface et apparence.",
   friends: "Amis et invitations.",
-  workspaces: "Vos workspaces, invitations et changement d'espace actif.",
+  workspaces: "Vos workspaces, invitations et consommation IA Entreprise.",
   usage: "Forfait, facturation et consommation.",
   agents: "Personnalisation du chat, des follow-ups et des AI Notes.",
   voice: "Salons vocaux, enregistrements et options de capture.",

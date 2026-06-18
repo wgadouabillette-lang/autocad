@@ -38,13 +38,18 @@ find_vite_port() {
 VITE_PORT="$(find_vite_port)"
 
 echo "Backend  → http://127.0.0.1:8000/docs"
+export FORMA_SECRETS_PROJECT="${FORMA_SECRETS_PROJECT:-${FIREBASE_PROJECT_ID:-forma-cad-dev}}"
+export FORMA_BILLING_TIMING=1
+if [[ -f backend/.env ]]; then
+  export FORMA_USE_LOCAL_ENV=1
+fi
 if port_in_use 8000; then
-  echo "         (port 8000 occupé — redémarrage du backend pour recharger .env)"
+  echo "         (port 8000 occupé — redémarrage du backend pour recharger les secrets)"
   pkill -f "uvicorn app.main:app.*--port 8000" 2>/dev/null || true
   sleep 1
 fi
-# En dev, utiliser backend/.env (clés API) plutôt que ~/.forma/.env seul.
-(cd backend && source .venv/bin/activate && FORMA_DESKTOP=1 FORMA_ENV_FILE="$(pwd)/.env" FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID:-forma-cad-dev}" uvicorn app.main:app --reload --host 127.0.0.1 --port 8000) &
+# Secrets : Google Secret Manager (forma-backend-env). Repli local : FORMA_USE_LOCAL_ENV=1
+(cd backend && source .venv/bin/activate && FORMA_DESKTOP=1 FORMA_BILLING_TIMING="${FORMA_BILLING_TIMING:-1}" FORMA_USE_LOCAL_ENV="${FORMA_USE_LOCAL_ENV:-}" FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID:-forma-cad-dev}" uvicorn app.main:app --reload --host 127.0.0.1 --port 8000) &
 
 sleep 2
 echo "Frontend → http://localhost:${VITE_PORT}"

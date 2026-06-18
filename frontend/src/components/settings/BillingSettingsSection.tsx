@@ -39,10 +39,8 @@ export default function BillingSettingsSection() {
   const handleOnDemandToggle = () => {
     if (!onDemandAvailable) return;
     if (stripeEnabled && stripeOnDemand) {
-      void setOnDemand(!onDemandUsageEnabled);
-      return;
+      void setOnDemand(!onDemandUsageEnabled, 25);
     }
-    useStore.getState().toggleOnDemandUsage();
   };
 
   return (
@@ -57,14 +55,14 @@ export default function BillingSettingsSection() {
         {error && <p className="settings-section__hint text-red-400">{error}</p>}
         {externalCheckoutOpen && (
           <p className="settings-section__hint text-amber-300">
-            Le paiement s&apos;est ouvert dans votre navigateur. Revenez ici une fois la
-            transaction terminée — votre forfait sera mis à jour automatiquement.{" "}
+            Stripe est ouvert dans un autre onglet. Restez ici — votre forfait se mettra à jour
+            automatiquement dès confirmation.{" "}
             <button
               type="button"
               className="underline underline-offset-2 hover:text-amber-100"
               onClick={dismissExternalCheckoutNotice}
             >
-              OK
+              Fermer
             </button>
           </p>
         )}

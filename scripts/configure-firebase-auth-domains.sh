@@ -20,7 +20,7 @@ echo "https://console.firebase.google.com/project/${PROJECT_ID}/authentication/s
 echo ""
 echo "Cliquez « Add domain » pour chaque domaine absent de la liste."
 echo ""
-echo "Sans cela, Google/Microsoft/Apple renvoient auth/unauthorized-domain."
+echo "Sans cela, Google/Microsoft/Facebook renvoient auth/unauthorized-domain."
 
 if command -v open >/dev/null 2>&1; then
   open "https://console.firebase.google.com/project/${PROJECT_ID}/authentication/settings"

@@ -5,6 +5,18 @@
   if (!placeholder) return;
   const active = placeholder.getAttribute("data-active") || "";
 
+  function resolveAppHref() {
+    const { hostname, port } = window.location;
+    const isLocal = hostname === "127.0.0.1" || hostname === "localhost";
+    // Landing Vite dev server — the React app runs on the frontend dev server.
+    if (isLocal && (port === "5190" || port === "5191")) {
+      return "http://localhost:5173/app/";
+    }
+    return "/app/";
+  }
+
+  const appHref = resolveAppHref();
+
   const tabs = [
     { id: "tarifs", label: "Tarifs", href: "tarifs.html" },
     { id: "careers", label: "Careers", href: "careers.html" },
@@ -30,7 +42,7 @@
       <ul class="nav__tabs" role="list">${tabsHtml}</ul>
 
       <div class="nav__actions">
-        <a class="nav__cta" href="/app/">
+        <a class="nav__cta" href="${appHref}">
           <span>Ouvrir Lyte</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" width="11" height="11" aria-hidden="true">
             <path d="M7 17 17 7M9 7h8v8" />

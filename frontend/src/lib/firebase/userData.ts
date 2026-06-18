@@ -24,6 +24,7 @@ export interface UserProfileDoc extends UserPreferences {
   email: string;
   photoURL?: string;
   aiModel?: string;
+  billingManaged?: boolean;
   workspaceSetupCompleted?: boolean;
   dashboardOnboardingCompleted?: boolean;
   updatedAt?: unknown;
@@ -325,6 +326,33 @@ export async function deleteChatSession(uid: string, sessionId: string): Promise
 export async function loadChatSessions(uid: string): Promise<ChatSession[]> {
   const snap = await getDocs(chatSessionsCol(uid));
   return snap.docs.map((d) => d.data() as ChatSession);
+}
+
+export function toChatSessionSummary(session: ChatSession): ChatSession {
+  return {
+    id: session.id,
+    title: session.title,
+    messages: [],
+    updatedAt: session.updatedAt,
+    kind: session.kind,
+    recordingId: session.recordingId,
+    durationMs: session.durationMs,
+  };
+}
+
+/** Liste légère pour l'historique — sans messages ni corps de note. */
+export async function loadChatSessionSummaries(uid: string): Promise<ChatSession[]> {
+  const snap = await getDocs(chatSessionsCol(uid));
+  return snap.docs.map((d) => toChatSessionSummary(d.data() as ChatSession));
+}
+
+export async function loadChatSessionById(
+  uid: string,
+  sessionId: string,
+): Promise<ChatSession | null> {
+  const snap = await getDoc(doc(chatSessionsCol(uid), sessionId));
+  if (!snap.exists()) return null;
+  return snap.data() as ChatSession;
 }
 
 export async function saveProjectSnapshot(

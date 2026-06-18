@@ -1,5 +1,6 @@
 import {
   GoogleAuthProvider,
+  FacebookAuthProvider,
   OAuthProvider,
   signInWithCredential,
   signInWithCustomToken,
@@ -51,18 +52,39 @@ export function oauthPayloadFromResult(
   provider: FirebaseAuthProvider,
   result: UserCredential,
 ): DesktopAuthOAuthPayload {
-  const credential =
-    provider === "google"
-      ? GoogleAuthProvider.credentialFromResult(result)
-      : OAuthProvider.credentialFromResult(result);
+  if (provider === "google") {
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const idToken = credential?.idToken ?? undefined;
+    const accessToken = credential?.accessToken ?? undefined;
+    if (!idToken) {
+      throw new Error("Jeton OAuth introuvable après connexion.");
+    }
+    return {
+      provider,
+      idToken,
+      accessToken: accessToken || undefined,
+    };
+  }
 
+  if (provider === "facebook") {
+    const credential = FacebookAuthProvider.credentialFromResult(result);
+    const accessToken = credential?.accessToken ?? undefined;
+    if (!accessToken) {
+      throw new Error("Jeton OAuth introuvable après connexion.");
+    }
+    return {
+      provider,
+      idToken: accessToken,
+      accessToken,
+    };
+  }
+
+  const credential = OAuthProvider.credentialFromResult(result);
   const idToken = credential?.idToken ?? undefined;
   const accessToken = credential?.accessToken ?? undefined;
-
   if (!idToken) {
     throw new Error("Jeton OAuth introuvable après connexion.");
   }
-
   return {
     provider,
     idToken,
@@ -74,8 +96,10 @@ function oauthCredentialFromPayload(payload: DesktopAuthOAuthPayload): AuthCrede
   if (payload.provider === "google") {
     return GoogleAuthProvider.credential(payload.idToken, payload.accessToken);
   }
-  const providerId = payload.provider === "microsoft" ? "microsoft.com" : "apple.com";
-  return new OAuthProvider(providerId).credential({
+  if (payload.provider === "facebook") {
+    return FacebookAuthProvider.credential(payload.accessToken ?? payload.idToken);
+  }
+  return new OAuthProvider("microsoft.com").credential({
     idToken: payload.idToken,
     accessToken: payload.accessToken,
   });
@@ -170,7 +194,7 @@ async function claimDesktopAuthSessionViaFirestore(
   const provider = data.provider;
   const idToken = data.idToken;
   if (
-    (provider !== "google" && provider !== "microsoft" && provider !== "apple") ||
+    (provider !== "google" && provider !== "microsoft" && provider !== "facebook") ||
     typeof idToken !== "string" ||
     !idToken
   ) {

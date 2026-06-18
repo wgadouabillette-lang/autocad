@@ -20,6 +20,8 @@ export interface ChatPanelModeTab {
 export function chatPanelModeTabs(
   plan: SubscriptionPlan,
   inTheaterView: boolean,
+  billingManaged = false,
+  workspaceEnterprise = false,
 ): ChatPanelModeTab[] {
   const tabs: ChatPanelModeTab[] = [
     { id: "agent", label: "Chat", icon: MessageSquare },
@@ -32,7 +34,7 @@ export function chatPanelModeTabs(
     tabs.push({ id: "theater", label: "Theater", icon: Theater });
   }
 
-  if (hasFollowUpAccess(plan)) {
+  if (hasFollowUpAccess(plan, billingManaged, workspaceEnterprise)) {
     tabs.push({ id: "follow-up", label: "Follow-up", icon: ListTodo });
   }
 

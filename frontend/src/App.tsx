@@ -11,6 +11,7 @@ import VoiceRemoteAudioSink from "./components/calls/VoiceRemoteAudioSink";
 import AuthPage from "./components/auth/AuthPage";
 import { useCallVoiceActivity } from "./hooks/useCallVoiceActivity";
 import { useRemoteVoiceActivity } from "./hooks/useRemoteVoiceActivity";
+import { useWorkspaceEnterprise } from "./hooks/useWorkspaceEnterprise";
 import { useWorkspacePresence } from "./hooks/useWorkspacePresence";
 import { useWorkspaceJoinRequests } from "./hooks/useWorkspaceJoinRequests";
 import { useWorkspaceVoiceKnocks } from "./hooks/useWorkspaceVoiceKnocks";
@@ -24,6 +25,7 @@ import { useDesktopUpdater } from "./hooks/useDesktopUpdater";
 import { useMobileLayout } from "./hooks/useMobileLayout";
 import { runAppBoot, type AppBootStatus } from "./lib/appBoot";
 import { runDashboardOnboardingIfNeeded } from "./lib/dashboardOnboarding";
+import { normalizeSettingsTab } from "./lib/settingsSearchSuggestions";
 import { readUserPreferences } from "./lib/userPreferences";
 import { useAuthStore } from "./store/useAuthStore";
 import { useWorkspacesStore } from "./store/useWorkspacesStore";
@@ -93,6 +95,7 @@ export default function App() {
   useCallVoiceActivity(inVoiceCall);
   useRemoteVoiceActivity(inVoiceCall);
   useWorkspacePresence();
+  useWorkspaceEnterprise();
   useWorkspaceJoinRequests();
   useWorkspaceVoiceKnocks();
   useWorkspaceVoiceRtc();
@@ -184,30 +187,7 @@ export default function App() {
       return;
     }
     usePeopleStore.getState().subscribeFriendChats(firebaseUid);
-    const unsubscribePeople = usePeopleStore.subscribe((state, prev) => {
-      if (
-        state.friends === prev.friends &&
-        state.colleagueThreadsByWorkspace === prev.colleagueThreadsByWorkspace
-      ) {
-        return;
-      }
-      // #region agent log
-      debugLog(
-        "App.tsx:peopleSubscribe",
-        "people chat partners changed, resubscribe chats",
-        { friendCount: state.friends.length },
-        "E",
-      );
-      // #endregion
-      usePeopleStore.getState().subscribeFriendChats(firebaseUid);
-    });
-    const unsubscribePresence = useWorkspacePresenceStore.subscribe((state, prev) => {
-      if (state.membersByWorkspace === prev.membersByWorkspace) return;
-      usePeopleStore.getState().subscribeFriendChats(firebaseUid);
-    });
     return () => {
-      unsubscribePeople();
-      unsubscribePresence();
       usePeopleStore.getState().subscribeFriendChats(null);
     };
   }, [isAuthenticated, firebaseUid]);
@@ -236,10 +216,41 @@ export default function App() {
   }, [bootStatus, isAuthenticated]);
 
   useEffect(() => {
+    if (bootStatus !== "ready" || !isAuthenticated) return;
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get("checkout");
+    const tab = params.get("tab");
+    if (checkout !== "success" && checkout !== "cancel" && !tab) return;
+
+    useStore.getState().openSettingsTab(normalizeSettingsTab(tab ?? "usage"));
+
+    if (checkout === "success") {
+      pushNotification({
+        kind: "subscription",
+        title: "Paiement reçu",
+        body: "Votre abonnement Pro sera activé dès confirmation Stripe (quelques secondes).",
+      });
+    } else if (checkout === "cancel") {
+      pushNotification({
+        kind: "subscription",
+        title: "Paiement annulé",
+        body: "Aucun changement sur votre forfait.",
+      });
+    }
+
+    params.delete("checkout");
+    params.delete("tab");
+    const next = params.toString();
+    const url = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;
+    window.history.replaceState(null, "", url);
+  }, [bootStatus, isAuthenticated, pushNotification]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const oauth = params.get("connector_oauth");
     if (!oauth) return;
     const connectorId = params.get("connector_id");
+    const oauthMessage = params.get("connector_oauth_message");
     if (oauth === "success") {
       window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
       if (connectorId) {
@@ -249,9 +260,16 @@ export default function App() {
           body: "Your account is linked and ready to use in chat.",
         });
       }
+    } else if (oauth === "error") {
+      pushNotification({
+        kind: "connector",
+        title: connectorId ? `${connectorId} — connexion échouée` : "Connexion OAuth échouée",
+        body: oauthMessage || "Réessayez ou vérifiez la configuration backend.",
+      });
     }
     params.delete("connector_oauth");
     params.delete("connector_id");
+    params.delete("connector_oauth_message");
     const next = params.toString();
     const url = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;
     window.history.replaceState(null, "", url);

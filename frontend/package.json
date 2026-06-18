@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "secrets": "node ../scripts/load-frontend-env-from-gsm.mjs",
+    "predev": "npm run secrets",
+    "prebuild": "npm run secrets",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
@@ -20,6 +23,7 @@
     "zustand": "^5.0.1"
   },
   "devDependencies": {
+    "@google-cloud/secret-manager": "^5.6.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.169.0",

@@ -7,6 +7,7 @@ export interface AiChatPayload {
   ai_model: string;
   messages: { role: string; content: string }[];
   chat_instructions?: string;
+  workspace_id?: string;
 }
 
 export async function callAiChat(payload: AiChatPayload): Promise<ChatResponse> {

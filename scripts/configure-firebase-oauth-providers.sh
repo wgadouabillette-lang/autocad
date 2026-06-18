@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Active Microsoft et Apple dans Firebase Auth (Identity Platform API).
+# Active Microsoft et Facebook dans Firebase Auth (Identity Platform API).
 # Google + email/password restent gérés via firebase.json → firebase deploy --only auth
 set -euo pipefail
 
@@ -58,71 +58,58 @@ patch_idp() {
 echo "Projet Firebase : ${PROJECT_ID}"
 echo ""
 
-# --- Apple ---
-APPLE_SERVICE_ID="${APPLE_OAUTH_SERVICE_ID:-${APPLE_OAUTH_CLIENT_ID:-}}"
-APPLE_TEAM_ID="${APPLE_OAUTH_TEAM_ID:-}"
-APPLE_KEY_ID="${APPLE_OAUTH_KEY_ID:-}"
-APPLE_PRIVATE_KEY="${APPLE_OAUTH_PRIVATE_KEY:-}"
+# --- Facebook ---
+FACEBOOK_APP_ID="${FACEBOOK_OAUTH_APP_ID:-${FACEBOOK_APP_ID:-}}"
+FACEBOOK_APP_SECRET="${FACEBOOK_OAUTH_APP_SECRET:-${FACEBOOK_APP_SECRET:-}}"
 
-if idp_exists "apple.com"; then
-  echo "✓ Apple (apple.com) — déjà configuré"
-  if [[ -n "$APPLE_SERVICE_ID" && -n "$APPLE_TEAM_ID" && -n "$APPLE_KEY_ID" && -n "$APPLE_PRIVATE_KEY" ]]; then
-    APPLE_BODY="$(python3 - <<PY
-import json, os
-print(json.dumps({
-  "enabled": True,
-  "clientId": os.environ["APPLE_SERVICE_ID"],
-  "appleSignInConfig": {
-    "teamId": os.environ["APPLE_TEAM_ID"],
-    "keyId": os.environ["APPLE_KEY_ID"],
-    "privateKey": os.environ["APPLE_PRIVATE_KEY"].replace("\\\\n", "\\n"),
-  },
-}))
-PY
-)"
-    RESULT="$(patch_idp "apple.com" "$APPLE_BODY" "enabled,clientId,appleSignInConfig")"
-    if echo "$RESULT" | grep -q '"error"'; then
-      echo "  ⚠ Mise à jour Apple échouée : $RESULT"
-    else
-      echo "  ✓ Apple mis à jour (Service ID + clé OAuth web)"
-    fi
-  fi
+if [[ -z "$FACEBOOK_APP_ID" || -z "$FACEBOOK_APP_SECRET" ]]; then
+  echo "○ Facebook — en attente de credentials Meta"
+  echo "  1. https://developers.facebook.com/apps/ → Create App"
+  echo "  2. Facebook Login → Settings → Valid OAuth Redirect URIs :"
+  echo "     https://${PROJECT_ID}.firebaseapp.com/__/auth/handler"
+  echo "  3. Puis :"
+  echo "     export FACEBOOK_OAUTH_APP_ID='…'"
+  echo "     export FACEBOOK_OAUTH_APP_SECRET='…'"
+  echo "     ./scripts/configure-firebase-oauth-providers.sh"
 else
-  if [[ -n "$APPLE_SERVICE_ID" && -n "$APPLE_TEAM_ID" && -n "$APPLE_KEY_ID" && -n "$APPLE_PRIVATE_KEY" ]]; then
-    APPLE_BODY="$(python3 - <<PY
+  FB_BODY="$(python3 - <<PY
 import json, os
 print(json.dumps({
-  "name": f"projects/{os.environ['PROJECT_ID']}/defaultSupportedIdpConfigs/apple.com",
+  "name": f"projects/{os.environ['PROJECT_ID']}/defaultSupportedIdpConfigs/facebook.com",
   "enabled": True,
-  "clientId": os.environ["APPLE_SERVICE_ID"],
-  "appleSignInConfig": {
-    "teamId": os.environ["APPLE_TEAM_ID"],
-    "keyId": os.environ["APPLE_KEY_ID"],
-    "privateKey": os.environ["APPLE_PRIVATE_KEY"].replace("\\\\n", "\\n"),
-  },
+  "clientId": os.environ["FACEBOOK_APP_ID"],
+  "clientSecret": os.environ["FACEBOOK_APP_SECRET"],
 }))
 PY
 )"
+  if idp_exists "facebook.com"; then
+    PATCH_BODY="$(python3 - <<PY
+import json, os
+print(json.dumps({
+  "enabled": True,
+  "clientId": os.environ["FACEBOOK_APP_ID"],
+  "clientSecret": os.environ["FACEBOOK_APP_SECRET"],
+}))
+PY
+)"
+    RESULT="$(patch_idp "facebook.com" "$PATCH_BODY" "enabled,clientId,clientSecret")"
+    ACTION="mis à jour"
   else
-    APPLE_BODY="$(python3 - <<PY
-import json, os
-print(json.dumps({
-  "name": f"projects/{os.environ['PROJECT_ID']}/defaultSupportedIdpConfigs/apple.com",
-  "enabled": True,
-}))
-PY
-)"
+    RESULT="$(create_idp "facebook.com" "$FB_BODY")"
+    ACTION="activé"
   fi
-  RESULT="$(create_idp "apple.com" "$APPLE_BODY")"
   if echo "$RESULT" | grep -q '"error"'; then
-    echo "✗ Apple : $RESULT"
-  else
-    echo "✓ Apple (apple.com) activé"
-    if [[ -z "$APPLE_SERVICE_ID" ]]; then
-      echo "  → Pour le web : définissez APPLE_OAUTH_SERVICE_ID, APPLE_OAUTH_TEAM_ID,"
-      echo "    APPLE_OAUTH_KEY_ID, APPLE_OAUTH_PRIVATE_KEY puis relancez ce script."
-    fi
+    echo "✗ Facebook : $RESULT"
+    exit 1
   fi
+  echo "✓ Facebook (facebook.com) ${ACTION}"
+fi
+
+echo ""
+
+# --- Apple (legacy — désactivé côté app, laisser tel quel si déjà configuré) ---
+if idp_exists "apple.com"; then
+  echo "○ Apple (apple.com) — encore présent dans Firebase, remplacé par Facebook dans l'app"
 fi
 
 echo ""

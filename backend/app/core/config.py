@@ -13,6 +13,8 @@ from typing import List
 
 from dotenv import load_dotenv
 
+from app.core.secrets import load_backend_secrets_or_raise, use_local_env_only
+
 
 def _env_bool(name: str, default: bool = False) -> bool:
     val = os.getenv(name)
@@ -52,28 +54,34 @@ def _has_llm_env() -> bool:
 
 
 def _load_env() -> None:
+    if not use_local_env_only():
+        try:
+            load_backend_secrets_or_raise()
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Secret Manager unavailable, falling back to local .env: %s",
+                exc,
+            )
+
     primary = _env_file()
     fallback = _backend_env_file()
     if primary.exists():
-        load_dotenv(primary)
-    # Compléter avec backend/.env (OAuth, etc.) sans écraser le primaire.
+        load_dotenv(primary, override=use_local_env_only())
     if fallback.exists() and fallback.resolve() != primary.resolve():
         load_dotenv(fallback, override=False)
-    # Clés LLM vides dans ~/.forma/.env → reprendre backend/.env
     if not _has_llm_env() and fallback.exists():
         load_dotenv(fallback, override=True)
 
 
 def ensure_desktop_env() -> Path:
-    """Copie .env.example vers le dossier utilisateur au premier lancement bureau."""
+    """Prépare le dossier utilisateur bureau (secrets via Secret Manager)."""
     data = _data_dir()
     data.mkdir(parents=True, exist_ok=True)
-    target = data / ".env"
-    if not target.exists():
-        example = Path(__file__).resolve().parents[2] / ".env.example"
-        if example.exists():
-            target.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
-    return target
+    return data
 
 
 # Charge backend/.env (dev) ou ~/.forma/.env (app bureau), avec repli dev
@@ -149,6 +157,15 @@ class Settings:
     stripe_on_demand_price_id: str = field(
         default_factory=lambda: os.getenv("STRIPE_ON_DEMAND_PRICE_ID", "")
     )
+    stripe_on_demand_unit_cents: int = field(
+        default_factory=lambda: max(int(os.getenv("STRIPE_ON_DEMAND_UNIT_CENTS", "1")), 1)
+    )
+    stripe_enterprise_seat_price_id: str = field(
+        default_factory=lambda: os.getenv("STRIPE_ENTERPRISE_SEAT_PRICE_ID", "")
+    )
+    stripe_enterprise_min_members: int = field(
+        default_factory=lambda: int(os.getenv("STRIPE_ENTERPRISE_MIN_MEMBERS", "10"))
+    )
 
     @property
     def stripe_checkout_enabled(self) -> bool:
@@ -156,8 +173,15 @@ class Settings:
         return bool(self.stripe_secret_key.strip() and self.stripe_pro_price_id.strip())
 
     @property
+    def stripe_enterprise_enabled(self) -> bool:
+        return bool(
+            self.stripe_secret_key.strip()
+            and self.stripe_enterprise_seat_price_id.strip()
+        )
+
+    @property
     def stripe_enabled(self) -> bool:
-        return self.stripe_checkout_enabled
+        return self.stripe_checkout_enabled or self.stripe_enterprise_enabled
 
     @property
     def stripe_webhooks_enabled(self) -> bool:

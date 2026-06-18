@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 
-from app.ai import agent, analysis, chat, text_to_cad
+from app.ai import agent, analysis, chat, recap as recap_ai, text_to_cad
 from app.core.auth_deps import optional_firebase_user, require_firebase_user, run_with_user_llm_keys
 from app.core.config import settings
 from app.core.firebase import FirebaseUser, find_user_by_email, upsert_user_directory
@@ -78,6 +78,8 @@ def api_agent(req: AgentRequest, user: Optional[FirebaseUser] = Depends(optional
             req.ai_model,
             req.work_mode,
             images=images,
+            uid=user.uid if user else None,
+            workspace_id=req.workspace_id or None,
         )
 
 
@@ -95,6 +97,8 @@ def api_text_to_cad(req: TextToCadRequest, user: Optional[FirebaseUser] = Depend
                 req.material,
                 req.ai_model,
                 req.work_mode or "agent",
+                uid=user.uid if user else None,
+                workspace_id=req.workspace_id or None,
             )
     doc = text_to_cad.generate(req.prompt, req.material)
     result = rebuild(doc, doc.meta.get("material", req.material))
@@ -111,7 +115,14 @@ def api_chat(req: ChatRequest, user: Optional[FirebaseUser] = Depends(optional_f
     if not req.prompt.strip():
         raise HTTPException(400, "Empty prompt.")
     with run_with_user_llm_keys(user):
-        return chat.run(req.prompt, req.messages, req.ai_model, req.chat_instructions)
+        return chat.run(
+            req.prompt,
+            req.messages,
+            req.ai_model,
+            req.chat_instructions,
+            uid=user.uid if user else None,
+            workspace_id=req.workspace_id or None,
+        )
 
 
 @router.post("/analyze", response_model=AnalysisResponse)
@@ -136,6 +147,35 @@ async def api_import_mesh(
         "document": doc.model_dump(),
         "rebuild": result.model_dump(),
         "message": f"Imported part: {doc.name} ({len(doc.features)} feature(s)).",
+    }
+
+
+@router.post("/recap")
+async def api_recap(
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    duration_ms: int = Form(0),
+    user: Optional[FirebaseUser] = Depends(require_firebase_user),
+):
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "Empty recording file.")
+    if len(data) > 100 * 1024 * 1024:
+        raise HTTPException(413, "Recording too large (max 100 MB).")
+
+    with run_with_user_llm_keys(user):
+        transcript = await recap_ai.transcribe_recording(data, file.filename or "recording.webm")
+        note_title, body_html = recap_ai.generate_recap_html(
+            title=title.strip() or "Meeting recap",
+            transcript=transcript,
+            duration_ms=max(0, duration_ms),
+            uid=user.uid if user else None,
+        )
+
+    return {
+        "title": note_title,
+        "body_html": body_html,
+        "transcript": transcript or None,
     }
 
 

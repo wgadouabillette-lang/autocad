@@ -117,7 +117,55 @@ stripe trigger checkout.session.completed
 
 ## 4. Webhooks — production
 
-### URL de l'endpoint
+### Option A — Cloud Function Firebase (recommandé)
+
+Endpoint HTTPS public, sans backend FastAPI :
+
+```
+https://europe-west1-forma-cad-dev.cloudfunctions.net/stripeWebhook
+```
+
+(Remplacez `forma-cad-dev` par votre projet Firebase si différent.)
+
+#### Déploiement
+
+1. Copiez `functions/.env.example` → `functions/.env` (ou `functions/.env.forma-cad-dev`) :
+
+```env
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...        # rempli après création de l'endpoint Stripe
+STRIPE_PRO_PRICE_ID=price_...
+STRIPE_ON_DEMAND_PRICE_ID=price_...
+```
+
+2. Définissez les secrets (recommandé pour les clés sensibles) :
+
+```bash
+firebase functions:secrets:set STRIPE_SECRET_KEY
+firebase functions:secrets:set STRIPE_WEBHOOK_SECRET
+```
+
+3. Déployez :
+
+```bash
+cd functions && npm install && npm run build
+firebase deploy --only functions:stripeWebhook
+```
+
+4. Dans [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks) → **Add endpoint** :
+   - URL : `https://europe-west1-forma-cad-dev.cloudfunctions.net/stripeWebhook`
+   - Événements :
+     - `checkout.session.completed`
+     - `customer.subscription.created`
+     - `customer.subscription.updated`
+     - `customer.subscription.deleted`
+5. Copiez le **Signing secret** (`whsec_...`) dans `STRIPE_WEBHOOK_SECRET` puis redéployez si nécessaire.
+
+Code : `functions/src/billing/stripeWebhook.ts`
+
+### Option B — Backend FastAPI
+
+#### URL de l'endpoint
 
 ```
 https://VOTRE_DOMAINE/api/billing/webhook
