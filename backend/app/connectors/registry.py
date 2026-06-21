@@ -71,10 +71,18 @@ CONNECTORS: dict[str, ConnectorDef] = {
 
 
 _DEFAULT_LOCAL_OAUTH_BASE = "http://127.0.0.1:8000"
+_PRODUCTION_OAUTH_BASE = "https://autocad-blue.vercel.app"
 
 
 def oauth_redirect_base() -> str:
     return os.getenv("FORMA_OAUTH_REDIRECT_BASE", _DEFAULT_LOCAL_OAUTH_BASE).rstrip("/")
+
+
+def _is_local_oauth_base(base: str) -> bool:
+    lowered = base.strip().rstrip("/").lower()
+    if lowered in {_DEFAULT_LOCAL_OAUTH_BASE, "http://localhost:8000"}:
+        return True
+    return lowered.startswith("http://127.0.0.1:") or lowered.startswith("http://localhost:")
 
 
 def resolve_oauth_redirect_base(
@@ -84,10 +92,10 @@ def resolve_oauth_redirect_base(
     """Pick the OAuth callback host (API origin).
 
     Local dev uses port 8000. On Vercel, frontend and API share the same HTTPS
-    origin — if env still points at localhost, infer from the browser request.
+    origin — never use localhost if the browser or request is on production.
     """
     env_base = oauth_redirect_base()
-    if env_base != _DEFAULT_LOCAL_OAUTH_BASE:
+    if not _is_local_oauth_base(env_base):
         return env_base
 
     for hint in (return_origin, request_origin):
@@ -96,6 +104,10 @@ def resolve_oauth_redirect_base(
         origin = hint.strip().rstrip("/")
         if origin.startswith("https://"):
             return origin
+
+    if os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("VERCEL_URL"):
+        return _PRODUCTION_OAUTH_BASE
+
     return env_base
 
 

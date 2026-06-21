@@ -47,6 +47,15 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   if [[ "$key" == "FORMA_USE_LOCAL_ENV" ]]; then
     value="1"
   fi
+  if [[ "$key" == "FORMA_OAUTH_REDIRECT_BASE" ]]; then
+    value="https://autocad-blue.vercel.app"
+  fi
+  if [[ "$key" == "FORMA_FRONTEND_ORIGIN" ]]; then
+    value="https://autocad-blue.vercel.app"
+  fi
+  if [[ "$key" == "FORMA_CORS" ]]; then
+    value="https://autocad-blue.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
+  fi
 
   if printf '%s' "$value" | "${VERCEL[@]}" env add "$key" "$VERCEL_ENV" --force >/dev/null 2>&1; then
     echo "  + $key"
