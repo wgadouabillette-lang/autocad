@@ -52,7 +52,7 @@ export default function VoiceParticipantsInCallGrid({
         {participants.map((participant, index) => {
           const remoteMedia = remoteMediaByUid[participant.id];
           const { stream: videoStream, cover: videoCover } = resolveCallParticipantVideoDisplay({
-            isLocal: participant.isLocal,
+            isLocal: !!participant.isLocal,
             cameraOn,
             screenSharing,
             localStream,

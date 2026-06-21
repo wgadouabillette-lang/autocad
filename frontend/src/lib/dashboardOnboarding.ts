@@ -31,14 +31,20 @@ export function hasSeenDashboardOnboarding(email: string): boolean {
   return hasSeenDashboardOnboardingLocally(email);
 }
 
+function isLegacyOnboardingNotification(item: { kind: string }): boolean {
+  return item.kind === "onboarding";
+}
+
 function purgeOnboardingNotifications(email: string): void {
   const normalized = email.trim().toLowerCase();
-  const items = loadPersistedNotifications(normalized).filter((item) => item.kind !== "onboarding");
+  const items = loadPersistedNotifications(normalized).filter(
+    (item) => !isLegacyOnboardingNotification(item),
+  );
   persistNotifications(normalized, items);
 
   const store = useNotificationsStore.getState();
   if (store.persistedEmail?.trim().toLowerCase() === normalized) {
-    const nextItems = store.items.filter((item) => item.kind !== "onboarding");
+    const nextItems = store.items.filter((item) => !isLegacyOnboardingNotification(item));
     useNotificationsStore.setState({
       items: nextItems,
       currentIndex:

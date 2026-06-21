@@ -570,14 +570,14 @@ export default function ChatPanel() {
       const prompts = scrollEl.querySelectorAll<HTMLElement>("[data-sticky-prompt]");
       let activeSticky: HTMLElement | null = null;
 
-      prompts.forEach((el) => {
+      for (const el of prompts) {
         el.classList.remove("is-stuck");
         if (el.getBoundingClientRect().top <= stickThreshold) {
           activeSticky = el;
         }
-      });
+      }
 
-      activeSticky?.classList.add("is-stuck");
+      if (activeSticky) activeSticky.classList.add("is-stuck");
     };
 
     syncStickyState();

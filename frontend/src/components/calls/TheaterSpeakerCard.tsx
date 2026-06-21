@@ -32,7 +32,7 @@ export default function TheaterSpeakerCard({
 
   const remoteMedia = participant.isLocal ? undefined : remoteMediaByUid[participant.id];
   const { stream: videoStream, cover: videoCover } = resolveCallParticipantVideoDisplay({
-    isLocal: participant.isLocal,
+    isLocal: !!participant.isLocal,
     cameraOn,
     screenSharing,
     localStream,
