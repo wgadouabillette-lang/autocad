@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import base64
-import secrets
 import time
 from typing import Any
 
@@ -15,17 +14,10 @@ from app.connectors.registry import (
     microsoft_oauth_tenant,
     resolve_oauth_redirect_base,
 )
+from app.connectors.oauth_state import issue_oauth_state, parse_oauth_state
 from app.connectors.user_store import set_connection
 
-_PENDING_STATES: dict[str, dict[str, Any]] = {}
 _STATE_TTL_SEC = 600
-
-
-def _gc_states() -> None:
-    now = time.time()
-    expired = [k for k, v in _PENDING_STATES.items() if now - v["created"] > _STATE_TTL_SEC]
-    for key in expired:
-        _PENDING_STATES.pop(key, None)
 
 
 def create_authorize_session(
@@ -35,32 +27,28 @@ def create_authorize_session(
     return_path: str | None = None,
     request_origin: str | None = None,
 ) -> tuple[str, str]:
-    _gc_states()
-    state = secrets.token_urlsafe(24)
     redirect_base = resolve_oauth_redirect_base(return_origin, request_origin)
-    _PENDING_STATES[state] = {
-        "connector_id": connector_id,
-        "uid": uid,
-        "created": time.time(),
-        "return_origin": return_origin,
-        "return_path": return_path,
-        "redirect_base": redirect_base,
-    }
+    state = issue_oauth_state(
+        connector_id=connector_id,
+        uid=uid,
+        return_origin=return_origin,
+        return_path=return_path,
+        redirect_base=redirect_base,
+    )
     url = build_authorize_url(connector_id, state, redirect_base=redirect_base)
     return state, url
 
 
 def pop_state(state: str) -> tuple[str, str, str | None, str | None, str | None] | None:
-    _gc_states()
-    entry = _PENDING_STATES.pop(state, None)
-    if not entry:
+    payload = parse_oauth_state(state)
+    if not payload:
         return None
-    redirect_base = entry.get("redirect_base")
+    redirect_base = payload.get("rb")
     return (
-        str(entry["connector_id"]),
-        str(entry["uid"]),
-        str(entry["return_origin"]).strip() if entry.get("return_origin") else None,
-        str(entry["return_path"]).strip() if entry.get("return_path") else None,
+        str(payload["c"]),
+        str(payload["u"]),
+        str(payload["ro"]).strip() if payload.get("ro") else None,
+        str(payload["rp"]).strip() if payload.get("rp") else None,
         str(redirect_base).strip() if redirect_base else None,
     )
 
