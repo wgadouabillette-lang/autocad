@@ -44,6 +44,10 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   # GSM is for local/Cloud Functions only on Vercel
   [[ "$key" == "FORMA_SECRETS_REQUIRED" ]] && continue
 
+  if [[ "$key" == "FORMA_USE_LOCAL_ENV" ]]; then
+    value="1"
+  fi
+
   if printf '%s' "$value" | "${VERCEL[@]}" env add "$key" "$VERCEL_ENV" --force >/dev/null 2>&1; then
     echo "  + $key"
     added=$((added + 1))
@@ -52,6 +56,13 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     skipped=$((skipped + 1))
   fi
 done <"$TMP"
+
+for key in FORMA_USE_LOCAL_ENV; do
+  if printf '1' | "${VERCEL[@]}" env add "$key" "$VERCEL_ENV" --force >/dev/null 2>&1; then
+    echo "  + $key"
+    added=$((added + 1))
+  fi
+done
 
 cat <<EOF
 

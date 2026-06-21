@@ -33,7 +33,7 @@ def use_secret_manager() -> bool:
     """GSM at runtime needs GCP ADC — not available on Vercel serverless."""
     if use_local_env_only():
         return False
-    if os.getenv("VERCEL"):
+    if os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("VERCEL_URL"):
         return False
     return True
 

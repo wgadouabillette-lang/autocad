@@ -1,4 +1,4 @@
-# API légère — utilisée par Vercel en production (connecteurs, billing, auth).
+# Cache-bust: 2026-06-21-v3 (force clean pip install on Vercel)
 # En local, ajoutez aussi : pip install -r requirements-cad.txt
 #
 # --- API ---

@@ -26,12 +26,30 @@ from app.api.connectors import router as connectors_router
 from app.api.desktop_auth import router as desktop_auth_router
 from app.core.config import ensure_desktop_env, settings
 
-_IS_VERCEL = bool(os.getenv("VERCEL"))
 
-if _IS_VERCEL:
-    from app.api.routes_lite import router
-else:
-    from app.api.routes import router
+def _running_on_vercel() -> bool:
+    return bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("VERCEL_URL"))
+
+
+def _cad_deps_available() -> bool:
+    try:
+        import numpy  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def _load_api_router():
+    if _running_on_vercel() or not _cad_deps_available():
+        from app.api.routes_lite import router as lite_router
+
+        return lite_router
+    from app.api.routes import router as full_router
+
+    return full_router
+
+
+router = _load_api_router()
 
 app = FastAPI(
     title=settings.app_name,
@@ -128,6 +146,8 @@ def app_meta():
         "app": settings.app_name,
         "version": settings.version,
         "desktop": _IS_DESKTOP,
+        "vercel": _running_on_vercel(),
+        "cad": _cad_deps_available(),
         "docs": "/docs",
         "health": "/api/health",
     }
