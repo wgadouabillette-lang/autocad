@@ -69,18 +69,22 @@ def _ensure_app():
     if not firebase_admin._apps:
         sa_dict = _service_account_dict()
         cred_path = _credential_path()
-        if sa_dict:
-            cred = credentials.Certificate(sa_dict)
-            _app = firebase_admin.initialize_app(cred, {"projectId": _project_id()})
-        elif cred_path:
-            cred = credentials.Certificate(cred_path)
-            _app = firebase_admin.initialize_app(cred, {"projectId": _project_id()})
-        else:
-            try:
-                cred = credentials.ApplicationDefault()
+        try:
+            if sa_dict:
+                cred = credentials.Certificate(sa_dict)
                 _app = firebase_admin.initialize_app(cred, {"projectId": _project_id()})
-            except Exception:
-                _app = firebase_admin.initialize_app(options={"projectId": _project_id()})
+            elif cred_path:
+                cred = credentials.Certificate(cred_path)
+                _app = firebase_admin.initialize_app(cred, {"projectId": _project_id()})
+            else:
+                try:
+                    cred = credentials.ApplicationDefault()
+                    _app = firebase_admin.initialize_app(cred, {"projectId": _project_id()})
+                except Exception:
+                    _app = firebase_admin.initialize_app(options={"projectId": _project_id()})
+        except Exception as exc:
+            logger.warning("Firebase Admin init failed; auth/storage disabled: %s", exc)
+            return
     else:
         _app = firebase_admin.get_app()
 

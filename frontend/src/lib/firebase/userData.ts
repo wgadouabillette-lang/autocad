@@ -276,6 +276,19 @@ export async function loadUserWorkspaces(uid: string): Promise<{
   };
 }
 
+function firestoreWorkspaceDoc(server: Workspace): DocumentData {
+  const doc: DocumentData = {
+    id: server.id,
+    name: server.name,
+    accent: server.accent,
+    ownerId: server.ownerId,
+    ownerName: server.ownerName,
+    createdAt: server.createdAt,
+  };
+  if (server.iconURL) doc.iconURL = server.iconURL;
+  return doc;
+}
+
 export async function saveUserWorkspaces(
   uid: string,
   data: { customServers: Workspace[]; memberships: ServerMembership[] },
@@ -286,7 +299,7 @@ export async function saveUserWorkspaces(
     batch.delete(existing.ref);
   }
   for (const server of data.customServers) {
-    batch.set(doc(workspacesCol(uid), server.id), server as DocumentData);
+    batch.set(doc(workspacesCol(uid), server.id), firestoreWorkspaceDoc(server));
   }
 
   const membershipSnap = await getDocs(membershipsCol(uid));

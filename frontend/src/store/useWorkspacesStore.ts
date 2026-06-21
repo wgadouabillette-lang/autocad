@@ -133,7 +133,7 @@ function normalizeCustomServers(servers: Workspace[]): Workspace[] {
     id: server.id,
     name: server.name,
     accent: server.accent ?? pickWorkspaceAccent(index),
-    iconURL: server.iconURL ?? undefined,
+    ...(server.iconURL ? { iconURL: server.iconURL } : {}),
     ownerId: server.ownerId ?? LOCAL_USER_ID,
     ownerName: server.ownerName ?? "Vous",
     createdAt: server.createdAt ?? Date.now(),
