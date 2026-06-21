@@ -7,6 +7,7 @@ import {
   startConnectorOAuth,
   type ConnectorStatus,
 } from "../lib/connectorsApi";
+import { tryFinishConnectorOAuthFromStorage } from "../lib/connectorOAuthResult";
 
 const VISUAL_STATUSES: ConnectorStatus[] = CHAT_CONNECTORS.map(({ id, label }) => ({
   id,
@@ -81,18 +82,33 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
         window.location.assign(url);
         return;
       }
-      const popup = window.open(url, "forma-connector-oauth", "width=520,height=720");
+      const popup = window.open(
+        url,
+        `forma-connector-oauth-${Date.now()}`,
+        "popup,width=520,height=720",
+      );
       if (!popup) {
         window.location.assign(url);
         return;
       }
       const timer = window.setInterval(() => {
+        if (tryFinishConnectorOAuthFromStorage()) {
+          window.clearInterval(timer);
+          try {
+            popup.close();
+          } catch {
+            // ignore
+          }
+          return;
+        }
         if (popup.closed) {
           window.clearInterval(timer);
           set({ connectingId: null });
-          void get().refresh(true);
+          if (!tryFinishConnectorOAuthFromStorage()) {
+            void get().refresh(true);
+          }
         }
-      }, 500);
+      }, 400);
     } catch (err) {
       set({
         connectingId: null,

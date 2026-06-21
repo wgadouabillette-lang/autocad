@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo } from "react";
 import type { ChatConnectorId } from "../components/chat/chatConnectors";
 import { isConnectorOAuthMessage } from "../lib/connectorsApi";
+import {
+  applyConnectorOAuthResult,
+  tryFinishConnectorOAuthFromStorage,
+} from "../lib/connectorOAuthResult";
 import { useAuthStore } from "../store/useAuthStore";
 import { useConnectorsStore } from "../store/useConnectorsStore";
-import { useNotificationsStore } from "../store/useNotificationsStore";
 
 /** Connectors OAuth is wired to the backend (requires GOOGLE_CLIENT_ID/SECRET). */
 export const CONNECTORS_VISUAL_ONLY = false;
@@ -25,7 +28,6 @@ export function useConnectors() {
   const disconnectStore = useConnectorsStore((s) => s.disconnect);
   const setVisualOnly = useConnectorsStore((s) => s.setVisualOnly);
   const setError = useConnectorsStore((s) => s.setError);
-  const setConnectingId = useConnectorsStore((s) => s.setConnectingId);
   const refresh = useCallback(
     async (force = false) => {
       if (CONNECTORS_VISUAL_ONLY || !authReady || !isAuthenticated) return;
@@ -60,26 +62,25 @@ export function useConnectors() {
 
   useEffect(() => {
     if (CONNECTORS_VISUAL_ONLY) return;
+    void tryFinishConnectorOAuthFromStorage();
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (!isConnectorOAuthMessage(event.data)) return;
-      setConnectingId(null);
-      if (event.data.status === "success" && event.data.connectorId) {
-        void refresh(true);
-        window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
-      } else if (event.data.message) {
-        const message = event.data.message;
-        setError(message);
-        useNotificationsStore.getState().push({
-          kind: "workspace",
-          title: "Connecteur non lié",
-          body: message,
-        });
-      }
+      applyConnectorOAuthResult(event.data);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [refresh, setConnectingId, setError]);
+  }, []);
+
+  useEffect(() => {
+    if (CONNECTORS_VISUAL_ONLY) return;
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== "forma-connector-oauth-result") return;
+      tryFinishConnectorOAuthFromStorage();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const connectedIds = useMemo(
     () =>

@@ -38,6 +38,7 @@ import { useCallsStore } from "./store/useCallsStore";
 import { useStore } from "./store/useStore";
 import { useNotificationsStore } from "./store/useNotificationsStore";
 import { useConnectorsStore } from "./store/useConnectorsStore";
+import { tryFinishConnectorOAuthFromStorage } from "./lib/connectorOAuthResult";
 import { usePeopleStore } from "./store/usePeopleStore";
 import { useWorkspacePresenceStore } from "./store/useWorkspacePresenceStore";
 import { LOCAL_USER_ID } from "./lib/workspaces";
@@ -258,6 +259,10 @@ export default function App() {
     const oauthMessage = params.get("connector_oauth_message");
     if (oauth === "success") {
       window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
+      useConnectorsStore.getState().setConnectingId(null);
+      if (window.opener === null && window.name.startsWith("forma-connector-oauth")) {
+        window.setTimeout(() => window.close(), 150);
+      }
     } else if (oauth === "error") {
       const detail =
         oauthMessage ??

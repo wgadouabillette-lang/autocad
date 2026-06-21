@@ -174,15 +174,40 @@ def _callback_html(
 <html lang="en">
 <head><meta charset="utf-8"><title>Connector OAuth</title></head>
 <body>
+<p id="status">Connexion en cours…</p>
 <script>
   const payload = {data};
-  if (window.opener && !window.opener.closed) {{
-    window.opener.postMessage(payload, "{opener_origin}");
-    window.close();
-  }} else {{
-    window.location.replace("{redirect}");
+  const storageKey = "forma-connector-oauth-result";
+  const openerOrigin = "{opener_origin}";
+  const redirect = "{redirect}";
+
+  try {{
+    localStorage.setItem(storageKey, JSON.stringify(payload));
+  }} catch (e) {{}}
+
+  function finish() {{
+    const status = document.getElementById("status");
+    if (payload.status === "success") {{
+      if (status) status.textContent = "Connecté — fermeture…";
+    }} else if (status) {{
+      status.textContent = payload.message || "Connexion impossible.";
+    }}
+
+    if (window.opener && !window.opener.closed) {{
+      try {{
+        window.opener.postMessage(payload, openerOrigin);
+        window.opener.focus();
+      }} catch (e) {{}}
+      window.close();
+      window.setTimeout(function () {{
+        if (!window.closed) window.location.replace(redirect);
+      }}, 500);
+      return;
+    }}
+    window.location.replace(redirect);
   }}
+
+  window.setTimeout(finish, 80);
 </script>
-<p>Connexion en cours… Vous pouvez fermer cette fenêtre.</p>
 </body>
 </html>"""
