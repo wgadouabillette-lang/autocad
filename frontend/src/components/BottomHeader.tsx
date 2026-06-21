@@ -35,7 +35,7 @@ import { useStore } from "../store/useStore";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { useConnectors } from "../hooks/useConnectors";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
-import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
+import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
 
 const ICON_SIZE = 19;
@@ -202,7 +202,7 @@ export default function BottomHeader() {
           void connect("spotify");
           return;
         }
-        useSpotifyPlayerStore.getState().openPanel();
+        insertAgentComposerText(PLAY_SKILL_TEMPLATE);
       }}
       active={spotifyConnected}
       disabled={!spotifyConfigured || connectingId === "spotify"}

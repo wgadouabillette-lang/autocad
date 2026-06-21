@@ -13,12 +13,12 @@ export default function SpotifyTrackBubble({
   const playTrack = useSpotifyPlayerStore((s) => s.playTrack);
   const currentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
   const globalPlaying = useSpotifyPlayerStore((s) => s.playing);
-  const previewUrl = track.previewUrl?.trim() || null;
   const isActive = currentTrack?.id === track.id;
-  const previewPlaying = isActive && globalPlaying;
+  const isPlaying = isActive && globalPlaying;
+  const canPlay = !!track.previewUrl?.trim() || !!track.id;
 
-  const togglePreview = () => {
-    if (!previewUrl) return;
+  const togglePlay = () => {
+    if (!canPlay) return;
     void playTrack(track);
   };
 
@@ -46,7 +46,7 @@ export default function SpotifyTrackBubble({
             draggable={false}
           />
           Spotify
-          {playState?.requiresPremium && previewUrl ? (
+          {playState?.requiresPremium && track.previewUrl?.trim() ? (
             <span className="spotify-track-card__badge">Extrait 30 s</span>
           ) : null}
         </p>
@@ -68,15 +68,15 @@ export default function SpotifyTrackBubble({
         </p>
       </div>
 
-      {previewUrl ? (
+      {canPlay ? (
         <button
           type="button"
           className="spotify-track-card__play"
-          onClick={togglePreview}
-          aria-label={previewPlaying ? "Pause extrait" : "Lire l'extrait"}
-          title={previewPlaying ? "Pause" : "Lire l'extrait (30 s)"}
+          onClick={togglePlay}
+          aria-label={isPlaying ? "Pause" : "Lire"}
+          title={isPlaying ? "Pause" : "Lire dans l'app"}
         >
-          {previewPlaying ? (
+          {isPlaying ? (
             <Pause size={16} fill="currentColor" aria-hidden />
           ) : (
             <Play size={16} fill="currentColor" aria-hidden />

@@ -61,7 +61,23 @@ function loadSpotifySdk(): Promise<void> {
     }
 
     const existing = document.querySelector(`script[src="${SDK_URL}"]`);
-    if (existing) return;
+    if (existing) {
+      if (window.Spotify?.Player) {
+        finish();
+        return;
+      }
+      const poll = window.setInterval(() => {
+        if (window.Spotify?.Player) {
+          window.clearInterval(poll);
+          finish();
+        }
+      }, 50);
+      window.setTimeout(() => {
+        window.clearInterval(poll);
+        reject(new Error("SDK Spotify indisponible."));
+      }, 10_000);
+      return;
+    }
 
     const script = document.createElement("script");
     script.src = SDK_URL;
@@ -150,11 +166,19 @@ export function isSpotifyPremiumAvailable(): boolean {
   return premiumAvailable;
 }
 
+export function primeSpotifyWebAudioUnlock(): void {
+  if (player) void player.activateElement().catch(() => undefined);
+}
+
 export async function playSpotifyFullTrack(trackId: string): Promise<boolean> {
   const webPlayer = await ensureSpotifyWebPlayer();
   if (!webPlayer || !premiumAvailable) return false;
 
-  await webPlayer.activateElement();
+  try {
+    await webPlayer.activateElement();
+  } catch {
+    // continue — transfer may still work
+  }
   const activeDeviceId = await waitForDeviceId();
   const token = await fetchSpotifyPlayerToken();
 

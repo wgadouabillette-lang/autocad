@@ -1,10 +1,13 @@
 import { create } from "zustand";
-import { searchSpotifyTracks, type SpotifyTrackCard } from "../lib/connectorsApi";
 import {
-  ensureSpotifyWebPlayer,
-  isSpotifyPremiumAvailable,
+  fetchSpotifyPlayerConfig,
+  searchSpotifyTracks,
+  type SpotifyTrackCard,
+} from "../lib/connectorsApi";
+import {
   pauseSpotifyWebPlayback,
   playSpotifyFullTrack,
+  primeSpotifyWebAudioUnlock,
   setSpotifyWebPlaybackListener,
   toggleSpotifyWebPlayback,
 } from "../lib/spotifyWebPlayback";
@@ -14,7 +17,7 @@ let sharedAudio: HTMLAudioElement | null = null;
 function audioElement(): HTMLAudioElement {
   if (!sharedAudio) {
     sharedAudio = new Audio();
-    sharedAudio.preload = "none";
+    sharedAudio.preload = "auto";
     sharedAudio.addEventListener("ended", () => {
       const state = useSpotifyPlayerStore.getState();
       if (state.playbackMode === "preview") {
@@ -35,7 +38,8 @@ function stopPreviewAudio() {
   const audio = sharedAudio;
   if (!audio) return;
   audio.pause();
-  audio.currentTime = 0;
+  audio.removeAttribute("src");
+  audio.load();
 }
 
 type PlaybackMode = "full" | "preview" | null;
@@ -68,6 +72,26 @@ setSpotifyWebPlaybackListener((playing) => {
   }
 });
 
+async function playPreview(track: SpotifyTrackCard): Promise<boolean> {
+  const preview = track.previewUrl?.trim();
+  if (!preview) return false;
+
+  const audio = audioElement();
+  audio.src = preview;
+  audio.currentTime = 0;
+  try {
+    await audio.play();
+    useSpotifyPlayerStore.setState({
+      currentTrack: track,
+      playing: true,
+      playbackMode: "preview",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
   panelOpen: false,
   searchQuery: "",
@@ -93,10 +117,10 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
 
   refreshPlayerConfig: async () => {
     try {
-      await ensureSpotifyWebPlayer();
+      const config = await fetchSpotifyPlayerConfig();
       set({
-        premiumAvailable: isSpotifyPremiumAvailable(),
-        playerNotice: isSpotifyPremiumAvailable()
+        premiumAvailable: config.premium,
+        playerNotice: config.premium
           ? null
           : "Compte Spotify Free : extraits 30 s uniquement. Premium + reconnexion du connecteur pour la piste complète.",
       });
@@ -127,6 +151,7 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
   playTrack: async (track) => {
     const state = get();
     const trackId = track.id?.trim();
+    const preview = track.previewUrl?.trim();
 
     if (state.currentTrack?.id === track.id && state.playing) {
       if (state.playbackMode === "full") {
@@ -139,40 +164,51 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
     }
 
     stopPreviewAudio();
-    set({ currentTrack: track, playing: false, playbackMode: null });
+    void pauseSpotifyWebPlayback();
+    primeSpotifyWebAudioUnlock();
+    set({ currentTrack: track, playing: false, playbackMode: null, playerNotice: null });
+
+    let heard = false;
+
+    if (preview) {
+      heard = await playPreview(track);
+    }
 
     if (trackId) {
-      await get().refreshPlayerConfig();
-      if (isSpotifyPremiumAvailable()) {
-        const ok = await playSpotifyFullTrack(trackId);
-        if (ok) {
-          set({ playing: true, playbackMode: "full", playerNotice: null });
-          return;
-        }
-        set({
-          playerNotice:
-            "Lecture complète indisponible. Déconnecte puis reconnecte Spotify (scope streaming), ou vérifie Premium.",
-        });
-      }
-    }
-
-    const preview = track.previewUrl?.trim();
-    if (preview) {
-      const audio = audioElement();
-      audio.src = preview;
-      audio.currentTime = 0;
       try {
-        await audio.play();
-        set({ playing: true, playbackMode: "preview" });
-        return;
+        const config = await fetchSpotifyPlayerConfig();
+        set({ premiumAvailable: config.premium });
+        if (config.premium) {
+          const ok = await playSpotifyFullTrack(trackId);
+          if (ok) {
+            stopPreviewAudio();
+            set({ playing: true, playbackMode: "full", playerNotice: null });
+            return;
+          }
+          if (!heard) {
+            set({
+              playerNotice:
+                "Lecture complète indisponible. Déconnecte puis reconnecte Spotify (scope streaming).",
+            });
+          }
+        }
       } catch {
-        set({ playing: false, playbackMode: null });
-        return;
+        // preview already playing if available
       }
     }
 
-    if (track.url) window.open(track.url, "_blank", "noopener,noreferrer");
-    set({ playing: false, playbackMode: null });
+    if (heard) return;
+
+    if (track.url) {
+      window.open(track.url, "_blank", "noopener,noreferrer");
+      set({ playerNotice: "Pas d'extrait disponible — ouverture dans Spotify." });
+    } else {
+      set({
+        playing: false,
+        playbackMode: null,
+        playerNotice: "Impossible de lire cette piste dans l'app.",
+      });
+    }
   },
 
   togglePlayback: () => {
