@@ -19,37 +19,38 @@ const PANEL_HEIGHT = 288; // 18rem
 const PANEL_GAP_PX = 18; // 0.5rem - overlay offset + 15px raise
 
 const DEFAULT_CATEGORY: Record<NotificationKind, string> = {
-  onboarding: "Product overview",
   new_feature: "Update available",
   app_update: "Mise à jour",
   friend_request: "Team",
   message: "Messages",
   subscription: "Billing",
   renewal: "Renewal",
-  connector: "Integration",
   poll: "Group poll",
   workspace: "Workspace",
+  recording: "Recordings",
+  meeting: "Calendar",
 };
 
 const VISUAL_BY_TITLE: Record<string, string> = {
   "Connect your Calendar": "notifications-panel__visual--calendar",
   "Invite your colleague": "notifications-panel__visual--invite",
   "Record your screen": "notifications-panel__visual--record",
+  "Recording saved": "notifications-panel__visual--record",
   "Generate Follow-ups": "notifications-panel__visual--followups",
   "Generate meeting notes": "notifications-panel__visual--notes",
 };
 
 const VISUAL_BY_KIND: Record<NotificationKind, string> = {
-  onboarding: "notifications-panel__visual--onboarding",
   new_feature: "notifications-panel__visual--feature",
   app_update: "notifications-panel__visual--feature",
   friend_request: "notifications-panel__visual--friend",
   message: "notifications-panel__visual--friend",
   subscription: "notifications-panel__visual--subscription",
   renewal: "notifications-panel__visual--renewal",
-  connector: "notifications-panel__visual--connector",
   poll: "notifications-panel__visual--feature",
   workspace: "notifications-panel__visual--friend",
+  recording: "notifications-panel__visual--record",
+  meeting: "notifications-panel__visual--calendar",
 };
 
 interface PanelPosition {
@@ -65,6 +66,10 @@ function notificationVisualClass(item: AppNotification): string {
   return VISUAL_BY_TITLE[item.title] ?? VISUAL_BY_KIND[item.kind];
 }
 
+function isRecordingSavedNotification(item: AppNotification): boolean {
+  return item.kind === "recording" || item.title === "Recording saved";
+}
+
 interface NotificationsPanelProps {
   anchorRef: RefObject<HTMLElement | null>;
   underChatPanel?: boolean;
@@ -77,6 +82,7 @@ export default function NotificationsPanel({
   const items = useNotificationsStore((s) => s.items);
   const panelOpen = useNotificationsStore((s) => s.panelOpen);
   const currentIndex = useNotificationsStore((s) => s.currentIndex);
+  const panelOpenGeneration = useNotificationsStore((s) => s.panelOpenGeneration);
   const markRead = useNotificationsStore((s) => s.markRead);
   const markAllRead = useNotificationsStore((s) => s.markAllRead);
   const removeNotification = useNotificationsStore((s) => s.removeNotification);
@@ -88,6 +94,7 @@ export default function NotificationsPanel({
   const workspaceId = useStore((s) => s.activeRoomId);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const openPollVotePanel = useVoicePollStore((s) => s.openVotePanel);
+  const openChatHistoryPanel = useStore((s) => s.openChatHistoryPanel);
   const ingestPoll = useVoicePollStore((s) => s.ingestPoll);
   const [panelPos, setPanelPos] = useState<PanelPosition | null>(null);
   const [updateBusy, setUpdateBusy] = useState(false);
@@ -146,6 +153,15 @@ export default function NotificationsPanel({
       return;
     }
     nextNotification();
+  };
+
+  const handleGoToChatHistory = () => {
+    if (!item) return;
+    markRead(item.id);
+    closePanel();
+    openChatHistoryPanel(
+      item.recordingSessionId ? { highlightRecordingId: item.recordingSessionId } : undefined,
+    );
   };
 
   const handleDismissAll = () => {
@@ -213,6 +229,7 @@ export default function NotificationsPanel({
         onClick={closePanel}
       />
       <div
+        key={panelOpenGeneration}
         className={clsx(
           "notifications-panel notifications-panel--floating notifications-panel--popup-left",
           underChatPanel && "notifications-panel--under-chat",
@@ -258,7 +275,9 @@ export default function NotificationsPanel({
               <div
                 className={clsx(
                   "notifications-panel__actions",
-                  (item.kind === "friend_request" || item.kind === "app_update") &&
+                  (item.kind === "friend_request" ||
+                    item.kind === "app_update" ||
+                    isRecordingSavedNotification(item)) &&
                     "notifications-panel__actions--split",
                 )}
               >
@@ -300,6 +319,35 @@ export default function NotificationsPanel({
                     >
                       Accept
                       <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
+                    </button>
+                  </>
+                ) : isRecordingSavedNotification(item) ? (
+                  <>
+                    <button
+                      type="button"
+                      className="chat-connectors-row__connect"
+                      onClick={handleGoToChatHistory}
+                    >
+                      Go
+                      <ArrowUpRight
+                        size={11}
+                        strokeWidth={2.25}
+                        className="shrink-0 opacity-80"
+                        aria-hidden
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      className="chat-connectors-row__connect"
+                      onClick={handleNext}
+                    >
+                      Next
+                      <ArrowUpRight
+                        size={11}
+                        strokeWidth={2.25}
+                        className="shrink-0 opacity-80"
+                        aria-hidden
+                      />
                     </button>
                   </>
                 ) : (

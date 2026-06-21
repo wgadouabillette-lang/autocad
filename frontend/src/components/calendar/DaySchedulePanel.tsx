@@ -9,7 +9,6 @@ import {
 } from "../../lib/daySchedule";
 import { useGoogleCalendarSync } from "../../hooks/useGoogleCalendarSync";
 import { useOutlookCalendarSync } from "../../hooks/useOutlookCalendarSync";
-import { useConnectors } from "../../hooks/useConnectors";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
 import { useStore } from "../../store/useStore";
@@ -40,15 +39,8 @@ export default function DaySchedulePanel() {
   const userEvents = useCalendarStore((s) => s.userEvents);
   const googleEvents = useCalendarStore((s) => s.googleEvents);
   const outlookEvents = useCalendarStore((s) => s.outlookEvents);
-  const { status: googleStatus, loading: googleLoading, error: googleError, refresh: refreshGoogle } =
-    useGoogleCalendarSync(selectedDate);
-  const {
-    status: outlookStatus,
-    loading: outlookLoading,
-    error: outlookError,
-    refresh: refreshOutlook,
-  } = useOutlookCalendarSync(selectedDate);
-  const { connect, connectingId } = useConnectors();
+  useGoogleCalendarSync(selectedDate);
+  useOutlookCalendarSync(selectedDate);
   const events = useMemo(
     () => useCalendarStore.getState().eventsForDate(selectedDate),
     [selectedDate, userEvents, googleEvents, outlookEvents],
@@ -80,9 +72,14 @@ export default function DaySchedulePanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
-  const openDatePicker = () => {
-    dateInputRef.current?.showPicker?.();
-    dateInputRef.current?.click();
+  const handleDateInputClick = (event: React.MouseEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    if (typeof input.showPicker !== "function") return;
+    try {
+      input.showPicker();
+    } catch {
+      /* already open or unsupported */
+    }
   };
 
   const handleSlotClick = (hour: number) => {
@@ -96,27 +93,24 @@ export default function DaySchedulePanel() {
 
         <div className="calendar-panel__today-wrap">
           <div className="calendar-panel__today-row">
-            <button
-              type="button"
-              className="calendar-panel__today-btn"
-              onClick={openDatePicker}
-              aria-label="Choisir une date"
-            >
-              Today
-              <ChevronDown size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
-            </button>
+            <div className="calendar-panel__today-picker">
+              <span className="calendar-panel__today-btn" aria-hidden>
+                Today
+                <ChevronDown size={11} strokeWidth={2.25} className="shrink-0 opacity-80" />
+              </span>
+              <input
+                ref={dateInputRef}
+                type="date"
+                className="calendar-panel__date-input"
+                value={selectedDate}
+                onChange={(e) => {
+                  if (e.target.value) setSelectedDate(e.target.value);
+                }}
+                onClick={handleDateInputClick}
+                aria-label="Choisir une date"
+              />
+            </div>
           </div>
-          <input
-            ref={dateInputRef}
-            type="date"
-            className="calendar-overlay__date-input"
-            value={selectedDate}
-            onChange={(e) => {
-              if (e.target.value) setSelectedDate(e.target.value);
-            }}
-            tabIndex={-1}
-            aria-hidden
-          />
           {!viewingToday && (
             <button
               type="button"
@@ -128,88 +122,6 @@ export default function DaySchedulePanel() {
           )}
         </div>
       </div>
-
-      {googleStatus && !googleStatus.configured && (
-        <p className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">
-          Google Calendar n&apos;est pas configuré sur le serveur (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).
-        </p>
-      )}
-
-      {googleStatus?.configured && !googleStatus.connected && (
-        <div className="calendar-panel__sync-banner">
-          <span>Liez Google Calendar pour afficher et synchroniser vos événements.</span>
-          <button
-            type="button"
-            className="calendar-panel__sync-connect"
-            onClick={() => void connect("calendar")}
-            disabled={connectingId === "calendar"}
-          >
-            {connectingId === "calendar" ? "Connexion…" : "Connecter Google Calendar"}
-          </button>
-        </div>
-      )}
-
-      {googleStatus?.connected && (
-        <div className="calendar-panel__sync-banner calendar-panel__sync-banner--connected">
-          <span>
-            Synchronisé avec Google Calendar
-            {googleStatus.accountEmail ? ` · ${googleStatus.accountEmail}` : ""}
-          </span>
-          <button
-            type="button"
-            className="calendar-panel__sync-refresh"
-            onClick={() => void refreshGoogle()}
-            disabled={googleLoading}
-          >
-            {googleLoading ? "Sync…" : "Actualiser"}
-          </button>
-        </div>
-      )}
-
-      {googleError && (
-        <p className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">{googleError}</p>
-      )}
-
-      {outlookStatus && !outlookStatus.configured && (
-        <p className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">
-          Outlook n&apos;est pas configuré sur le serveur (MICROSOFT_OAUTH_CLIENT_ID / SECRET).
-        </p>
-      )}
-
-      {outlookStatus?.configured && !outlookStatus.connected && (
-        <div className="calendar-panel__sync-banner">
-          <span>Liez Outlook pour afficher et synchroniser votre calendrier Microsoft.</span>
-          <button
-            type="button"
-            className="calendar-panel__sync-connect"
-            onClick={() => void connect("outlook")}
-            disabled={connectingId === "outlook"}
-          >
-            {connectingId === "outlook" ? "Connexion…" : "Connecter Outlook"}
-          </button>
-        </div>
-      )}
-
-      {outlookStatus?.connected && (
-        <div className="calendar-panel__sync-banner calendar-panel__sync-banner--connected">
-          <span>
-            Synchronisé avec Outlook
-            {outlookStatus.accountEmail ? ` · ${outlookStatus.accountEmail}` : ""}
-          </span>
-          <button
-            type="button"
-            className="calendar-panel__sync-refresh"
-            onClick={() => void refreshOutlook()}
-            disabled={outlookLoading}
-          >
-            {outlookLoading ? "Sync…" : "Actualiser Outlook"}
-          </button>
-        </div>
-      )}
-
-      {outlookError && (
-        <p className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">{outlookError}</p>
-      )}
 
       <div className="calendar-panel__body">
         <div className="calendar-panel__timeline" ref={timelineRef}>

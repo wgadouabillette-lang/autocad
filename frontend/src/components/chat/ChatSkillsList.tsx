@@ -2,6 +2,7 @@ import clsx from "clsx";
 import type { ChatSkillDef } from "../../lib/chatSkills";
 import { hasRecapSkillAccess } from "../../lib/subscriptionPlans";
 import { useStore } from "../../store/useStore";
+import ChatSkillIcon from "./ChatSkillIcon";
 
 interface ChatSkillsListProps {
   skills: ChatSkillDef[];
@@ -32,7 +33,6 @@ export default function ChatSkillsList({
       aria-label="Skills"
     >
       {skills.map((skill, index) => {
-        const Icon = skill.icon;
         return (
           <button
             key={skill.id}
@@ -52,8 +52,13 @@ export default function ChatSkillsList({
             style={{ animationDelay: `${(skills.length - 1 - index) * 55}ms` }}
           >
             <span className="chat-connectors-row__main">
-              <span className="chat-connectors-row__icon">
-                <Icon size={14} className="text-muted-300" aria-hidden />
+              <span
+                className={clsx(
+                  "chat-connectors-row__icon",
+                  skill.logo && "chat-connectors-row__icon--logo",
+                )}
+              >
+                <ChatSkillIcon skill={skill} />
               </span>
               <span className="chat-connectors-row__label-wrap">
                 <span className="chat-connectors-row__label">{skill.label}</span>

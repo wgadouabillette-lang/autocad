@@ -40,7 +40,11 @@ export async function fetchConnectorStatuses(): Promise<ConnectorStatus[]> {
 }
 
 export async function startConnectorOAuth(id: string): Promise<string> {
-  const r = await fetch(`${BASE}/${id}/authorize`, { headers: await authHeaders() });
+  const params = new URLSearchParams({
+    return_origin: window.location.origin,
+    return_path: import.meta.env.BASE_URL.replace(/\/$/, "") || "/app",
+  });
+  const r = await fetch(`${BASE}/${id}/authorize?${params}`, { headers: await authHeaders() });
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { url: string };
   return data.url;
@@ -93,55 +97,10 @@ export async function fetchOutlookPreview(limit = 5): Promise<ConnectorPreviewMe
   return data.messages ?? [];
 }
 
-export interface NotionPreviewItem {
-  id: string;
-  type: string;
-  title: string;
-  url: string;
-}
-
-export async function fetchNotionPreview(limit = 5): Promise<NotionPreviewItem[]> {
-  const r = await fetch(`${BASE}/notion/search?pageSize=${limit}`, {
-    headers: await authHeaders(),
-  });
-  if (!r.ok) throw new Error(await readError(r));
-  const data = (await r.json()) as { results?: NotionPreviewItem[] };
-  return data.results ?? [];
-}
-
-export interface FigmaPreviewFile {
-  key: string;
-  name: string;
-  lastModified: string;
-  projectName: string;
-}
-
-export interface FigmaPreviewProfile {
-  id?: string;
-  email?: string;
-  handle?: string;
-}
-
-export interface FigmaPreviewResult {
-  files: FigmaPreviewFile[];
-  profile?: FigmaPreviewProfile;
-  hint?: string;
-}
-
-export async function fetchFigmaPreview(limit = 5): Promise<FigmaPreviewResult> {
-  const r = await fetch(`${BASE}/figma/files?maxResults=${limit}`, {
-    headers: await authHeaders(),
-  });
-  if (!r.ok) throw new Error(await readError(r));
-  return (await r.json()) as FigmaPreviewResult;
-}
-
 export type ChatConnectorIdForPreview =
   | "calendar"
   | "gmail"
   | "outlook"
-  | "notion"
-  | "figma"
   | "spotify";
 
 export interface SpotifyPreviewTrack {
@@ -167,12 +126,24 @@ export interface SpotifyTrackCard {
   album: string;
   imageUrl?: string | null;
   url: string;
+  /** Extrait MP3 ~30 s — jouable dans l'app sans Premium Spotify. */
+  previewUrl?: string | null;
+}
+
+export interface SpotifyPlayState {
+  playing?: boolean;
+  requiresPremium?: boolean;
+  requiresActiveDevice?: boolean;
 }
 
 export interface SpotifyPlayResult {
   playing: boolean;
   track: SpotifyTrackCard | null;
   device?: string | null;
+  // Spotify exige Premium pour `PUT /v1/me/player/play` ; sur compte gratuit on
+  // dégrade en renvoyant juste la carte pour ouverture manuelle dans Spotify.
+  requiresPremium?: boolean;
+  requiresActiveDevice?: boolean;
 }
 
 export async function fetchSpotifyPreview(): Promise<SpotifyPreviewResult> {
@@ -206,10 +177,6 @@ export async function fetchConnectorPreview(
       return fetchGmailPreview(limit);
     case "outlook":
       return fetchOutlookPreview(limit);
-    case "notion":
-      return fetchNotionPreview(limit);
-    case "figma":
-      return fetchFigmaPreview(limit);
     case "spotify":
       return fetchSpotifyPreview();
     case "calendar": {

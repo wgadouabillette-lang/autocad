@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, type ReactNode } from "react";
 import clsx from "clsx";
+import UpgradeProButton from "./UpgradeProButton";
 
 interface Props {
   text: string;
@@ -135,7 +136,8 @@ function parseBlocks(raw: string): Block[] {
 
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_)/g;
+  const pattern =
+    /(\[[^\]]+\]\(forma:\/\/[a-z-]+\)|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   let i = 0;
@@ -144,7 +146,14 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       nodes.push(<Fragment key={`${keyPrefix}-t-${i}`}>{text.slice(lastIndex, match.index)}</Fragment>);
     }
     const token = match[0];
-    if (token.startsWith("`")) {
+    if (token.startsWith("[")) {
+      const action = /\[([^\]]+)\]\(forma:\/\/([a-z-]+)\)/.exec(token);
+      if (action && action[2] === "upgrade-pro") {
+        nodes.push(<UpgradeProButton key={`${keyPrefix}-a-${i}`} label={action[1]} />);
+      } else if (action) {
+        nodes.push(<Fragment key={`${keyPrefix}-a-${i}`}>{action[1]}</Fragment>);
+      }
+    } else if (token.startsWith("`")) {
       nodes.push(
         <code key={`${keyPrefix}-c-${i}`} className="assistant-markdown__inline-code">
           {token.slice(1, -1)}

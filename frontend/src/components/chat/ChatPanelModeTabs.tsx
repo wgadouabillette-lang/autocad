@@ -89,10 +89,7 @@ export default function ChatPanelModeTabs() {
                   key={tab.id}
                   type="button"
                   role="tab"
-                  className={clsx(
-                    "chat-panel-mode-tabs__btn !bg-transparent hover:!bg-[var(--forma-control-hover-bg)]",
-                    active && "is-active",
-                  )}
+                  className={clsx("chat-panel-mode-tabs__btn", active && "is-active")}
                   onClick={() => selectTab(tab.id)}
                   aria-selected={active}
                   aria-pressed={active}

@@ -71,13 +71,19 @@ import { debugLog } from "../lib/debugLog";
 import { useAiNotesStore } from "./useAiNotesStore";
 import { useFollowUpCaptureStore } from "./useFollowUpCaptureStore";
 import { useStore } from "./useStore";
+import { useTheaterChatStore } from "./useTheaterChatStore";
 import {
+  assignAudienceSeat,
+  buildTheaterAudienceSeats,
   canLocalRaiseHand,
   canLocalSpeak,
+  clearAudienceSeat,
   createTheaterState,
+  firstFreeAudienceSeatIndex,
   isLocalInTheater,
   LOCAL_USER,
   syncTheaterWithMembers,
+  THEATER_AUDIENCE_SEAT_COUNT,
   type HandRaiseRequest,
   type TheaterState,
 } from "../lib/theater";
@@ -91,7 +97,6 @@ interface CallControls {
   pushToTalk: boolean;
   raiseHand: boolean;
   deafen: boolean;
-  muteOthers: boolean;
   mediaError: string | null;
   localStream: MediaStream | null;
   screenShareStream: MediaStream | null;
@@ -144,6 +149,9 @@ interface CallsState extends CallControls {
   closeTheaterView: (workspaceId: string) => void;
   getTheater: (workspaceId: string) => TheaterState;
   joinTheater: (workspaceId: string, asSpeaker?: boolean) => void;
+  promoteOwnerToTheaterSpeaker: (workspaceId: string) => void;
+  returnToTheaterBackstage: (workspaceId: string) => void;
+  moveLocalTheaterSeat: (workspaceId: string, seatIndex: number) => void;
   leaveTheater: (workspaceId: string) => void;
   isLocalInTheaterCall: (workspaceId: string) => boolean;
   toggleTheaterRaiseHand: (workspaceId: string) => void;
@@ -164,7 +172,6 @@ interface CallsState extends CallControls {
   isLocalInCall: (workspaceId: string) => boolean;
   togglePushToTalk: () => void;
   toggleDeafen: () => void;
-  toggleMuteOthers: () => void;
   startLocalMedia: () => Promise<void>;
   stopLocalMediaTracks: () => void;
   toggleMuted: () => Promise<void>;
@@ -260,6 +267,30 @@ function patchTheater(
   }));
 }
 
+function nextLocalAudienceSeatAssignment(
+  audience: TheaterState["audience"],
+  seatByUserId: Record<string, number>,
+): Record<string, number> {
+  const seats = buildTheaterAudienceSeats(audience, seatByUserId);
+  const freeIndex = firstFreeAudienceSeatIndex(seats);
+  if (freeIndex === null) return seatByUserId;
+  return assignAudienceSeat(seatByUserId, LOCAL_USER.id, freeIndex);
+}
+
+function nextAudienceSeatAssignment(
+  audience: TheaterState["audience"],
+  seatByUserId: Record<string, number>,
+  userId: string,
+): Record<string, number> {
+  const seats = buildTheaterAudienceSeats(
+    audience.filter((participant) => participant.id !== userId),
+    clearAudienceSeat(seatByUserId, userId),
+  );
+  const freeIndex = firstFreeAudienceSeatIndex(seats);
+  if (freeIndex === null) return clearAudienceSeat(seatByUserId, userId);
+  return assignAudienceSeat(seatByUserId, userId, freeIndex);
+}
+
 function isInVoiceSession(state: CallsState, workspaceId: string): boolean {
   const mode = state.getCallsViewMode(workspaceId);
   return (
@@ -290,7 +321,6 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   pushToTalk: false,
   raiseHand: false,
   deafen: false,
-  muteOthers: false,
   mediaError: null,
   localStream: null,
   screenShareStream: null,
@@ -957,8 +987,13 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         localRole: "speaker",
       });
     } else {
+      const audience = [...theater.audience, localParticipant];
       patchTheater(set, workspaceId, {
-        audience: [...theater.audience, localParticipant],
+        audience,
+        audienceSeatByUserId: nextLocalAudienceSeatAssignment(
+          audience,
+          theater.audienceSeatByUserId,
+        ),
         localRole: "audience",
       });
     }
@@ -969,6 +1004,81 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     playMutedTransition(wasMuted, nextMuted);
     void get().startLocalMedia();
     playVoiceJoinSound();
+  },
+
+  promoteOwnerToTheaterSpeaker: (workspaceId) => {
+    if (!useWorkspacesStore.getState().isWorkspaceOwner(workspaceId)) return;
+
+    const theater = theaterState(get, workspaceId);
+    if (theater.localRole !== "audience") return;
+
+    const speakers = [
+      ...theater.speakers.filter((participant) => !participant.isLocal),
+      { ...LOCAL_USER, role: "speaker" as const },
+    ];
+    const audience = theater.audience.filter((participant) => !participant.isLocal);
+    const handRaises = theater.handRaises.filter((request) => request.userId !== LOCAL_USER.id);
+
+    patchTheater(set, workspaceId, {
+      speakers,
+      audience,
+      audienceSeatByUserId: clearAudienceSeat(theater.audienceSeatByUserId, LOCAL_USER.id),
+      handRaises,
+      localRole: "speaker",
+    });
+
+    const wasMuted = get().muted;
+    set({ muted: false, raiseHand: false });
+    playMutedTransition(wasMuted, false);
+  },
+
+  returnToTheaterBackstage: (workspaceId) => {
+    const theater = theaterState(get, workspaceId);
+    if (theater.localRole === "question") {
+      get().endQuestion(workspaceId);
+      return;
+    }
+    if (theater.localRole !== "speaker") return;
+
+    const speakers = theater.speakers.filter((participant) => !participant.isLocal);
+    const audience = [
+      ...theater.audience.filter((participant) => !participant.isLocal),
+      { ...LOCAL_USER, role: "audience" as const },
+    ];
+
+    patchTheater(set, workspaceId, {
+      speakers,
+      audience,
+      audienceSeatByUserId: nextLocalAudienceSeatAssignment(
+        audience,
+        clearAudienceSeat(theater.audienceSeatByUserId, LOCAL_USER.id),
+      ),
+      localRole: "audience",
+    });
+
+    const wasMuted = get().muted;
+    set({ muted: true, raiseHand: false });
+    playMutedTransition(wasMuted, true);
+  },
+
+  moveLocalTheaterSeat: (workspaceId, seatIndex) => {
+    const theater = theaterState(get, workspaceId);
+    if (theater.localRole !== "audience") return;
+    if (seatIndex < 0 || seatIndex >= THEATER_AUDIENCE_SEAT_COUNT) return;
+
+    const seats = buildTheaterAudienceSeats(
+      theater.audience,
+      theater.audienceSeatByUserId,
+    );
+    if (seats[seatIndex] !== null) return;
+
+    patchTheater(set, workspaceId, {
+      audienceSeatByUserId: assignAudienceSeat(
+        theater.audienceSeatByUserId,
+        LOCAL_USER.id,
+        seatIndex,
+      ),
+    });
   },
 
   leaveTheater: (workspaceId) => {
@@ -986,13 +1096,18 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       (r) => r.userId !== LOCAL_USER.id || r.status !== "pending",
     );
 
+    const remainingSpeakers = withoutLocal(theater.speakers);
+    const remainingAudience = withoutLocal(theater.audience);
+    const remainingQuestion = theater.question?.isLocal ? null : theater.question;
+
     get().stopLocalMediaTracks();
     stopScreenShare();
 
     patchTheater(set, workspaceId, {
-      speakers: withoutLocal(theater.speakers),
-      audience: withoutLocal(theater.audience),
-      question: theater.question?.isLocal ? null : theater.question,
+      speakers: remainingSpeakers,
+      audience: remainingAudience,
+      audienceSeatByUserId: clearAudienceSeat(theater.audienceSeatByUserId, LOCAL_USER.id),
+      question: remainingQuestion,
       handRaises,
       localRole: null,
     });
@@ -1006,8 +1121,13 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       raiseHand: false,
       pushToTalk: false,
       deafen: false,
-      muteOthers: false,
     });
+
+    // Le chat du théâtre est éphémère : on le purge à chaque départ. En mode mock
+    // l'utilisateur local est le seul "vrai" participant suivi, donc son leave =
+    // dernier départ. Quand la présence multi-utilisateurs sera branchée, ce clear
+    // restera correct côté local : le serveur fera le ménage des messages partagés.
+    useTheaterChatStore.getState().clearWorkspace(workspaceId);
 
     playVoiceLeaveSound();
     get().closeTheaterView(workspaceId);
@@ -1082,6 +1202,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       handRaises: [...theater.handRaises, request],
     });
     set({ raiseHand: true });
+    useTheaterChatStore.getState().sendHandRaiseNotice(workspaceId);
   },
 
   acceptHandRaise: (workspaceId, requestId) => {
@@ -1104,6 +1225,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
     patchTheater(set, workspaceId, {
       audience,
+      audienceSeatByUserId: clearAudienceSeat(theater.audienceSeatByUserId, request.userId),
       question: questionParticipant,
       handRaises,
     });
@@ -1140,6 +1262,11 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
     patchTheater(set, workspaceId, {
       audience,
+      audienceSeatByUserId: nextAudienceSeatAssignment(
+        audience,
+        theater.audienceSeatByUserId,
+        returning.id,
+      ),
       question: null,
     });
 
@@ -1392,7 +1519,6 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       pushToTalk: false,
       raiseHand: false,
       deafen: false,
-      muteOthers: false,
       lastSpokeAtByParticipant: { ...DEFAULT_LAST_SPOKE_AT },
       speakingByParticipant: {},
       remoteMediaByUid: {},
@@ -1444,7 +1570,6 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       callsByRoom: { ...get().callsByRoom, [roomId]: { ...state, blocks } },
       raiseHand: false,
       pushToTalk: false,
-      muteOthers: false,
     });
   },
 
@@ -1489,6 +1614,14 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const state = get();
     const inVoice = isInVoiceSession(state, activeRoomId);
     const nextCameraOn = !state.cameraOn;
+    const inTheater =
+      state.getCallsViewMode(activeRoomId) === "theater" &&
+      state.isLocalInTheaterCall(activeRoomId);
+
+    if (nextCameraOn && inTheater && !state.canSpeakInTheater(activeRoomId)) {
+      set({ mediaError: "Caméra indisponible pour les listeners en théâtre." });
+      return;
+    }
 
     if (nextCameraOn && !inVoice) {
       await get().joinCall(activeRoomId);
@@ -1518,6 +1651,14 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const activeRoomId = useStore.getState().activeRoomId;
     const state = get();
     const inVoice = isInVoiceSession(state, activeRoomId);
+    const inTheater =
+      state.getCallsViewMode(activeRoomId) === "theater" &&
+      state.isLocalInTheaterCall(activeRoomId);
+
+    if (!state.screenSharing && inTheater && !state.canSpeakInTheater(activeRoomId)) {
+      set({ mediaError: "Partage d'écran indisponible pour les listeners en théâtre." });
+      return;
+    }
 
     if (!state.screenSharing && !inVoice) {
       await get().joinCall(activeRoomId);
@@ -1604,11 +1745,16 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         const { useStore } = await import("./useStore");
         const { useNotificationsStore } = await import("./useNotificationsStore");
         useStore.getState().saveRecordingSession({ recordingId, durationMs });
-        useNotificationsStore.getState().push({
-          kind: "connector",
-          title: "Recording saved",
-          body: "Available in your notes history.",
-        });
+        useNotificationsStore.getState().push(
+          {
+            kind: "recording",
+            category: "Recordings",
+            title: "Recording saved",
+            body: "Available in your notes history.",
+            recordingSessionId: recordingId,
+          },
+          { openPanel: true },
+        );
         resetRecordingState(null);
         return true;
       } catch (error) {
@@ -1663,7 +1809,18 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       const recordingId = `rec-${Date.now()}`;
       await saveRecordingBlob(recordingId, blob);
       const { useStore } = await import("./useStore");
+      const { useNotificationsStore } = await import("./useNotificationsStore");
       useStore.getState().saveRecordingSession({ recordingId, durationMs });
+      useNotificationsStore.getState().push(
+        {
+          kind: "recording",
+          category: "Recordings",
+          title: "Recording saved",
+          body: "Available in your notes history.",
+          recordingSessionId: recordingId,
+        },
+        { openPanel: true },
+      );
       set({ recording: false, recordingBusy: false, mediaError: null });
     } catch {
       const { abortAppScreenRecording: abort } = await import("../lib/appScreenRecording");
@@ -1692,5 +1849,4 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     playMutedTransition(wasMuted, nextMuted);
   },
   toggleDeafen: () => set((s) => ({ deafen: !s.deafen })),
-  toggleMuteOthers: () => set((s) => ({ muteOthers: !s.muteOthers })),
 }));

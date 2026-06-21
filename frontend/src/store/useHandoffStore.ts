@@ -11,9 +11,12 @@ import type { ChatMessage } from "./useStore";
 import { useStore } from "./useStore";
 import { auth } from "../lib/firebase/client";
 import { usePeopleStore } from "./usePeopleStore";
+import type { PeopleMessage } from "../lib/peopleChat";
 
 interface HandoffStore {
   selectionMode: boolean;
+  selectionSource: "ai" | "people" | null;
+  peopleThreadId: string | null;
   selectedIndices: Set<number>;
   target: HandoffTarget | null;
   submitting: boolean;
@@ -24,12 +27,14 @@ interface HandoffStore {
   noteHandoffBodyHtml: string;
 
   enterSelectionMode: () => void;
+  enterPeopleSelectionMode: (threadId: string) => void;
   exitSelectionMode: () => void;
   toggleMessageIndex: (index: number) => void;
   setTarget: (target: HandoffTarget | null) => void;
   openNoteHandoff: (title: string, bodyHtml: string) => void;
   closeNoteHandoff: () => void;
   submitSegmentHandoff: (messages: ChatMessage[], sourceSessionId?: string) => Promise<void>;
+  submitPeopleSegmentHandoff: (messages: PeopleMessage[], threadId: string) => Promise<void>;
   submitNoteHandoff: () => Promise<void>;
   openPreview: (handoffId: string) => Promise<void>;
   closePreview: () => void;
@@ -81,6 +86,8 @@ async function deliverHandoffInboxMessage(
 
 export const useHandoffStore = create<HandoffStore>((set, get) => ({
   selectionMode: false,
+  selectionSource: null,
+  peopleThreadId: null,
   selectedIndices: new Set(),
   target: null,
   submitting: false,
@@ -93,6 +100,18 @@ export const useHandoffStore = create<HandoffStore>((set, get) => ({
   enterSelectionMode: () =>
     set({
       selectionMode: true,
+      selectionSource: "ai",
+      peopleThreadId: null,
+      selectedIndices: new Set(),
+      target: null,
+      error: null,
+    }),
+
+  enterPeopleSelectionMode: (threadId) =>
+    set({
+      selectionMode: true,
+      selectionSource: "people",
+      peopleThreadId: threadId,
       selectedIndices: new Set(),
       target: null,
       error: null,
@@ -101,6 +120,8 @@ export const useHandoffStore = create<HandoffStore>((set, get) => ({
   exitSelectionMode: () =>
     set({
       selectionMode: false,
+      selectionSource: null,
+      peopleThreadId: null,
       selectedIndices: new Set(),
       target: null,
       error: null,
@@ -149,6 +170,42 @@ export const useHandoffStore = create<HandoffStore>((set, get) => ({
         messageIndices: indices,
         messages: messages.map((m) => ({ role: m.role, text: m.text })),
         sourceSessionId,
+      });
+      await deliverHandoffInboxMessage(target, result);
+      get().exitSelectionMode();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : "Impossible d'envoyer le handoff.",
+      });
+    } finally {
+      set({ submitting: false });
+    }
+  },
+
+  submitPeopleSegmentHandoff: async (messages, threadId) => {
+    const { selectedIndices, target } = get();
+    if (!target || selectedIndices.size === 0) return;
+
+    set({ submitting: true, error: null });
+    try {
+      const indices = [...selectedIndices].sort((a, b) => a - b);
+      const selectedMessages = indices
+        .map((index) => messages[index])
+        .filter((message): message is PeopleMessage => !!message && message.kind !== "handoff" && message.kind !== "manage");
+      if (selectedMessages.length === 0) {
+        throw new Error("Sélectionnez au moins un message texte.");
+      }
+      const result = await api.createHandoff({
+        kind: "ai-segment",
+        targetType: target.targetType,
+        recipientUid: target.recipientUid,
+        groupId: target.groupId,
+        messageIndices: indices,
+        messages: selectedMessages.map((message) => ({
+          role: message.mine ? "user" : "assistant",
+          text: message.mine ? message.text : `${message.author}: ${message.text}`,
+        })),
+        sourceSessionId: threadId,
       });
       await deliverHandoffInboxMessage(target, result);
       get().exitSelectionMode();

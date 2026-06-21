@@ -94,6 +94,15 @@ export const AI_MODELS: AiModelDef[] = [
 /** Modèles affichés dans Paramètres → Models (sans Auto). */
 export const SETTINGS_AI_MODELS = AI_MODELS.filter((m) => m.id !== "auto");
 
+/** Modèle le moins cher pour structuration batch (notes IA). */
+export const AI_NOTES_CHEAP_MODEL_PREFERRED: AiModel = "gpt-4.1-nano";
+export const AI_NOTES_CHEAP_MODEL_FALLBACK: AiModel = "grok-mini";
+
+/** GPT 4.1 nano si OpenAI est configuré, sinon Grok 3 Mini (xAI). */
+export function aiNotesStructureModel(openaiConfigured = false): AiModel {
+  return openaiConfigured ? AI_NOTES_CHEAP_MODEL_PREFERRED : AI_NOTES_CHEAP_MODEL_FALLBACK;
+}
+
 const AI_MODEL_IDS = new Set<AiModel>(AI_MODELS.map((m) => m.id));
 
 export function isValidAiModel(value: unknown): value is AiModel {

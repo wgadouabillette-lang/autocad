@@ -62,14 +62,8 @@ export default function CallBlockCard({
   const openColleagueChat = useMiniChatStore((s) => s.openForColleague);
 
   const previewTiles = participants.slice(0, CALL_BLOCK_TILE_SLOTS);
-  const avatarSlots = Array.from(
-    { length: CALL_BLOCK_AVATAR_SLOTS },
-    (_, index) => participants[index] ?? null,
-  );
-  const audienceSlots = Array.from(
-    { length: CALL_BLOCK_AVATAR_SLOTS },
-    (_, index) => audienceParticipants[index] ?? null,
-  );
+  const avatarParticipants = participants.slice(0, CALL_BLOCK_AVATAR_SLOTS);
+  const audiencePreview = audienceParticipants.slice(0, CALL_BLOCK_AVATAR_SLOTS);
   const blockClassName = clsx(className, ...aiStrokeClasses(aiStroke));
 
   const renderAvatar = (user: CallUser) => (
@@ -128,17 +122,7 @@ export default function CallBlockCard({
           </div>
         )}
         <div className="call-block__row call-block__row--avatars" aria-label="Spectateurs">
-          {audienceSlots.map((user, index) =>
-            user ? (
-              renderAvatar(user)
-            ) : (
-              <span
-                key={`audience-slot-${index}`}
-                className="call-block__avatar call-block__avatar--slot"
-                aria-hidden
-              />
-            ),
-          )}
+          {audiencePreview.map((user) => renderAvatar(user))}
         </div>
       </div>
     ) : (
@@ -153,17 +137,7 @@ export default function CallBlockCard({
       >
         {participantLayout === "tiles"
           ? previewTiles.map(renderPreviewTile)
-          : avatarSlots.map((user, index) =>
-              user ? (
-                renderAvatar(user)
-              ) : (
-                <span
-                  key={`slot-${index}`}
-                  className="call-block__avatar call-block__avatar--slot"
-                  aria-hidden
-                />
-              ),
-            )}
+          : avatarParticipants.map((user) => renderAvatar(user))}
       </div>
     );
 

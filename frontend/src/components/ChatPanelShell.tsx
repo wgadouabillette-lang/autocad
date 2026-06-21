@@ -1,3 +1,4 @@
+import { AGENT_PANEL_TITLE } from "../lib/appBrand";
 import clsx from "clsx";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useMobileLayout } from "../hooks/useMobileLayout";
@@ -14,6 +15,7 @@ import VoiceAssistPanel from "./chat/VoiceAssistPanel";
 import { isVoiceAssistPanelMode } from "../lib/voiceAssistPanel";
 import ChatFullscreenMediaPip from "./chat/ChatFullscreenMediaPip";
 import CalendarFullscreenComposerPip from "./calendar/CalendarFullscreenComposerPip";
+import PeopleChatFullscreenSkillsPip from "./chat/PeopleChatFullscreenSkillsPip";
 import RecordingPlaybackView from "./chat/RecordingPlaybackView";
 
 const LEAVE_ANIM_MS = 540;
@@ -115,7 +117,7 @@ export default function ChatPanelShell() {
           ? "Theater chat"
           : isVoiceAssistPanelMode(chatPanelMode)
             ? "Voice assist"
-            : "XYZ Superagent";
+            : AGENT_PANEL_TITLE;
 
   const isOverlay = !isMobileLayout && (chatPanelExpanded || leaving);
   const keepOverlayPosition = isOverlay;
@@ -183,6 +185,7 @@ export default function ChatPanelShell() {
         </div>
       </div>
       {isOverlay && chatPanelMode === "calendar" && <CalendarFullscreenComposerPip />}
+      {isOverlay && chatPanelMode === "friends" && <PeopleChatFullscreenSkillsPip />}
     </aside>
     </>
   );

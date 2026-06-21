@@ -5,6 +5,12 @@
   if (!placeholder) return;
   const active = placeholder.getAttribute("data-active") || "";
 
+  const DESKTOP_VIEWPORT_QUERY = "(min-width: 768px)";
+
+  function isDesktopViewport() {
+    return window.matchMedia(DESKTOP_VIEWPORT_QUERY).matches;
+  }
+
   function resolveAppHref() {
     const { hostname, port } = window.location;
     const isLocal = hostname === "127.0.0.1" || hostname === "localhost";
@@ -16,6 +22,21 @@
   }
 
   const appHref = resolveAppHref();
+  const desktopOnly = !isDesktopViewport();
+  const ctaIcon =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" width="11" height="11" aria-hidden="true">' +
+    '<path d="M7 17 17 7M9 7h8v8" />' +
+    "</svg>";
+
+  const ctaHtml = desktopOnly
+    ? `<span class="nav__cta" aria-disabled="true" title="Lyte est disponible sur ordinateur uniquement">
+        <span>Ouvrir Lyte</span>
+        ${ctaIcon}
+      </span>`
+    : `<a class="nav__cta" href="${appHref}">
+        <span>Ouvrir Lyte</span>
+        ${ctaIcon}
+      </a>`;
 
   const tabs = [
     { id: "tarifs", label: "Tarifs", href: "tarifs.html" },
@@ -42,12 +63,7 @@
       <ul class="nav__tabs" role="list">${tabsHtml}</ul>
 
       <div class="nav__actions">
-        <a class="nav__cta" href="${appHref}">
-          <span>Ouvrir Lyte</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" width="11" height="11" aria-hidden="true">
-            <path d="M7 17 17 7M9 7h8v8" />
-          </svg>
-        </a>
+        ${ctaHtml}
       </div>
     </nav>
   `;

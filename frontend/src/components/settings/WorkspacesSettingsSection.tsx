@@ -1,23 +1,26 @@
 import clsx from "clsx";
-import { Check, Copy, Crown, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Check, Copy, Crown, LogOut, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   fetchSharedWorkspace,
   watchPendingJoinRequests,
   type WorkspaceJoinRequestDoc,
 } from "../../lib/firebase/workspaceRegistry";
+import { uploadWorkspaceIcon } from "../../lib/firebase/workspaceIcon";
 import { buildWorkspaceJoinUrl } from "../../lib/workspaceInvite";
 import {
   LOCAL_USER_ID,
   serverRoleLabel,
-  workspaceInitials,
   type ServerRole,
   type Workspace,
 } from "../../lib/workspaces";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
+import WorkspaceIcon from "../workspace/WorkspaceIcon";
 import WorkspaceEnterpriseUsageSection from "./WorkspaceEnterpriseUsageSection";
+
+const ACCEPTED_IMAGE_TYPES = "image/jpeg,image/png,image/webp";
 
 interface IncomingRequestRow {
   workspaceId: string;
@@ -30,16 +33,29 @@ function WorkspacePickerRow({
   role,
   active,
   copied,
+  iconBusy,
+  iconError,
   onSelect,
   onCopyLink,
+  onIconSelected,
+  onRemove,
+  removeBusy,
 }: {
   workspace: Workspace;
   role: ServerRole;
   active: boolean;
   copied: boolean;
+  iconBusy: boolean;
+  iconError: string | null;
   onSelect: (id: string) => void;
   onCopyLink: (id: string) => void;
+  onIconSelected: (workspaceId: string, file: File) => void;
+  onRemove: (workspaceId: string, role: ServerRole) => void;
+  removeBusy: boolean;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isOwner = role === "owner";
+
   return (
     <li
       className={clsx(
@@ -48,27 +64,58 @@ function WorkspacePickerRow({
         active && "settings-workspaces-list__row--active",
       )}
     >
+      {isOwner ? (
+        <>
+          <button
+            type="button"
+            className={clsx(
+              "settings-workspaces-list__icon-btn",
+              iconBusy && "settings-workspaces-list__icon-btn--busy",
+            )}
+            disabled={iconBusy}
+            onClick={() => fileInputRef.current?.click()}
+            aria-label={
+              iconBusy
+                ? `Enregistrement de l'icône pour ${workspace.name}…`
+                : `Changer l'icône de ${workspace.name}`
+            }
+          >
+            <WorkspaceIcon workspace={workspace} className="settings-workspaces-list__icon" />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPTED_IMAGE_TYPES}
+            className="sr-only"
+            disabled={iconBusy}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) onIconSelected(workspace.id, file);
+            }}
+          />
+        </>
+      ) : (
+        <WorkspaceIcon workspace={workspace} className="settings-workspaces-list__icon" />
+      )}
       <button
         type="button"
         className="settings-workspaces-list__select"
         onClick={() => onSelect(workspace.id)}
         aria-current={active ? "true" : undefined}
       >
-        <span
-          className="settings-workspaces-list__icon"
-          style={{ backgroundColor: workspace.accent }}
-          aria-hidden
-        >
-          {workspaceInitials(workspace.name)}
-        </span>
         <span className="settings-workspaces-list__main">
           <span className="settings-workspaces-list__name">{workspace.name}</span>
           <span className="settings-workspaces-list__meta">
             {serverRoleLabel(role)}
             {active ? " · Actif" : ""}
+            {iconBusy ? " · Enregistrement…" : ""}
           </span>
+          {iconError ? (
+            <span className="settings-workspaces-list__meta text-red-300">{iconError}</span>
+          ) : null}
         </span>
-        {role === "owner" ? (
+        {isOwner ? (
           <Crown size={12} className="shrink-0 text-amber-300/90" aria-hidden />
         ) : null}
       </button>
@@ -99,6 +146,27 @@ function WorkspacePickerRow({
           )}
         </button>
       ) : null}
+      <button
+        type="button"
+        className={clsx(
+          "settings-workspaces-list__delete",
+          isOwner && "settings-workspaces-list__delete--owner",
+        )}
+        disabled={removeBusy}
+        onClick={() => onRemove(workspace.id, role)}
+        aria-label={
+          isOwner
+            ? `Supprimer ${workspace.name}`
+            : `Quitter ${workspace.name}`
+        }
+      >
+        {isOwner ? (
+          <Trash2 size={12} strokeWidth={2.25} aria-hidden />
+        ) : (
+          <LogOut size={12} strokeWidth={2.25} aria-hidden />
+        )}
+        {removeBusy ? "…" : isOwner ? "Supprimer" : "Quitter"}
+      </button>
     </li>
   );
 }
@@ -113,6 +181,8 @@ export default function WorkspacesSettingsSection() {
   const memberships = useWorkspacesStore((s) => s.memberships);
   const customServers = useWorkspacesStore((s) => s.customServers);
   const roleIn = useWorkspacesStore((s) => s.roleIn);
+  const updateWorkspace = useWorkspacesStore((s) => s.updateWorkspace);
+  const deleteWorkspace = useWorkspacesStore((s) => s.deleteWorkspace);
   const requestJoinWorkspace = useWorkspacesStore((s) => s.requestJoinWorkspace);
   const respondJoinRequest = useWorkspacesStore((s) => s.respondJoinRequest);
   const pendingJoinRequests = useWorkspacesStore((s) => s.pendingJoinRequests);
@@ -138,6 +208,9 @@ export default function WorkspacesSettingsSection() {
   const [joinSent, setJoinSent] = useState(false);
   const [respondBusyKey, setRespondBusyKey] = useState<string | null>(null);
   const [copiedWorkspaceId, setCopiedWorkspaceId] = useState<string | null>(null);
+  const [iconBusyWorkspaceId, setIconBusyWorkspaceId] = useState<string | null>(null);
+  const [iconErrorByWorkspaceId, setIconErrorByWorkspaceId] = useState<Record<string, string>>({});
+  const [removeBusyWorkspaceId, setRemoveBusyWorkspaceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!pendingInviteWorkspaceId) return;
@@ -219,6 +292,39 @@ export default function WorkspacesSettingsSection() {
     }
   }, []);
 
+  const onIconSelected = useCallback(
+    async (workspaceId: string, file: File) => {
+      if (!firebaseUid) {
+        setIconErrorByWorkspaceId((current) => ({
+          ...current,
+          [workspaceId]: "Connectez-vous pour modifier l'icône.",
+        }));
+        return;
+      }
+      setIconBusyWorkspaceId(workspaceId);
+      setIconErrorByWorkspaceId((current) => {
+        const next = { ...current };
+        delete next[workspaceId];
+        return next;
+      });
+      try {
+        const iconURL = await uploadWorkspaceIcon(workspaceId, file);
+        const updated = updateWorkspace(workspaceId, { iconURL }, ownerUserId);
+        if (!updated) {
+          throw new Error("Seul le propriétaire peut modifier l'icône.");
+        }
+        void useAuthStore.getState().syncWorkspacesToCloud();
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Impossible d'enregistrer l'icône.";
+        setIconErrorByWorkspaceId((current) => ({ ...current, [workspaceId]: message }));
+      } finally {
+        setIconBusyWorkspaceId((current) => (current === workspaceId ? null : current));
+      }
+    },
+    [firebaseUid, ownerUserId, updateWorkspace],
+  );
+
   const onRequestJoin = async (event: FormEvent) => {
     event.preventDefault();
     if (joinBusy || !joinId.trim()) return;
@@ -263,6 +369,34 @@ export default function WorkspacesSettingsSection() {
       setRespondBusyKey(null);
     }
   };
+
+  const onRemoveWorkspace = useCallback(
+    async (workspaceId: string, role: ServerRole) => {
+      const workspace = joined.find((entry) => entry.id === workspaceId);
+      if (!workspace || removeBusyWorkspaceId) return;
+
+      const isOwner = role === "owner";
+      const confirmed = window.confirm(
+        isOwner
+          ? `Supprimer « ${workspace.name} » ? Cette action est définitive. Les membres perdront l'accès.`
+          : `Quitter « ${workspace.name} » ?`,
+      );
+      if (!confirmed) return;
+
+      setRemoveBusyWorkspaceId(workspaceId);
+      try {
+        await deleteWorkspace(workspaceId, ownerUserId);
+        void useAuthStore.getState().syncWorkspacesToCloud();
+      } catch (error) {
+        window.alert(
+          error instanceof Error ? error.message : "Impossible de retirer ce workspace.",
+        );
+      } finally {
+        setRemoveBusyWorkspaceId((current) => (current === workspaceId ? null : current));
+      }
+    },
+    [joined, removeBusyWorkspaceId, deleteWorkspace, ownerUserId],
+  );
 
   return (
     <div className="settings-workspaces">
@@ -347,35 +481,6 @@ export default function WorkspacesSettingsSection() {
       )}
 
       <section className="settings-section settings-section--card">
-        <h3 className="settings-section__label">Mes workspaces</h3>
-        <p className="settings-section__hint">
-          Cliquez sur un workspace pour basculer dessus. Propriétaires : bouton Copier à droite
-          pour partager le lien d&apos;invitation.
-        </p>
-        {joined.length === 0 ? (
-          <p className="settings-section__meta mt-4">Aucun workspace pour le moment.</p>
-        ) : (
-          <ul className="settings-workspaces-list mt-4">
-            {joined.map((workspace) => {
-              const role = roleIn(workspace.id, ownerUserId);
-              if (!role) return null;
-              return (
-                <WorkspacePickerRow
-                  key={workspace.id}
-                  workspace={workspace}
-                  role={role}
-                  active={activeRoomId === workspace.id}
-                  copied={copiedWorkspaceId === workspace.id}
-                  onSelect={switchWorkspace}
-                  onCopyLink={(id) => void onCopyInviteLink(id)}
-                />
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section className="settings-section settings-section--card">
         <h3 className="settings-section__label">Rejoindre un workspace</h3>
         <p className="settings-section__hint">
           Collez le lien d&apos;invitation reçu d&apos;un collègue.
@@ -403,6 +508,41 @@ export default function WorkspacesSettingsSection() {
             Demande envoyée. Vous serez notifié si le propriétaire accepte.
           </p>
         ) : null}
+      </section>
+
+      <section className="settings-section settings-section--card">
+        <h3 className="settings-section__label">Mes workspaces</h3>
+        <p className="settings-section__hint">
+          Cliquez sur un workspace pour basculer dessus. Propriétaires : icône pour la changer,
+          Copier pour le lien d&apos;invitation, Supprimer pour retirer le workspace. Membres :
+          Quitter pour le quitter.
+        </p>
+        {joined.length === 0 ? (
+          <p className="settings-section__meta mt-4">Aucun workspace pour le moment.</p>
+        ) : (
+          <ul className="settings-workspaces-list mt-4">
+            {joined.map((workspace) => {
+              const role = roleIn(workspace.id, ownerUserId);
+              if (!role) return null;
+              return (
+                <WorkspacePickerRow
+                  key={workspace.id}
+                  workspace={workspace}
+                  role={role}
+                  active={activeRoomId === workspace.id}
+                  copied={copiedWorkspaceId === workspace.id}
+                  iconBusy={iconBusyWorkspaceId === workspace.id}
+                  iconError={iconErrorByWorkspaceId[workspace.id] ?? null}
+                  onSelect={switchWorkspace}
+                  onCopyLink={(id) => void onCopyInviteLink(id)}
+                  onIconSelected={(id, file) => void onIconSelected(id, file)}
+                  onRemove={(id, workspaceRole) => void onRemoveWorkspace(id, workspaceRole)}
+                  removeBusy={removeBusyWorkspaceId === workspace.id}
+                />
+              );
+            })}
+          </ul>
+        )}
       </section>
     </div>
   );

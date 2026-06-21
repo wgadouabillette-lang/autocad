@@ -27,7 +27,7 @@ _CHAT_GPT_RE = re.compile(
 _CHAT_GROK_RE = re.compile(
     r"(brainstorm|idée|créatif|humour|blague|histoire|story|avis|opinion|"
     r"discut|conversation|salut|coucou|pourquoi|explique-moi|resume|résume|"
-    r"@\w+|/gmail|/calendar|/notion|/figma|/outlook|/play)",
+    r"@\w+|/gmail|/calendar|/outlook|/play)",
     re.I,
 )
 

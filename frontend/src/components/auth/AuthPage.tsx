@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import type { AuthProvider } from "../../store/useAuthStore";
 import { useAuthStore } from "../../store/useAuthStore";
+import { getLandingUrl } from "../../lib/appAccess";
 import { hasFormaDesktop } from "../../lib/formaDesktop";
 import { FacebookIcon, GoogleIcon, MicrosoftIcon } from "./AuthProviderIcons";
 
@@ -15,14 +16,6 @@ const PROVIDERS: {
 ];
 
 const LYTE_SITE_URL = "https://lyte.app";
-
-function getLandingUrl(): string {
-  const host = window.location.hostname;
-  if (host === "localhost" || host === "127.0.0.1") {
-    return "http://localhost:5190/";
-  }
-  return "/";
-}
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());

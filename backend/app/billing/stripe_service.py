@@ -338,6 +338,124 @@ def create_or_get_customer(uid: str, email: Optional[str]) -> str:
     return str(customer["id"])
 
 
+def _resolve_customer_id(uid: str, email: Optional[str]) -> Optional[str]:
+    """Trouve le `stripeCustomerId` du user (Firestore d'abord, puis Stripe par metadata/email)."""
+    billing = load_user_billing(uid)
+    customer_id = str(billing.get("stripeCustomerId") or "").strip()
+    if customer_id:
+        return customer_id
+
+    stripe = _stripe()
+    try:
+        search = stripe.Customer.search(
+            query=f'metadata["firebase_uid"]:"{uid}"',
+            limit=1,
+        )
+        data = list(search.get("data") or [])
+        if data:
+            customer_id = str(data[0].get("id") or "").strip()
+            if customer_id:
+                save_user_billing(uid, {"stripeCustomerId": customer_id})
+                return customer_id
+    except Exception as exc:
+        logger.debug("Stripe customer search by metadata failed for %s: %s", uid, exc)
+
+    if email and email.strip():
+        try:
+            listing = stripe.Customer.list(email=email.strip(), limit=10)
+            for customer in listing.get("data") or []:
+                cid = str(customer.get("id") or "").strip()
+                if cid:
+                    save_user_billing(uid, {"stripeCustomerId": cid})
+                    return cid
+        except Exception as exc:
+            logger.debug("Stripe customer list by email failed for %s: %s", uid, exc)
+
+    return None
+
+
+def _pick_user_subscription(subscriptions: list[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Choisit l'abonnement Pro le plus pertinent: actif → le plus récent."""
+    if not subscriptions:
+        return None
+    pro_price = settings.stripe_pro_price_id.strip()
+
+    def has_pro_item(sub: Dict[str, Any]) -> bool:
+        if not pro_price:
+            return False
+        for item in _subscription_items(sub):
+            if _price_id(item) == pro_price:
+                return True
+        return False
+
+    active = [s for s in subscriptions if str(s.get("status") or "") in ACTIVE_SUBSCRIPTION_STATUSES]
+    pool = [s for s in active if has_pro_item(s)] or active or subscriptions
+    pool.sort(key=lambda s: int(s.get("created") or 0), reverse=True)
+    return pool[0]
+
+
+def sync_user_subscription_from_stripe(uid: str, email: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Filet de sécurité indépendant des webhooks: interroge Stripe et met à jour Firestore.
+
+    Retourne `{ "subscriptionPlan": "pro"|"free", "stripeSubscriptionStatus": str|None,
+    "billingManaged": bool }`.
+    """
+    customer_id = _resolve_customer_id(uid, email)
+    if not customer_id:
+        return {
+            "subscriptionPlan": "free",
+            "stripeSubscriptionStatus": None,
+            "billingManaged": False,
+        }
+
+    stripe = _stripe()
+    try:
+        listing = stripe.Subscription.list(
+            customer=customer_id,
+            status="all",
+            limit=10,
+            expand=["data.items.data.price"],
+        )
+    except Exception as exc:
+        logger.warning("Stripe subscription list failed for %s (customer %s): %s", uid, customer_id, exc)
+        raise
+
+    subscriptions = list(listing.get("data") or [])
+    chosen = _pick_user_subscription(subscriptions)
+    if chosen is None:
+        # Pas d'abonnement Stripe: assurer la cohérence Firestore en plan "free".
+        update_user_subscription_profile(
+            uid,
+            subscription_plan="free",
+            on_demand_usage_enabled=False,
+            billing_managed=False,
+        )
+        save_user_billing(
+            uid,
+            {
+                "stripeCustomerId": customer_id,
+                "stripeSubscriptionId": "",
+                "stripeOnDemandItemId": "",
+                "stripeSubscriptionStatus": "",
+            },
+        )
+        return {
+            "subscriptionPlan": "free",
+            "stripeSubscriptionStatus": None,
+            "billingManaged": False,
+        }
+
+    sync_subscription_for_uid(uid, chosen)
+    plan, on_demand, _ = _subscription_state(chosen)
+    return {
+        "subscriptionPlan": plan,
+        "stripeSubscriptionStatus": str(chosen.get("status") or "") or None,
+        "billingManaged": True,
+        "onDemandUsageEnabled": on_demand,
+    }
+
+
 def create_pro_checkout_session(uid: str, email: Optional[str]) -> str:
     total_start = time.perf_counter()
     stripe = _stripe()
@@ -681,6 +799,132 @@ def create_portal_session(uid: str, *, customer_id: str | None = None) -> str:
         return_url=success_url,
     )
     return str(session["url"])
+
+
+def _format_invoice_amount(invoice: Dict[str, Any]) -> str:
+    amount_cents = int(invoice.get("amount_paid") or invoice.get("amount_due") or 0)
+    currency = str(invoice.get("currency") or "usd").upper()
+    if currency == "USD":
+        return f"${amount_cents / 100:.2f}"
+    return f"{amount_cents / 100:.2f} {currency}"
+
+
+def _invoice_date_iso(invoice: Dict[str, Any]) -> str:
+    from datetime import datetime, timezone
+
+    created = int(invoice.get("created") or 0)
+    if not created:
+        return ""
+    return datetime.fromtimestamp(created, tz=timezone.utc).isoformat()
+
+
+def _list_customer_invoices(customer_id: str, *, limit: int = 24) -> list[Dict[str, Any]]:
+    if not settings.stripe_secret_key.strip():
+        return []
+    resolved = customer_id.strip()
+    if not resolved:
+        return []
+    stripe = _stripe()
+    try:
+        listing = stripe.Invoice.list(customer=resolved, limit=limit)
+    except Exception as exc:
+        logger.warning("Invoice list failed for customer %s: %s", resolved, exc)
+        return []
+
+    rows: list[Dict[str, Any]] = []
+    for invoice in listing.get("data") or []:
+        description = str(invoice.get("description") or "").strip()
+        if not description:
+            description = f"Facture {invoice.get('number') or invoice.get('id') or ''}".strip()
+        rows.append(
+            {
+                "id": str(invoice.get("id") or ""),
+                "date": _invoice_date_iso(invoice),
+                "description": description or "Facture",
+                "amountLabel": _format_invoice_amount(invoice),
+                "status": str(invoice.get("status") or "unknown"),
+                "invoiceUrl": str(invoice.get("hosted_invoice_url") or "") or None,
+            }
+        )
+    return rows
+
+
+def list_user_billing_transactions(uid: str, *, limit: int = 24) -> list[Dict[str, Any]]:
+    billing = load_user_billing(uid)
+    customer_id = str(billing.get("stripeCustomerId") or "").strip()
+    return _list_customer_invoices(customer_id, limit=limit)
+
+
+def list_workspace_billing_transactions(workspace_id: str, *, limit: int = 24) -> list[Dict[str, Any]]:
+    wid = workspace_id.strip().lower()
+    billing = load_workspace_billing(wid)
+    customer_id = str(billing.get("stripeCustomerId") or "").strip()
+    return _list_customer_invoices(customer_id, limit=limit)
+
+
+def _subscription_period_details(subscription: Dict[str, Any]) -> Dict[str, Optional[Any]]:
+    from datetime import datetime, timezone
+
+    period_end_ts = subscription.get("current_period_end")
+    period_end_iso = (
+        datetime.fromtimestamp(int(period_end_ts), tz=timezone.utc).isoformat()
+        if period_end_ts
+        else None
+    )
+    return {
+        "nextBillingDate": period_end_iso,
+        "cancelAtPeriodEnd": bool(subscription.get("cancel_at_period_end")),
+    }
+
+
+def get_pro_subscription_details(uid: str) -> Dict[str, Optional[Any]]:
+    billing = load_user_billing(uid)
+    subscription_id = str(billing.get("stripeSubscriptionId") or "").strip()
+    if not subscription_id or not settings.stripe_secret_key.strip():
+        return {"nextBillingDate": None, "cancelAtPeriodEnd": False}
+    stripe = _stripe()
+    try:
+        subscription = stripe.Subscription.retrieve(subscription_id)
+    except Exception as exc:
+        logger.warning("Subscription retrieve failed for %s: %s", uid, exc)
+        return {"nextBillingDate": None, "cancelAtPeriodEnd": False}
+    return _subscription_period_details(subscription)
+
+
+def get_enterprise_subscription_details(workspace_id: str) -> Dict[str, Optional[Any]]:
+    wid = workspace_id.strip().lower()
+    billing = load_workspace_billing(wid)
+    subscription_id = str(billing.get("stripeSubscriptionId") or "").strip()
+    if not subscription_id or not settings.stripe_secret_key.strip():
+        return {"nextBillingDate": None, "cancelAtPeriodEnd": False}
+    stripe = _stripe()
+    try:
+        subscription = stripe.Subscription.retrieve(subscription_id)
+    except Exception as exc:
+        logger.warning("Enterprise subscription retrieve failed for %s: %s", wid, exc)
+        return {"nextBillingDate": None, "cancelAtPeriodEnd": False}
+    return _subscription_period_details(subscription)
+
+
+def cancel_pro_subscription_at_period_end(uid: str) -> None:
+    if not settings.stripe_secret_key.strip():
+        raise ValueError("Stripe billing is not configured.")
+    subscription_id = _active_subscription_id(uid)
+    stripe = _stripe()
+    stripe.Subscription.modify(subscription_id, cancel_at_period_end=True)
+
+
+def cancel_enterprise_subscription_at_period_end(uid: str, workspace_id: str) -> None:
+    if not settings.stripe_secret_key.strip():
+        raise ValueError("Stripe billing is not configured.")
+    wid = workspace_id.strip().lower()
+    assert_workspace_owner(uid, wid)
+    billing = load_workspace_billing(wid)
+    subscription_id = str(billing.get("stripeSubscriptionId") or "").strip()
+    if not subscription_id:
+        raise ValueError("Aucun abonnement Entreprise actif pour ce workspace.")
+    stripe = _stripe()
+    stripe.Subscription.modify(subscription_id, cancel_at_period_end=True)
 
 
 def verify_and_dispatch_webhook(payload: bytes, signature: str) -> None:

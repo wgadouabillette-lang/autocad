@@ -7,7 +7,7 @@ import {
   deleteDoc,
   type Unsubscribe,
 } from "firebase/firestore";
-import type { VoicePoll } from "../voicePoll";
+import type { VoicePoll, VoicePollKind } from "../voicePoll";
 import { db } from "./client";
 
 const ACTIVE_POLL_ID = "active";
@@ -24,6 +24,7 @@ export interface VoicePollDoc {
   status: "open" | "closed";
   createdAt: number;
   expiresAt: number;
+  kind?: VoicePollKind;
   updatedAt?: unknown;
 }
 
@@ -44,6 +45,7 @@ function pollFromDoc(data: VoicePollDoc): VoicePoll {
     status: data.status === "closed" ? "closed" : "open",
     createdAt: data.createdAt,
     expiresAt: data.expiresAt,
+    kind: data.kind === "theater" ? "theater" : "regular",
   };
 }
 

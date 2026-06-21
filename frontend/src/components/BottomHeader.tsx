@@ -35,6 +35,7 @@ import { useStore } from "../store/useStore";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { useConnectors } from "../hooks/useConnectors";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
+import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
 
 const ICON_SIZE = 19;
@@ -119,7 +120,13 @@ export default function BottomHeader() {
     viewMode === "theater" ||
     (inBlockCall && inOpenChannel) ||
     (inBlockCall && !inOpenChannel && inGroupCall && !isPrivateCallHost);
-  const showPollControl = viewMode === "blocks";
+  const isTheaterSpeaker =
+    viewMode === "theater" && inCall && localRole === "speaker";
+  const isTheaterAudienceWithPoll =
+    viewMode === "theater" && inCall && !isTheaterSpeaker && !!activePoll;
+  const showPollControl =
+    viewMode === "blocks" || isTheaterSpeaker || isTheaterAudienceWithPoll;
+  const pollKind: "regular" | "theater" = isTheaterSpeaker ? "theater" : "regular";
   const showAssistButtons =
     inGroupCall &&
     hasAiNotesAccess(subscriptionPlan, billingManaged, workspaceEnterpriseActive) &&
@@ -130,7 +137,7 @@ export default function BottomHeader() {
   const followUpActive = useFollowUpCaptureStore((s) => s.active);
   const followUpBusy = useFollowUpCaptureStore((s) => s.busy);
   const toggleFollowUp = useFollowUpCaptureStore((s) => s.toggle);
-  const openAgentPanel = useStore((s) => s.openAgentPanel);
+  const insertAgentComposerText = useStore((s) => s.insertAgentComposerText);
   const { connectedIds, connect, connectingId, statuses } = useConnectors();
   const spotifyStatus = statuses.find((s) => s.id === "spotify");
   const spotifyConnected = connectedIds.has("spotify");
@@ -160,8 +167,13 @@ export default function BottomHeader() {
       : muted
         ? "Réactiver le micro"
         : "Couper le micro");
+  const theaterListenerLocked = viewMode === "theater" && inCall && !canSpeak;
   const handLabel = raiseHand ? "Baisser la main" : "Lever la main";
-  const cameraLabel = cameraOn ? "Couper la caméra" : "Activer la caméra";
+  const cameraLabel = theaterListenerLocked
+    ? "Caméra indisponible (listener)"
+    : cameraOn
+      ? "Couper la caméra"
+      : "Activer la caméra";
 
   const notificationButton = (
     <BottomBarButton
@@ -190,7 +202,7 @@ export default function BottomHeader() {
           void connect("spotify");
           return;
         }
-        openAgentPanel();
+        insertAgentComposerText(PLAY_SKILL_TEMPLATE);
       }}
       active={spotifyConnected}
       disabled={!spotifyConfigured || connectingId === "spotify"}
@@ -229,9 +241,11 @@ export default function BottomHeader() {
               ? "Fermer le sondage"
               : activePoll
                 ? "Voir le sondage"
-                : "Sondage"
+                : isTheaterSpeaker
+                  ? "Sondage théâtre (30s)"
+                  : "Sondage"
           }
-          onClick={() => togglePollExperience(activeRoomId)}
+          onClick={() => togglePollExperience(activeRoomId, pollKind)}
           active={pollExperienceOpen}
         >
           <BarChart3 size={ICON_SIZE} />
@@ -254,16 +268,16 @@ export default function BottomHeader() {
         label={cameraLabel}
         onClick={() => void toggleCamera()}
         active={cameraOn}
-        disabled={viewMode === "theater" && !inCall}
+        disabled={(viewMode === "theater" && !inCall) || theaterListenerLocked}
       >
         {cameraOn ? <Video size={ICON_SIZE} /> : <VideoOff size={ICON_SIZE} />}
       </BottomBarButton>
 
       <BottomBarButton
-        label="Partage d'écran"
+        label={theaterListenerLocked ? "Partage écran indisponible (listener)" : "Partage d'écran"}
         onClick={() => void toggleScreenShare()}
         active={screenSharing}
-        disabled={viewMode === "theater" && !inCall}
+        disabled={(viewMode === "theater" && !inCall) || theaterListenerLocked}
       >
         <MonitorUp size={ICON_SIZE} />
       </BottomBarButton>

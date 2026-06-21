@@ -1,17 +1,21 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import clsx from "clsx";
-import { Check, Crown, LayoutGrid, Plus, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, Crown, Plus, UsersRound, X } from "lucide-react";
 import {
   LOCAL_USER_ID,
   serverRoleLabel,
-  workspaceInitials,
   type ServerRole,
   type Workspace,
 } from "../../lib/workspaces";
+import { ownedWorkspaceLimitMessage } from "../../lib/subscriptionPlans";
 import { useAuthStore } from "../../store/useAuthStore";
-import { useWorkspacesStore, workspaceLabel } from "../../store/useWorkspacesStore";
+import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspaceOverlayStore } from "../../store/useWorkspaceOverlayStore";
+import WorkspaceIcon from "./WorkspaceIcon";
+
+type OverlayView = "list" | "create" | "join";
 
 function WorkspaceRow({
   workspace,
@@ -35,13 +39,10 @@ function WorkspaceRow({
         onClick={() => onSelect(workspace.id)}
         aria-current={active ? "true" : undefined}
       >
-        <span
+        <WorkspaceIcon
+          workspace={workspace}
           className="workspace-overlay__row-icon workspace-overlay__row-icon--server"
-          style={{ backgroundColor: workspace.accent }}
-          aria-hidden
-        >
-          {workspaceInitials(workspace.name)}
-        </span>
+        />
         <span className="min-w-0 flex-1 text-left">
           <span className="workspace-overlay__row-name">{workspace.name}</span>
           <span className="workspace-overlay__row-address">{serverRoleLabel(role)}</span>
@@ -62,22 +63,28 @@ export default function WorkspaceOverlay() {
   const activeRoomId = useStore((s) => s.activeRoomId);
   const userDisplayName = useStore((s) => s.userDisplayName);
   const userEmail = useStore((s) => s.userEmail);
+  const subscriptionPlan = useStore((s) => s.subscriptionPlan);
+  const billingManaged = useStore((s) => s.billingManaged);
   const switchWorkspace = useStore((s) => s.switchWorkspace);
+  const openSettingsPage = useStore((s) => s.openSettingsPage);
+  const setSettingsTab = useStore((s) => s.setSettingsTab);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const memberships = useWorkspacesStore((s) => s.memberships);
   const customServers = useWorkspacesStore((s) => s.customServers);
   const roleIn = useWorkspacesStore((s) => s.roleIn);
+  const canUserCreateWorkspace = useWorkspacesStore((s) => s.canUserCreateWorkspace);
   const createWorkspace = useWorkspacesStore((s) => s.createWorkspace);
   const requestJoinWorkspace = useWorkspacesStore((s) => s.requestJoinWorkspace);
   const respondJoinRequest = useWorkspacesStore((s) => s.respondJoinRequest);
-  const pendingJoinRequests = useWorkspacesStore((s) => s.pendingJoinRequests);
   const incomingJoinRequests = useWorkspacesStore((s) => s.incomingJoinRequests);
 
+  const [view, setView] = useState<OverlayView>("list");
   const [draftName, setDraftName] = useState("");
   const [joinId, setJoinId] = useState("");
   const [joinBusy, setJoinBusy] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinSent, setJoinSent] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [respondBusyUid, setRespondBusyUid] = useState<string | null>(null);
 
   const ownerUserId = firebaseUid ?? LOCAL_USER_ID;
@@ -86,6 +93,35 @@ export default function WorkspaceOverlay() {
     () => useWorkspacesStore.getState().joinedWorkspaces(ownerUserId),
     [memberships, customServers, ownerUserId],
   );
+
+  const canCreate = canUserCreateWorkspace(ownerUserId);
+  const workspaceLimitHint = ownedWorkspaceLimitMessage(subscriptionPlan, billingManaged);
+
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (view !== "list") {
+          setView("list");
+          return;
+        }
+        closePanel();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [panelOpen, closePanel, view]);
+
+  useEffect(() => {
+    if (panelOpen) return;
+    setView("list");
+    setDraftName("");
+    setJoinId("");
+    setJoinBusy(false);
+    setJoinError(null);
+    setJoinSent(false);
+    setCreateError(null);
+  }, [panelOpen]);
 
   if (!panelOpen) return null;
 
@@ -100,11 +136,20 @@ export default function WorkspaceOverlay() {
 
   const onCreate = (e: FormEvent) => {
     e.preventDefault();
+    setCreateError(null);
     if (!draftName.trim()) return;
-    const id = createWorkspace(draftName, userDisplayName, ownerUserId);
-    setDraftName("");
-    void useAuthStore.getState().syncWorkspacesToCloud();
-    selectWorkspace(id);
+    if (!canCreate) {
+      setCreateError(workspaceLimitHint);
+      return;
+    }
+    try {
+      const id = createWorkspace(draftName, userDisplayName, ownerUserId);
+      setDraftName("");
+      void useAuthStore.getState().syncWorkspacesToCloud();
+      selectWorkspace(id);
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : "Création impossible.");
+    }
   };
 
   const onRequestJoin = async (e: FormEvent) => {
@@ -150,197 +195,223 @@ export default function WorkspaceOverlay() {
     }
   };
 
-  const owned = joined.filter((server) => roleIn(server.id, ownerUserId) === "owner");
-  const memberOf = joined.filter((server) => roleIn(server.id, ownerUserId) === "member");
   const showIncoming =
     roleIn(activeRoomId, ownerUserId) === "owner" && incomingJoinRequests.length > 0;
 
-  return (
-    <>
+  return createPortal(
+    <div className="workspace-modal" role="dialog" aria-modal="true" aria-label="Choisir un serveur">
       <button
         type="button"
-        className="bottom-overlay__backdrop bottom-overlay__backdrop--left"
+        className="workspace-modal__backdrop"
         aria-label="Fermer la sélection de serveur"
         onClick={closePanel}
       />
-      <div
-        className="bottom-overlay bottom-overlay--compact bottom-overlay--popup-left bottom-overlay--workspace"
-        role="dialog"
-        aria-label="Choisir un serveur"
-      >
-        <div className="bottom-overlay__header">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <LayoutGrid size={16} className="shrink-0 text-muted-400" aria-hidden />
-            <div className="min-w-0">
-              <h3 className="bottom-overlay__title">Serveurs</h3>
-              <p className="bottom-overlay__subtitle truncate">
-                {workspaceLabel(activeRoomId)}
-              </p>
+      <div className="workspace-modal__card">
+        <button
+          type="button"
+          className="workspace-modal__close"
+          onClick={closePanel}
+          aria-label="Fermer"
+        >
+          <X size={18} aria-hidden />
+        </button>
+
+        {view === "list" ? (
+          <>
+            <header className="workspace-modal__header">
+              <h2 className="workspace-modal__title">Serveurs</h2>
+            </header>
+
+            <div className="workspace-modal__scroll">
+              {joined.length > 0 ? (
+                <ul className="workspace-overlay__list">
+                  {joined.map((workspace) => {
+                    const role = roleIn(workspace.id, ownerUserId);
+                    if (!role) return null;
+                    return (
+                      <WorkspaceRow
+                        key={workspace.id}
+                        workspace={workspace}
+                        role={role}
+                        active={activeRoomId === workspace.id}
+                        onSelect={selectWorkspace}
+                      />
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="workspace-modal__empty">
+                  Vous n'avez encore rejoint aucun serveur.
+                </p>
+              )}
+
+              {showIncoming && (
+                <ul className="workspace-overlay__list">
+                  {incomingJoinRequests.map((request) => (
+                    <li key={request.requesterUid} className="workspace-overlay__row">
+                      <span className="min-w-0 flex-1 text-left">
+                        <span className="workspace-overlay__row-name">
+                          {request.requesterName}
+                        </span>
+                        <span className="workspace-overlay__row-address">
+                          {request.requesterEmail}
+                        </span>
+                      </span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          className="workspace-overlay__create-btn"
+                          disabled={respondBusyUid === request.requesterUid}
+                          onClick={() =>
+                            void onRespond(request.requesterUid, true, {
+                              requesterName: request.requesterName,
+                              requesterEmail: request.requesterEmail,
+                            })
+                          }
+                          aria-label={`Accepter ${request.requesterName}`}
+                        >
+                          <Check size={14} aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          className="workspace-overlay__create-btn"
+                          disabled={respondBusyUid === request.requesterUid}
+                          onClick={() =>
+                            void onRespond(request.requesterUid, false, {
+                              requesterName: request.requesterName,
+                              requesterEmail: request.requesterEmail,
+                            })
+                          }
+                          aria-label={`Refuser ${request.requesterName}`}
+                        >
+                          <X size={14} aria-hidden />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          </div>
-        </div>
 
-        <div className="workspace-overlay__body">
-          {owned.length > 0 && (
-            <section className="workspace-overlay__section">
-              <h4 className="workspace-overlay__section-title">Mes serveurs</h4>
-              <ul className="workspace-overlay__list">
-                {owned.map((workspace) => {
-                  const role = roleIn(workspace.id, ownerUserId);
-                  if (!role) return null;
-                  return (
-                    <WorkspaceRow
-                      key={workspace.id}
-                      workspace={workspace}
-                      role={role}
-                      active={activeRoomId === workspace.id}
-                      onSelect={selectWorkspace}
-                    />
-                  );
-                })}
-              </ul>
-            </section>
-          )}
+            <div className="workspace-modal__footer">
+              <button
+                type="button"
+                className="workspace-modal__cta workspace-modal__cta--secondary"
+                onClick={() => setView("join")}
+                aria-label="Rejoindre un serveur"
+              >
+                <UsersRound size={16} aria-hidden />
+                Rejoindre
+              </button>
+              <button
+                type="button"
+                className="workspace-modal__cta workspace-modal__cta--primary"
+                onClick={() => setView("create")}
+                aria-label="Créer un serveur"
+              >
+                <Plus size={16} aria-hidden />
+                Créer
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <header className="workspace-modal__header workspace-modal__header--with-back">
+              <button
+                type="button"
+                className="workspace-modal__back"
+                onClick={() => setView("list")}
+              >
+                <ArrowLeft size={16} aria-hidden />
+                Retour
+              </button>
+              <h2 className="workspace-modal__title">
+                {view === "create" ? "Créer un serveur" : "Rejoindre un serveur"}
+              </h2>
+            </header>
 
-          {memberOf.length > 0 && (
-            <section className="workspace-overlay__section">
-              <h4 className="workspace-overlay__section-title">Serveurs rejoints</h4>
-              <ul className="workspace-overlay__list">
-                {memberOf.map((workspace) => {
-                  const role = roleIn(workspace.id, ownerUserId);
-                  if (!role) return null;
-                  return (
-                    <WorkspaceRow
-                      key={workspace.id}
-                      workspace={workspace}
-                      role={role}
-                      active={activeRoomId === workspace.id}
-                      onSelect={selectWorkspace}
-                    />
-                  );
-                })}
-              </ul>
-            </section>
-          )}
-
-          {showIncoming && (
-            <section className="workspace-overlay__section">
-              <h4 className="workspace-overlay__section-title">Demandes en attente</h4>
-              <ul className="workspace-overlay__list">
-                {incomingJoinRequests.map((request) => (
-                  <li key={request.requesterUid} className="workspace-overlay__row">
-                    <span className="min-w-0 flex-1 text-left">
-                      <span className="workspace-overlay__row-name">
-                        {request.requesterName}
-                      </span>
-                      <span className="workspace-overlay__row-address">
-                        {request.requesterEmail}
-                      </span>
-                    </span>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button
-                        type="button"
-                        className="workspace-overlay__create-btn"
-                        disabled={respondBusyUid === request.requesterUid}
-                        onClick={() =>
-                          void onRespond(request.requesterUid, true, {
-                            requesterName: request.requesterName,
-                            requesterEmail: request.requesterEmail,
-                          })
-                        }
-                        aria-label={`Accepter ${request.requesterName}`}
-                      >
-                        <Check size={14} aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        className="workspace-overlay__create-btn"
-                        disabled={respondBusyUid === request.requesterUid}
-                        onClick={() =>
-                          void onRespond(request.requesterUid, false, {
-                            requesterName: request.requesterName,
-                            requesterEmail: request.requesterEmail,
-                          })
-                        }
-                        aria-label={`Refuser ${request.requesterName}`}
-                      >
-                        <X size={14} aria-hidden />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          <section className="workspace-overlay__section">
-            <h4 className="workspace-overlay__section-title">Rejoindre un serveur</h4>
-            <form className="workspace-overlay__create" onSubmit={(e) => void onRequestJoin(e)}>
-              <p className="workspace-overlay__create-label">
-                Collez le lien d&apos;invitation partagé par le propriétaire.
-              </p>
-              <div className="workspace-overlay__create-row">
-                <input
-                  type="text"
-                  className="workspace-overlay__create-input"
-                  placeholder="https://…?workspace=ws-…"
-                  value={joinId}
-                  disabled={joinBusy}
-                  onChange={(e) => {
-                    setJoinId(e.target.value);
-                    setJoinError(null);
-                    setJoinSent(false);
-                  }}
-                />
-                <button
-                  type="submit"
-                  className="workspace-overlay__create-btn"
-                  disabled={joinBusy || !joinId.trim()}
+            <div className={clsx("workspace-modal__scroll", "workspace-modal__scroll--form")}>
+              {view === "create" ? (
+                <form className="workspace-modal__form" onSubmit={onCreate}>
+                  <input
+                    id="workspace-create-name"
+                    type="text"
+                    className="workspace-modal__input"
+                    placeholder="Nom du serveur…"
+                    value={draftName}
+                    disabled={!canCreate}
+                    autoFocus
+                    onChange={(e) => {
+                      setDraftName(e.target.value);
+                      setCreateError(null);
+                    }}
+                  />
+                  {createError ? (
+                    <p className="workspace-modal__error">{createError}</p>
+                  ) : null}
+                  {!canCreate ? (
+                    <button
+                      type="button"
+                      className="workspace-modal__upgrade"
+                      onClick={() => {
+                        closePanel();
+                        setSettingsTab("usage");
+                        openSettingsPage();
+                      }}
+                      title={workspaceLimitHint}
+                    >
+                      Passer à Pro
+                      <ArrowUpRight size={14} aria-hidden />
+                    </button>
+                  ) : null}
+                  <button
+                    type="submit"
+                    className="workspace-modal__cta workspace-modal__cta--primary"
+                    disabled={!canCreate || !draftName.trim()}
+                  >
+                    <Plus size={16} aria-hidden />
+                    Créer le serveur
+                  </button>
+                </form>
+              ) : (
+                <form
+                  className="workspace-modal__form"
+                  onSubmit={(e) => void onRequestJoin(e)}
                 >
-                  Demander
-                </button>
-              </div>
-              {joinError ? (
-                <p className="workspace-overlay__create-label text-red-400">{joinError}</p>
-              ) : null}
-              {joinSent ? (
-                <p className="workspace-overlay__create-label text-emerald-400">
-                  Demande envoyée. Vous serez notifié si le propriétaire accepte.
-                </p>
-              ) : null}
-              {pendingJoinRequests.length > 0 ? (
-                <p className="workspace-overlay__create-label text-muted-500">
-                  En attente : {pendingJoinRequests.join(", ")}
-                </p>
-              ) : null}
-            </form>
-          </section>
-        </div>
-
-        <form className="workspace-overlay__create" onSubmit={onCreate}>
-          <label className="workspace-overlay__create-label" htmlFor="workspace-create-name">
-            Créer un serveur
-          </label>
-          <div className="workspace-overlay__create-row">
-            <input
-              id="workspace-create-name"
-              type="text"
-              className="workspace-overlay__create-input"
-              placeholder="Nom du serveur…"
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-            />
-            <button
-              type="submit"
-              className="workspace-overlay__create-btn"
-              disabled={!draftName.trim()}
-            >
-              <Plus size={14} aria-hidden />
-              Créer
-            </button>
-          </div>
-        </form>
+                  <input
+                    type="text"
+                    className="workspace-modal__input"
+                    placeholder="Lien ou identifiant du serveur…"
+                    value={joinId}
+                    disabled={joinBusy}
+                    autoFocus
+                    onChange={(e) => {
+                      setJoinId(e.target.value);
+                      setJoinError(null);
+                      setJoinSent(false);
+                    }}
+                  />
+                  {joinError ? (
+                    <p className="workspace-modal__error">{joinError}</p>
+                  ) : null}
+                  {joinSent ? (
+                    <p className="workspace-modal__success">Demande envoyée.</p>
+                  ) : null}
+                  <button
+                    type="submit"
+                    className="workspace-modal__cta workspace-modal__cta--primary"
+                    disabled={joinBusy || !joinId.trim()}
+                  >
+                    <UsersRound size={16} aria-hidden />
+                    Envoyer la demande
+                  </button>
+                </form>
+              )}
+            </div>
+          </>
+        )}
       </div>
-    </>
+    </div>,
+    document.body,
   );
 }

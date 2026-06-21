@@ -3,8 +3,6 @@ import type { ChatConnectorId } from "../chat/chatConnectors";
 import {
   fetchConnectorPreview,
   type ConnectorPreviewMessage,
-  type FigmaPreviewResult,
-  type NotionPreviewItem,
   type SpotifyPreviewResult,
 } from "../../lib/connectorsApi";
 import type { GoogleCalendarEvent } from "../../lib/calendarSync";
@@ -14,8 +12,6 @@ type PreviewState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "messages"; items: ConnectorPreviewMessage[] }
-  | { status: "notion"; items: NotionPreviewItem[] }
-  | { status: "figma"; data: FigmaPreviewResult }
   | { status: "spotify"; data: SpotifyPreviewResult }
   | { status: "calendar"; items: GoogleCalendarEvent[] };
 
@@ -42,14 +38,6 @@ export default function ConnectorPluginPreview({
         if (cancelled) return;
         if (connectorId === "gmail" || connectorId === "outlook") {
           setState({ status: "messages", items: data as ConnectorPreviewMessage[] });
-          return;
-        }
-        if (connectorId === "notion") {
-          setState({ status: "notion", items: data as NotionPreviewItem[] });
-          return;
-        }
-        if (connectorId === "figma") {
-          setState({ status: "figma", data: data as FigmaPreviewResult });
           return;
         }
         if (connectorId === "spotify") {
@@ -101,58 +89,6 @@ export default function ConnectorPluginPreview({
             ))
           )}
         </ul>
-      )}
-      {state.status === "notion" && (
-        <ul className="connector-plugin-preview__list">
-          {state.items.length === 0 ? (
-            <li className="connector-plugin-preview__meta">Aucune page trouvée.</li>
-          ) : (
-            state.items.map((item) => (
-              <li key={item.id} className="connector-plugin-preview__item">
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="connector-plugin-preview__title connector-plugin-preview__link"
-                >
-                  {item.title}
-                </a>
-                <span className="connector-plugin-preview__meta">{item.type}</span>
-              </li>
-            ))
-          )}
-        </ul>
-      )}
-      {state.status === "figma" && (
-        <div className="connector-plugin-preview__figma">
-          {state.data.profile?.handle && (
-            <p className="connector-plugin-preview__meta">@{state.data.profile.handle}</p>
-          )}
-          {state.data.hint && (
-            <p className="connector-plugin-preview__meta">{state.data.hint}</p>
-          )}
-          <ul className="connector-plugin-preview__list">
-            {state.data.files.length === 0 ? (
-              <li className="connector-plugin-preview__meta">Aucun fichier listé.</li>
-            ) : (
-              state.data.files.map((file) => (
-                <li key={file.key} className="connector-plugin-preview__item">
-                  <a
-                    href={`https://www.figma.com/file/${file.key}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="connector-plugin-preview__title connector-plugin-preview__link"
-                  >
-                    {file.name}
-                  </a>
-                  <span className="connector-plugin-preview__meta">
-                    {file.projectName || "Figma"}
-                  </span>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
       )}
       {state.status === "spotify" && (
         <div className="connector-plugin-preview__spotify">

@@ -1,150 +1,127 @@
-import clsx from "clsx";
-import { useEffect } from "react";
-import { useBilling } from "../../hooks/useBilling";
+import { useState } from "react";
+import { useBillingSummary } from "../../hooks/useBillingSummary";
+import { billingApi } from "../../lib/billingApi";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
-import {
-  billingModeLabel,
-  canEnableOnDemandUsage,
-  planLabel,
-} from "../../lib/subscriptionPlans";
-import SettingsComingSoon from "./SettingsComingSoon";
+
+function formatBillingDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("fr-CA", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
 
 export default function BillingSettingsSection() {
-  const subscriptionPlan = useStore((s) => s.subscriptionPlan);
-  const onDemandUsageEnabled = useStore((s) => s.onDemandUsageEnabled);
-  const openSettingsTab = useStore((s) => s.openSettingsTab);
-  const onDemandAvailable = canEnableOnDemandUsage(subscriptionPlan);
-  const {
-    stripeEnabled,
-    billingManaged,
-    onDemandAvailable: stripeOnDemand,
-    proPriceLabel,
-    loading,
-    error,
-    externalCheckoutOpen,
-    dismissExternalCheckoutNotice,
-    checkoutPro,
-    openPortal,
-    setOnDemand,
-    refreshProfile,
-  } = useBilling();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const setSubscriptionPlan = useStore((s) => s.setSubscriptionPlan);
+  const { summary, loading, error, reload } = useBillingSummary();
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [cancelRequested, setCancelRequested] = useState(false);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") === "success") {
-      void refreshProfile();
-    }
-  }, [refreshProfile]);
+  const hasPaidPlan = summary?.currentPlan === "pro" || summary?.currentPlan === "enterprise";
+  const canCancel =
+    hasPaidPlan &&
+    summary?.billingManaged &&
+    !summary.cancelAtPeriodEnd &&
+    !cancelRequested;
 
-  const handleOnDemandToggle = () => {
-    if (!onDemandAvailable) return;
-    if (stripeEnabled && stripeOnDemand) {
-      void setOnDemand(!onDemandUsageEnabled, 25);
+  const handleCancel = async () => {
+    if (!summary || !canCancel) return;
+    const confirmed = window.confirm(
+      summary.currentPlan === "enterprise"
+        ? "Annuler l'abonnement Entreprise à la fin de la période en cours ?"
+        : "Annuler l'abonnement Pro à la fin de la période en cours ?",
+    );
+    if (!confirmed) return;
+
+    setCancelBusy(true);
+    setActionError(null);
+    try {
+      if (summary.stripeEnabled) {
+        await billingApi.cancelSubscription(
+          summary.currentPlan === "enterprise" ? summary.workspaceId : null,
+        );
+        setCancelRequested(true);
+        await reload();
+        return;
+      }
+      if (summary.currentPlan === "pro") {
+        setSubscriptionPlan("free");
+        setCancelRequested(true);
+        await reload();
+        return;
+      }
+      setActionError("L'annulation Entreprise nécessite Stripe.");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Annulation impossible.");
+    } finally {
+      setCancelBusy(false);
     }
   };
 
-  return (
-    <>
+  if (!isAuthenticated) {
+    return (
       <section className="settings-section settings-section--card">
-        <h3 className="settings-section__label">Abonnement</h3>
         <p className="settings-section__hint">
-          L&apos;accès à l&apos;IA passe par un abonnement Pro. L&apos;usage à la demande
-          (pay-as-you-go) est un complément optionnel — disponible uniquement avec un abonnement
-          actif.
+          Connectez-vous pour consulter votre forfait et la date de prochain prélèvement.
         </p>
-        {error && <p className="settings-section__hint text-red-400">{error}</p>}
-        {externalCheckoutOpen && (
-          <p className="settings-section__hint text-amber-300">
-            Stripe est ouvert dans un autre onglet. Restez ici — votre forfait se mettra à jour
-            automatiquement dès confirmation.{" "}
-            <button
-              type="button"
-              className="underline underline-offset-2 hover:text-amber-100"
-              onClick={dismissExternalCheckoutNotice}
-            >
-              Fermer
-            </button>
-          </p>
-        )}
-        <dl className="settings-kv">
-          <div className="settings-kv__row">
-            <dt>Forfait</dt>
-            <dd>{planLabel(subscriptionPlan)}</dd>
-          </div>
-          <div className="settings-kv__row">
-            <dt>Facturation</dt>
-            <dd>{billingModeLabel(subscriptionPlan, onDemandUsageEnabled)}</dd>
-          </div>
-        </dl>
-        <div className="settings-section__stack">
-          {stripeEnabled ? (
-            <>
-              {subscriptionPlan !== "pro" ? (
-                <button
-                  type="button"
-                  className="settings-option"
-                  disabled={loading}
-                  onClick={() => void checkoutPro()}
-                >
-                  <span className="settings-option__title">Souscrire à Pro</span>
-                  <span className="settings-option__subtitle">
-                    {proPriceLabel} — paiement sécurisé via Stripe Checkout.
-                  </span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="settings-option"
-                  disabled={loading}
-                  onClick={() => void openPortal()}
-                >
-                  <span className="settings-option__title">Gérer l&apos;abonnement</span>
-                  <span className="settings-option__subtitle">
-                    Moyen de paiement, factures et résiliation via le portail Stripe.
-                  </span>
-                </button>
-              )}
-            </>
-          ) : (
-            <button
-              type="button"
-              className="settings-option"
-              onClick={() => openSettingsTab("usage")}
-            >
-              <span className="settings-option__title">Abonnement Pro</span>
-              <span className="settings-option__subtitle">
-                Forfait mensuel — requis pour l&apos;IA.
-              </span>
-            </button>
-          )}
-          <button
-            type="button"
-            disabled={!onDemandAvailable || loading || (stripeEnabled && !stripeOnDemand)}
-            onClick={handleOnDemandToggle}
-            className={clsx(
-              "settings-option",
-              onDemandAvailable && onDemandUsageEnabled && "settings-option--active",
-              !onDemandAvailable && "opacity-50",
-            )}
-          >
-            <span className="settings-option__title">Usage à la demande</span>
-            <span className="settings-option__subtitle">
-              {!onDemandAvailable
-                ? "Abonnement Pro requis pour activer l'usage à la demande."
-                : stripeEnabled && !stripeOnDemand
-                  ? "Add-on non configuré côté serveur."
-                  : onDemandUsageEnabled
-                    ? billingManaged
-                      ? "Add-on actif — synchronisé avec Stripe."
-                      : "Add-on actif — crédits facturés au fil des requêtes, en plus de l'abonnement."
-                    : "Add-on optionnel — crédits consommés au fil des requêtes, en complément du forfait."}
-            </span>
-          </button>
-        </div>
       </section>
-      {!stripeEnabled && (
-        <SettingsComingSoon detail="Moyen de paiement, factures et historique des transactions." />
+    );
+  }
+
+  return (
+    <section className="settings-section settings-section--card">
+      <h3 className="settings-section__label">Forfait actuel</h3>
+      {loading && !summary ? <p className="settings-section__hint">Chargement…</p> : null}
+      {(error || actionError) && (
+        <p className="settings-section__hint text-red-400">{actionError ?? error}</p>
       )}
-    </>
+      {summary ? (
+        <>
+          <dl className="settings-kv">
+            <div className="settings-kv__row">
+              <dt>Forfait</dt>
+              <dd>{summary.planLabel}</dd>
+            </div>
+            {summary.workspaceName ? (
+              <div className="settings-kv__row">
+                <dt>Workspace</dt>
+                <dd>{summary.workspaceName}</dd>
+              </div>
+            ) : null}
+            <div className="settings-kv__row">
+              <dt>Prochain prélèvement</dt>
+              <dd>{formatBillingDate(summary.nextBillingDate)}</dd>
+            </div>
+            {summary.cancelAtPeriodEnd || cancelRequested ? (
+              <div className="settings-kv__row">
+                <dt>Statut</dt>
+                <dd className="text-amber-300">Annulation prévue en fin de période</dd>
+              </div>
+            ) : null}
+          </dl>
+          {canCancel ? (
+            <div className="settings-section__stack mt-4">
+              <button
+                type="button"
+                className="settings-option settings-option--danger"
+                disabled={cancelBusy}
+                onClick={() => void handleCancel()}
+              >
+                <span className="settings-option__title">Annuler l&apos;abonnement</span>
+                <span className="settings-option__subtitle">
+                  L&apos;accès reste actif jusqu&apos;à la fin de la période en cours.
+                </span>
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </section>
   );
 }

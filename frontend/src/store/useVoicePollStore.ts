@@ -2,10 +2,12 @@ import { create } from "zustand";
 import {
   createPollOptionId,
   isPollExpired,
+  pollDurationMs,
   pollExpiresAt,
   shouldShowPollToUser,
   VOICE_POLL_MIN_OPTIONS,
   type VoicePoll,
+  type VoicePollKind,
   type VoicePollOption,
 } from "../lib/voicePoll";
 import {
@@ -22,21 +24,24 @@ interface VoicePollState {
   activePollByWorkspace: Record<string, VoicePoll | null>;
   composerOpenByWorkspace: Record<string, boolean>;
   votePanelOpenByWorkspace: Record<string, boolean>;
+  composerKindByWorkspace: Record<string, VoicePollKind>;
 
   isComposerOpen: (workspaceId: string) => boolean;
   isVotePanelOpen: (workspaceId: string) => boolean;
   getActivePoll: (workspaceId: string) => VoicePoll | null;
+  getComposerKind: (workspaceId: string) => VoicePollKind;
   ingestPoll: (poll: VoicePoll) => void;
-  openComposer: (workspaceId: string) => void;
+  openComposer: (workspaceId: string, kind?: VoicePollKind) => void;
   closeComposer: (workspaceId: string) => void;
   openVotePanel: (workspaceId: string) => void;
   closeVotePanel: (workspaceId: string) => void;
-  togglePollExperience: (workspaceId: string) => void;
+  togglePollExperience: (workspaceId: string, kind?: VoicePollKind) => void;
   publishPoll: (
     workspaceId: string,
     question: string,
     subtitle: string,
     optionLabels: string[],
+    kind?: VoicePollKind,
   ) => { ok: true } | { ok: false; error: string };
   vote: (workspaceId: string, optionId: string) => void;
   closePoll: (workspaceId: string) => void;
@@ -62,8 +67,14 @@ function normalizeOptions(labels: string[]): VoicePollOption[] {
     .map((label) => ({ id: createPollOptionId(), label }));
 }
 
-function ensureChatPanelOpen(): void {
+function ensureChatPanelOpen(kind: VoicePollKind = "regular"): void {
   const store = useStore.getState();
+  if (kind === "theater") {
+    if (!store.chatPanelOpen || store.chatPanelMode !== "theater") {
+      store.openTheaterChatPanel();
+    }
+    return;
+  }
   if (!store.chatPanelOpen || store.chatPanelMode !== "agent") {
     store.openAgentPanel();
   }
@@ -100,6 +111,7 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
   activePollByWorkspace: {},
   composerOpenByWorkspace: {},
   votePanelOpenByWorkspace: {},
+  composerKindByWorkspace: {},
 
   isComposerOpen: (workspaceId) => get().composerOpenByWorkspace[workspaceId] ?? false,
 
@@ -109,6 +121,8 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
     const poll = get().activePollByWorkspace[workspaceId] ?? null;
     return purgeExpiredPollIfNeeded(workspaceId, poll);
   },
+
+  getComposerKind: (workspaceId) => get().composerKindByWorkspace[workspaceId] ?? "regular",
 
   ingestPoll: (poll) => {
     if (isPollExpired(poll)) return;
@@ -139,11 +153,12 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
     }
   },
 
-  openComposer: (workspaceId) => {
-    ensureChatPanelOpen();
+  openComposer: (workspaceId, kind = "regular") => {
+    ensureChatPanelOpen(kind);
     set((state) => ({
       composerOpenByWorkspace: { ...state.composerOpenByWorkspace, [workspaceId]: true },
       votePanelOpenByWorkspace: { ...state.votePanelOpenByWorkspace, [workspaceId]: false },
+      composerKindByWorkspace: { ...state.composerKindByWorkspace, [workspaceId]: kind },
     }));
   },
 
@@ -157,7 +172,7 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
     const poll = get().getActivePoll(workspaceId);
     const userId = useAuthStore.getState().firebaseUid;
     if (!poll || !shouldShowPollToUser(poll, userId)) return;
-    ensureChatPanelOpen();
+    ensureChatPanelOpen(poll.kind ?? "regular");
     set((state) => ({
       votePanelOpenByWorkspace: { ...state.votePanelOpenByWorkspace, [workspaceId]: true },
       composerOpenByWorkspace: { ...state.composerOpenByWorkspace, [workspaceId]: false },
@@ -170,7 +185,7 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
     }));
   },
 
-  togglePollExperience: (workspaceId) => {
+  togglePollExperience: (workspaceId, kind = "regular") => {
     const poll = get().getActivePoll(workspaceId);
     const userId = useAuthStore.getState().firebaseUid;
     const visiblePoll =
@@ -189,10 +204,10 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
       return;
     }
 
-    get().openComposer(workspaceId);
+    get().openComposer(workspaceId, kind);
   },
 
-  publishPoll: (workspaceId, question, subtitle, optionLabels) => {
+  publishPoll: (workspaceId, question, subtitle, optionLabels, kind) => {
     const trimmedQuestion = question.trim();
     const trimmedSubtitle = subtitle.trim();
     if (!trimmedQuestion) {
@@ -209,6 +224,7 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
       return { ok: false, error: "Connectez-vous pour publier un sondage." };
     }
 
+    const resolvedKind: VoicePollKind = kind ?? get().getComposerKind(workspaceId);
     const createdAt = Date.now();
     const poll: VoicePoll = {
       id: `poll-${createdAt}`,
@@ -221,7 +237,8 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
       createdByName: currentUserName(),
       status: "open",
       createdAt,
-      expiresAt: pollExpiresAt(createdAt),
+      expiresAt: pollExpiresAt(createdAt, pollDurationMs(resolvedKind)),
+      kind: resolvedKind,
     };
 
     notifyWorkspaceOfPoll(poll);
@@ -306,10 +323,17 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
       const activePollByWorkspace = { ...state.activePollByWorkspace };
       const composerOpenByWorkspace = { ...state.composerOpenByWorkspace };
       const votePanelOpenByWorkspace = { ...state.votePanelOpenByWorkspace };
+      const composerKindByWorkspace = { ...state.composerKindByWorkspace };
       delete activePollByWorkspace[workspaceId];
       delete composerOpenByWorkspace[workspaceId];
       delete votePanelOpenByWorkspace[workspaceId];
-      return { activePollByWorkspace, composerOpenByWorkspace, votePanelOpenByWorkspace };
+      delete composerKindByWorkspace[workspaceId];
+      return {
+        activePollByWorkspace,
+        composerOpenByWorkspace,
+        votePanelOpenByWorkspace,
+        composerKindByWorkspace,
+      };
     });
   },
 }));

@@ -6,13 +6,13 @@ import { createPortal } from "react-dom";
 import {
   LOCAL_USER_ID,
   serverRoleLabel,
-  workspaceInitials,
   type ServerRole,
   type Workspace,
 } from "../../lib/workspaces";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import { useStore } from "../../store/useStore";
+import WorkspaceIcon from "./WorkspaceIcon";
 
 function WorkspaceTab({
   workspace,
@@ -25,7 +25,6 @@ function WorkspaceTab({
   active: boolean;
   onSelect: (id: string) => void;
 }) {
-  const initials = workspaceInitials(workspace.name);
   const title = `${workspace.name} — ${serverRoleLabel(role)}`;
 
   return (
@@ -40,13 +39,10 @@ function WorkspaceTab({
       aria-label={title}
       aria-current={active ? "true" : undefined}
     >
-      <span
+      <WorkspaceIcon
+        workspace={workspace}
         className="app-chrome-row__workspace-icon"
-        style={{ backgroundColor: workspace.accent }}
-        aria-hidden
-      >
-        {initials}
-      </span>
+      />
       <span className="truncate">{workspace.name}</span>
       {role === "owner" && (
         <Crown size={10} strokeWidth={2.25} className="shrink-0 text-amber-300/90" aria-hidden />
@@ -65,6 +61,7 @@ export default function WorkspaceSwitcher() {
   const customServers = useWorkspacesStore((s) => s.customServers);
   const roleIn = useWorkspacesStore((s) => s.roleIn);
   const createWorkspace = useWorkspacesStore((s) => s.createWorkspace);
+  const canUserCreateWorkspace = useWorkspacesStore((s) => s.canUserCreateWorkspace);
   const requestJoinWorkspace = useWorkspacesStore((s) => s.requestJoinWorkspace);
 
   const ownerUserId = firebaseUid ?? LOCAL_USER_ID;
@@ -125,11 +122,16 @@ export default function WorkspaceSwitcher() {
   const onCreate = (event: FormEvent) => {
     event.preventDefault();
     if (!draftName.trim()) return;
-    const id = createWorkspace(draftName, userDisplayName, ownerUserId);
-    setDraftName("");
-    setMenuOpen(false);
-    void useAuthStore.getState().syncWorkspacesToCloud();
-    setActiveRoom(id);
+    if (!canUserCreateWorkspace(ownerUserId)) return;
+    try {
+      const id = createWorkspace(draftName, userDisplayName, ownerUserId);
+      setDraftName("");
+      setMenuOpen(false);
+      void useAuthStore.getState().syncWorkspacesToCloud();
+      setActiveRoom(id);
+    } catch {
+      // Limite atteinte — ignoré dans ce menu legacy.
+    }
   };
 
   const onRequestJoin = async (event: FormEvent) => {

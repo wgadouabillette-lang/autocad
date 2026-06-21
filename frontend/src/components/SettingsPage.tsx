@@ -2,6 +2,7 @@ import clsx from "clsx";
 import {
   Bot,
   Cpu,
+  CreditCard,
   Gauge,
   LayoutGrid,
   LogOut,
@@ -12,7 +13,7 @@ import {
   Volume2,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   normalizeSettingsTab,
   type SettingsTab,
@@ -25,6 +26,7 @@ import PluginsSettingsSection from "./settings/PluginsSettingsSection";
 import AgentsSettingsSection from "./settings/AgentsSettingsSection";
 import AudioSettingsSection from "./settings/AudioSettingsSection";
 import UsageSettingsSection from "./settings/UsageSettingsSection";
+import BillingSettingsSection from "./settings/BillingSettingsSection";
 import VoiceSettingsSection from "./settings/VoiceSettingsSection";
 import { useAuthStore } from "../store/useAuthStore";
 import SettingsProfileHeader from "./settings/SettingsProfileHeader";
@@ -39,6 +41,7 @@ const TAB_TITLES: Record<SettingsTab, string> = {
   friends: "Friends",
   workspaces: "Workspaces",
   usage: "Plan & Usage",
+  billing: "Billing",
   agents: "Agents",
   voice: "Voice",
   audio: "Audio",
@@ -50,7 +53,8 @@ const TAB_DESCRIPTIONS: Record<SettingsTab, string> = {
   general: "Profil, interface et apparence.",
   friends: "Amis et invitations.",
   workspaces: "Vos workspaces, invitations et consommation IA Entreprise.",
-  usage: "Forfait, facturation et consommation.",
+  usage: "Forfaits, consommation IA et comparaison des plans.",
+  billing: "Forfait actuel et date de prochain prélèvement.",
   agents: "Personnalisation du chat, des follow-ups et des AI Notes.",
   voice: "Salons vocaux, enregistrements et options de capture.",
   audio: "Micro, sortie audio et traitement du signal.",
@@ -63,6 +67,7 @@ const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
   friends: Users,
   workspaces: LayoutGrid,
   usage: Gauge,
+  billing: CreditCard,
   agents: Bot,
   voice: Mic,
   audio: Volume2,
@@ -75,6 +80,7 @@ const TAB_PANELS: Record<SettingsTab, () => JSX.Element> = {
   friends: FriendsSettingsSection,
   workspaces: WorkspacesSettingsSection,
   usage: UsageSettingsSection,
+  billing: BillingSettingsSection,
   agents: AgentsSettingsSection,
   voice: VoiceSettingsSection,
   audio: AudioSettingsSection,
@@ -91,6 +97,7 @@ function buildNav(): NavItem[] {
   items.push(
     { kind: "separator" },
     { kind: "tab", id: "usage", label: "Plan & Usage" },
+    { kind: "tab", id: "billing", label: "Billing" },
     { kind: "tab", id: "agents", label: "Agents" },
     { kind: "tab", id: "voice", label: "Voice" },
     { kind: "tab", id: "audio", label: "Audio" },
@@ -104,11 +111,18 @@ function buildNav(): NavItem[] {
 export default function SettingsPage() {
   const activeTab = useStore((s) => s.settingsTab);
   const setSettingsTab = useStore((s) => s.setSettingsTab);
+  const closePage = useStore((s) => s.closePage);
   const signOut = useAuthStore((s) => s.signOut);
   const panelBodyRef = useRef<HTMLDivElement>(null);
+  const [enterAnim, setEnterAnim] = useState(false);
   const navItems = useMemo(() => buildNav(), []);
   const resolvedTab = useMemo(() => normalizeSettingsTab(activeTab), [activeTab]);
   const Panel = TAB_PANELS[resolvedTab] ?? GeneralSettingsSection;
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setEnterAnim(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     panelBodyRef.current?.scrollTo(0, 0);
@@ -120,12 +134,20 @@ export default function SettingsPage() {
     }
   }, [activeTab, resolvedTab, setSettingsTab]);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closePage("settings");
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [closePage]);
+
   return (
-    <div className="settings-view">
+    <div className={clsx("settings-view", enterAnim && "settings-view--enter")}>
       <div className="settings-view__frame">
         <div className="settings-view__layout">
           <nav className="settings-view__nav" aria-label="Settings sections">
-            <SettingsProfileHeader />
+            <SettingsProfileHeader onBack={() => closePage("settings")} />
             <ul className="settings-view__tabs">
               {navItems.map((item, index) => {
                 if (item.kind === "separator") {
@@ -171,12 +193,16 @@ export default function SettingsPage() {
 
           <div className="settings-view__panel">
             <header className="settings-view__panel-header">
-              <h2 className="settings-view__panel-title">{TAB_TITLES[resolvedTab]}</h2>
-              <p className="settings-view__panel-desc">{TAB_DESCRIPTIONS[resolvedTab]}</p>
+              <div className="settings-view__panel-content">
+                <h2 className="settings-view__panel-title">{TAB_TITLES[resolvedTab]}</h2>
+                <p className="settings-view__panel-desc">{TAB_DESCRIPTIONS[resolvedTab]}</p>
+              </div>
             </header>
 
             <div ref={panelBodyRef} className="settings-view__panel-body">
-              <Panel />
+              <div className="settings-view__panel-content">
+                <Panel />
+              </div>
             </div>
           </div>
         </div>

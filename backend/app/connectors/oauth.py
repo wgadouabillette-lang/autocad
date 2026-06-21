@@ -27,24 +27,36 @@ def _gc_states() -> None:
         _PENDING_STATES.pop(key, None)
 
 
-def create_authorize_session(connector_id: str, uid: str) -> tuple[str, str]:
+def create_authorize_session(
+    connector_id: str,
+    uid: str,
+    return_origin: str | None = None,
+    return_path: str | None = None,
+) -> tuple[str, str]:
     _gc_states()
     state = secrets.token_urlsafe(24)
     _PENDING_STATES[state] = {
         "connector_id": connector_id,
         "uid": uid,
         "created": time.time(),
+        "return_origin": return_origin,
+        "return_path": return_path,
     }
     url = build_authorize_url(connector_id, state)
     return state, url
 
 
-def pop_state(state: str) -> tuple[str, str] | None:
+def pop_state(state: str) -> tuple[str, str, str | None, str | None] | None:
     _gc_states()
     entry = _PENDING_STATES.pop(state, None)
     if not entry:
         return None
-    return str(entry["connector_id"]), str(entry["uid"])
+    return (
+        str(entry["connector_id"]),
+        str(entry["uid"]),
+        str(entry["return_origin"]).strip() if entry.get("return_origin") else None,
+        str(entry["return_path"]).strip() if entry.get("return_path") else None,
+    )
 
 
 async def exchange_code(connector_id: str, uid: str, code: str) -> dict[str, Any]:
@@ -59,20 +71,6 @@ async def exchange_code(connector_id: str, uid: str, code: str) -> dict[str, Any
         email = await _fetch_microsoft_email(tokens.get("access_token"))
         if email:
             tokens["account_email"] = email
-    elif spec.provider == "figma":
-        tokens = await _exchange_figma(code)
-        profile = await _fetch_figma_profile(tokens.get("access_token"))
-        if profile.get("email"):
-            tokens["account_email"] = profile["email"]
-        if profile.get("handle"):
-            tokens["account_name"] = profile["handle"]
-    elif spec.provider == "notion":
-        tokens = await _exchange_notion(code)
-        owner = tokens.pop("owner", None)
-        if isinstance(owner, dict):
-            user = owner.get("user") or {}
-            if isinstance(user, dict) and user.get("email"):
-                tokens["account_email"] = str(user["email"])
     elif spec.provider == "spotify":
         tokens = await _exchange_spotify(code)
         profile = await _fetch_spotify_profile(tokens.get("access_token"))
@@ -142,50 +140,6 @@ async def _fetch_microsoft_email(access_token: Any) -> str | None:
     return str(email).strip() if email else None
 
 
-async def _fetch_figma_profile(access_token: Any) -> dict[str, Any]:
-    if not access_token:
-        return {}
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.get(
-            "https://api.figma.com/v1/me",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-    if r.status_code != 200:
-        return {}
-    return r.json()
-
-
-async def _exchange_notion(code: str) -> dict[str, Any]:
-    import os
-
-    client_id = os.getenv("NOTION_CLIENT_ID", "")
-    client_secret = os.getenv("NOTION_CLIENT_SECRET", "")
-    basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(
-            "https://api.notion.com/v1/oauth/token",
-            headers={
-                "Authorization": f"Basic {basic}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": callback_url(),
-            },
-        )
-        r.raise_for_status()
-        data = r.json()
-    return {
-        "access_token": data.get("access_token"),
-        "refresh_token": data.get("refresh_token"),
-        "workspace_id": data.get("workspace_id"),
-        "workspace_name": data.get("workspace_name"),
-        "bot_id": data.get("bot_id"),
-        "owner": data.get("owner"),
-    }
-
-
 async def _exchange_microsoft(code: str) -> dict[str, Any]:
     import os
 
@@ -209,30 +163,6 @@ async def _exchange_microsoft(code: str) -> dict[str, Any]:
         "expires_in": data.get("expires_in"),
         "token_type": data.get("token_type"),
         "scope": data.get("scope"),
-    }
-
-
-async def _exchange_figma(code: str) -> dict[str, Any]:
-    import os
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(
-            "https://api.figma.com/v1/oauth/token",
-            data={
-                "client_id": os.getenv("FIGMA_CLIENT_ID", ""),
-                "client_secret": os.getenv("FIGMA_CLIENT_SECRET", ""),
-                "redirect_uri": callback_url(),
-                "code": code,
-                "grant_type": "authorization_code",
-            },
-        )
-        r.raise_for_status()
-        data = r.json()
-    return {
-        "access_token": data.get("access_token"),
-        "refresh_token": data.get("refresh_token"),
-        "expires_in": data.get("expires_in"),
-        "user_id": data.get("user_id_string"),
     }
 
 

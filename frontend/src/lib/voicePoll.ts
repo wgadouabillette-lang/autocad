@@ -5,6 +5,8 @@ export interface VoicePollOption {
 
 export const VOICE_POLL_OPTION_COUNT = 4;
 
+export type VoicePollKind = "regular" | "theater";
+
 export interface VoicePoll {
   id: string;
   workspaceId: string;
@@ -17,9 +19,19 @@ export interface VoicePoll {
   status: "open" | "closed";
   createdAt: number;
   expiresAt: number;
+  kind?: VoicePollKind;
 }
 
 export const VOICE_POLL_TTL_MS = 24 * 60 * 60 * 1000;
+export const THEATER_POLL_TTL_MS = 30 * 1000;
+
+export function pollDurationMs(kind?: VoicePollKind): number {
+  return kind === "theater" ? THEATER_POLL_TTL_MS : VOICE_POLL_TTL_MS;
+}
+
+export function isTheaterPoll(poll: VoicePoll): boolean {
+  return poll.kind === "theater";
+}
 
 export const VOICE_POLL_MIN_OPTIONS = 2;
 export const VOICE_POLL_MAX_OPTIONS = 6;
@@ -56,8 +68,11 @@ export function shouldShowPollToUser(
   return !poll.votesByUserId[userId];
 }
 
-export function pollExpiresAt(createdAt: number): number {
-  return createdAt + VOICE_POLL_TTL_MS;
+export function pollExpiresAt(
+  createdAt: number,
+  durationMs: number = VOICE_POLL_TTL_MS,
+): number {
+  return createdAt + durationMs;
 }
 
 export function isPollExpired(poll: VoicePoll, now = Date.now()): boolean {

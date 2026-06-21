@@ -106,6 +106,12 @@ service cloud.firestore {
       return path.matches('friendChats/[^/]+');
     }
 
+    function isOptionalWorkspaceIconURL(data) {
+      return !('iconURL' in data)
+        || data.iconURL == null
+        || (data.iconURL is string && data.iconURL.size() <= 2048);
+    }
+
     function isValidSharedWorkspaceCreate(workspaceId) {
       let data = request.resource.data;
       return data.keys().hasAll(['id', 'name', 'accent', 'ownerId', 'ownerName', 'createdAt'])
@@ -118,7 +124,8 @@ service cloud.firestore {
         && data.ownerName is string
         && data.ownerName.size() >= 1
         && data.ownerName.size() <= 120
-        && data.createdAt is number;
+        && data.createdAt is number
+        && isOptionalWorkspaceIconURL(data);
     }
 
     function isValidSharedWorkspaceUpdate() {
@@ -133,6 +140,7 @@ service cloud.firestore {
         && data.ownerName is string
         && data.ownerName.size() >= 1
         && data.ownerName.size() <= 120
+        && isOptionalWorkspaceIconURL(data)
         && workspaceEnterpriseFieldsUnchanged();
     }
 
@@ -369,9 +377,17 @@ service cloud.firestore {
         || (data.kind == 'handoff'
           && data.handoffId is string
           && data.handoffId.size() > 0
-          && data.handoffId.size() <= 128))
+          && data.handoffId.size() <= 128)
+        || (data.kind == 'manage'
+          && data.manageDisplayText is string
+          && data.manageDisplayText.size() > 0
+          && data.manageDisplayText.size() <= 500
+          && data.manageEvents is list
+          && data.manageEvents.size() > 0
+          && data.manageEvents.size() <= 30))
         && (!('handoffTitle' in data) || data.handoffTitle is string)
-        && (!('handoffPreview' in data) || data.handoffPreview is string);
+        && (!('handoffPreview' in data) || data.handoffPreview is string)
+        && (!('manageSummary' in data) || data.manageSummary is string);
     }
 
     function canReadHandoff(handoffId) {
@@ -482,7 +498,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidSharedWorkspaceCreate(workspaceId);
       allow update: if isSharedWorkspaceOwner(workspaceId) && isValidSharedWorkspaceUpdate();
-      allow delete: if false;
+      allow delete: if isSharedWorkspaceOwner(workspaceId);
 
       match /joinRequests/{requesterUid} {
         allow read: if isSignedIn() && (
@@ -547,6 +563,18 @@ service cloud.firestore {
           && request.resource.data.createdByUserId == request.auth.uid;
         allow update: if isSignedIn() && isValidVoicePollPatch();
         allow delete: if isSignedIn();
+      }
+
+      match /theaterChat/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.kind in ["text", "hand_raise"]
+          && request.resource.data.authorName is string
+          && request.resource.data.authorName.size() >= 1
+          && request.resource.data.authorName.size() <= 120
+          && request.resource.data.clientCreatedAt is number;
+        allow update, delete: if false;
       }
 
       match /voiceRtc/{sessionId} {

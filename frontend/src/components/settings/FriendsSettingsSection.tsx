@@ -1,10 +1,28 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { UserPlus } from "lucide-react";
+import { resolvePersonPhotoURL } from "../../lib/peopleChat";
 import { usePeopleStore } from "../../store/usePeopleStore";
+import { useStore } from "../../store/useStore";
+import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
+import UserAvatar from "../UserAvatar";
 
 export default function FriendsSettingsSection() {
   const friends = usePeopleStore((s) => s.friends);
+  const personPhotoByUserId = usePeopleStore((s) => s.personPhotoByUserId);
+  const hydratePersonPhotos = usePeopleStore((s) => s.hydratePersonPhotos);
   const sendFriendRequest = usePeopleStore((s) => s.sendFriendRequest);
+  const activeRoomId = useStore((s) => s.activeRoomId);
+  const membersByWorkspace = useWorkspacePresenceStore((s) => s.membersByWorkspace);
+
+  const photoLookup = useMemo(
+    () => ({ preferredWorkspaceId: activeRoomId, photoCache: personPhotoByUserId }),
+    [activeRoomId, personPhotoByUserId],
+  );
+
+  useEffect(() => {
+    if (friends.length === 0) return;
+    void hydratePersonPhotos(friends.map((friend) => friend.id));
+  }, [friends, hydratePersonPhotos]);
 
   const [handle, setHandle] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +83,12 @@ export default function FriendsSettingsSection() {
         <ul className="settings-friends-list mt-4 border-t border-ink-700 pt-4">
           {friends.map((friend) => (
             <li key={friend.id} className="settings-friends-list__row">
+              <UserAvatar
+                userId={friend.id}
+                name={friend.name}
+                photoURL={resolvePersonPhotoURL(friend.id, membersByWorkspace, photoLookup)}
+                className="settings-friends-list__avatar"
+              />
               <span className="settings-friends-list__main">
                 <span className="settings-friends-list__name">{friend.name}</span>
                 <span className="settings-friends-list__meta">@{friend.handle}</span>

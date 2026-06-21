@@ -20,18 +20,6 @@ export const CHAT_CONNECTORS = [
     Logo: CHAT_APP_LOGOS.outlook,
   },
   {
-    id: "notion",
-    label: "Notion",
-    slash: "/notion",
-    Logo: CHAT_APP_LOGOS.notion,
-  },
-  {
-    id: "figma",
-    label: "Figma",
-    slash: "/figma",
-    Logo: CHAT_APP_LOGOS.figma,
-  },
-  {
     id: "spotify",
     label: "Spotify",
     slash: "/play",

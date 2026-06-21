@@ -1,7 +1,12 @@
 import clsx from "clsx";
 import { X } from "lucide-react";
-import { useMemo } from "react";
-import { localPollVote, pollVotePercent } from "../../lib/voicePoll";
+import { useEffect, useMemo, useState } from "react";
+import {
+  isTheaterPoll,
+  localPollVote,
+  pollTimeRemainingMs,
+  pollVotePercent,
+} from "../../lib/voicePoll";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useActiveVoicePoll } from "../../hooks/useActiveVoicePoll";
 import { useVoicePollStore } from "../../store/useVoicePollStore";
@@ -22,13 +27,32 @@ export default function ChatPollVotePanel() {
     [activePoll, firebaseUid],
   );
 
+  const isTheater = !!activePoll && isTheaterPoll(activePoll);
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(() =>
+    activePoll ? Math.ceil(pollTimeRemainingMs(activePoll) / 1000) : 0,
+  );
+
+  useEffect(() => {
+    if (!activePoll || !isTheater) return;
+    const tick = () => {
+      setSecondsRemaining(Math.max(0, Math.ceil(pollTimeRemainingMs(activePoll) / 1000)));
+    };
+    tick();
+    const id = window.setInterval(tick, 500);
+    return () => window.clearInterval(id);
+  }, [activePoll, isTheater]);
+
   if (!activePoll) return null;
 
   const isCreator = !!firebaseUid && activePoll.createdByUserId === firebaseUid;
   const hasVoted = localVote !== null;
 
   return (
-    <div className="chat-poll-vote" aria-label="Sondage du groupe">
+    <div
+      className="chat-poll-vote"
+      data-poll-kind={activePoll.kind ?? "regular"}
+      aria-label={isTheater ? "Sondage théâtre" : "Sondage du groupe"}
+    >
       <button
         type="button"
         className="chat-poll-vote__close"
@@ -37,6 +61,12 @@ export default function ChatPollVotePanel() {
       >
         <X size={18} aria-hidden />
       </button>
+
+      {isTheater && (
+        <div className="chat-poll-composer__badge" aria-live="polite">
+          {secondsRemaining} second poll
+        </div>
+      )}
 
       <div className="chat-poll-composer__body">
         <p className="chat-poll-composer__field chat-poll-composer__field--title">

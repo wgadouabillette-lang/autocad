@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useVoiceChannelSounds } from "../../hooks/useVoiceChannelSounds";
+import { useTheaterChatSync } from "../../hooks/useTheaterChatSync";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 import CallPresentView from "./CallPresentView";
@@ -13,7 +14,6 @@ import {
 } from "../../lib/calls";
 import { createTheaterState } from "../../lib/theater";
 import { debugLog } from "../../lib/debugLog";
-import GroupCallActionsBar from "./GroupCallActionsBar";
 import HandRaiseOverlay from "./HandRaiseOverlay";
 import MiniChatPopover from "../messages/MiniChatPopover";
 import OpenVoiceInCallView from "./OpenVoiceInCallView";
@@ -41,6 +41,7 @@ export default function CallsView() {
   const viewMode = useCallsStore((s) => s.getCallsViewMode(activeRoomId));
   const inBlockCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
   const inTheaterCall = useCallsStore((s) => s.isLocalInTheaterCall(activeRoomId));
+  useTheaterChatSync(activeRoomId, viewMode === "theater" && inTheaterCall);
   const ensureRoom = useCallsStore((s) => s.ensureRoom);
   const requestJoin = useCallsStore((s) => s.requestJoin);
   const openTheaterView = useCallsStore((s) => s.openTheaterView);
@@ -129,7 +130,9 @@ export default function CallsView() {
         <>
       <CallsViewHexDecor />
       {viewMode === "theater" ? (
-        <TheaterView workspaceId={activeRoomId} theater={theaterState} />
+        <div className="calls-view__stage calls-view__stage--theater">
+          <TheaterView workspaceId={activeRoomId} theater={theaterState} />
+        </div>
       ) : showSoloInCallMedia ? (
         <VoiceParticipantsInCallGrid
           workspaceId={activeRoomId}
@@ -168,7 +171,6 @@ export default function CallsView() {
         </div>
       )}
 
-      <GroupCallActionsBar />
       {viewMode === "theater" && <HandRaiseOverlay theater={theaterState} />}
       <MiniChatPopover />
         </>

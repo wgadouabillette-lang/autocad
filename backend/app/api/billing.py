@@ -67,6 +67,31 @@ class OnDemandEnableRequest(BaseModel):
     limitUsd: Optional[float] = 25.0
 
 
+class BillingTransactionItem(BaseModel):
+    id: str
+    date: str
+    description: str
+    amountLabel: str
+    status: str
+    invoiceUrl: Optional[str] = None
+
+
+class BillingSummaryResponse(BaseModel):
+    currentPlan: str
+    planLabel: str
+    billingManaged: bool
+    workspaceId: Optional[str] = None
+    workspaceName: Optional[str] = None
+    nextBillingDate: Optional[str] = None
+    cancelAtPeriodEnd: bool = False
+    stripeEnabled: bool
+    transactions: list[BillingTransactionItem] = []
+
+
+class CancelBillingRequest(BaseModel):
+    workspaceId: Optional[str] = None
+
+
 class ModelRateItem(BaseModel):
     modelKey: str
     label: str = ""
@@ -175,6 +200,105 @@ def billing_status(user: FirebaseUser = Depends(require_firebase_user)):
         billingManaged=billing_managed,
         stripeSubscriptionStatus=str(billing.get("stripeSubscriptionStatus") or "") or None,
     )
+
+
+def _workspace_display_name(workspace_id: str) -> str:
+    from app.core.firebase import _ensure_app, _db
+
+    wid = workspace_id.strip().lower()
+    _ensure_app()
+    if _db is None:
+        return wid
+    try:
+        snap = _db.collection("workspacesShared").document(wid).get()
+        if snap.exists:
+            name = str((snap.to_dict() or {}).get("name") or "").strip()
+            if name:
+                return name
+    except Exception:
+        pass
+    return wid
+
+
+@router.get("/summary", response_model=BillingSummaryResponse)
+def billing_summary(
+    workspaceId: Optional[str] = Query(None, max_length=128),
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    from app.ai.usage import get_usage_snapshot, get_workspace_usage_snapshot
+    from app.core.firebase import get_user_subscription_state, get_workspace_enterprise_state, is_workspace_member
+
+    stripe_enabled = settings.stripe_checkout_enabled
+    wid = workspaceId.strip().lower() if workspaceId else None
+
+    if wid:
+        plan, billing_managed, _, _ = get_workspace_enterprise_state(wid)
+        if plan == "enterprise" and billing_managed and is_workspace_member(user.uid, wid):
+            usage = get_workspace_usage_snapshot(wid)
+            details = stripe_service.get_enterprise_subscription_details(wid)
+            transactions = (
+                stripe_service.list_workspace_billing_transactions(wid)
+                if stripe_enabled
+                else []
+            )
+            return BillingSummaryResponse(
+                currentPlan="enterprise",
+                planLabel="Entreprise",
+                billingManaged=True,
+                workspaceId=wid,
+                workspaceName=_workspace_display_name(wid),
+                nextBillingDate=usage.period_end or details.get("nextBillingDate"),
+                cancelAtPeriodEnd=bool(details.get("cancelAtPeriodEnd")),
+                stripeEnabled=stripe_enabled,
+                transactions=[BillingTransactionItem(**row) for row in transactions],
+            )
+
+    plan, billing_managed, _ = get_user_subscription_state(user.uid)
+    if plan == "pro" and billing_managed:
+        usage = get_usage_snapshot(user.uid)
+        details = stripe_service.get_pro_subscription_details(user.uid)
+        transactions = (
+            stripe_service.list_user_billing_transactions(user.uid) if stripe_enabled else []
+        )
+        return BillingSummaryResponse(
+            currentPlan="pro",
+            planLabel="Pro",
+            billingManaged=True,
+            nextBillingDate=usage.period_end or details.get("nextBillingDate"),
+            cancelAtPeriodEnd=bool(details.get("cancelAtPeriodEnd")),
+            stripeEnabled=stripe_enabled,
+            transactions=[BillingTransactionItem(**row) for row in transactions],
+        )
+
+    return BillingSummaryResponse(
+        currentPlan="free",
+        planLabel="Gratuit",
+        billingManaged=False,
+        stripeEnabled=stripe_enabled,
+        transactions=[],
+    )
+
+
+@router.post("/cancel")
+def cancel_billing(
+    body: CancelBillingRequest,
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    _require_stripe()
+    try:
+        if body.workspaceId:
+            stripe_service.cancel_enterprise_subscription_at_period_end(
+                user.uid,
+                body.workspaceId,
+            )
+        else:
+            stripe_service.cancel_pro_subscription_at_period_end(user.uid)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Cancel subscription failed for %s", user.uid)
+        raise HTTPException(502, "Unable to cancel subscription.") from exc
+    return {"ok": True}
 
 
 @router.get("/usage", response_model=UsageResponse)
@@ -340,6 +464,43 @@ def disable_on_demand(user: FirebaseUser = Depends(require_firebase_user)):
         logger.exception("On-demand disable failed for %s", user.uid)
         raise HTTPException(502, "Unable to disable on-demand usage.") from exc
     return {"ok": True}
+
+
+@router.post("/sync", response_model=BillingStatusResponse)
+def sync_billing(user: FirebaseUser = Depends(require_firebase_user)):
+    """
+    Filet de sécurité (sandbox/dev): force la lecture de l'état Stripe et met à jour Firestore.
+
+    Utile quand le webhook Stripe n'est pas livré au backend local (pas de `stripe listen`)
+    ou si un événement webhook a été manqué en prod.
+    """
+    _require_stripe()
+    try:
+        result = stripe_service.sync_user_subscription_from_stripe(user.uid, user.email)
+    except Exception as exc:
+        logger.exception("Stripe sync failed for %s", user.uid)
+        raise HTTPException(502, "Stripe sync failed.") from exc
+
+    billing = load_user_billing(user.uid)
+    plan = str(result.get("subscriptionPlan") or "free")
+    billing_managed = bool(result.get("billingManaged"))
+    on_demand_raw = result.get("onDemandUsageEnabled")
+    on_demand = bool(on_demand_raw) if plan == "pro" and billing_managed else False
+    raw_limit = billing.get("onDemandLimitUsd")
+    on_demand_limit = (
+        float(raw_limit)
+        if on_demand and isinstance(raw_limit, (int, float))
+        else None
+    )
+    return BillingStatusResponse(
+        subscriptionPlan=plan,
+        onDemandUsageEnabled=on_demand,
+        onDemandLimitUsd=on_demand_limit,
+        billingManaged=billing_managed,
+        stripeSubscriptionStatus=(
+            str(result.get("stripeSubscriptionStatus") or "") or None
+        ),
+    )
 
 
 @router.post("/portal", response_model=CheckoutResponse)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { X } from "lucide-react";
-import { VOICE_POLL_OPTION_COUNT } from "../../lib/voicePoll";
+import { THEATER_POLL_TTL_MS, VOICE_POLL_OPTION_COUNT } from "../../lib/voicePoll";
 import { useVoicePollStore } from "../../store/useVoicePollStore";
 import { useStore } from "../../store/useStore";
 
@@ -20,6 +20,11 @@ export default function ChatPollComposer() {
   const workspaceId = useStore((s) => s.activeRoomId);
   const closeComposer = useVoicePollStore((s) => s.closeComposer);
   const publishPoll = useVoicePollStore((s) => s.publishPoll);
+  const composerKind = useVoicePollStore(
+    (s) => s.composerKindByWorkspace[workspaceId] ?? "regular",
+  );
+  const isTheater = composerKind === "theater";
+  const theaterDurationSec = Math.round(THEATER_POLL_TTL_MS / 1000);
 
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
@@ -94,6 +99,7 @@ export default function ChatPollComposer() {
       title,
       subtitle,
       options.map((option) => option.value),
+      composerKind,
     );
     if (!result.ok) {
       setError(result.error);
@@ -106,7 +112,11 @@ export default function ChatPollComposer() {
   };
 
   return (
-    <div className="chat-poll-composer" aria-label="Créer un sondage">
+    <div
+      className="chat-poll-composer"
+      data-poll-kind={composerKind}
+      aria-label={isTheater ? "Créer un sondage théâtre" : "Créer un sondage"}
+    >
       <button
         type="button"
         className="chat-poll-composer__close"
@@ -116,12 +126,18 @@ export default function ChatPollComposer() {
         <X size={18} aria-hidden />
       </button>
 
+      {isTheater && (
+        <div className="chat-poll-composer__badge" aria-hidden>
+          {theaterDurationSec} second poll
+        </div>
+      )}
+
       <div className="chat-poll-composer__body">
         <input
           className="chat-poll-composer__field chat-poll-composer__field--title"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="What should we decide?"
+          placeholder={isTheater ? "Quelle question pour la salle ?" : "What should we decide?"}
         />
         <input
           className="chat-poll-composer__field chat-poll-composer__field--subtitle"
@@ -161,7 +177,7 @@ export default function ChatPollComposer() {
 
       <footer className="chat-poll-composer__footer">
         <button type="button" className="chat-poll-composer__publish" onClick={handlePublish}>
-          Publish to the group
+          {isTheater ? `Lancer le sondage · ${theaterDurationSec}s` : "Publish to the group"}
         </button>
       </footer>
     </div>

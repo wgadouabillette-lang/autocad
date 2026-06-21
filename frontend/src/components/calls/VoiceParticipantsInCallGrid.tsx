@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { participantHasHandRaised, type CallUser } from "../../lib/calls";
-import { participantVideoStream } from "../../lib/webrtc/workspaceVoiceRtc";
+import { resolveCallParticipantVideoDisplay } from "../../lib/callMediaFeeds";
 import {
   voiceParticipantGridLayout,
   voiceParticipantTilePlacement,
@@ -27,19 +27,11 @@ export default function VoiceParticipantsInCallGrid({
   const localStream = useCallsStore((s) => s.localStream);
   const screenShareStream = useCallsStore((s) => s.screenShareStream);
   const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
-  const muteOthers = useCallsStore((s) => s.muteOthers);
   const handRaises = useCallsStore((s) => s.callsByRoom[workspaceId]?.handRaises ?? []);
 
   const participantCount = participants.length;
   const layout = voiceParticipantGridLayout(participantCount);
-  const soloWithMedia = participantCount === 1 && !!(cameraOn || screenSharing);
-
-  const localVideoStream =
-    screenSharing && screenShareStream
-      ? screenShareStream
-      : cameraOn && localStream
-        ? localStream
-        : null;
+  const soloLayout = participantCount === 1;
 
   return (
     <div className="open-voice-in-call">
@@ -47,7 +39,7 @@ export default function VoiceParticipantsInCallGrid({
         className={clsx(
           "open-voice-in-call__grid",
           layout.gridClass,
-          soloWithMedia && "open-voice-in-call__grid--solo-media",
+          soloLayout && "open-voice-in-call__grid--solo-media",
           layout.useFlexibleRows && "open-voice-in-call__grid--auto-rows",
         )}
         style={
@@ -59,6 +51,14 @@ export default function VoiceParticipantsInCallGrid({
       >
         {participants.map((participant, index) => {
           const remoteMedia = remoteMediaByUid[participant.id];
+          const { stream: videoStream, cover: videoCover } = resolveCallParticipantVideoDisplay({
+            isLocal: participant.isLocal,
+            cameraOn,
+            screenSharing,
+            localStream,
+            screenShareStream,
+            remoteMedia,
+          });
           return (
           <VoiceParticipantTile
             key={participant.id}
@@ -71,13 +71,9 @@ export default function VoiceParticipantsInCallGrid({
             fill
             shape={layout.tileShape}
             style={voiceParticipantTilePlacement(participantCount, index)}
-            videoStream={
-              participant.isLocal
-                ? localVideoStream
-                : participantVideoStream(remoteMedia)
-            }
+            videoStream={videoStream}
+            videoCover={videoCover}
             audioStream={participant.isLocal ? null : remoteMedia?.audioStream ?? null}
-            audioMuted={muteOthers}
           />
           );
         })}

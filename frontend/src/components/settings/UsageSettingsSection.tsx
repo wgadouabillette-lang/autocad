@@ -11,7 +11,7 @@ export default function UsageSettingsSection() {
   const settingsTab = useStore((s) => s.settingsTab);
   const isPro = subscriptionPlan === "pro" && billingManaged;
   const pollEnabled = settingsTab === "usage" && isAuthenticated && isPro;
-  const { usage: personalUsage, loading, error, refresh } = usePersonalUsage(pollEnabled);
+  const { usage: personalUsage, loading, error } = usePersonalUsage(pollEnabled);
 
   return (
     <>
@@ -25,16 +25,15 @@ export default function UsageSettingsSection() {
             <UsageMeter
               usage={personalUsage}
               showPercentProminent
-              subtitle="Se met à jour automatiquement pendant que vous utilisez l'IA."
+              compact
+              showAmounts={false}
+              showTokens={false}
+              showWarning={false}
             />
           )}
         </section>
       )}
-      <PlanSettingsSection
-        personalUsage={personalUsage}
-        usageLoading={loading}
-        onUsageRefresh={refresh}
-      />
+      <PlanSettingsSection />
     </>
   );
 }

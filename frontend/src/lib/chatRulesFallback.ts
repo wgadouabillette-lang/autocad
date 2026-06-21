@@ -2,8 +2,7 @@ const GREETINGS = ["hey", "hi", "hello", "yo", "salut", "bonjour", "coucou", "ho
 const THANKS = ["thanks", "thank you", "merci", "thx"];
 const GOODBYES = ["bye", "goodbye", "à bientôt", "a bientot", "au revoir"];
 
-const FREE_PLAN_UPGRADE =
-  "Passez au plan **Pro** dans **Paramètres → Facturation** pour débloquer l'assistant IA.";
+const FREE_PLAN_UPGRADE = "[Passer au plan Pro](forma://upgrade-pro)";
 
 /** Réponse affichée aux utilisateurs du plan Gratuit (sans appel réseau). */
 export function freePlanAiReply(prompt: string): string {

@@ -16,6 +16,7 @@ export interface Workspace {
   id: string;
   name: string;
   accent: string;
+  iconURL?: string | null;
   ownerId: string;
   ownerName: string;
   createdAt: number;

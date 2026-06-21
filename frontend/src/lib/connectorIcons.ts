@@ -7,7 +7,5 @@ export const CONNECTOR_ICON_FILES = {
   calendar: "google-calendar.svg",
   gmail: "gmail.svg",
   outlook: "outlook.svg",
-  notion: "notion.svg",
-  figma: "figma.svg",
   spotify: "spotify.svg",
 } as const;

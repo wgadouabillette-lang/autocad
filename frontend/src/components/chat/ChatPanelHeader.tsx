@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { AGENT_PANEL_TITLE } from "../../lib/appBrand";
 import { useMemo, useState } from "react";
 import { ArrowLeft, Calendar, History, Maximize2, Minimize2, Plus, Users, UsersRound } from "lucide-react";
 import { useMobileLayout } from "../../hooks/useMobileLayout";
@@ -173,7 +174,7 @@ export default function ChatPanelHeader() {
         ) : voiceAssistMode ? (
           chatPanelMode === "follow-up" ? "Follow-up" : "AI Notes"
         ) : (
-          "XYZ Superagent"
+          AGENT_PANEL_TITLE
         )}
       </h2>
 

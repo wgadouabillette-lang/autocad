@@ -1,7 +1,30 @@
-import type { SpotifyTrackCard } from "../../lib/connectorsApi";
+import { Pause, Play } from "lucide-react";
+import { useRef, useState } from "react";
+import type { SpotifyPlayState, SpotifyTrackCard } from "../../lib/connectorsApi";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../../lib/connectorIcons";
 
-export default function SpotifyTrackBubble({ track }: { track: SpotifyTrackCard }) {
+export default function SpotifyTrackBubble({
+  track,
+  playState,
+}: {
+  track: SpotifyTrackCard;
+  playState?: SpotifyPlayState;
+}) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const previewUrl = track.previewUrl?.trim() || null;
+
+  const togglePreview = () => {
+    const audio = audioRef.current;
+    if (!audio || !previewUrl) return;
+    if (previewPlaying) {
+      audio.pause();
+      setPreviewPlaying(false);
+      return;
+    }
+    void audio.play().then(() => setPreviewPlaying(true)).catch(() => setPreviewPlaying(false));
+  };
+
   return (
     <div className="spotify-track-card">
       <div className="spotify-track-card__art" aria-hidden>
@@ -16,6 +39,7 @@ export default function SpotifyTrackBubble({ track }: { track: SpotifyTrackCard 
           />
         )}
       </div>
+
       <div className="spotify-track-card__body">
         <p className="spotify-track-card__label">
           <img
@@ -25,13 +49,16 @@ export default function SpotifyTrackBubble({ track }: { track: SpotifyTrackCard 
             draggable={false}
           />
           Spotify
+          {playState?.requiresPremium && previewUrl ? (
+            <span className="spotify-track-card__badge">Extrait 30 s</span>
+          ) : null}
         </p>
         {track.url ? (
           <a
             href={track.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="spotify-track-card__title"
+            className="spotify-track-card__title spotify-track-card__title--link"
           >
             {track.name}
           </a>
@@ -43,6 +70,31 @@ export default function SpotifyTrackBubble({ track }: { track: SpotifyTrackCard 
           {track.album ? ` · ${track.album}` : ""}
         </p>
       </div>
+
+      {previewUrl ? (
+        <>
+          <audio
+            ref={audioRef}
+            src={previewUrl}
+            preload="none"
+            onEnded={() => setPreviewPlaying(false)}
+            onPause={() => setPreviewPlaying(false)}
+          />
+          <button
+            type="button"
+            className="spotify-track-card__play"
+            onClick={togglePreview}
+            aria-label={previewPlaying ? "Pause extrait" : "Lire l'extrait"}
+            title={previewPlaying ? "Pause" : "Lire l'extrait (30 s)"}
+          >
+            {previewPlaying ? (
+              <Pause size={16} fill="currentColor" aria-hidden />
+            ) : (
+              <Play size={16} fill="currentColor" aria-hidden />
+            )}
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }

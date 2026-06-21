@@ -1,5 +1,6 @@
 import { getAuthIdToken } from "./firebase/authToken";
 import type { CalendarSyncEvent, CalendarSyncResult } from "./calendarSync";
+import { isValidDate, normalizeDateKey, parseDateKey } from "./daySchedule";
 
 export interface OutlookCalendarEvent {
   id: string;
@@ -30,9 +31,21 @@ async function authHeaders(json = false): Promise<HeadersInit> {
 }
 
 function dayRangeIso(dateKey: string): { timeMin: string; timeMax: string } {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const start = new Date(year!, month! - 1, day!, 0, 0, 0, 0);
-  const end = new Date(year!, month! - 1, day!, 23, 59, 59, 999);
+  const safeKey = normalizeDateKey(dateKey);
+  const start = parseDateKey(safeKey);
+  start.setHours(0, 0, 0, 0);
+  const end = parseDateKey(safeKey);
+  end.setHours(23, 59, 59, 999);
+  if (!isValidDate(start) || !isValidDate(end)) {
+    const fallback = parseDateKey(normalizeDateKey(""));
+    fallback.setHours(0, 0, 0, 0);
+    const fallbackEnd = new Date(fallback);
+    fallbackEnd.setHours(23, 59, 59, 999);
+    return {
+      timeMin: fallback.toISOString(),
+      timeMax: fallbackEnd.toISOString(),
+    };
+  }
   return {
     timeMin: start.toISOString(),
     timeMax: end.toISOString(),
@@ -48,8 +61,24 @@ export async function fetchOutlookCalendarStatus(): Promise<OutlookCalendarStatu
   return (await r.json()) as OutlookCalendarStatus;
 }
 
-export async function fetchOutlookCalendarEvents(dateKey: string): Promise<OutlookCalendarEvent[]> {
-  const { timeMin, timeMax } = dayRangeIso(dateKey);
+function rangeIso(fromDateKey: string, toDateKey: string): { timeMin: string; timeMax: string } {
+  const start = parseDateKey(normalizeDateKey(fromDateKey));
+  start.setHours(0, 0, 0, 0);
+  const end = parseDateKey(normalizeDateKey(toDateKey));
+  end.setHours(23, 59, 59, 999);
+  if (!isValidDate(start) || !isValidDate(end)) {
+    return dayRangeIso(normalizeDateKey(""));
+  }
+  return {
+    timeMin: start.toISOString(),
+    timeMax: end.toISOString(),
+  };
+}
+
+async function fetchOutlookCalendarEventsInRange(
+  timeMin: string,
+  timeMax: string,
+): Promise<OutlookCalendarEvent[]> {
   const params = new URLSearchParams({ timeMin, timeMax });
   const r = await fetch(`${BASE}/events?${params.toString()}`, {
     headers: await authHeaders(),
@@ -59,8 +88,21 @@ export async function fetchOutlookCalendarEvents(dateKey: string): Promise<Outlo
     throw new Error(text || `HTTP ${r.status}`);
   }
   const data = (await r.json()) as { events?: OutlookCalendarEvent[]; reason?: string };
-  if (data.reason === "not_connected") return [];
+  if (data.reason === "not_connected" || data.reason === "not_configured") return [];
   return data.events ?? [];
+}
+
+export async function fetchOutlookCalendarEvents(dateKey: string): Promise<OutlookCalendarEvent[]> {
+  const { timeMin, timeMax } = dayRangeIso(dateKey);
+  return fetchOutlookCalendarEventsInRange(timeMin, timeMax);
+}
+
+export async function fetchOutlookCalendarEventsForRange(
+  fromDateKey: string,
+  toDateKey: string,
+): Promise<OutlookCalendarEvent[]> {
+  const { timeMin, timeMax } = rangeIso(fromDateKey, toDateKey);
+  return fetchOutlookCalendarEventsInRange(timeMin, timeMax);
 }
 
 export async function syncEventsToOutlookCalendar(

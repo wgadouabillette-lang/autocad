@@ -11,7 +11,7 @@ import { ArrowUp, ChevronDown, Plus, User, X, FileImage } from "lucide-react";
 import { presenceActivityFromModel } from "../lib/aiModelStroke";
 import { useAiComposerStore } from "../store/useAiComposerStore";
 import { usePresenceActivityStore } from "../store/usePresenceActivityStore";
-import { useStore } from "../store/useStore";
+import { useStore, updateActiveTabInTabs, type ChatMessage } from "../store/useStore";
 import { useCallsStore } from "../store/useCallsStore";
 import { usePeopleStore } from "../store/usePeopleStore";
 import { AI_MODELS, MODEL_SELECTOR_CHEVRON_GAP_CLASS, composerModelDisplay, modelOptionDisplay, type AiModel } from "../lib/aiModels";
@@ -20,6 +20,7 @@ import type { PromptActionDef } from "../lib/promptActions";
 import {
   filterMentionMenu,
   mentionablePeopleForWorkspace,
+  parsePeopleMentionsFromText,
   peopleHandlesForHighlight,
   type MentionMenuItem,
 } from "../lib/promptPeopleMentions";
@@ -32,7 +33,6 @@ import HighlightedPromptInput from "./chat/HighlightedPromptInput";
 import { useConnectors } from "../hooks/useConnectors";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { activeStepLabel } from "../lib/aiRun";
-import type { ChatMessage } from "../store/useStore";
 import StructuredAssistantMessage, {
   AssistantPendingBubble,
 } from "./chat/StructuredAssistantMessage";
@@ -44,21 +44,21 @@ import type { ChatSkillDef } from "../lib/chatSkills";
 import {
   CREATE_GROUP_COMPOSER_TEXT,
   CREATE_GROUP_SKILL_TEMPLATE,
-  MANAGE_COMPOSER_TEMPLATE,
   MANAGE_SKILL_TEMPLATE,
+  MEETING_SKILL_TEMPLATE,
   RECAP_SKILL_TEMPLATE,
   HANDOFF_SKILL_TEMPLATE,
 } from "../lib/chatSkills";
 import {
   buildManageSkillPayload,
+  createDefaultManageDraft,
   isManageDraftReady,
-  manageComposerTaskSelection,
-  looksLikeManageComposer,
-  parseManageComposerText,
   parseManagePromptFromText,
+  normalizeManagePromptDraft,
   type ManageSchedulePromptDraft,
 } from "../lib/manageSchedulePrompt";
 import ManageSchedulePromptLine from "./chat/ManageSchedulePromptLine";
+import MeetingPromptLine from "./chat/MeetingPromptLine";
 import PlayPromptLine from "./chat/PlayPromptLine";
 import SpotifyTrackBubble from "./chat/SpotifyTrackBubble";
 import {
@@ -85,6 +85,28 @@ import {
 import { useAuthStore } from "../store/useAuthStore";
 import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
 import { debugLog } from "../lib/debugLog";
+import SkillTimeline, {
+  type SkillTimelineStep,
+  type SkillTimelineSuccess,
+} from "./chat/SkillTimeline";
+import {
+  buildPlayTimelineSteps,
+  GROUP_TIMELINE_STEPS,
+  HANDOFF_TIMELINE_STEPS,
+  MANAGE_TIMELINE_STEPS,
+  MEETING_TIMELINE_STEPS,
+  RECAP_TIMELINE_STEPS,
+  SKILL_ACTION_LABELS,
+  SKILL_SUCCESS_LABELS,
+  type SkillTimelineId,
+} from "../lib/skillTimelines";
+import {
+  buildMeetingDisplayText,
+  createDefaultMeetingDraft,
+  isMeetingDraftReady,
+  runMeetingSkill,
+  type MeetingPromptDraft,
+} from "../lib/meetingSkill";
 
 const CHAT_COMPOSER_SURFACE_STYLE: CSSProperties = {
   backgroundColor: "var(--forma-chat-composer-bg)",
@@ -138,20 +160,47 @@ function userPromptStickyZIndex(chat: ChatMessage[], index: number): number {
   return Math.min(24, 10 + n);
 }
 
+function ApplyToCalendarButton({
+  chatIndex,
+  applied,
+}: {
+  chatIndex: number;
+  applied?: boolean;
+}) {
+  const applyManageEventsForChatMessage = useStore(
+    (s) => s.applyManageEventsForChatMessage,
+  );
+  return (
+    <button
+      type="button"
+      className="chat-connectors-row__connect"
+      disabled={applied}
+      onClick={() => applyManageEventsForChatMessage(chatIndex)}
+    >
+      {applied ? "Appliqué au calendrier" : "Appliquer au calendrier"}
+    </button>
+  );
+}
+
 function ChatBubble({
   message,
+  chatIndex,
   reveal,
   onRevealComplete,
 }: {
   message: ChatMessage;
+  chatIndex?: number;
   reveal?: boolean;
   onRevealComplete?: () => void;
 }) {
   if (message.role === "system") return null;
 
   if (message.role === "user") {
-    const managePrompt =
+    const managePromptRaw =
       message.managePrompt ?? parseManagePromptFromText(message.text) ?? undefined;
+    const managePrompt = managePromptRaw
+      ? normalizeManagePromptDraft(managePromptRaw)
+      : undefined;
     if (
       managePrompt &&
       (message.source === "manage-prompt" || /(?:^|\s)\/manage\b/i.test(message.text))
@@ -176,6 +225,14 @@ function ChatBubble({
       );
     }
 
+    if (message.meetingPrompt && message.source === "meeting-prompt") {
+      return (
+        <div className="chat-user-bubble chat-user-bubble--meeting-prompt">
+          <MeetingPromptLine draft={message.meetingPrompt} readOnly peopleHandles={[]} />
+        </div>
+      );
+    }
+
     return (
       <div className="chat-user-bubble">
         <span className="min-w-0 whitespace-pre-wrap break-words">{message.text}</span>
@@ -183,16 +240,33 @@ function ChatBubble({
     );
   }
 
+  const showManageCta =
+    message.source === "manage-skill" &&
+    Array.isArray(message.manageEvents) &&
+    message.manageEvents.length > 0 &&
+    typeof chatIndex === "number";
+
   return (
     <div className="chat-assistant-bubble">
       {message.spotifyTrack ? (
-        <SpotifyTrackBubble track={message.spotifyTrack} />
+        <SpotifyTrackBubble track={message.spotifyTrack} playState={message.spotifyPlay} />
       ) : null}
       <StructuredAssistantMessage
         text={message.text}
         reveal={reveal}
         onRevealComplete={onRevealComplete}
       />
+      {showManageCta ? (
+        <div className="manage-sync-cta-wrap">
+          <p className="manage-sync-prompt">
+            Souhaitez-vous ajouter ces blocs à votre calendrier ?
+          </p>
+          <ApplyToCalendarButton
+            chatIndex={chatIndex!}
+            applied={message.manageEventsApplied}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -228,6 +302,9 @@ export default function ChatPanel() {
   const friends = usePeopleStore((s) => s.friends);
   const createGroupChat = usePeopleStore((s) => s.createGroupChat);
   const setActiveFriendThread = usePeopleStore((s) => s.setActiveFriendThread);
+  const sendMeetingInviteMessage = usePeopleStore((s) => s.sendMeetingInviteMessage);
+  const ensureColleagueThread = usePeopleStore((s) => s.ensureColleagueThread);
+  const openCalendarPanel = useStore((s) => s.openCalendarPanel);
   const colleagueThreads = usePeopleStore((s) =>
     s.colleagueThreadsForWorkspace(activeRoomId),
   );
@@ -259,6 +336,7 @@ export default function ChatPanel() {
   useEffect(() => {
     ensureRoom(activeRoomId);
   }, [activeRoomId, ensureRoom]);
+
   const peopleHandles = useMemo(
     () => peopleHandlesForHighlight(mentionablePeople),
     [mentionablePeople],
@@ -275,12 +353,31 @@ export default function ChatPanel() {
   const [slashFilter, setSlashFilter] = useState("");
   const [slashIndex, setSlashIndex] = useState(0);
   const [activeComposerSkill, setActiveComposerSkill] = useState<
-    "manage" | "group" | "recap" | null
+    "manage" | "group" | "recap" | "meeting" | null
   >(null);
+  const [manageDraft, setManageDraft] = useState<ManageSchedulePromptDraft>(
+    createDefaultManageDraft,
+  );
+  const [meetingDraft, setMeetingDraft] = useState<MeetingPromptDraft>(
+    createDefaultMeetingDraft,
+  );
   const subscriptionPlan = useStore((s) => s.subscriptionPlan);
   const billingManaged = useStore((s) => s.billingManaged);
   const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
   const openSettingsTab = useStore((s) => s.openSettingsTab);
+  const agentComposerInsert = useStore((s) => s.agentComposerInsert);
+  const takeAgentComposerInsert = useStore((s) => s.takeAgentComposerInsert);
+  const openManualNote = useStore((s) => s.openManualNote);
+  const [activeSkillRun, setActiveSkillRun] = useState<{
+    runId: string;
+    skillId: SkillTimelineId;
+    steps: SkillTimelineStep[];
+    apiDone: boolean;
+    apiError: string | null;
+    success: SkillTimelineSuccess | null;
+    awaitingAssistant: boolean;
+  } | null>(null);
+  const handoffRunPendingRef = useRef(false);
   const recapDraft = useRecapStore((s) => s.composerDraft);
   const setRecapDraft = useRecapStore((s) => s.setComposerDraft);
   const submitRecap = useRecapStore((s) => s.submitRecap);
@@ -302,10 +399,10 @@ export default function ChatPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recapFileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const meetingAttendeesRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
-  const aiRunStripRef = useRef<HTMLDivElement>(null);
-  const [scrollPadBottom, setScrollPadBottom] = useState(16);
+  const [scrollPadBottom] = useState(12);
   const [revealIdx, setRevealIdx] = useState<number | null>(null);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
   const pollComposerOpen = useVoicePollStore(
@@ -326,6 +423,36 @@ export default function ChatPanel() {
   } = useConnectors();
   const prevChatLenRef = useRef(chat.length);
 
+  useEffect(() => {
+    if (!agentComposerInsert) return;
+    const insert = takeAgentComposerInsert();
+    if (!insert) return;
+    setActiveComposerSkill(null);
+    setSlashOpen(false);
+    setMentionOpen(false);
+    setConnectorsOpen(false);
+    setText(insert.text);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      const pos = insert.text.length;
+      el?.focus();
+      el?.setSelectionRange(pos, pos);
+    });
+  }, [agentComposerInsert, takeAgentComposerInsert]);
+
+  const buildSkillRun = useCallback(
+    (skillId: SkillTimelineId, steps: SkillTimelineStep[], awaitingAssistant = false) => ({
+      runId: `${skillId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      skillId,
+      steps,
+      apiDone: false,
+      apiError: null as string | null,
+      success: null as SkillTimelineSuccess | null,
+      awaitingAssistant,
+    }),
+    [],
+  );
+
   const submitCreateGroupFromText = useCallback(
     async (composerText: string) => {
       const ids = memberIdsFromComposerText(composerText, eligibleGroupMembers);
@@ -337,10 +464,35 @@ export default function ChatPanel() {
       const memberIds = members.map((member) => member.id);
       setText("");
       setActiveComposerSkill(null);
+      setActiveSkillRun(buildSkillRun("group", GROUP_TIMELINE_STEPS));
       const result = await createGroupChat(name, memberIds);
       if (result.ok && result.threadId) {
-        switchChatPanelMode("friends");
-        setActiveFriendThread(result.threadId);
+        const newThreadId = result.threadId;
+        setActiveSkillRun((prev) =>
+          prev && prev.skillId === "group"
+            ? {
+                ...prev,
+                apiDone: true,
+                success: {
+                  label: SKILL_SUCCESS_LABELS.group,
+                  action: {
+                    label: SKILL_ACTION_LABELS.group ?? "View group",
+                    onClick: () => {
+                      switchChatPanelMode("friends");
+                      setActiveFriendThread(newThreadId);
+                      setActiveSkillRun(null);
+                    },
+                  },
+                },
+              }
+            : prev,
+        );
+      } else {
+        setActiveSkillRun((prev) =>
+          prev && prev.skillId === "group"
+            ? { ...prev, apiError: "Group creation failed." }
+            : prev,
+        );
       }
     },
     [
@@ -348,6 +500,7 @@ export default function ChatPanel() {
       eligibleGroupMembers,
       setActiveFriendThread,
       switchChatPanelMode,
+      buildSkillRun,
     ],
   );
 
@@ -398,14 +551,6 @@ export default function ChatPanel() {
     };
   }, [setAiComposerEngaged, setPresenceActivity]);
 
-  const syncScrollPadBottom = useCallback(() => {
-    const stripH = aiRunStripRef.current?.getBoundingClientRect().height ?? 0;
-    const agentActive = busy || aiRun?.status === "running";
-    // Le composeur est sous la zone scroll ; seul le bandeau agent empiète (~18px).
-    const aiOverlap = agentActive ? Math.max(stripH, 50) - 18 : 0;
-    setScrollPadBottom(Math.ceil(aiOverlap + 12));
-  }, [aiRun?.status, busy]);
-
   const scrollChatToLatest = useCallback(() => {
     const scrollEl = messagesScrollRef.current;
     if (!scrollEl) return;
@@ -421,10 +566,18 @@ export default function ChatPanel() {
 
     const syncStickyState = () => {
       const scrollTop = scrollEl.getBoundingClientRect().top;
-      scrollEl.querySelectorAll<HTMLElement>("[data-sticky-prompt]").forEach((el) => {
-        const stuck = el.getBoundingClientRect().top <= scrollTop + 11;
-        el.classList.toggle("is-stuck", stuck);
+      const stickThreshold = scrollTop + 11;
+      const prompts = scrollEl.querySelectorAll<HTMLElement>("[data-sticky-prompt]");
+      let activeSticky: HTMLElement | null = null;
+
+      prompts.forEach((el) => {
+        el.classList.remove("is-stuck");
+        if (el.getBoundingClientRect().top <= stickThreshold) {
+          activeSticky = el;
+        }
       });
+
+      activeSticky?.classList.add("is-stuck");
     };
 
     syncStickyState();
@@ -493,10 +646,58 @@ export default function ChatPanel() {
       const last = chat[chat.length - 1];
       if (last?.role === "assistant") {
         setRevealIdx(chat.length - 1);
+        setActiveSkillRun((prev) =>
+          prev && prev.awaitingAssistant ? null : prev,
+        );
       }
     }
     prevChatLenRef.current = chat.length;
   }, [chat]);
+
+  useEffect(() => {
+    if (!activeSkillRun) return;
+    if (activeSkillRun.apiDone || activeSkillRun.apiError) return;
+    if (activeSkillRun.skillId !== "manage" && activeSkillRun.skillId !== "play") {
+      return;
+    }
+    if (aiRun?.status === "done") {
+      setActiveSkillRun((prev) =>
+        prev && (prev.skillId === "manage" || prev.skillId === "play")
+          ? { ...prev, apiDone: true }
+          : prev,
+      );
+    } else if (aiRun?.status === "error") {
+      setActiveSkillRun((prev) =>
+        prev && (prev.skillId === "manage" || prev.skillId === "play")
+          ? { ...prev, apiError: aiRun.summary || "Run failed." }
+          : prev,
+      );
+    }
+  }, [aiRun?.status, aiRun?.summary, activeSkillRun]);
+
+  useEffect(() => {
+    if (!activeSkillRun || activeSkillRun.skillId !== "handoff") return;
+    if (!handoffRunPendingRef.current) return;
+    if (handoffSubmitting) return;
+    handoffRunPendingRef.current = false;
+    if (handoffError) {
+      setActiveSkillRun((prev) =>
+        prev && prev.skillId === "handoff"
+          ? { ...prev, apiError: handoffError }
+          : prev,
+      );
+      return;
+    }
+    setActiveSkillRun((prev) =>
+      prev && prev.skillId === "handoff"
+        ? {
+            ...prev,
+            apiDone: true,
+            success: { label: SKILL_SUCCESS_LABELS.handoff },
+          }
+        : prev,
+    );
+  }, [handoffSubmitting, handoffError, activeSkillRun]);
 
   useEffect(() => {
     if (revealIdx !== null && revealIdx >= chat.length) {
@@ -511,16 +712,6 @@ export default function ChatPanel() {
   const showPendingAssistant = agentGenerating && lastMessage?.role === "user";
 
   useEffect(() => {
-    syncScrollPadBottom();
-    const strip = aiRunStripRef.current;
-    if (!strip) return;
-    const ro = new ResizeObserver(() => syncScrollPadBottom());
-    ro.observe(strip);
-    return () => ro.disconnect();
-  }, [syncScrollPadBottom, aiRun?.status]);
-
-  useEffect(() => {
-    syncScrollPadBottom();
     const id = requestAnimationFrame(() => {
       requestAnimationFrame(() => scrollChatToLatest());
     });
@@ -534,7 +725,6 @@ export default function ChatPanel() {
     showPendingAssistant,
     scrollPadBottom,
     scrollChatToLatest,
-    syncScrollPadBottom,
   ]);
 
   const addFiles = (files: FileList | null) => {
@@ -566,6 +756,26 @@ export default function ChatPanel() {
   };
 
   const insertMentionItem = (item: MentionMenuItem) => {
+    if (activeComposerSkill === "meeting") {
+      const el = meetingAttendeesRef.current;
+      const caret = el?.selectionStart ?? meetingDraft.attendees.length;
+      const mq = mentionQueryAt(meetingDraft.attendees, caret);
+      const start = mq?.start ?? caret;
+      const token =
+        item.kind === "person"
+          ? `@${item.target.mention} `
+          : `@${item.action.mention} `;
+      const next = meetingDraft.attendees.slice(0, start) + token + meetingDraft.attendees.slice(caret);
+      setMeetingDraft((draft) => ({ ...draft, attendees: next }));
+      setMentionOpen(false);
+      requestAnimationFrame(() => {
+        const pos = start + token.length;
+        el?.focus();
+        el?.setSelectionRange(pos, pos);
+      });
+      return;
+    }
+
     const el = textareaRef.current;
     const caret = el?.selectionStart ?? text.length;
     const mq = mentionQueryAt(text, caret);
@@ -618,14 +828,16 @@ export default function ChatPanel() {
     }
     if (skill.id === "manage") {
       setActiveComposerSkill("manage");
-      setText(MANAGE_COMPOSER_TEMPLATE);
+      setManageDraft(createDefaultManageDraft());
+      setText("");
       setSlashOpen(false);
-      const sel = manageComposerTaskSelection();
-      requestAnimationFrame(() => {
-        const el = textareaRef.current;
-        el?.focus();
-        el?.setSelectionRange(sel.start, sel.end);
-      });
+      return;
+    }
+    if (skill.id === "meeting") {
+      setActiveComposerSkill("meeting");
+      setMeetingDraft(createDefaultMeetingDraft());
+      setText("");
+      setSlashOpen(false);
       return;
     }
     if (skill.id === "play") {
@@ -655,10 +867,133 @@ export default function ChatPanel() {
     });
   };
 
+  const submitMeetingFromDraft = useCallback(async () => {
+    if (!isMeetingDraftReady(meetingDraft, mentionablePeople)) return;
+    const mentions = parsePeopleMentionsFromText(meetingDraft.attendees, mentionablePeople);
+    const savedDraft = { ...meetingDraft };
+    const displayText = buildMeetingDisplayText(savedDraft, mentions);
+    setMeetingDraft(createDefaultMeetingDraft());
+    setActiveComposerSkill(null);
+    setActiveSkillRun(buildSkillRun("meeting", MEETING_TIMELINE_STEPS));
+
+    const userMsg: ChatMessage = {
+      role: "user",
+      text: displayText,
+      source: "meeting-prompt",
+      meetingPrompt: savedDraft,
+    };
+    const state = useStore.getState();
+    const nextChat = [...state.chat, userMsg];
+    useStore.setState({
+      chat: nextChat,
+      openChatTabs: updateActiveTabInTabs(
+        state.openChatTabs,
+        state.activeChatTabId,
+        nextChat,
+      ),
+    });
+
+    const organizerName = useStore.getState().userDisplayName || "Vous";
+    const result = await runMeetingSkill({
+      draft: savedDraft,
+      mentions,
+      workspaceId: activeRoomId,
+      organizerName,
+      sendMeetingInvite: (threadId, payload) => {
+        void sendMeetingInviteMessage(threadId, payload);
+      },
+      ensureColleagueThread,
+    });
+
+    if (!result.ok) {
+      setActiveSkillRun((prev) =>
+        prev && prev.skillId === "meeting"
+          ? { ...prev, apiError: result.error ?? "Impossible de planifier la réunion." }
+          : prev,
+      );
+      return;
+    }
+
+    const assistantMsg: ChatMessage = {
+      role: "assistant",
+      text: result.summary,
+      source: "meeting-skill",
+    };
+    const afterState = useStore.getState();
+    const afterChat = [...afterState.chat, assistantMsg];
+    useStore.setState({
+      chat: afterChat,
+      openChatTabs: updateActiveTabInTabs(
+        afterState.openChatTabs,
+        afterState.activeChatTabId,
+        afterChat,
+      ),
+    });
+
+    setActiveSkillRun((prev) =>
+      prev && prev.skillId === "meeting"
+        ? {
+            ...prev,
+            apiDone: true,
+            success: {
+              label: SKILL_SUCCESS_LABELS.meeting,
+              action: {
+                label: SKILL_ACTION_LABELS.meeting ?? "View calendar",
+                onClick: () => {
+                  openCalendarPanel();
+                  setActiveSkillRun(null);
+                },
+              },
+            },
+          }
+        : prev,
+    );
+  }, [
+    activeRoomId,
+    buildSkillRun,
+    ensureColleagueThread,
+    meetingDraft,
+    mentionablePeople,
+    openCalendarPanel,
+    sendMeetingInviteMessage,
+  ]);
+
+  const handleMeetingComposerKeyDown = (
+    e: React.KeyboardEvent<HTMLTextAreaElement>,
+  ) => {
+    if (mentionOpen && mentionOptions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % mentionOptions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex((i) => (i - 1 + mentionOptions.length) % mentionOptions.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        insertMentionItem(mentionOptions[mentionIndex]!);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionOpen(false);
+        return;
+      }
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void submitMeetingFromDraft();
+    }
+  };
+
   const syncComposerMenu = (value: string, caret: number) => {
     const sq = slashQueryAt(value, caret);
     if (sq) {
       setMentionOpen(false);
+      setConnectorsOpen(false);
       setSlashFilter(sq.query);
       setSlashOpen(filterSlashSkillMenu(sq.query).length > 0);
       return;
@@ -682,7 +1017,37 @@ export default function ChatPanel() {
     if (activeComposerSkill === "recap") {
       if (!isRecapDraftReady(recapDraft)) return;
       setActiveComposerSkill(null);
-      void submitRecap();
+      setActiveSkillRun(buildSkillRun("recap", RECAP_TIMELINE_STEPS));
+      void submitRecap().then(() => {
+        const recapError = useRecapStore.getState().error;
+        if (recapError) {
+          setActiveSkillRun((prev) =>
+            prev && prev.skillId === "recap" ? { ...prev, apiError: recapError } : prev,
+          );
+          return;
+        }
+        const sessionId = useStore.getState().activeManualNoteId;
+        setActiveSkillRun((prev) =>
+          prev && prev.skillId === "recap"
+            ? {
+                ...prev,
+                apiDone: true,
+                success: {
+                  label: SKILL_SUCCESS_LABELS.recap,
+                  action: sessionId
+                    ? {
+                        label: SKILL_ACTION_LABELS.recap ?? "View note",
+                        onClick: () => {
+                          openManualNote(sessionId);
+                          setActiveSkillRun(null);
+                        },
+                      }
+                    : undefined,
+                },
+              }
+            : prev,
+        );
+      });
       return;
     }
     if (activeComposerSkill === "group") {
@@ -691,15 +1056,28 @@ export default function ChatPanel() {
       return;
     }
     if (activeComposerSkill === "manage") {
-      const parsed = parseManageComposerText(text);
-      if (!parsed || !isManageDraftReady(parsed)) return;
-      const payload = buildManageSkillPayload(parsed);
+      if (!isManageDraftReady(manageDraft)) return;
+      if (
+        !hasRecapSkillAccess(subscriptionPlan, billingManaged, workspaceEnterpriseActive)
+      ) {
+        openSettingsTab("usage");
+        setActiveComposerSkill(null);
+        setManageDraft(createDefaultManageDraft());
+        return;
+      }
+      const payload = buildManageSkillPayload(manageDraft);
       setActiveComposerSkill(null);
-      setText("");
+      setManageDraft(createDefaultManageDraft());
+      setActiveSkillRun(buildSkillRun("manage", MANAGE_TIMELINE_STEPS, true));
       void submitAssistantPrompt(payload.skillText, [], {
         managePrompt: payload.managePrompt,
         userDisplayText: payload.displayText,
       });
+      return;
+    }
+    if (activeComposerSkill === "meeting") {
+      if (!isMeetingDraftReady(meetingDraft, mentionablePeople)) return;
+      void submitMeetingFromDraft();
       return;
     }
 
@@ -708,8 +1086,34 @@ export default function ChatPanel() {
 
     const prompt = raw || "(Attachments)";
     const imageFiles = attachments.filter((a) => a.isImage).map((a) => a.file);
+    const playQuery = isPlaySkillPrompt(prompt) ? parsePlaySkillQuery(prompt) : null;
     setText("");
     clearAttachments();
+    if (playQuery) {
+      const spotifyConnected = connectedConnectors.has("spotify");
+      const playSteps: SkillTimelineStep[] = spotifyConnected
+        ? buildPlayTimelineSteps(playQuery)
+        : [
+            { id: "connect-spotify", label: "Connecting Spotify", minMs: 1500 },
+            ...buildPlayTimelineSteps(playQuery),
+          ];
+      setActiveSkillRun(buildSkillRun("play", playSteps, true));
+      if (!spotifyConnected) {
+        const onOauthDone = () => {
+          window.removeEventListener("forma-connector-oauth-done", onOauthDone);
+          void submitAssistantPrompt(prompt, imageFiles).then((result) => {
+            if (result?.blocked && result.requireImage) {
+              fileInputRef.current?.click();
+            }
+          });
+        };
+        window.addEventListener("forma-connector-oauth-done", onOauthDone);
+        void connectConnector("spotify");
+        return;
+      }
+    } else {
+      setActiveSkillRun(null);
+    }
     void submitAssistantPrompt(prompt, imageFiles).then((result) => {
       if (result?.blocked && result.requireImage) {
         fileInputRef.current?.click();
@@ -729,10 +1133,9 @@ export default function ChatPanel() {
       : activeComposerSkill === "group"
       ? isCreateGroupComposerReady(text, eligibleGroupMembers)
       : activeComposerSkill === "manage"
-      ? (() => {
-          const parsed = parseManageComposerText(text);
-          return !!parsed && isManageDraftReady(parsed);
-        })()
+      ? isManageDraftReady(manageDraft)
+      : activeComposerSkill === "meeting"
+      ? isMeetingDraftReady(meetingDraft, mentionablePeople)
       : text.trim().length > 0 || attachments.length > 0;
 
   const playQueryDraft = parsePlaySkillQuery(text);
@@ -752,31 +1155,6 @@ export default function ChatPanel() {
   const composerBlock = handoffPreview ? null : (
     <div className="pointer-events-auto relative">
       <div className="relative">
-        <div
-          ref={aiRunStripRef}
-          className={clsx(
-            "absolute left-0 right-0 z-0 overflow-hidden rounded-t-xl rounded-b-none border border-b-0 border-composer-stroke bg-composer-surface shadow-md",
-            aiRun?.status === "running" ? "max-h-[50px] opacity-100" : "pointer-events-none max-h-0 opacity-0",
-          )}
-          style={{ bottom: "calc(100% - 18px)" }}
-        >
-          {aiRun?.status === "running" && (
-            <div className="flex h-[50px] items-start gap-2 px-2.5 pb-1 pt-2">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-muted-400" />
-              <p className="mt-0.5 min-w-0 flex-1 truncate text-[11px] font-medium leading-tight">
-                <span className="text-shimmer">{activeStepLabel(aiRun)}</span>
-              </p>
-              <button
-                type="button"
-                onClick={handleStop}
-                className="mt-0.5 shrink-0 text-[11px] font-medium leading-tight text-muted-400 hover:text-muted-200"
-              >
-                Stop
-              </button>
-            </div>
-          )}
-        </div>
-
         <div
           className="chat-composer relative z-10 flex flex-col gap-1 rounded-xl px-2 py-1.5"
           style={CHAT_COMPOSER_SURFACE_STYLE}
@@ -916,13 +1294,39 @@ export default function ChatPanel() {
                 error={handoffError}
                 onTargetChange={setHandoffTarget}
                 onCancel={exitHandoffSelection}
-                onSubmit={() => void submitSegmentHandoff(chat, activeChatTabId)}
+                onSubmit={() => {
+                  handoffRunPendingRef.current = true;
+                  setActiveSkillRun(buildSkillRun("handoff", HANDOFF_TIMELINE_STEPS));
+                  void submitSegmentHandoff(chat, activeChatTabId);
+                }}
               />
             ) : activeComposerSkill === "recap" ? (
               <RecapComposerLine
                 draft={recapDraft}
                 onChange={setRecapDraft}
                 onImportClick={() => recapFileInputRef.current?.click()}
+              />
+            ) : activeComposerSkill === "manage" ? (
+              <ManageSchedulePromptLine
+                draft={manageDraft}
+                onChange={setManageDraft}
+                onDismiss={() => {
+                  setActiveComposerSkill(null);
+                  setManageDraft(createDefaultManageDraft());
+                }}
+              />
+            ) : activeComposerSkill === "meeting" ? (
+              <MeetingPromptLine
+                draft={meetingDraft}
+                onChange={setMeetingDraft}
+                peopleHandles={peopleHandles}
+                attendeesRef={meetingAttendeesRef}
+                onAttendeesSync={(caret) => syncMentionMenu(meetingDraft.attendees, caret)}
+                onAttendeesKeyDown={handleMeetingComposerKeyDown}
+                onDismiss={() => {
+                  setActiveComposerSkill(null);
+                  setMeetingDraft(createDefaultMeetingDraft());
+                }}
               />
             ) : (
             <HighlightedPromptInput
@@ -946,15 +1350,22 @@ export default function ChatPanel() {
                   return;
                 }
                 if (trimmed === MANAGE_SKILL_TEMPLATE) {
+                  if (
+                    !hasRecapSkillAccess(
+                      subscriptionPlan,
+                      billingManaged,
+                      workspaceEnterpriseActive,
+                    )
+                  ) {
+                    openSettingsTab("usage");
+                    setText("");
+                    setSlashOpen(false);
+                    return;
+                  }
                   setActiveComposerSkill("manage");
-                  setText(MANAGE_COMPOSER_TEMPLATE);
+                  setManageDraft(createDefaultManageDraft());
+                  setText("");
                   setSlashOpen(false);
-                  const sel = manageComposerTaskSelection();
-                  requestAnimationFrame(() => {
-                    const el = textareaRef.current;
-                    el?.focus();
-                    el?.setSelectionRange(sel.start, sel.end);
-                  });
                   return;
                 }
                 if (trimmed === RECAP_SKILL_TEMPLATE) {
@@ -982,17 +1393,15 @@ export default function ChatPanel() {
                   setSlashOpen(false);
                   return;
                 }
+                if (trimmed === MEETING_SKILL_TEMPLATE) {
+                  setActiveComposerSkill("meeting");
+                  setMeetingDraft(createDefaultMeetingDraft());
+                  setText("");
+                  setSlashOpen(false);
+                  return;
+                }
 
                 setText(v);
-                if (activeComposerSkill === "manage" && !v.trim()) {
-                  setActiveComposerSkill(null);
-                } else if (
-                  activeComposerSkill === "manage" &&
-                  !looksLikeManageComposer(v) &&
-                  !parseManageComposerText(v)
-                ) {
-                  setActiveComposerSkill(null);
-                }
                 if (activeComposerSkill === "group" && !v.includes("@")) {
                   setActiveComposerSkill(null);
                 }
@@ -1069,7 +1478,12 @@ export default function ChatPanel() {
           <div className="flex h-[24px] items-center gap-2">
             <ChatAppIntegrations
               open={connectorsOpen}
-              onToggle={() => setConnectorsOpen((v) => !v)}
+              onToggle={() => {
+                setConnectorsOpen((open) => {
+                  if (!open) setSlashOpen(false);
+                  return !open;
+                });
+              }}
             />
 
             <div className="relative" ref={modelRef}>
@@ -1188,7 +1602,7 @@ export default function ChatPanel() {
                 const spacing = chatMessageSpacingClass(displayChat, i);
                 return (
                   <div key={`preview-${message.role}-${i}`} className={spacing}>
-                    <ChatBubble message={message} />
+                    <ChatBubble message={message} chatIndex={i} />
                   </div>
                 );
               })
@@ -1209,6 +1623,7 @@ export default function ChatPanel() {
             const bubble = (
               <ChatBubble
                 message={message}
+                chatIndex={i}
                 reveal={message.role === "assistant" && i === revealIdx}
                 onRevealComplete={() => setRevealIdx(null)}
               />
@@ -1255,11 +1670,28 @@ export default function ChatPanel() {
             );
           })}
 
-          {showPendingAssistant && !handoffSelectionMode && (
+          {activeSkillRun ? (
             <div className="chat-assistant-bubble mt-3">
-              <AssistantPendingBubble />
+              <SkillTimeline
+                key={activeSkillRun.runId}
+                steps={activeSkillRun.steps}
+                apiDone={activeSkillRun.apiDone}
+                apiError={activeSkillRun.apiError}
+                success={activeSkillRun.success}
+                onStop={() => {
+                  handleStop();
+                  setActiveSkillRun(null);
+                }}
+              />
             </div>
-          )}
+          ) : showPendingAssistant && !handoffSelectionMode ? (
+            <div className="chat-assistant-bubble mt-3">
+              <AssistantPendingBubble
+                label={activeStepLabel(aiRun) || undefined}
+                onStop={handleStop}
+              />
+            </div>
+          ) : null}
 
           <div
             ref={messagesEndRef}
@@ -1303,7 +1735,7 @@ export default function ChatPanel() {
                   />
                 </div>
               )}
-              {connectorsOpen && (
+              {!slashOpen && connectorsOpen && (
                 <div className="chat-connectors-stage chat-connectors-stage--footer">
                   <ChatConnectorsList
                     connectedIds={connectedConnectors}

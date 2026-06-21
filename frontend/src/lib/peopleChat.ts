@@ -6,6 +6,14 @@ export interface Person {
   handle: string;
 }
 
+export interface PeopleManageScheduleEvent {
+  title: string;
+  detail?: string;
+  dateKey: string;
+  startMinutes: number;
+  endMinutes: number;
+}
+
 export interface PeopleMessage {
   id: string;
   author: string;
@@ -13,10 +21,18 @@ export interface PeopleMessage {
   text: string;
   at: number;
   mine?: boolean;
-  kind?: "text" | "handoff";
+  kind?: "text" | "handoff" | "manage" | "meeting";
   handoffId?: string;
   handoffTitle?: string;
   handoffPreview?: string;
+  manageDisplayText?: string;
+  manageEvents?: PeopleManageScheduleEvent[];
+  manageSummary?: string;
+  meetingTitle?: string;
+  meetingDateKey?: string;
+  meetingStartTime?: string;
+  meetingEndTime?: string;
+  meetingOrganizerName?: string;
 }
 
 export interface PeopleThread {

@@ -1,67 +1,55 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import type { ChatConnectorId } from "../components/chat/chatConnectors";
-import { CHAT_CONNECTORS } from "../components/chat/chatConnectors";
-import {
-  disconnectConnector,
-  fetchConnectorStatuses,
-  isConnectorOAuthMessage,
-  startConnectorOAuth,
-  type ConnectorStatus,
-} from "../lib/connectorsApi";
-import { useNotificationsStore } from "../store/useNotificationsStore";
+import { isConnectorOAuthMessage } from "../lib/connectorsApi";
 import { useAuthStore } from "../store/useAuthStore";
+import { useConnectorsStore } from "../store/useConnectorsStore";
+import { useNotificationsStore } from "../store/useNotificationsStore";
 
 /** Connectors OAuth is wired to the backend (requires GOOGLE_CLIENT_ID/SECRET). */
 export const CONNECTORS_VISUAL_ONLY = false;
 
-const VISUAL_STATUSES: ConnectorStatus[] = CHAT_CONNECTORS.map(({ id, label }) => ({
-  id,
-  label,
-  provider: id,
-  connected: false,
-  configured: false,
-}));
-
+/**
+ * Hook léger qui lit le store partagé `useConnectorsStore` et l'alimente.
+ * Plusieurs panneaux (Paramètres, Chat) peuvent l'appeler simultanément :
+ * ils partagent désormais les mêmes statuts (un seul fetch dédupliqué).
+ */
 export function useConnectors() {
   const authReady = useAuthStore((s) => s.ready);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [statuses, setStatuses] = useState<ConnectorStatus[]>(
-    CONNECTORS_VISUAL_ONLY ? VISUAL_STATUSES : [],
+  const statuses = useConnectorsStore((s) => s.statuses);
+  const loading = useConnectorsStore((s) => s.loading);
+  const error = useConnectorsStore((s) => s.error);
+  const connectingId = useConnectorsStore((s) => s.connectingId);
+  const refreshStore = useConnectorsStore((s) => s.refresh);
+  const connectStore = useConnectorsStore((s) => s.connect);
+  const disconnectStore = useConnectorsStore((s) => s.disconnect);
+  const setVisualOnly = useConnectorsStore((s) => s.setVisualOnly);
+  const setError = useConnectorsStore((s) => s.setError);
+  const setConnectingId = useConnectorsStore((s) => s.setConnectingId);
+  const refresh = useCallback(
+    async (force = false) => {
+      if (CONNECTORS_VISUAL_ONLY || !authReady || !isAuthenticated) return;
+      await refreshStore(force);
+    },
+    [authReady, isAuthenticated, refreshStore],
   );
-  const [loading, setLoading] = useState(!CONNECTORS_VISUAL_ONLY);
-  const [error, setError] = useState<string | null>(null);
-  const [connectingId, setConnectingId] = useState<ChatConnectorId | null>(null);
-  const pushNotification = useNotificationsStore((s) => s.push);
-
-  const refresh = useCallback(async () => {
-    if (CONNECTORS_VISUAL_ONLY || !authReady || !isAuthenticated) return;
-    try {
-      const items = await fetchConnectorStatuses();
-      setStatuses(items);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load connectors.");
-    } finally {
-      setLoading(false);
-    }
-  }, [authReady, isAuthenticated]);
 
   useEffect(() => {
-    if (CONNECTORS_VISUAL_ONLY) return;
-    if (!authReady) return;
-    if (!isAuthenticated) {
-      setStatuses(VISUAL_STATUSES);
-      setLoading(false);
-      setError(null);
+    if (CONNECTORS_VISUAL_ONLY) {
+      setVisualOnly();
       return;
     }
-    setLoading(true);
-    void refresh();
-  }, [authReady, isAuthenticated, refresh]);
+    if (!authReady) return;
+    if (!isAuthenticated) {
+      setVisualOnly();
+      return;
+    }
+    void refresh(true);
+  }, [authReady, isAuthenticated, refresh, setVisualOnly]);
 
   useEffect(() => {
     if (CONNECTORS_VISUAL_ONLY) return;
-    const onDone = () => void refresh();
+    const onDone = () => void refresh(true);
     window.addEventListener("forma-connector-oauth-done", onDone);
     window.addEventListener("forma-connector-disconnect-done", onDone);
     return () => {
@@ -76,25 +64,28 @@ export function useConnectors() {
       if (!isConnectorOAuthMessage(event.data)) return;
       setConnectingId(null);
       if (event.data.status === "success" && event.data.connectorId) {
-        void refresh();
+        void refresh(true);
         window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
-        const label =
-          statuses.find((s) => s.id === event.data.connectorId)?.label ?? event.data.connectorId;
-        pushNotification({
-          kind: "connector",
-          title: `${label} connected`,
-          body: "Your account is linked and ready to use in chat.",
-        });
       } else if (event.data.message) {
-        setError(event.data.message);
+        const message = event.data.message;
+        setError(message);
+        useNotificationsStore.getState().push({
+          kind: "workspace",
+          title: "Connecteur non lié",
+          body: message,
+        });
       }
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [pushNotification, refresh, statuses]);
+  }, [refresh, setConnectingId, setError]);
 
-  const connectedIds = new Set(
-    statuses.filter((s) => s.connected).map((s) => s.id as ChatConnectorId),
+  const connectedIds = useMemo(
+    () =>
+      new Set(
+        statuses.filter((s) => s.connected).map((s) => s.id as ChatConnectorId),
+      ),
+    [statuses],
   );
 
   const connect = useCallback(
@@ -104,50 +95,17 @@ export function useConnectors() {
         setError("Connectez-vous à l'app avant de lier un connecteur.");
         return;
       }
-      setConnectingId(id);
-      setError(null);
-      try {
-        const url = await startConnectorOAuth(id);
-        const popup = window.open(url, "forma-connector-oauth", "width=520,height=720");
-        if (!popup) {
-          window.location.href = url;
-          return;
-        }
-        const timer = window.setInterval(() => {
-          if (popup.closed) {
-            window.clearInterval(timer);
-            setConnectingId(null);
-            void refresh();
-          }
-        }, 500);
-      } catch (err) {
-        setConnectingId(null);
-        setError(err instanceof Error ? err.message : "OAuth failed.");
-      }
+      await connectStore(id);
     },
-    [isAuthenticated, refresh],
+    [isAuthenticated, connectStore, setError],
   );
 
   const disconnect = useCallback(
     async (id: ChatConnectorId) => {
       if (CONNECTORS_VISUAL_ONLY) return;
-      try {
-        await disconnectConnector(id);
-        await refresh();
-        window.dispatchEvent(
-          new CustomEvent("forma-connector-disconnect-done", { detail: { connectorId: id } }),
-        );
-        const label = statuses.find((s) => s.id === id)?.label ?? id;
-        pushNotification({
-          kind: "connector",
-          title: `${label} déconnecté`,
-          body: "Le compte n'est plus lié.",
-        });
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Échec de la déconnexion.");
-      }
+      await disconnectStore(id);
     },
-    [pushNotification, refresh, statuses],
+    [disconnectStore],
   );
 
   return {

@@ -26,6 +26,7 @@ import {
 import {
   normalizeSidePanelSide,
   readUserPreferences,
+  resolveCalendarWorkingHours,
   writeUserPreferences,
   type SidePanelSide,
   type UserPreferences,
@@ -56,11 +57,25 @@ import {
   localRulesReply,
 } from "../lib/chatRulesFallback";
 import { waitMinChatProcessing } from "../lib/chatProcessing";
-import { isManageSchedulePrompt, isPlaySkillPrompt } from "../lib/chatSkills";
-import { runManageScheduleSkill } from "../lib/manageScheduleSkill";
+import { isManageSchedulePrompt, isNaturalLanguageManageRequest, isPlaySkillPrompt } from "../lib/chatSkills";
+import {
+  applyManageScheduleEvents,
+  runManageScheduleSkill,
+  type ManageScheduleEventDraft,
+} from "../lib/manageScheduleSkill";
 import { parsePlaySkillQuery, runPlaySkill } from "../lib/playSkill";
 import type { ManageSchedulePromptDraft } from "../lib/manageSchedulePrompt";
-import type { SpotifyTrackCard } from "../lib/connectorsApi";
+import type { MeetingPromptDraft } from "../lib/meetingSkill";
+import {
+  isMeetingSkillPrompt,
+  isNaturalLanguageMeetingRequest,
+  runNaturalLanguageMeetingSkill,
+} from "../lib/meetingSkill";
+import type { SpotifyPlayState, SpotifyTrackCard } from "../lib/connectorsApi";
+import {
+  buildConnectorAugmentedPrompt,
+  parseConnectorSlashCommand,
+} from "../lib/connectorSkills";
 import { useCalendarOverlayStore } from "./useCalendarOverlayStore";
 import { auth } from "../lib/firebase/client";
 import {
@@ -74,8 +89,14 @@ export interface ChatMessage {
   text: string;
   source?: string;
   managePrompt?: ManageSchedulePromptDraft;
+  meetingPrompt?: MeetingPromptDraft;
+  /** Blocs de calendrier proposés par /manage, en attente de "Appliquer au calendrier". */
+  manageEvents?: ManageScheduleEventDraft[];
+  /** True une fois que l'utilisateur a cliqué "Sync to Calendar" et que les blocs sont en place. */
+  manageEventsApplied?: boolean;
   playQuery?: string;
   spotifyTrack?: SpotifyTrackCard;
+  spotifyPlay?: SpotifyPlayState;
   actions?: { kind: string; description: string }[];
 }
 
@@ -243,6 +264,8 @@ interface State {
   chatNavStack: string[];
   chatNavPointer: number;
   showChatHistory: boolean;
+  /** Recording row to shimmer once after Go from a saved-recording notification. */
+  chatHistoryHighlightRecordingId: string | null;
   chatPanelMode: "agent" | "friends" | "calendar" | "theater" | "ai-notes" | "follow-up";
   /** Compteur servant de clé pour remonter le composant de notes manuelles. */
   manualNoteResetTick: number;
@@ -271,11 +294,15 @@ interface State {
   agentChatInstructions: string;
   agentFollowUpInstructions: string;
   agentAiNotesInstructions: string;
+  calendarWorkStartMinutes: number;
+  calendarWorkEndMinutes: number;
   aiRun: AiRun | null;
   activePage: MainPageId | null;
   openPages: MainPageId[];
   settingsTab: SettingsTab;
   workspaceSwitching: boolean;
+  /** Pending text to seed the agent chat composer (consumed by ChatPanel). */
+  agentComposerInsert: { id: number; text: string } | null;
 
   setMaterial: (m: string) => void;
   setAiModel: (model: AiModel) => void;
@@ -298,6 +325,7 @@ interface State {
   setAgentChatInstructions: (value: string) => void;
   setAgentFollowUpInstructions: (value: string) => void;
   setAgentAiNotesInstructions: (value: string) => void;
+  setCalendarWorkingHours: (startMinutes: number, endMinutes: number) => void;
   select: (id: string | null) => void;
   /** additive=true : ⌘/Ctrl+clic pour ajouter ou retirer une face de la sélection. */
   selectFace: (face: FaceReference, opts?: { additive?: boolean }) => void;
@@ -323,6 +351,8 @@ interface State {
   closeChatPanel: () => void;
   toggleChatPanelExpanded: () => void;
   openAgentPanel: () => void;
+  insertAgentComposerText: (text: string) => void;
+  takeAgentComposerInsert: () => { id: number; text: string } | null;
   openAiNotesPanel: () => void;
   openFollowUpPanel: () => void;
   openCalendarPanel: () => void;
@@ -335,6 +365,7 @@ interface State {
     sessionId: string;
     messages: ChatMessage[];
     durationMs: number;
+    bodyHtml?: string;
   }) => void;
   saveManualNote: (input: {
     id?: string | null;
@@ -360,6 +391,8 @@ interface State {
   goBackChat: () => void;
   canGoBackChat: () => boolean;
   toggleChatHistory: () => void;
+  openChatHistoryPanel: (options?: { highlightRecordingId?: string }) => void;
+  clearChatHistoryHighlightRecording: () => void;
   setChatPanelMode: (
     mode: "agent" | "friends" | "calendar" | "theater" | "ai-notes" | "follow-up",
   ) => void;
@@ -389,6 +422,8 @@ interface State {
     userChatText?: string,
     options?: { managePrompt?: ManageSchedulePromptDraft },
   ) => Promise<void>;
+  /** Pousse les blocs proposés par /manage dans le calendrier (déclenché par "Appliquer au calendrier"). */
+  applyManageEventsForChatMessage: (chatIndex: number) => void;
   sendAgent: (
     prompt: string,
     imageFiles?: File[],
@@ -452,11 +487,18 @@ function userPreferencesSnapshot(state: {
   sidePanelSide: SidePanelSide;
   colorTheme: ColorThemePreference;
   subscriptionPlan: SubscriptionPlan;
+  billingManaged: boolean;
   onDemandUsageEnabled: boolean;
   agentChatInstructions: string;
   agentFollowUpInstructions: string;
   agentAiNotesInstructions: string;
+  calendarWorkStartMinutes: number;
+  calendarWorkEndMinutes: number;
 }): UserPreferences {
+  const calendarHours = resolveCalendarWorkingHours(
+    state.calendarWorkStartMinutes,
+    state.calendarWorkEndMinutes,
+  );
   return {
     chatWorkMode: state.chatWorkMode,
     autoWorkModeSwitch: state.autoWorkModeSwitch,
@@ -473,11 +515,14 @@ function userPreferencesSnapshot(state: {
     sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
     colorTheme: state.colorTheme,
     subscriptionPlan: state.subscriptionPlan,
+    billingManaged: state.billingManaged,
     onDemandUsageEnabled:
       state.subscriptionPlan === "pro" ? state.onDemandUsageEnabled : false,
     agentChatInstructions: state.agentChatInstructions,
     agentFollowUpInstructions: state.agentFollowUpInstructions,
     agentAiNotesInstructions: state.agentAiNotesInstructions,
+    calendarWorkStartMinutes: calendarHours.startMinutes,
+    calendarWorkEndMinutes: calendarHours.endMinutes,
   };
 }
 
@@ -531,6 +576,7 @@ export const useStore = create<State>((set, get) => ({
   chatSessions: [],
   ...initialOpenChatTabs(),
   showChatHistory: false,
+  chatHistoryHighlightRecordingId: null,
   chatPanelMode: "agent",
   manualNoteResetTick: 0,
   activeManualNoteId: null,
@@ -539,9 +585,9 @@ export const useStore = create<State>((set, get) => ({
   aiModel: "auto",
   ...bootUserPreferences,
   photoURL: bootUserPreferences.photoURL ?? null,
-  subscriptionPlan: "free",
-  onDemandUsageEnabled: false,
-  billingManaged: false,
+  subscriptionPlan: bootUserPreferences.subscriptionPlan ?? "free",
+  onDemandUsageEnabled: bootUserPreferences.onDemandUsageEnabled ?? false,
+  billingManaged: bootUserPreferences.billingManaged ?? false,
   workspaceEnterpriseActive: false,
   chatPanelExpanded: false,
   chatPanelLeaveAnimating: false,
@@ -550,6 +596,7 @@ export const useStore = create<State>((set, get) => ({
   openPages: [],
   settingsTab: "general",
   workspaceSwitching: false,
+  agentComposerInsert: null,
 
   setMaterial: (m) => {
     set({ material: m });
@@ -633,16 +680,42 @@ export const useStore = create<State>((set, get) => ({
     useCallsStore.getState().syncLocalParticipantProfile({ photoURL });
   },
 
-  setSubscriptionPlan: (_plan) => {
-    // Le forfait est géré uniquement par Stripe (webhook → Firestore billingManaged).
+  // Toggle dev local — Stripe désactivé pour le moment.
+  // Quand Stripe sera réintroduit, le webhook Firestore reprendra le contrôle (cf. billingManaged).
+  setSubscriptionPlan: (plan) => {
+    const normalized: SubscriptionPlan = plan === "pro" ? "pro" : "free";
+    const billingManaged = normalized === "pro";
+    const onDemand = normalized === "pro" ? get().onDemandUsageEnabled : false;
+    set({
+      subscriptionPlan: normalized,
+      billingManaged,
+      onDemandUsageEnabled: onDemand,
+    });
+    writeUserPreferences(
+      userPreferencesSnapshot({
+        ...get(),
+        subscriptionPlan: normalized,
+        billingManaged,
+        onDemandUsageEnabled: onDemand,
+      }),
+    );
   },
 
-  setOnDemandUsageEnabled: (_enabled) => {
-    // Géré par Stripe (webhook → Firestore).
+  setOnDemandUsageEnabled: (enabled) => {
+    if (get().subscriptionPlan !== "pro") return;
+    set({ onDemandUsageEnabled: enabled });
+    writeUserPreferences(
+      userPreferencesSnapshot({ ...get(), onDemandUsageEnabled: enabled }),
+    );
   },
 
   toggleOnDemandUsage: () => {
-    // Géré par Stripe (webhook → Firestore).
+    if (get().subscriptionPlan !== "pro") return;
+    const next = !get().onDemandUsageEnabled;
+    set({ onDemandUsageEnabled: next });
+    writeUserPreferences(
+      userPreferencesSnapshot({ ...get(), onDemandUsageEnabled: next }),
+    );
   },
 
   setAgentChatInstructions: (value) => {
@@ -658,6 +731,21 @@ export const useStore = create<State>((set, get) => ({
   setAgentAiNotesInstructions: (value) => {
     set({ agentAiNotesInstructions: value });
     writeUserPreferences(userPreferencesSnapshot({ ...get(), agentAiNotesInstructions: value }));
+  },
+
+  setCalendarWorkingHours: (startMinutes, endMinutes) => {
+    const resolved = resolveCalendarWorkingHours(startMinutes, endMinutes);
+    set({
+      calendarWorkStartMinutes: resolved.startMinutes,
+      calendarWorkEndMinutes: resolved.endMinutes,
+    });
+    writeUserPreferences(
+      userPreferencesSnapshot({
+        ...get(),
+        calendarWorkStartMinutes: resolved.startMinutes,
+        calendarWorkEndMinutes: resolved.endMinutes,
+      }),
+    );
   },
 
   select: (id) => set({ selectedFeatureId: id }),
@@ -917,6 +1005,13 @@ export const useStore = create<State>((set, get) => ({
                   text: assistantText,
                   source: "play-skill",
                   spotifyTrack: playResult.track ?? undefined,
+                  spotifyPlay: playResult.track
+                    ? {
+                        playing: playResult.playing,
+                        requiresPremium: playResult.requiresPremium,
+                        requiresActiveDevice: playResult.requiresActiveDevice,
+                      }
+                    : undefined,
                 },
               ],
               s.openChatTabs,
@@ -985,10 +1080,216 @@ export const useStore = create<State>((set, get) => ({
         return;
       }
 
-      if (isManageSchedulePrompt(displayText)) {
+      const connectorSlash =
+        parseConnectorSlashCommand(displayText) ?? parseConnectorSlashCommand(prompt);
+      if (connectorSlash) {
         get().tickAiRunStep();
+        let augmented;
+        try {
+          augmented = await buildConnectorAugmentedPrompt(connectorSlash, displayText);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          await waitMinChatProcessing(processingStartedAt, signal);
+          set((s) => ({
+            ...patchChatState(
+              [
+                ...s.chat,
+                {
+                  role: "assistant",
+                  text: message,
+                  source: `connector-${connectorSlash.def.id}-error`,
+                },
+              ],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "error",
+              finishedAt: Date.now(),
+              summary: message.slice(0, 140),
+              error: message,
+              source: `connector-${connectorSlash.def.id}`,
+              steps: [
+                {
+                  id: "1",
+                  label: connectorSlash.def.label,
+                  detail: message,
+                  status: "error",
+                },
+              ],
+            },
+          }));
+          writeAutosave(get());
+          return;
+        }
+
+        get().tickAiRunStep();
+        const history = chatWithoutLastUserPrompt(get().chat, displayText)
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({ role: m.role, content: m.text }));
+        const res = await api.chat(
+          augmented.apiPrompt,
+          aiModel,
+          history,
+          signal,
+          agentChatInstructions,
+          activeRoomId,
+        );
+        handleAiModelFallback(res, get().setAiModel);
+        const assistantText = stripDispatchBlock(res.message) || res.message;
+        await waitMinChatProcessing(processingStartedAt, signal);
+        const summary =
+          assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
+        set((s) => ({
+          ...patchChatState(
+            [
+              ...s.chat,
+              {
+                role: "assistant",
+                text: assistantText,
+                source: `connector-${connectorSlash.def.id}`,
+              },
+            ],
+            s.openChatTabs,
+            s.activeChatTabId,
+          ),
+          aiRun: {
+            ...run,
+            status: "done",
+            finishedAt: Date.now(),
+            summary,
+            message: assistantText,
+            source: `connector-${connectorSlash.def.id}`,
+            steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+          },
+        }));
+        writeAutosave(get());
+        return;
+      }
+
+      if (
+        !isMeetingSkillPrompt(displayText) &&
+        !isMeetingSkillPrompt(prompt) &&
+        isNaturalLanguageMeetingRequest(displayText)
+      ) {
+        get().tickAiRunStep();
+        const organizerName = get().userDisplayName || "Vous";
+        try {
+          const meetingResult = await runNaturalLanguageMeetingSkill({
+            text: displayText,
+            mentionable,
+            workspaceId: activeRoomId,
+            organizerName,
+            sendMeetingInvite: (threadId, payload) => {
+              void peopleState.sendMeetingInviteMessage(threadId, payload);
+            },
+            ensureColleagueThread: peopleState.ensureColleagueThread,
+            signal,
+          });
+          await waitMinChatProcessing(processingStartedAt, signal);
+
+          if (!meetingResult.ok) {
+            const errorText =
+              meetingResult.error ??
+              "Impossible de planifier la réunion. Précisez les participants et les horaires.";
+            set((s) => ({
+              ...patchChatState(
+                [...s.chat, { role: "assistant", text: errorText, source: "meeting-skill" }],
+                s.openChatTabs,
+                s.activeChatTabId,
+              ),
+              aiRun: {
+                ...run,
+                status: "error",
+                finishedAt: Date.now(),
+                summary: errorText.slice(0, 140),
+                error: errorText,
+                source: "meeting-skill",
+                steps: [
+                  {
+                    id: "calendar",
+                    label: "Adding to calendar",
+                    detail: errorText,
+                    status: "error",
+                  },
+                ],
+              },
+            }));
+            writeAutosave(get());
+            return;
+          }
+
+          const assistantText = meetingResult.summary;
+          const summary =
+            assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
+          set((s) => ({
+            ...patchChatState(
+              [
+                ...s.chat,
+                { role: "assistant", text: assistantText, source: "meeting-skill" },
+              ],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "done",
+              finishedAt: Date.now(),
+              summary,
+              message: assistantText,
+              source: "meeting-skill",
+              steps: [
+                { id: "calendar", label: "Adding to calendar", status: "done" as const },
+                { id: "invites", label: "Sending invites", status: "done" as const },
+              ],
+            },
+          }));
+          writeAutosave(get());
+          return;
+        } catch (meetingErr: unknown) {
+          if (meetingErr instanceof DOMException && meetingErr.name === "AbortError") {
+            throw meetingErr;
+          }
+          const message =
+            meetingErr instanceof Error
+              ? meetingErr.message
+              : "Impossible de planifier la réunion.";
+          await waitMinChatProcessing(processingStartedAt, signal);
+          set((s) => ({
+            ...patchChatState(
+              [...s.chat, { role: "assistant", text: message, source: "meeting-skill" }],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "error",
+              finishedAt: Date.now(),
+              summary: message.slice(0, 140),
+              error: message,
+              source: "meeting-skill",
+              steps: [
+                { id: "calendar", label: "Adding to calendar", detail: message, status: "error" },
+              ],
+            },
+          }));
+          writeAutosave(get());
+          return;
+        }
+      }
+
+      if (
+        isManageSchedulePrompt(displayText) ||
+        isManageSchedulePrompt(prompt) ||
+        options?.managePrompt ||
+        isNaturalLanguageManageRequest(displayText)
+      ) {
+        get().tickAiRunStep();
+        // Si le composer fournit un draft structuré, on lui passe ; sinon on parse le bloc texte (qui peut être dans `prompt` plutôt que `displayText`).
+        const blockForSkill = isManageSchedulePrompt(prompt) ? prompt : displayText;
         const scheduleResult = await runManageScheduleSkill(
-          displayText,
+          blockForSkill,
           signal,
           options?.managePrompt,
         );
@@ -996,15 +1297,21 @@ export const useStore = create<State>((set, get) => ({
         const assistantText =
           scheduleResult.summary ||
           "Je n'ai pas pu planifier les tâches. Vérifiez le bloc /manage.";
-        if (scheduleResult.firstDateKey) {
-          useCalendarOverlayStore.getState().setSelectedDate(scheduleResult.firstDateKey);
-          get().openCalendarPanel();
-        }
+        // Pas d'ouverture auto du calendrier — l'utilisateur clique "Appliquer au calendrier" pour confirmer.
         const summary =
           assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
         set((s) => ({
           ...patchChatState(
-            [...s.chat, { role: "assistant", text: assistantText, source: "manage-skill" }],
+            [
+              ...s.chat,
+              {
+                role: "assistant",
+                text: assistantText,
+                source: "manage-skill",
+                manageEvents: scheduleResult.events.length ? scheduleResult.events : undefined,
+                manageEventsApplied: false,
+              },
+            ],
             s.openChatTabs,
             s.activeChatTabId,
           ),
@@ -1152,6 +1459,28 @@ export const useStore = create<State>((set, get) => ({
         return { activeAiRequests: n, busy: n > 0 };
       });
     }
+  },
+
+  applyManageEventsForChatMessage: (chatIndex) => {
+    const message = get().chat[chatIndex];
+    if (!message || message.role !== "assistant" || message.source !== "manage-skill") return;
+    if (message.manageEventsApplied) return;
+    const events = message.manageEvents;
+    if (!events || events.length === 0) return;
+
+    applyManageScheduleEvents(events);
+    if (events[0]?.dateKey) {
+      useCalendarOverlayStore.getState().setSelectedDate(events[0].dateKey);
+      get().openCalendarPanel();
+    }
+
+    set((s) => {
+      const nextChat = s.chat.map((m, i) =>
+        i === chatIndex ? { ...m, manageEventsApplied: true } : m,
+      );
+      return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+    });
+    writeAutosave(get());
   },
 
   sendAgent: async (
@@ -1694,6 +2023,18 @@ export const useStore = create<State>((set, get) => ({
 
   openAgentPanel: () => get().switchChatPanelMode("agent"),
 
+  insertAgentComposerText: (text) => {
+    get().switchChatPanelMode("agent");
+    set({ agentComposerInsert: { id: Date.now(), text } });
+  },
+
+  takeAgentComposerInsert: () => {
+    const insert = get().agentComposerInsert;
+    if (!insert) return null;
+    set({ agentComposerInsert: null });
+    return insert;
+  },
+
   openAiNotesPanel: () => get().switchChatPanelMode("ai-notes"),
 
   openFollowUpPanel: () => get().switchChatPanelMode("follow-up"),
@@ -1733,12 +2074,13 @@ export const useStore = create<State>((set, get) => ({
     return tab;
   },
 
-  finalizeAiNotesSession: ({ sessionId, messages, durationMs }) => {
+  finalizeAiNotesSession: ({ sessionId, messages, durationMs, bodyHtml }) => {
     let savedSession: ChatSession | null = null;
     set((s) => {
       const existing =
         s.openChatTabs.find((t) => t.id === sessionId) ??
         s.chatSessions.find((t) => t.id === sessionId);
+      const trimmedBody = bodyHtml?.trim() ?? "";
       const session: ChatSession = {
         id: sessionId,
         title: existing?.title ?? "AI Notes",
@@ -1746,6 +2088,7 @@ export const useStore = create<State>((set, get) => ({
         updatedAt: Date.now(),
         kind: "note",
         durationMs,
+        ...(trimmedBody ? { manualNoteBody: trimmedBody } : {}),
       };
       savedSession = session;
       const openChatTabs = s.openChatTabs.some((t) => t.id === sessionId)
@@ -2137,6 +2480,20 @@ export const useStore = create<State>((set, get) => ({
       showChatHistory: !s.showChatHistory,
       chatPanelMode: s.chatPanelMode === "ai-notes" ? "ai-notes" : "agent",
     })),
+
+  openChatHistoryPanel: (options) => {
+    set({
+      chatPanelOpen: true,
+      chatPanelMode: "agent",
+      showChatHistory: true,
+      activePage: null,
+      openPages: [],
+      chatHistoryHighlightRecordingId: options?.highlightRecordingId ?? null,
+    });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), chatPanelOpen: true }));
+  },
+
+  clearChatHistoryHighlightRecording: () => set({ chatHistoryHighlightRecordingId: null }),
 
   setChatPanelMode: (mode) =>
     set({

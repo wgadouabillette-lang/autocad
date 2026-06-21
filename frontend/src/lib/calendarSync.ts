@@ -1,4 +1,5 @@
 import { getAuthIdToken } from "./firebase/authToken";
+import { isValidDate, normalizeDateKey, parseDateKey } from "./daySchedule";
 
 export interface CalendarSyncEvent {
   title: string;
@@ -43,9 +44,21 @@ async function authHeaders(json = false): Promise<HeadersInit> {
 }
 
 function dayRangeIso(dateKey: string): { timeMin: string; timeMax: string } {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const start = new Date(year!, month! - 1, day!, 0, 0, 0, 0);
-  const end = new Date(year!, month! - 1, day!, 23, 59, 59, 999);
+  const safeKey = normalizeDateKey(dateKey);
+  const start = parseDateKey(safeKey);
+  start.setHours(0, 0, 0, 0);
+  const end = parseDateKey(safeKey);
+  end.setHours(23, 59, 59, 999);
+  if (!isValidDate(start) || !isValidDate(end)) {
+    const fallback = parseDateKey(normalizeDateKey(""));
+    fallback.setHours(0, 0, 0, 0);
+    const fallbackEnd = new Date(fallback);
+    fallbackEnd.setHours(23, 59, 59, 999);
+    return {
+      timeMin: fallback.toISOString(),
+      timeMax: fallbackEnd.toISOString(),
+    };
+  }
   return {
     timeMin: start.toISOString(),
     timeMax: end.toISOString(),
@@ -61,8 +74,24 @@ export async function fetchGoogleCalendarStatus(): Promise<GoogleCalendarStatus>
   return (await r.json()) as GoogleCalendarStatus;
 }
 
-export async function fetchGoogleCalendarEvents(dateKey: string): Promise<GoogleCalendarEvent[]> {
-  const { timeMin, timeMax } = dayRangeIso(dateKey);
+function rangeIso(fromDateKey: string, toDateKey: string): { timeMin: string; timeMax: string } {
+  const start = parseDateKey(normalizeDateKey(fromDateKey));
+  start.setHours(0, 0, 0, 0);
+  const end = parseDateKey(normalizeDateKey(toDateKey));
+  end.setHours(23, 59, 59, 999);
+  if (!isValidDate(start) || !isValidDate(end)) {
+    return dayRangeIso(normalizeDateKey(""));
+  }
+  return {
+    timeMin: start.toISOString(),
+    timeMax: end.toISOString(),
+  };
+}
+
+async function fetchGoogleCalendarEventsInRange(
+  timeMin: string,
+  timeMax: string,
+): Promise<GoogleCalendarEvent[]> {
   const params = new URLSearchParams({ timeMin, timeMax });
   const r = await fetch(`${BASE}/events?${params.toString()}`, {
     headers: await authHeaders(),
@@ -72,8 +101,21 @@ export async function fetchGoogleCalendarEvents(dateKey: string): Promise<Google
     throw new Error(text || `HTTP ${r.status}`);
   }
   const data = (await r.json()) as { events?: GoogleCalendarEvent[]; reason?: string };
-  if (data.reason === "not_connected") return [];
+  if (data.reason === "not_connected" || data.reason === "not_configured") return [];
   return data.events ?? [];
+}
+
+export async function fetchGoogleCalendarEvents(dateKey: string): Promise<GoogleCalendarEvent[]> {
+  const { timeMin, timeMax } = dayRangeIso(dateKey);
+  return fetchGoogleCalendarEventsInRange(timeMin, timeMax);
+}
+
+export async function fetchGoogleCalendarEventsForRange(
+  fromDateKey: string,
+  toDateKey: string,
+): Promise<GoogleCalendarEvent[]> {
+  const { timeMin, timeMax } = rangeIso(fromDateKey, toDateKey);
+  return fetchGoogleCalendarEventsInRange(timeMin, timeMax);
 }
 
 export async function syncEventsToGoogleCalendar(

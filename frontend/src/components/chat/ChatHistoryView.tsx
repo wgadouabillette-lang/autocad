@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatShortChatDate, mergeChatHistorySessions } from "../../lib/chatHistory";
 import {
   CHAT_SESSION_KIND_META,
@@ -20,9 +20,17 @@ export default function ChatHistoryView() {
   const chat = useStore((s) => s.chat);
   const openChatFromHistory = useStore((s) => s.openChatFromHistory);
   const deleteHistorySession = useStore((s) => s.deleteHistorySession);
+  const highlightRecordingId = useStore((s) => s.chatHistoryHighlightRecordingId);
+  const clearChatHistoryHighlightRecording = useStore((s) => s.clearChatHistoryHighlightRecording);
 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  useEffect(() => {
+    if (!highlightRecordingId) return;
+    const id = window.setTimeout(() => clearChatHistoryHighlightRecording(), 1600);
+    return () => window.clearTimeout(id);
+  }, [highlightRecordingId, clearChatHistoryHighlightRecording]);
 
   const grouped = useMemo(() => {
     const tabs = updateActiveTabInTabs(openChatTabs, activeChatTabId, chat);
@@ -76,6 +84,10 @@ export default function ChatHistoryView() {
                       {sessions.map((session) => {
                         const isActive =
                           session.id === activeChatTabId || session.id === activeManualNoteId;
+                        const shimmerOnce =
+                          kind === "recording" &&
+                          !!highlightRecordingId &&
+                          session.id === highlightRecordingId;
                         return (
                           <li key={session.id} className="messages-overlay__thread-item">
                             <div className="messages-overlay__thread-row-wrap">
@@ -96,7 +108,12 @@ export default function ChatHistoryView() {
                                   )}
                                   aria-hidden
                                 />
-                                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium">
+                                <span
+                                  className={clsx(
+                                    "min-w-0 flex-1 truncate text-[12.5px] font-medium",
+                                    shimmerOnce && "text-shimmer-once",
+                                  )}
+                                >
                                   {session.title}
                                 </span>
                                 <time

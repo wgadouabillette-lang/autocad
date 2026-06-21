@@ -102,11 +102,29 @@ async def _create_outlook_event(token: str, item: CalendarEventInput) -> bool:
     return r.status_code in {200, 201}
 
 
+async def _fetch_outlook_account_email(token: str) -> str | None:
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(
+            "https://graph.microsoft.com/v1.0/me",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"$select": "mail,userPrincipalName"},
+        )
+    if r.status_code != 200:
+        return None
+    data = r.json()
+    email = data.get("mail") or data.get("userPrincipalName")
+    return str(email).strip() if email else None
+
+
 @router.get("/outlook/calendar/status")
 async def outlook_calendar_status(user: FirebaseUser = Depends(require_firebase_user)):
     configured = connector_configured("outlook")
     connected = configured and is_connected(user.uid, "outlook")
     account_email = connection_account_label(get_connection(user.uid, "outlook"))
+    if connected and not account_email:
+        token = await get_valid_access_token(user.uid, "outlook")
+        if token:
+            account_email = await _fetch_outlook_account_email(token)
     return OutlookCalendarStatusOut(
         connected=connected,
         configured=configured,
@@ -121,7 +139,7 @@ async def list_outlook_calendar_events(
     user: FirebaseUser = Depends(require_firebase_user),
 ):
     if not connector_configured("outlook"):
-        raise HTTPException(400, "Outlook OAuth is not configured on the server.")
+        return {"events": [], "reason": "not_configured"}
     if not is_connected(user.uid, "outlook"):
         return {"events": [], "reason": "not_connected"}
 

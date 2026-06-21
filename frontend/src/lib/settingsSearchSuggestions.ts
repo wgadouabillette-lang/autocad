@@ -5,6 +5,7 @@ export type SettingsTab =
   | "friends"
   | "workspaces"
   | "usage"
+  | "billing"
   | "agents"
   | "voice"
   | "audio"
@@ -16,7 +17,6 @@ export type LegacySettingsTab =
   | "chat"
   | "account"
   | "plan"
-  | "billing"
   | "recording"
   | "skills"
   | "workspace";
@@ -28,6 +28,7 @@ const SETTINGS_TABS: SettingsTab[] = [
   "friends",
   "workspaces",
   "usage",
+  "billing",
   "agents",
   "voice",
   "audio",
@@ -39,7 +40,6 @@ const LEGACY_TAB_MAP: Record<LegacySettingsTab, SettingsTab> = {
   chat: "agents",
   account: "general",
   plan: "usage",
-  billing: "usage",
   recording: "voice",
   skills: "plugins",
   workspace: "workspaces",
@@ -158,10 +158,10 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
   },
   {
     id: "billing",
-    tab: "usage",
+    tab: "billing",
     label: "Facturation",
-    hint: "Paiements et reçus",
-    keywords: "billing facture paiement carte abonnement usage demande add-on",
+    hint: "Forfait actuel et prochain prélèvement",
+    keywords: "billing abonnement carte prélèvement annuler forfait",
   },
   {
     id: "account-name",

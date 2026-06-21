@@ -29,11 +29,25 @@ class ConnectorStatusOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True, populate_by_alias=True)
 
 
+def _spotify_api_error_message(status_code: int, body: str) -> str:
+    text = (body or "").strip()
+    lowered = text.lower()
+    if status_code == 403 and "premium subscription required for the owner" in lowered:
+        return (
+            "Spotify bloque l'API : le compte qui possède l'application sur "
+            "developer.spotify.com doit avoir Spotify Premium actif "
+            "(compte propriétaire de SPOTIFY_CLIENT_ID, pas votre forfait Lyte). "
+            "Après activation, la propagation peut prendre quelques heures."
+        )
+    return text or "Erreur API Spotify."
+
+
 def _status(uid: str, connector_id: str) -> ConnectorStatusOut:
     entry = get_connection(uid, connector_id)
+    configured = connector_configured(connector_id)
     return ConnectorStatusOut(
-        connected=is_connected(uid, connector_id),
-        configured=connector_configured(connector_id),
+        connected=configured and is_connected(uid, connector_id),
+        configured=configured,
         storageReady=firestore_available(),
         accountLabel=connection_account_label(entry),
     )
@@ -144,152 +158,6 @@ async def outlook_messages(
     return {"messages": messages}
 
 
-@router.get("/notion/status")
-async def notion_status(user: FirebaseUser = Depends(require_firebase_user)):
-    return _status(user.uid, "notion").model_dump(by_alias=True)
-
-
-@router.get("/notion/search")
-async def notion_search(
-    q: str = Query(default=""),
-    page_size: int = Query(default=10, alias="pageSize", ge=1, le=25),
-    user: FirebaseUser = Depends(require_firebase_user),
-):
-    token = await _require_token(user.uid, "notion")
-    body: dict[str, Any] = {"page_size": page_size}
-    if q.strip():
-        body["query"] = q.strip()
-    async with httpx.AsyncClient(timeout=25) as client:
-        r = await client.post(
-            "https://api.notion.com/v1/search",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Notion-Version": "2022-06-28",
-                "Content-Type": "application/json",
-            },
-            json=body,
-        )
-    if r.status_code != 200:
-        raise HTTPException(r.status_code, r.text or "Notion API error.")
-
-    results = []
-    for item in r.json().get("results") or []:
-        if not isinstance(item, dict):
-            continue
-        title_parts: list[str] = []
-        props = item.get("properties") or {}
-        title_prop = props.get("title") or props.get("Name") or {}
-        if isinstance(title_prop, dict):
-            for part in title_prop.get("title") or []:
-                plain = part.get("plain_text")
-                if plain:
-                    title_parts.append(str(plain))
-        results.append(
-            {
-                "id": item.get("id"),
-                "type": item.get("object"),
-                "title": "".join(title_parts) or item.get("url") or "Sans titre",
-                "url": item.get("url") or "",
-            }
-        )
-    return {"results": results}
-
-
-@router.get("/figma/status")
-async def figma_status(user: FirebaseUser = Depends(require_firebase_user)):
-    return _status(user.uid, "figma").model_dump(by_alias=True)
-
-
-@router.get("/figma/me")
-async def figma_me(user: FirebaseUser = Depends(require_firebase_user)):
-    token = await _require_token(user.uid, "figma")
-    async with httpx.AsyncClient(timeout=25) as client:
-        r = await client.get(
-            "https://api.figma.com/v1/me",
-            headers={"Authorization": f"Bearer {token}"},
-        )
-    if r.status_code != 200:
-        raise HTTPException(r.status_code, r.text or "Figma API error.")
-    data = r.json()
-    return {
-        "id": data.get("id"),
-        "email": data.get("email"),
-        "handle": data.get("handle"),
-    }
-
-
-@router.get("/figma/files")
-async def figma_files(
-    max_results: int = Query(default=10, alias="maxResults", ge=1, le=25),
-    user: FirebaseUser = Depends(require_firebase_user),
-):
-    import os
-
-    token = await _require_token(user.uid, "figma")
-    team_id = os.getenv("FIGMA_TEAM_ID", "").strip()
-
-    profile: dict[str, Any] = {}
-    async with httpx.AsyncClient(timeout=25) as client:
-        me_r = await client.get(
-            "https://api.figma.com/v1/me",
-            headers={"Authorization": f"Bearer {token}"},
-        )
-    if me_r.status_code == 200:
-        data = me_r.json()
-        profile = {
-            "id": data.get("id"),
-            "email": data.get("email"),
-            "handle": data.get("handle"),
-        }
-
-    if not team_id:
-        return {
-            "files": [],
-            "profile": profile,
-            "hint": "Ajoutez FIGMA_TEAM_ID dans backend/.env pour lister les fichiers Figma.",
-        }
-
-    files: list[dict[str, Any]] = []
-    async with httpx.AsyncClient(timeout=25) as client:
-        projects_r = await client.get(
-            f"https://api.figma.com/v1/teams/{team_id}/projects",
-            headers={"Authorization": f"Bearer {token}"},
-        )
-    if projects_r.status_code != 200:
-        raise HTTPException(projects_r.status_code, projects_r.text or "Figma projects error.")
-
-    async with httpx.AsyncClient(timeout=25) as client:
-        for project in projects_r.json().get("projects") or []:
-            if not isinstance(project, dict):
-                continue
-            project_id = project.get("id")
-            if not project_id:
-                continue
-            files_r = await client.get(
-                f"https://api.figma.com/v1/projects/{project_id}/files",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            if files_r.status_code != 200:
-                continue
-            for item in files_r.json().get("files") or []:
-                if not isinstance(item, dict):
-                    continue
-                files.append(
-                    {
-                        "key": item.get("key"),
-                        "name": item.get("name") or "Sans titre",
-                        "lastModified": item.get("last_modified") or "",
-                        "projectName": project.get("name") or "",
-                    }
-                )
-                if len(files) >= max_results:
-                    break
-            if len(files) >= max_results:
-                break
-
-    return {"files": files[:max_results]}
-
-
 def _spotify_track_summary(item: dict[str, Any]) -> dict[str, Any] | None:
     track = item.get("item") if isinstance(item.get("item"), dict) else item
     if not isinstance(track, dict):
@@ -379,6 +247,7 @@ def _spotify_track_card(track: dict[str, Any]) -> dict[str, Any]:
         "album": album.get("name") or "",
         "imageUrl": image_url,
         "url": external.get("spotify") or "",
+        "previewUrl": track.get("preview_url") or None,
     }
 
 
@@ -396,7 +265,10 @@ async def spotify_play(
             params={"q": query, "type": "track", "limit": 1},
         )
     if search_r.status_code != 200:
-        raise HTTPException(search_r.status_code, search_r.text or "Spotify search error.")
+        raise HTTPException(
+            search_r.status_code,
+            _spotify_api_error_message(search_r.status_code, search_r.text),
+        )
 
     items = search_r.json().get("tracks", {}).get("items") or []
     if not items or not isinstance(items[0], dict):
@@ -415,18 +287,29 @@ async def spotify_play(
             json={"uris": [uri]},
         )
 
-    if play_r.status_code == 404:
-        raise HTTPException(
-            409,
-            "Aucun appareil Spotify actif. Ouvrez Spotify sur votre téléphone, ordinateur ou navigateur.",
-        )
-    if play_r.status_code == 403:
-        raise HTTPException(
-            403,
-            "Le contrôle à distance Spotify nécessite un compte Premium.",
-        )
-    if play_r.status_code not in (200, 204):
-        raise HTTPException(play_r.status_code, play_r.text or "Impossible de lancer la lecture.")
-
     card = _spotify_track_card(track)
+
+    # Spotify exige Premium pour la lecture à distance et un device actif pour la cible.
+    # Plutôt que d'échouer, on dégrade en renvoyant la carte cliquable : l'utilisateur
+    # peut ouvrir le morceau dans son client Spotify (web/desktop) directement.
+    if play_r.status_code == 403:
+        return {
+            "playing": False,
+            "track": card,
+            "device": None,
+            "requiresPremium": True,
+        }
+    if play_r.status_code == 404:
+        return {
+            "playing": False,
+            "track": card,
+            "device": None,
+            "requiresActiveDevice": True,
+        }
+    if play_r.status_code not in (200, 204):
+        raise HTTPException(
+            play_r.status_code,
+            _spotify_api_error_message(play_r.status_code, play_r.text),
+        )
+
     return {"playing": True, "track": card, "device": None}

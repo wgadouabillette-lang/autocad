@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import urlencode
 
-ProviderId = Literal["google", "microsoft", "notion", "figma", "spotify"]
+ProviderId = Literal["google", "microsoft", "spotify"]
 
-CONNECTOR_IDS = ("calendar", "gmail", "outlook", "notion", "figma", "spotify")
+CONNECTOR_IDS = ("calendar", "gmail", "outlook", "spotify")
 
 
 @dataclass(frozen=True)
@@ -54,18 +54,6 @@ CONNECTORS: dict[str, ConnectorDef] = {
             "Calendars.ReadWrite",
         ),
     ),
-    "notion": ConnectorDef(
-        id="notion",
-        label="Notion",
-        provider="notion",
-        scopes=(),
-    ),
-    "figma": ConnectorDef(
-        id="figma",
-        label="Figma",
-        provider="figma",
-        scopes=("file_read",),
-    ),
     "spotify": ConnectorDef(
         id="spotify",
         label="Spotify",
@@ -89,6 +77,29 @@ def frontend_origin() -> str:
     return os.getenv("FORMA_FRONTEND_ORIGIN", "http://127.0.0.1:5173").rstrip("/")
 
 
+def frontend_base_path() -> str:
+    raw = os.getenv("FORMA_FRONTEND_BASE_PATH", "/app").strip() or "/app"
+    if not raw.startswith("/"):
+        raw = f"/{raw}"
+    return raw.rstrip("/") or "/app"
+
+
+def frontend_app_url(
+    query: str = "",
+    *,
+    origin: str | None = None,
+    base_path: str | None = None,
+) -> str:
+    """URL complète vers l'app SPA (ex. http://127.0.0.1:5173/app/?…)."""
+    root = (origin or frontend_origin()).rstrip("/")
+    base = (base_path or frontend_base_path()).rstrip("/")
+    url = f"{root}{base}/"
+    trimmed = query.lstrip("?")
+    if trimmed:
+        url += f"?{trimmed}"
+    return url
+
+
 def callback_url() -> str:
     return f"{oauth_redirect_base()}/api/connectors/oauth/callback"
 
@@ -104,10 +115,6 @@ def provider_configured(provider: ProviderId) -> bool:
         return bool(
             os.getenv("MICROSOFT_OAUTH_CLIENT_ID") and os.getenv("MICROSOFT_OAUTH_CLIENT_SECRET")
         )
-    if provider == "notion":
-        return bool(os.getenv("NOTION_CLIENT_ID") and os.getenv("NOTION_CLIENT_SECRET"))
-    if provider == "figma":
-        return bool(os.getenv("FIGMA_CLIENT_ID") and os.getenv("FIGMA_CLIENT_SECRET"))
     if provider == "spotify":
         return bool(os.getenv("SPOTIFY_CLIENT_ID") and os.getenv("SPOTIFY_CLIENT_SECRET"))
     return False
@@ -131,17 +138,6 @@ def google_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
         "state": state,
     }
     return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
-
-
-def notion_authorize_url(state: str) -> str:
-    params = {
-        "client_id": os.getenv("NOTION_CLIENT_ID", ""),
-        "redirect_uri": callback_url(),
-        "response_type": "code",
-        "owner": "user",
-        "state": state,
-    }
-    return f"https://api.notion.com/v1/oauth/authorize?{urlencode(params)}"
 
 
 def microsoft_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
@@ -169,27 +165,12 @@ def spotify_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
     return f"https://accounts.spotify.com/authorize?{urlencode(params)}"
 
 
-def figma_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
-    params = {
-        "client_id": os.getenv("FIGMA_CLIENT_ID", ""),
-        "redirect_uri": callback_url(),
-        "scope": ",".join(scopes),
-        "state": state,
-        "response_type": "code",
-    }
-    return f"https://www.figma.com/oauth?{urlencode(params)}"
-
-
 def build_authorize_url(connector_id: str, state: str) -> str:
     spec = CONNECTORS[connector_id]
     if spec.provider == "google":
         return google_authorize_url(state, spec.scopes)
     if spec.provider == "microsoft":
         return microsoft_authorize_url(state, spec.scopes)
-    if spec.provider == "notion":
-        return notion_authorize_url(state)
-    if spec.provider == "figma":
-        return figma_authorize_url(state, spec.scopes)
     if spec.provider == "spotify":
         return spotify_authorize_url(state, spec.scopes)
     raise ValueError(f"Unknown provider: {spec.provider}")

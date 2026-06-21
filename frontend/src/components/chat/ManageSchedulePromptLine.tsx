@@ -1,9 +1,13 @@
 import clsx from "clsx";
 import { Plus } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   MANAGE_DEADLINE_PLACEHOLDER,
+  MANAGE_DURATION_PLACEHOLDER,
   MANAGE_TASK_PLACEHOLDER,
+  formatTaskDurationInput,
+  formatTaskDurationLabel,
+  parseDurationMinutes,
   type ManageSchedulePromptDraft,
 } from "../../lib/manageSchedulePrompt";
 
@@ -107,8 +111,10 @@ export default function ManageSchedulePromptLine({
   onDismiss,
 }: ManageSchedulePromptLineProps) {
   const taskRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const durationRefs = useRef<(HTMLInputElement | null)[]>([]);
   const deadlineRef = useRef<HTMLInputElement | null>(null);
   const didAutoFocusRef = useRef(false);
+  const [durationInputs, setDurationInputs] = useState<Record<number, string>>({});
 
   const focusTask = (index: number) => {
     const input = taskRefs.current[index];
@@ -136,14 +142,38 @@ export default function ManageSchedulePromptLine({
   const updateTask = (index: number, value: string) => {
     if (!onChange) return;
     const tasks = [...draft.tasks];
-    tasks[index] = value;
+    tasks[index] = { ...tasks[index]!, title: value };
     onChange({ ...draft, tasks });
+  };
+
+  const updateTaskDuration = (index: number, raw: string) => {
+    if (!onChange) return;
+    setDurationInputs((prev) => ({ ...prev, [index]: raw }));
+    const tasks = [...draft.tasks];
+    const durationMinutes = parseDurationMinutes(raw);
+    if (raw.trim().length === 0) {
+      const { durationMinutes: _removed, ...rest } = tasks[index]!;
+      tasks[index] = rest;
+    } else if (durationMinutes != null) {
+      tasks[index] = { ...tasks[index]!, durationMinutes };
+    } else {
+      tasks[index] = { ...tasks[index]! };
+    }
+    onChange({ ...draft, tasks });
+  };
+
+  const durationDisplayValue = (index: number) => {
+    if (readOnly) {
+      return formatTaskDurationLabel(draft.tasks[index]?.durationMinutes);
+    }
+    if (index in durationInputs) return durationInputs[index]!;
+    return formatTaskDurationInput(draft.tasks[index]?.durationMinutes);
   };
 
   const addTask = () => {
     if (!onChange) return;
     const nextIndex = draft.tasks.length;
-    onChange({ ...draft, tasks: [...draft.tasks, ""] });
+    onChange({ ...draft, tasks: [...draft.tasks, { title: "" }] });
     requestAnimationFrame(() => focusTask(nextIndex));
   };
 
@@ -158,7 +188,7 @@ export default function ManageSchedulePromptLine({
   };
 
   const handleTaskBackspaceAtStart = (index: number) => {
-    const currentValue = draft.tasks[index] ?? "";
+    const currentValue = draft.tasks[index]?.title ?? "";
     if (currentValue.length > 0) return;
 
     if (index > 0) {
@@ -179,6 +209,12 @@ export default function ManageSchedulePromptLine({
     onDismiss?.();
   };
 
+  const handleDurationBackspaceAtStart = (index: number) => {
+    const durationInput = formatTaskDurationInput(draft.tasks[index]?.durationMinutes);
+    if (durationInput.length > 0) return;
+    focusTask(index);
+  };
+
   const handleDeadlineBackspaceAtStart = () => {
     if (draft.deadline.length > 0) return;
     focusTask(draft.tasks.length - 1);
@@ -191,16 +227,29 @@ export default function ManageSchedulePromptLine({
         {draft.tasks.map((task, index) => (
           <span key={`task-${index}`} className="manage-prompt-line__chip-wrap">
             {index > 0 ? <span className="manage-prompt-line__sep">, </span> : null}
-            <ManagePromptChip
-              value={task}
-              placeholder={MANAGE_TASK_PLACEHOLDER}
-              readOnly={readOnly}
-              onChange={(value) => updateTask(index, value)}
-              onBackspaceAtStart={() => handleTaskBackspaceAtStart(index)}
-              inputRef={(el) => {
-                taskRefs.current[index] = el;
-              }}
-            />
+            <span className="manage-prompt-line__task-group">
+              <ManagePromptChip
+                value={task.title}
+                placeholder={MANAGE_TASK_PLACEHOLDER}
+                readOnly={readOnly}
+                onChange={(value) => updateTask(index, value)}
+                onBackspaceAtStart={() => handleTaskBackspaceAtStart(index)}
+                inputRef={(el) => {
+                  taskRefs.current[index] = el;
+                }}
+              />
+              <ManagePromptChip
+                value={durationDisplayValue(index)}
+                placeholder={MANAGE_DURATION_PLACEHOLDER}
+                readOnly={readOnly}
+                onChange={(value) => updateTaskDuration(index, value)}
+                onBackspaceAtStart={() => handleDurationBackspaceAtStart(index)}
+                className="manage-prompt-chip--duration"
+                inputRef={(el) => {
+                  durationRefs.current[index] = el;
+                }}
+              />
+            </span>
           </span>
         ))}
         {!readOnly ? (

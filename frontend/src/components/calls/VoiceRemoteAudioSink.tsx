@@ -64,12 +64,11 @@ export default function VoiceRemoteAudioSink() {
   const activeRoomId = useStore((s) => s.activeRoomId);
   const inCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
   const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
-  const muteOthers = useCallsStore((s) => s.muteOthers);
   const deafen = useCallsStore((s) => s.deafen);
 
   if (!inCall) return null;
 
-  const audioMuted = muteOthers || deafen;
+  const audioMuted = deafen;
 
   return (
     <>

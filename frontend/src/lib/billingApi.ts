@@ -74,6 +74,27 @@ export interface EnterpriseWorkspaceOption {
   enterpriseActive: boolean;
 }
 
+export interface BillingTransaction {
+  id: string;
+  date: string;
+  description: string;
+  amountLabel: string;
+  status: string;
+  invoiceUrl?: string | null;
+}
+
+export interface BillingSummary {
+  currentPlan: "free" | "pro" | "enterprise";
+  planLabel: string;
+  billingManaged: boolean;
+  workspaceId?: string | null;
+  workspaceName?: string | null;
+  nextBillingDate?: string | null;
+  cancelAtPeriodEnd: boolean;
+  stripeEnabled: boolean;
+  transactions: BillingTransaction[];
+}
+
 let cachedAuthToken: string | null = null;
 let cachedAuthTokenAt = 0;
 const AUTH_TOKEN_TTL_MS = 4 * 60 * 1000;
@@ -157,6 +178,21 @@ export const billingApi = {
 
   status() {
     return jsonGet<BillingStatus>("/status");
+  },
+
+  summary(workspaceId?: string | null) {
+    const wid = workspaceId?.trim().toLowerCase();
+    const query = wid ? `?workspaceId=${encodeURIComponent(wid)}` : "";
+    return jsonGet<BillingSummary>(`/summary${query}`);
+  },
+
+  cancelSubscription(workspaceId?: string | null) {
+    const wid = workspaceId?.trim().toLowerCase();
+    return jsonPost<{ ok: boolean }>("/cancel", wid ? { workspaceId: wid } : {});
+  },
+
+  sync() {
+    return jsonPost<BillingStatus>("/sync");
   },
 
   usage() {

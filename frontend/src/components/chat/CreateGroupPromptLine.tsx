@@ -10,6 +10,8 @@ import {
 interface CreateGroupPromptLineProps {
   draft: CreateGroupSkillDraft;
   members: Person[];
+  lockedMemberIds?: string[];
+  chipLabel?: string;
   onChange: (draft: CreateGroupSkillDraft) => void;
   onDismiss: () => void;
   onSubmit: () => void;
@@ -19,6 +21,8 @@ interface CreateGroupPromptLineProps {
 export default function CreateGroupPromptLine({
   draft,
   members,
+  lockedMemberIds = [],
+  chipLabel = "Créer un groupe",
   onChange,
   onDismiss,
   onSubmit,
@@ -78,6 +82,7 @@ export default function CreateGroupPromptLine({
   };
 
   const removeMember = (memberId: string) => {
+    if (lockedMemberIds.includes(memberId)) return;
     onChange({
       ...draft,
       selectedMemberIds: draft.selectedMemberIds.filter((id) => id !== memberId),
@@ -87,7 +92,7 @@ export default function CreateGroupPromptLine({
 
   return (
     <div className="create-group-prompt-line">
-      <div className="create-group-prompt-chip" aria-label="Créer un groupe">
+      <div className="create-group-prompt-chip" aria-label={chipLabel}>
         {selectedMembers.map((member) => (
           <span key={member.id} className="create-group-prompt-chip__member">
             <span>{member.name}</span>
@@ -157,9 +162,13 @@ export default function CreateGroupPromptLine({
 
             event.preventDefault();
             if (draft.selectedMemberIds.length > 0) {
-              const lastId = draft.selectedMemberIds[draft.selectedMemberIds.length - 1]!;
-              removeMember(lastId);
-              return;
+              const removable = [...draft.selectedMemberIds].reverse().find(
+                (id) => !lockedMemberIds.includes(id),
+              );
+              if (removable) {
+                removeMember(removable);
+                return;
+              }
             }
             onDismiss();
           }

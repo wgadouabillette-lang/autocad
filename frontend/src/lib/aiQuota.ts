@@ -1,5 +1,4 @@
 import type { AiModel } from "./aiModels";
-import { useNotificationsStore } from "../store/useNotificationsStore";
 
 export interface AiModelFallbackResponse {
   ai_model_fallback?: boolean;
@@ -16,9 +15,4 @@ export function handleAiModelFallback(
   if (!res.ai_model_fallback || res.effective_ai_model !== "auto") return;
 
   setAiModel("auto");
-  useNotificationsStore.getState().push({
-    kind: "subscription",
-    title: "Limite API atteinte",
-    body: AI_QUOTA_FALLBACK_NOTICE,
-  });
 }

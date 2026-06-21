@@ -1,4 +1,5 @@
-import { filterChatSkills, type ChatSkillDef } from "./chatSkills";
+import { filterChatSkillsForSlashMenu, type ChatSkillDef } from "./chatSkills";
+import { filterPeopleChatSkills } from "./peopleChatSkills";
 
 export interface SlashQuery {
   start: number;
@@ -16,5 +17,9 @@ export function slashQueryAt(text: string, caret: number): SlashQuery | null {
 }
 
 export function filterSlashSkillMenu(query: string): ChatSkillDef[] {
-  return filterChatSkills(query).slice(0, 8);
+  return filterChatSkillsForSlashMenu(query).slice(0, 8);
+}
+
+export function filterPeopleSlashSkillMenu(query: string): ChatSkillDef[] {
+  return filterPeopleChatSkills(query).slice(0, 8);
 }

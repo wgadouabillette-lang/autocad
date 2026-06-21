@@ -70,6 +70,8 @@ export function persistNotifications(email: string | null, items: AppNotificatio
   }
 }
 
+const DISABLED_NOTIFICATION_KINDS = new Set(["onboarding", "connector"]);
+
 /** Garde uniquement les notifications non lues et jamais vues par l'utilisateur. */
 export function activeNotifications(
   email: string | null,
@@ -77,7 +79,9 @@ export function activeNotifications(
 ): AppNotification[] {
   const seen = loadSeenNotificationIds(email);
   return items.filter(
-    (item) => item.kind === "friend_request" || (!item.read && !seen.has(item.id)),
+    (item) =>
+      !DISABLED_NOTIFICATION_KINDS.has(item.kind) &&
+      (item.kind === "friend_request" || (!item.read && !seen.has(item.id))),
   );
 }
 

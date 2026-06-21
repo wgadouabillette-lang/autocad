@@ -163,7 +163,7 @@ async def list_calendar_events(
     user: FirebaseUser = Depends(require_firebase_user),
 ):
     if not connector_configured("calendar"):
-        raise HTTPException(400, "Google Calendar OAuth is not configured on the server.")
+        return {"events": [], "reason": "not_configured"}
     if not is_connected(user.uid, "calendar"):
         return {"events": [], "reason": "not_connected"}
 

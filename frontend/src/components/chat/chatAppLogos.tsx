@@ -23,16 +23,6 @@ export function OutlookLogo() {
   return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.outlook)} />;
 }
 
-/** Notion */
-export function NotionLogo() {
-  return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.notion)} />;
-}
-
-/** Figma */
-export function FigmaLogo() {
-  return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.figma)} />;
-}
-
 /** Spotify */
 export function SpotifyLogo() {
   return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.spotify)} />;
@@ -44,7 +34,5 @@ export const CHAT_APP_LOGOS = {
   calendar: GoogleCalendarLogo,
   gmail: GmailLogo,
   outlook: OutlookLogo,
-  notion: NotionLogo,
-  figma: FigmaLogo,
   spotify: SpotifyLogo,
 } as const;

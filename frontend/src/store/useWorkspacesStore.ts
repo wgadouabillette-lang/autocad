@@ -13,6 +13,7 @@ import { generateWorkspaceInviteId } from "../lib/workspaceInvite";
 import {
   fetchJoinRequestForUser,
   fetchSharedWorkspace,
+  deleteSharedWorkspace,
   grantWorkspaceMember,
   publishSharedWorkspace,
   requestWorkspaceJoin,
@@ -20,6 +21,10 @@ import {
   type WorkspaceJoinRequestDoc,
 } from "../lib/firebase/workspaceRegistry";
 import { parseWorkspaceInviteInput } from "../lib/workspaceInvite";
+import {
+  canCreateOwnedWorkspace,
+  FREE_OWNED_WORKSPACE_LIMIT,
+} from "../lib/subscriptionPlans";
 import { auth } from "../lib/firebase/client";
 import { resolveActiveWorkspaceId } from "../lib/lastActiveWorkspace";
 import { useCallsStore } from "./useCallsStore";
@@ -52,12 +57,14 @@ interface WorkspacesState extends PersistedState {
   membershipIn: (workspaceId: string, userId?: string) => ServerMembership | undefined;
   roleIn: (workspaceId: string, userId?: string) => ServerRole | null;
   isWorkspaceOwner: (workspaceId: string, userId?: string) => boolean;
+  ownedWorkspaceCount: (userId?: string) => number;
+  canUserCreateWorkspace: (userId?: string) => boolean;
   createWorkspace: (name: string, ownerName: string, userId?: string) => string;
   createPersonalWorkspace: (ownerName: string, userId?: string) => string;
   addRemoteWorkspace: (workspace: Workspace, userId?: string) => boolean;
   updateWorkspace: (
     workspaceId: string,
-    patch: Partial<Pick<Workspace, "name" | "accent">>,
+    patch: Partial<Pick<Workspace, "name" | "accent" | "iconURL">>,
     userId?: string,
   ) => boolean;
   requestJoinWorkspace: (
@@ -72,6 +79,7 @@ interface WorkspacesState extends PersistedState {
   ) => Promise<void>;
   reconcilePendingJoinRequests: (userId: string) => Promise<void>;
   leaveWorkspace: (workspaceId: string, userId?: string) => void;
+  deleteWorkspace: (workspaceId: string, userId?: string) => Promise<void>;
   resetLocalMemberships: () => void;
   stripLegacyPublicWorkspaces: () => void;
 }
@@ -125,6 +133,7 @@ function normalizeCustomServers(servers: Workspace[]): Workspace[] {
     id: server.id,
     name: server.name,
     accent: server.accent ?? pickWorkspaceAccent(index),
+    iconURL: server.iconURL ?? undefined,
     ownerId: server.ownerId ?? LOCAL_USER_ID,
     ownerName: server.ownerName ?? "Vous",
     createdAt: server.createdAt ?? Date.now(),
@@ -260,8 +269,30 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     return get().roleIn(workspaceId, userId) === "owner";
   },
 
+  ownedWorkspaceCount: (userId) => {
+    const memberUid = userId ?? currentMembershipUserId();
+    return get().memberships.filter(
+      (entry) => entry.userId === memberUid && entry.role === "owner",
+    ).length;
+  },
+
+  canUserCreateWorkspace: (userId) => {
+    const memberUid = userId ?? currentMembershipUserId();
+    const ownedCount = get().ownedWorkspaceCount(memberUid);
+    const { subscriptionPlan, billingManaged } = useStore.getState();
+    return canCreateOwnedWorkspace(ownedCount, subscriptionPlan, billingManaged);
+  },
+
   createWorkspace: (name, ownerName, userId = LOCAL_USER_ID) => {
     const trimmed = name.trim();
+    if (!trimmed) {
+      throw new Error("Le nom du serveur est requis.");
+    }
+    if (!get().canUserCreateWorkspace(userId)) {
+      throw new Error(
+        `Limite de ${FREE_OWNED_WORKSPACE_LIMIT} serveurs personnels atteinte. Passez à Pro pour en créer davantage.`,
+      );
+    }
     const existing = new Set(get().customServers.map((server) => server.id));
     let id = generateWorkspaceInviteId();
     while (existing.has(id)) {
@@ -332,7 +363,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     if (get().roleIn(normalized, memberUid) !== "owner") return false;
 
     const trimmedName = patch.name?.trim();
-    const nextPatch: Partial<Pick<Workspace, "name" | "accent">> = {
+    const nextPatch: Partial<Pick<Workspace, "name" | "accent" | "iconURL">> = {
       ...patch,
       ...(trimmedName ? { name: trimmedName } : {}),
     };
@@ -416,6 +447,43 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       writePersisted({ customServers: state.customServers, memberships });
       return { memberships };
     });
+    syncActiveWorkspace(get().joinedWorkspaces(memberUid), memberUid);
+  },
+
+  deleteWorkspace: async (workspaceId, userId) => {
+    const memberUid = userId ?? currentMembershipUserId();
+    const normalized = normalizeWorkspaceId(workspaceId);
+    const role = get().roleIn(normalized, memberUid);
+    if (!role) {
+      throw new Error("Workspace introuvable.");
+    }
+
+    if (role !== "owner") {
+      get().leaveWorkspace(normalized, memberUid);
+      return;
+    }
+
+    if (memberUid !== LOCAL_USER_ID) {
+      await deleteSharedWorkspace(normalized);
+      const { removeWorkspaceIcon } = await import("../lib/firebase/workspaceIcon");
+      void removeWorkspaceIcon(normalized).catch(() => {});
+    }
+
+    set((state) => {
+      const customServers = state.customServers.filter((server) => server.id !== normalized);
+      const memberships = state.memberships.filter((entry) => entry.workspaceId !== normalized);
+      writePersisted({ customServers, memberships });
+      return { customServers, memberships };
+    });
+
+    get().removePendingJoinRequest(normalized);
+
+    const joined = get().joinedWorkspaces(memberUid);
+    if (joined.length === 0) {
+      const ownerName = useStore.getState().userDisplayName;
+      get().createPersonalWorkspace(ownerName, memberUid);
+    }
+    syncActiveWorkspace(get().joinedWorkspaces(memberUid), memberUid);
   },
 
   resetLocalMemberships: () => {

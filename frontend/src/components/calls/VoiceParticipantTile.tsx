@@ -15,6 +15,7 @@ interface VoiceParticipantTileProps {
   audioMuted?: boolean;
   /** Désactive la vidéo (aperçus publics visibles par tout le groupe). */
   allowVideo?: boolean;
+  videoCover?: boolean;
   compact?: boolean;
   fill?: boolean;
   shape?: "fill" | "wide" | "square";
@@ -31,6 +32,7 @@ export default function VoiceParticipantTile({
   audioStream: _audioStream = null,
   audioMuted: _audioMuted = false,
   allowVideo = true,
+  videoCover = true,
   compact = false,
   fill = false,
   shape,
@@ -59,7 +61,10 @@ export default function VoiceParticipantTile({
           autoPlay
           muted
           playsInline
-          className="voice-participant-tile__media"
+          className={clsx(
+            "voice-participant-tile__media",
+            videoCover && "voice-participant-tile__media--cover",
+          )}
         />
       ) : (
         <div className="voice-participant-tile__avatar-stage" aria-hidden>
@@ -89,6 +94,7 @@ export default function VoiceParticipantTile({
     fill && shape === "wide" && "voice-participant-tile--fill-wide",
     fill && shape === "square" && "voice-participant-tile--fill-square",
     fill && (!shape || shape === "fill") && "voice-participant-tile--fill",
+    showVideo && "voice-participant-tile--media",
     speaking && "voice-participant-tile--speaking",
     canMessage && "voice-participant-tile--message",
   );

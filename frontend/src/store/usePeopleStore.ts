@@ -54,6 +54,17 @@ import {
   dismissThreadId,
   getDismissedThreadIds,
 } from "../lib/peopleChatDismissals";
+import type { ManageSchedulePromptDraft } from "../lib/manageSchedulePrompt";
+import { runPeopleManageScheduleSkill } from "../lib/peopleChatSkillActions";
+import {
+  peopleManageMessagePreview,
+  syncPeopleManageEventsFromMessages,
+} from "../lib/peopleManageSchedule";
+import type { MeetingInvitePayload } from "../lib/meetingSkill";
+import {
+  meetingInviteMetaNotificationId,
+  notifyInviteeOfMeetingInvite,
+} from "../lib/meetingInviteNotifications";
 import { useNotificationsStore } from "./useNotificationsStore";
 import { useStore } from "./useStore";
 import { useWorkspacePresenceStore } from "./useWorkspacePresenceStore";
@@ -78,14 +89,45 @@ function firestoreUpdatedAtMillis(
 }
 
 function previewFromDocMeta(meta: {
-  lastMessageKind?: "text" | "handoff";
+  lastMessageKind?: "text" | "handoff" | "manage" | "meeting";
   lastHandoffTitle?: string;
   lastPreview?: string;
 }): string {
   if (meta.lastMessageKind === "handoff") {
     return meta.lastHandoffTitle?.trim() || meta.lastPreview?.trim() || "";
   }
+  if (meta.lastMessageKind === "meeting") {
+    return meta.lastPreview?.trim() || "Invitation à une réunion";
+  }
   return meta.lastPreview?.trim() || "";
+}
+
+function mapCloudPeopleMessage(message: CloudFriendMessage, uid: string): PeopleMessage {
+  return {
+    id: message.id,
+    author: message.authorName,
+    authorUid: message.authorUid,
+    text: message.text,
+    at: cloudMessageTimestamp(message),
+    mine: message.authorUid === uid,
+    kind: message.kind,
+    handoffId: message.handoffId,
+    handoffTitle: message.handoffTitle,
+    handoffPreview: message.handoffPreview,
+    manageDisplayText: message.manageDisplayText,
+    manageEvents: message.manageEvents,
+    manageSummary: message.manageSummary,
+    meetingTitle: message.meetingTitle,
+    meetingDateKey: message.meetingDateKey,
+    meetingStartTime: message.meetingStartTime,
+    meetingEndTime: message.meetingEndTime,
+    meetingOrganizerName: message.meetingOrganizerName,
+  };
+}
+
+function previewForLastPeopleMessage(last?: PeopleMessage): string {
+  if (!last) return "";
+  return peopleManageMessagePreview(last);
 }
 
 function ensureColleagueThreadsForPartner(
@@ -245,6 +287,14 @@ interface PeopleState {
   acceptFriendRequest: (requestId: string) => Promise<void>;
   declineFriendRequest: (requestId: string) => Promise<void>;
   sendMessage: (threadId: string, text: string) => void;
+  sendManageScheduleMessage: (
+    threadId: string,
+    draft: ManageSchedulePromptDraft,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  sendMeetingInviteMessage: (
+    threadId: string,
+    payload: MeetingInvitePayload,
+  ) => Promise<{ ok: boolean; error?: string }>;
   markThreadRead: (threadId: string) => void;
   ensureColleagueThread: (
     workspaceId: string,
@@ -484,6 +534,29 @@ function syncFriendChatsMetadata(
       const keepMessages =
         inboxState.activeThreadId === threadId && inboxState.threadMessageUnsub != null;
 
+      if (
+        chat.lastMessageKind === "meeting" &&
+        isUnread &&
+        chat.lastMessageAuthorUid &&
+        chat.lastMessageAuthorUid !== uid
+      ) {
+        const partnerForNotify = resolvePartnerPerson(state, partnerId, []);
+        notifyInviteeOfMeetingInvite({
+          metaId: meetingInviteMetaNotificationId(
+            chat.id,
+            updatedAt,
+            preview || chat.lastPreview || "Réunion",
+          ),
+          organizerName: partnerForNotify.name,
+          title: preview || chat.lastPreview || "Réunion",
+          dateKey: "",
+          startTime: "",
+          endTime: "",
+          threadId,
+          personId: partnerId,
+        });
+      }
+
       const partner = resolvePartnerPerson(state, partnerId, []);
       colleagueThreadsByWorkspace = ensureColleagueThreadsForPartner(
         { ...state, friendThreads, colleagueThreadsByWorkspace },
@@ -699,21 +772,11 @@ function syncGroupChatMessages(
   cloudMessages: CloudFriendMessage[],
 ) {
   const threadId = threadIdForGroup(group.id);
-  const mappedMessages = cloudMessages.map((m) => ({
-    id: m.id,
-    author: m.authorName,
-    authorUid: m.authorUid,
-    text: m.text,
-    at: cloudMessageTimestamp(m),
-    mine: m.authorUid === uid,
-    kind: m.kind,
-    handoffId: m.handoffId,
-    handoffTitle: m.handoffTitle,
-    handoffPreview: m.handoffPreview,
-  }));
+  const mappedMessages = cloudMessages.map((m) => mapCloudPeopleMessage(m, uid));
+  syncPeopleManageEventsFromMessages(mappedMessages);
 
   const last = mappedMessages[mappedMessages.length - 1];
-  const preview = last?.kind === "handoff" ? last.handoffTitle || last.text : last?.text ?? "";
+  const preview = previewForLastPeopleMessage(last);
   const updatedAt = last?.at ?? Date.now();
   const viewing = get().activeFriendThreadId === threadId;
   const newIncoming = cloudMessages.filter((m) => m.authorUid !== uid).length;
@@ -774,19 +837,9 @@ function syncInboxChat(
   const threadId = threadIdForFriend(partnerId);
   const mappedMessages = mergeCloudMessagesWithPending(
     threadId,
-    cloudMessages.map((m) => ({
-      id: m.id,
-      author: m.authorName,
-      authorUid: m.authorUid,
-      text: m.text,
-      at: cloudMessageTimestamp(m),
-      mine: m.authorUid === uid,
-      kind: m.kind,
-      handoffId: m.handoffId,
-      handoffTitle: m.handoffTitle,
-      handoffPreview: m.handoffPreview,
-    })),
+    cloudMessages.map((m) => mapCloudPeopleMessage(m, uid)),
   );
+  syncPeopleManageEventsFromMessages(mappedMessages);
 
   const friendSeen = seenMessageIdsByFriend.get(partnerId) ?? new Set<string>();
   const isInitialLoad = friendSeen.size === 0;
@@ -795,6 +848,21 @@ function syncInboxChat(
   );
   for (const m of cloudMessages) friendSeen.add(m.id);
   seenMessageIdsByFriend.set(partnerId, friendSeen);
+
+  for (const m of newIncomingMessages) {
+    if (m.kind === "meeting" && m.authorUid !== uid) {
+      notifyInviteeOfMeetingInvite({
+        messageId: m.id,
+        organizerName: m.meetingOrganizerName ?? m.authorName,
+        title: m.meetingTitle ?? "Réunion",
+        dateKey: m.meetingDateKey ?? "",
+        startTime: m.meetingStartTime ?? "",
+        endTime: m.meetingEndTime ?? "",
+        threadId,
+        personId: partnerId,
+      });
+    }
+  }
 
   const lastReadAt = isInitialLoad ? getLastReadAt(uid, partnerId) : 0;
   const persistedUnreadCount = isInitialLoad
@@ -823,7 +891,7 @@ function syncInboxChat(
       ? persistedUnreadCount
       : newIncomingMessages.length;
     const last = mappedMessages[mappedMessages.length - 1];
-    const preview = last?.kind === "handoff" ? last.handoffTitle || last.text : last?.text ?? "";
+    const preview = previewForLastPeopleMessage(last);
     const updatedAt = last?.at ?? Date.now();
     const isViewingThread = (activeThreadId: string) =>
       state.activeFriendThreadId === activeThreadId || isViewingPerson;
@@ -1369,6 +1437,345 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
             body: error instanceof Error ? error.message : "Erreur d'envoi.",
           });
         });
+    }
+  },
+
+  sendManageScheduleMessage: async (threadId, draft) => {
+    const currentUser = auth.currentUser;
+    const myUid = currentUser?.uid;
+    const myName = useStore.getState().userDisplayName || "Vous";
+    const state = get();
+    const thread = state.threadById(threadId);
+    if (!thread) return { ok: false, error: "Conversation introuvable." };
+
+    let scheduled;
+    try {
+      scheduled = await runPeopleManageScheduleSkill(draft);
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "Impossible de planifier les tâches.",
+      };
+    }
+
+    if (!scheduled) {
+      return {
+        ok: false,
+        error: "Impossible de planifier les tâches. Vérifiez la deadline et les créneaux disponibles.",
+      };
+    }
+
+    const extras = {
+      kind: "manage" as const,
+      manageDisplayText: scheduled.displayText,
+      manageEvents: scheduled.manageEvents,
+      manageSummary: scheduled.summary.split("\n")[0] ?? "",
+    };
+    const trimmed = scheduled.displayText;
+
+    if (thread.section === "groups") {
+      const groupId = groupIdFromThreadId(threadId);
+      if (!myUid || !groupId || !thread.memberIds?.includes(myUid)) {
+        return {
+          ok: false,
+          error: "Connectez-vous pour planifier dans ce groupe.",
+        };
+      }
+
+      const optimisticId = `msg-${Date.now()}`;
+      const msg: PeopleMessage = {
+        id: optimisticId,
+        author: "Vous",
+        text: trimmed,
+        at: Date.now(),
+        mine: true,
+        kind: "manage",
+        manageDisplayText: scheduled.displayText,
+        manageEvents: scheduled.manageEvents,
+        manageSummary: extras.manageSummary,
+      };
+
+      const patchGroup = (t: PeopleThread) =>
+        t.id === threadId
+          ? {
+              ...t,
+              messages: [...t.messages, msg],
+              preview: trimmed,
+              updatedAt: Date.now(),
+              unread: 0,
+            }
+          : t;
+
+      const rollbackGroup = (t: PeopleThread) => {
+        if (t.id !== threadId) return t;
+        const messages = t.messages.filter((m) => m.id !== optimisticId);
+        const last = messages[messages.length - 1];
+        return {
+          ...t,
+          messages,
+          preview: previewForLastPeopleMessage(last),
+          updatedAt: last?.at ?? t.updatedAt,
+        };
+      };
+
+      set({ groupThreads: get().groupThreads.map(patchGroup) });
+
+      try {
+        await sendGroupChatMessage(
+          groupId,
+          myUid,
+          myName,
+          thread.memberIds,
+          trimmed,
+          extras,
+        );
+        return { ok: true };
+      } catch (error) {
+        set({ groupThreads: get().groupThreads.map(rollbackGroup) });
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : "Erreur d'envoi.",
+        };
+      }
+    }
+
+    const person = resolvePersonForThread(state, threadId, thread);
+    const rawPersonId = person?.id ?? thread.personId ?? personIdFromThreadId(threadId);
+    const cloudPersonId = rawPersonId ? resolveCloudFriendId(state, rawPersonId) : null;
+    const isCloudFriend = Boolean(myUid && cloudPersonId && isCloudCapableFriend(cloudPersonId));
+
+    if (!isCloudFriend) {
+      return {
+        ok: false,
+        error: myUid
+          ? "Ce contact ne peut pas recevoir ce planning pour le moment."
+          : "Connectez-vous pour planifier avec d'autres utilisateurs.",
+      };
+    }
+
+    const optimisticId = `msg-${Date.now()}`;
+    const msg: PeopleMessage = {
+      id: optimisticId,
+      author: "Vous",
+      text: trimmed,
+      at: Date.now(),
+      mine: true,
+      kind: "manage",
+      manageDisplayText: scheduled.displayText,
+      manageEvents: scheduled.manageEvents,
+      manageSummary: extras.manageSummary,
+    };
+
+    const patchThread = (t: PeopleThread): PeopleThread => {
+      const matchesThread =
+        t.id === threadId || (cloudPersonId != null && t.personId === cloudPersonId);
+      if (!matchesThread) return t;
+      return {
+        ...t,
+        messages: [...t.messages, msg],
+        preview: trimmed,
+        updatedAt: Date.now(),
+        unread: 0,
+      };
+    };
+
+    const rollbackThread = (t: PeopleThread): PeopleThread => {
+      const matchesThread =
+        t.id === threadId || (cloudPersonId != null && t.personId === cloudPersonId);
+      if (!matchesThread) return t;
+      const messages = t.messages.filter((m) => m.id !== optimisticId);
+      const last = messages[messages.length - 1];
+      return {
+        ...t,
+        messages,
+        preview: previewForLastPeopleMessage(last),
+        updatedAt: last?.at ?? t.updatedAt,
+      };
+    };
+
+    pendingCloudMessages.set(optimisticId, {
+      threadId: threadIdForFriend(cloudPersonId!),
+      message: msg,
+    });
+
+    set((current) => {
+      let friendThreads = current.friendThreads;
+      if (person) {
+        const cloudPerson = current.friends.find((friend) => friend.id === cloudPersonId) ?? {
+          ...person,
+          id: cloudPersonId!,
+        };
+        friendThreads = upsertFriendThread({ ...current, friendThreads }, cloudPerson);
+      }
+      return {
+        friendThreads: friendThreads.map(patchThread),
+        colleagueThreadsByWorkspace: Object.fromEntries(
+          Object.entries(current.colleagueThreadsByWorkspace).map(([ws, threads]) => [
+            ws,
+            threads.map(patchThread),
+          ]),
+        ),
+      };
+    });
+
+    try {
+      const chatId = friendChatId(myUid!, cloudPersonId!);
+      await ensureFriendChat(myUid!, cloudPersonId!);
+      await sendFriendChatMessage(
+        chatId,
+        myUid!,
+        myName,
+        [myUid!, cloudPersonId!],
+        trimmed,
+        extras,
+      );
+      return { ok: true };
+    } catch (error) {
+      pendingCloudMessages.delete(optimisticId);
+      set({
+        friendThreads: get().friendThreads.map(rollbackThread),
+        colleagueThreadsByWorkspace: Object.fromEntries(
+          Object.entries(get().colleagueThreadsByWorkspace).map(([ws, threads]) => [
+            ws,
+            threads.map(rollbackThread),
+          ]),
+        ),
+      });
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "Erreur d'envoi.",
+      };
+    }
+  },
+
+  sendMeetingInviteMessage: async (threadId, payload) => {
+    const currentUser = auth.currentUser;
+    const myUid = currentUser?.uid;
+    const myName = payload.organizerName.trim() || useStore.getState().userDisplayName || "Vous";
+    const state = get();
+    const thread = state.threadById(threadId);
+    if (!thread) return { ok: false, error: "Conversation introuvable." };
+
+    const trimmed = payload.invitationText.trim();
+    if (!trimmed) return { ok: false, error: "Invitation vide." };
+
+    const extras = {
+      kind: "meeting" as const,
+      meetingTitle: payload.title,
+      meetingDateKey: payload.dateKey,
+      meetingStartTime: payload.startTime,
+      meetingEndTime: payload.endTime,
+      meetingOrganizerName: myName,
+    };
+
+    const person = resolvePersonForThread(state, threadId, thread);
+    const rawPersonId = person?.id ?? thread.personId ?? personIdFromThreadId(threadId);
+    const cloudPersonId = rawPersonId ? resolveCloudFriendId(state, rawPersonId) : null;
+    const isCloudFriend = Boolean(myUid && cloudPersonId && isCloudCapableFriend(cloudPersonId));
+
+    if (!isCloudFriend) {
+      return {
+        ok: false,
+        error: myUid
+          ? "Ce contact ne peut pas recevoir d'invitation pour le moment."
+          : "Connectez-vous pour inviter d'autres utilisateurs.",
+      };
+    }
+
+    const optimisticId = `msg-${Date.now()}`;
+    const msg: PeopleMessage = {
+      id: optimisticId,
+      author: "Vous",
+      text: trimmed,
+      at: Date.now(),
+      mine: true,
+      kind: "meeting",
+      meetingTitle: payload.title,
+      meetingDateKey: payload.dateKey,
+      meetingStartTime: payload.startTime,
+      meetingEndTime: payload.endTime,
+      meetingOrganizerName: myName,
+    };
+
+    const patchThread = (t: PeopleThread): PeopleThread => {
+      const matchesThread =
+        t.id === threadId || (cloudPersonId != null && t.personId === cloudPersonId);
+      if (!matchesThread) return t;
+      return {
+        ...t,
+        messages: [...t.messages, msg],
+        preview: trimmed,
+        updatedAt: Date.now(),
+        unread: 0,
+      };
+    };
+
+    const rollbackThread = (t: PeopleThread): PeopleThread => {
+      const matchesThread =
+        t.id === threadId || (cloudPersonId != null && t.personId === cloudPersonId);
+      if (!matchesThread) return t;
+      const messages = t.messages.filter((m) => m.id !== optimisticId);
+      const last = messages[messages.length - 1];
+      return {
+        ...t,
+        messages,
+        preview: previewForLastPeopleMessage(last),
+        updatedAt: last?.at ?? t.updatedAt,
+      };
+    };
+
+    pendingCloudMessages.set(optimisticId, {
+      threadId: threadIdForFriend(cloudPersonId!),
+      message: msg,
+    });
+
+    set((current) => {
+      let friendThreads = current.friendThreads;
+      if (person) {
+        const cloudPerson = current.friends.find((friend) => friend.id === cloudPersonId) ?? {
+          ...person,
+          id: cloudPersonId!,
+        };
+        friendThreads = upsertFriendThread({ ...current, friendThreads }, cloudPerson);
+      }
+      return {
+        friendThreads: friendThreads.map(patchThread),
+        colleagueThreadsByWorkspace: Object.fromEntries(
+          Object.entries(current.colleagueThreadsByWorkspace).map(([ws, threads]) => [
+            ws,
+            threads.map(patchThread),
+          ]),
+        ),
+      };
+    });
+
+    try {
+      const chatId = friendChatId(myUid!, cloudPersonId!);
+      await ensureFriendChat(myUid!, cloudPersonId!);
+      await sendFriendChatMessage(
+        chatId,
+        myUid!,
+        myName,
+        [myUid!, cloudPersonId!],
+        trimmed,
+        extras,
+      );
+      return { ok: true };
+    } catch (error) {
+      pendingCloudMessages.delete(optimisticId);
+      set({
+        friendThreads: get().friendThreads.map(rollbackThread),
+        colleagueThreadsByWorkspace: Object.fromEntries(
+          Object.entries(get().colleagueThreadsByWorkspace).map(([ws, threads]) => [
+            ws,
+            threads.map(rollbackThread),
+          ]),
+        ),
+      });
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "Erreur d'envoi.",
+      };
     }
   },
 

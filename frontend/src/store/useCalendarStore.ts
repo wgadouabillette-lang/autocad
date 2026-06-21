@@ -5,7 +5,7 @@ import type { OutlookCalendarEvent } from "../lib/outlookCalendarSync";
 
 export interface CalendarEvent extends DayScheduleEvent {
   dateKey: string;
-  source?: "follow-up" | "user" | "manage-skill" | "google" | "outlook";
+  source?: "follow-up" | "user" | "manage-skill" | "meeting-skill" | "google" | "outlook";
   googleEventId?: string;
   outlookEventId?: string;
 }

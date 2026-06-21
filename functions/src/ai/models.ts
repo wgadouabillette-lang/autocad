@@ -14,7 +14,7 @@ const CHAT_GPT_RE =
   /```|`\w+|json|sql|regex|typescript|javascript|python|api|bug|fix|error|liste|étape|step|how to|comment faire|calcul|formule|tableau|markdown|refactor|debug|compile|syntax|function|class |import |const |def /i;
 
 const CHAT_GROK_RE =
-  /brainstorm|idée|créatif|humour|blague|histoire|story|avis|opinion|discut|conversation|salut|coucou|pourquoi|explique-moi|resume|résume|@\w+|\/gmail|\/calendar|\/notion|\/figma|\/outlook|\/play/i;
+  /brainstorm|idée|créatif|humour|blague|histoire|story|avis|opinion|discut|conversation|salut|coucou|pourquoi|explique-moi|resume|résume|@\w+|\/gmail|\/calendar|\/outlook|\/play/i;
 
 function providerForModelId(modelId: string, keys: LlmKeySet): LlmProvider | null {
   const id = modelId.toLowerCase();

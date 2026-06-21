@@ -66,39 +66,6 @@ Le plugin Outlook couvre **mail + calendrier** (Microsoft Graph). Les événemen
 
 ---
 
-## Notion
-
-1. [notion.so/my-integrations](https://www.notion.so/my-integrations) → **New integration**
-2. Activer **OAuth** et définir la redirect URI :
-   `http://127.0.0.1:8000/api/connectors/oauth/callback`
-3. Copier **OAuth client ID** et **OAuth client secret**
-
-```env
-NOTION_CLIENT_ID=xxxx
-NOTION_CLIENT_SECRET=secret_xxxx
-```
-
-Après connexion, l’aperçu liste les pages récentes via l’API Search.
-
----
-
-## Figma
-
-1. [figma.com/developers](https://www.figma.com/developers) → **Create OAuth app**
-2. Redirect URI : `http://127.0.0.1:8000/api/connectors/oauth/callback`
-3. Scope : `file_read`
-
-```env
-FIGMA_CLIENT_ID=xxxx
-FIGMA_CLIENT_SECRET=xxxx
-# Optionnel — pour lister les fichiers d’une équipe :
-FIGMA_TEAM_ID=1234567890
-```
-
-Sans `FIGMA_TEAM_ID`, la connexion affiche le profil Figma ; avec, l’aperçu liste les fichiers du team.
-
----
-
 ## Spotify
 
 1. [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) → **Create app**
@@ -129,8 +96,8 @@ Dans le chat, utilisez le skill **`/play`** (menu `/`) ou la commande **`/play t
 | Popup se ferme sans succès | `FORMA_FRONTEND_ORIGIN` ≠ port Vite |
 | Google « non validé » | App en Testing — ajoutez-vous en test user ou soumettez à la validation |
 | Outlook `AADSTS` | Mauvais tenant ou permissions API manquantes |
-| Figma sans fichiers | Définir `FIGMA_TEAM_ID` (ID dans l’URL Figma `/team/…`) |
 | Spotify sans lecture | Ouvrir Spotify sur un appareil actif (Premium requis pour contrôle à distance) |
+| Spotify `Active premium subscription required for the owner of the app` | Le **compte propriétaire** de l'app sur [developer.spotify.com](https://developer.spotify.com/dashboard) doit avoir **Spotify Premium** (règle Spotify Dev Mode, fév. 2026). Ce n'est pas le forfait Lyte ni forcément le compte utilisateur connecté dans Lyte. Propagation : quelques heures après activation. |
 
 ---
 
@@ -142,6 +109,4 @@ Dans le chat, utilisez le skill **`/play`** (menu `/`) ou la commande **`/play t
 | Gmail | `GET /api/connectors/gmail/messages` |
 | Outlook mail | `GET /api/connectors/outlook/messages` |
 | Outlook calendar | `GET/POST /api/connectors/outlook/calendar/events` |
-| Notion | `GET /api/connectors/notion/search` |
-| Figma | `GET /api/connectors/figma/files`, `GET /api/connectors/figma/me` |
 | Spotify | `POST /api/connectors/spotify/play`, `GET /api/connectors/spotify/playback`, `GET /api/connectors/spotify/me` |

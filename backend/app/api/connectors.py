@@ -11,6 +11,7 @@ from app.connectors.registry import (
     CONNECTOR_IDS,
     CONNECTORS,
     connector_configured,
+    frontend_app_url,
     frontend_origin,
 )
 from app.connectors.tokens import connection_account_label
@@ -27,13 +28,14 @@ def list_connectors(user: FirebaseUser = Depends(require_firebase_user)):
     for connector_id in CONNECTOR_IDS:
         spec = CONNECTORS[connector_id]
         entry = get_connection(user.uid, connector_id)
+        configured = connector_configured(connector_id)
         items.append(
             {
                 "id": connector_id,
                 "label": spec.label,
                 "provider": spec.provider,
-                "connected": is_connected(user.uid, connector_id),
-                "configured": connector_configured(connector_id),
+                "connected": configured and is_connected(user.uid, connector_id),
+                "configured": configured,
                 "accountLabel": connection_account_label(entry),
             }
         )
@@ -43,6 +45,8 @@ def list_connectors(user: FirebaseUser = Depends(require_firebase_user)):
 @router.get("/{connector_id}/authorize")
 def authorize_connector(
     connector_id: str,
+    return_origin: Optional[str] = Query(default=None),
+    return_path: Optional[str] = Query(default=None),
     user: FirebaseUser = Depends(require_firebase_user),
 ):
     if connector_id not in CONNECTORS:
@@ -53,7 +57,14 @@ def authorize_connector(
             f"OAuth credentials missing for {CONNECTORS[connector_id].label}. "
             "Add client id/secret to backend/.env (see .env.example).",
         )
-    _, url = create_authorize_session(connector_id, user.uid)
+    safe_origin = return_origin.strip().rstrip("/") if return_origin else None
+    safe_path = return_path.strip() if return_path else None
+    _, url = create_authorize_session(
+        connector_id,
+        user.uid,
+        return_origin=safe_origin,
+        return_path=safe_path,
+    )
     return {"url": url}
 
 
@@ -63,20 +74,47 @@ async def oauth_callback(
     state: Optional[str] = Query(default=None),
     error: Optional[str] = Query(default=None),
 ):
-    origin = frontend_origin()
+    default_origin = frontend_origin()
     if error:
-        return HTMLResponse(_callback_html(origin, "error", None, error))
+        return HTMLResponse(_callback_html(default_origin, None, None, "error", None, error))
     if not code or not state:
         raise HTTPException(400, "Missing OAuth code or state.")
     popped = pop_state(state)
     if not popped:
-        return HTMLResponse(_callback_html(origin, "error", None, "Invalid or expired OAuth state."))
-    connector_id, uid = popped
+        return HTMLResponse(
+            _callback_html(
+                default_origin,
+                None,
+                None,
+                "error",
+                None,
+                "Invalid or expired OAuth state.",
+            )
+        )
+    connector_id, uid, return_origin, return_path = popped
     try:
         await exchange_code(connector_id, uid, code)
     except Exception as exc:  # noqa: BLE001 — surface provider errors to UI
-        return HTMLResponse(_callback_html(origin, "error", connector_id, str(exc)))
-    return HTMLResponse(_callback_html(origin, "success", connector_id, None))
+        return HTMLResponse(
+            _callback_html(
+                default_origin,
+                return_origin,
+                return_path,
+                "error",
+                connector_id,
+                str(exc),
+            )
+        )
+    return HTMLResponse(
+        _callback_html(
+            default_origin,
+            return_origin,
+            return_path,
+            "success",
+            connector_id,
+            None,
+        )
+    )
 
 
 @router.delete("/{connector_id}")
@@ -91,7 +129,9 @@ def disconnect_connector(
 
 
 def _callback_html(
-    origin: str,
+    default_origin: str,
+    return_origin: Optional[str],
+    return_path: Optional[str],
     status: str,
     connector_id: Optional[str],
     message: Optional[str],
@@ -105,26 +145,32 @@ def _callback_html(
     import json
 
     data = json.dumps(payload)
-    redirect = f"{origin}/?connector_oauth={status}"
+    opener_origin = (return_origin or default_origin).rstrip("/")
+    query_parts = [f"connector_oauth={status}"]
     if connector_id:
-        redirect += f"&connector_id={connector_id}"
+        query_parts.append(f"connector_id={connector_id}")
     if message:
         from urllib.parse import quote
 
-        redirect += f"&connector_oauth_message={quote(message)}"
+        query_parts.append(f"connector_oauth_message={quote(message)}")
+    redirect = frontend_app_url(
+        "&".join(query_parts),
+        origin=return_origin or default_origin,
+        base_path=return_path,
+    )
     return f"""<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Connector OAuth</title></head>
 <body>
 <script>
   const payload = {data};
-  if (window.opener) {{
-    window.opener.postMessage(payload, "{origin}");
+  if (window.opener && !window.opener.closed) {{
+    window.opener.postMessage(payload, "{opener_origin}");
     window.close();
   }} else {{
     window.location.replace("{redirect}");
   }}
 </script>
-<p>Connecting… You can close this window.</p>
+<p>Connexion en cours… Vous pouvez fermer cette fenêtre.</p>
 </body>
 </html>"""

@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -19,6 +20,7 @@ export interface SharedWorkspaceDoc {
   id: string;
   name: string;
   accent: string;
+  iconURL?: string | null;
   ownerId: string;
   ownerName: string;
   createdAt: number;
@@ -58,6 +60,7 @@ export function toSharedWorkspaceDoc(workspace: Workspace): SharedWorkspaceDoc {
     id: workspace.id,
     name: workspace.name,
     accent: workspace.accent,
+    ...(workspace.iconURL !== undefined ? { iconURL: workspace.iconURL } : {}),
     ownerId: workspace.ownerId,
     ownerName: workspace.ownerName,
     createdAt: workspace.createdAt,
@@ -69,6 +72,7 @@ export function sharedDocToWorkspace(data: SharedWorkspaceDoc): Workspace {
     id: data.id,
     name: data.name,
     accent: data.accent,
+    iconURL: data.iconURL ?? undefined,
     ownerId: data.ownerId,
     ownerName: data.ownerName,
     createdAt: data.createdAt,
@@ -85,6 +89,12 @@ export async function fetchSharedWorkspace(workspaceId: string): Promise<Workspa
   const snap = await getDoc(sharedWorkspaceRef(trimmed));
   if (!snap.exists()) return null;
   return sharedDocToWorkspace(snap.data() as SharedWorkspaceDoc);
+}
+
+export async function deleteSharedWorkspace(workspaceId: string): Promise<void> {
+  const trimmed = workspaceId.trim().toLowerCase();
+  if (!trimmed) throw new Error("Workspace invalide.");
+  await deleteDoc(sharedWorkspaceRef(trimmed));
 }
 
 export async function requestWorkspaceJoin(

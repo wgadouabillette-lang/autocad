@@ -23,6 +23,7 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
     description: "Workspace, appels et messagerie entre amis.",
     features: [
       "Workspace et appels",
+      "Jusqu'à 3 serveurs personnels",
       "Liste d'amis et messages",
       "Mode règles (sans IA)",
       `Connecteurs : ${CONNECTOR_LABELS.join(", ")}`,
@@ -34,6 +35,7 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
     price: "$30 / mois",
     description: "Assistant IA personnel — 30 $/mois de crédits IA au tarif Lyte (marge incluse).",
     features: [
+      "Serveurs personnels illimités",
       "30 $ de crédits IA / mois (facturés au tarif Lyte, pas au coût fournisseur)",
       "Assistant IA (Agent & Render) partout",
       "AI Notes — transcription live en appel vocal",
@@ -58,6 +60,8 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
     ],
   },
 ];
+
+export const FREE_OWNED_WORKSPACE_LIMIT = 3;
 
 export function planLabel(plan: SubscriptionPlan): string {
   return plan === "pro" ? "Pro" : "Gratuit";
@@ -90,6 +94,25 @@ export function effectiveOnDemandUsage(
     billingManaged === true &&
     onDemandUsageEnabled === true
   );
+}
+
+export function canCreateOwnedWorkspace(
+  ownedWorkspaceCount: number,
+  subscriptionPlan: SubscriptionPlan,
+  billingManaged = false,
+): boolean {
+  if (effectiveSubscriptionPlan(subscriptionPlan, billingManaged) === "pro") return true;
+  return ownedWorkspaceCount < FREE_OWNED_WORKSPACE_LIMIT;
+}
+
+export function ownedWorkspaceLimitMessage(
+  subscriptionPlan: SubscriptionPlan,
+  billingManaged = false,
+): string {
+  if (effectiveSubscriptionPlan(subscriptionPlan, billingManaged) === "pro") {
+    return "Serveurs personnels illimités avec Pro.";
+  }
+  return `Jusqu'à ${FREE_OWNED_WORKSPACE_LIMIT} serveurs personnels sur le plan gratuit. Passez à Pro pour en créer davantage.`;
 }
 
 export function hasPersonalAiAccess(

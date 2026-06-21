@@ -15,6 +15,7 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./client";
+import type { PeopleManageScheduleEvent } from "../peopleChat";
 
 export interface CloudFriendMessage {
   id: string;
@@ -23,10 +24,18 @@ export interface CloudFriendMessage {
   text: string;
   clientCreatedAt?: number;
   createdAt?: { seconds: number; nanoseconds: number } | null;
-  kind?: "text" | "handoff";
+  kind?: "text" | "handoff" | "manage" | "meeting";
   handoffId?: string;
   handoffTitle?: string;
   handoffPreview?: string;
+  manageDisplayText?: string;
+  manageEvents?: PeopleManageScheduleEvent[];
+  manageSummary?: string;
+  meetingTitle?: string;
+  meetingDateKey?: string;
+  meetingStartTime?: string;
+  meetingEndTime?: string;
+  meetingOrganizerName?: string;
 }
 
 export interface CloudFriendChat {
@@ -35,7 +44,7 @@ export interface CloudFriendChat {
   updatedAt?: { seconds: number; nanoseconds: number } | null;
   lastPreview?: string;
   lastMessageAuthorUid?: string;
-  lastMessageKind?: "text" | "handoff";
+  lastMessageKind?: "text" | "handoff" | "manage" | "meeting";
   lastHandoffTitle?: string;
 }
 
@@ -77,16 +86,30 @@ export async function sendFriendChatMessage(
   participants: string[],
   text: string,
   extras?: {
-    kind?: "text" | "handoff";
+    kind?: "text" | "handoff" | "manage" | "meeting";
     handoffId?: string;
     handoffTitle?: string;
     handoffPreview?: string;
+    manageDisplayText?: string;
+    manageEvents?: PeopleManageScheduleEvent[];
+    manageSummary?: string;
+    meetingTitle?: string;
+    meetingDateKey?: string;
+    meetingStartTime?: string;
+    meetingEndTime?: string;
+    meetingOrganizerName?: string;
   },
 ): Promise<void> {
   const trimmed = text.trim();
   if (!trimmed) return;
   const previewText =
-    extras?.kind === "handoff" ? extras.handoffTitle?.trim() || trimmed : trimmed;
+    extras?.kind === "handoff"
+      ? extras.handoffTitle?.trim() || trimmed
+      : extras?.kind === "manage"
+        ? extras.manageDisplayText?.trim() || trimmed
+        : extras?.kind === "meeting"
+          ? extras.meetingTitle?.trim() || trimmed
+          : trimmed;
   await addDoc(messagesCol(chatId), {
     authorUid,
     authorName: authorName.trim() || authorUid,
@@ -102,6 +125,24 @@ export async function sendFriendChatMessage(
           handoffPreview: extras.handoffPreview ?? "",
         }
       : {}),
+    ...(extras?.kind === "manage" && extras.manageEvents?.length
+      ? {
+          kind: "manage",
+          manageDisplayText: extras.manageDisplayText ?? trimmed,
+          manageEvents: extras.manageEvents,
+          manageSummary: extras.manageSummary ?? "",
+        }
+      : {}),
+    ...(extras?.kind === "meeting"
+      ? {
+          kind: "meeting",
+          meetingTitle: extras.meetingTitle ?? "",
+          meetingDateKey: extras.meetingDateKey ?? "",
+          meetingStartTime: extras.meetingStartTime ?? "",
+          meetingEndTime: extras.meetingEndTime ?? "",
+          meetingOrganizerName: extras.meetingOrganizerName ?? authorName,
+        }
+      : {}),
   });
   await setDoc(
     chatRef(chatId),
@@ -110,7 +151,14 @@ export async function sendFriendChatMessage(
       updatedAt: serverTimestamp(),
       lastPreview: previewText.slice(0, 200),
       lastMessageAuthorUid: authorUid,
-      lastMessageKind: extras?.kind === "handoff" ? "handoff" : "text",
+      lastMessageKind:
+        extras?.kind === "handoff"
+          ? "handoff"
+          : extras?.kind === "manage"
+            ? "manage"
+            : extras?.kind === "meeting"
+              ? "meeting"
+              : "text",
       ...(extras?.kind === "handoff" && extras.handoffTitle
         ? { lastHandoffTitle: extras.handoffTitle.slice(0, 200) }
         : {}),
@@ -131,7 +179,10 @@ function mapChatDoc(docSnap: QueryDocumentSnapshot<DocumentData>): CloudFriendCh
     lastMessageAuthorUid:
       typeof data.lastMessageAuthorUid === "string" ? data.lastMessageAuthorUid : undefined,
     lastMessageKind:
-      data.lastMessageKind === "handoff" || data.lastMessageKind === "text"
+      data.lastMessageKind === "handoff" ||
+      data.lastMessageKind === "manage" ||
+      data.lastMessageKind === "meeting" ||
+      data.lastMessageKind === "text"
         ? data.lastMessageKind
         : undefined,
     lastHandoffTitle:

@@ -25,6 +25,7 @@ export default function TheaterBlock({
         "call-block",
         "call-block--cascade",
         "call-block--clickable",
+        "call-block--theater",
         layout === "center" && "call-block--center-slot",
       )}
       style={{ animationDelay: `${index * 20}ms` }}

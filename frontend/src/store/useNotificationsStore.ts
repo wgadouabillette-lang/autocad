@@ -15,10 +15,10 @@ export type NotificationKind =
   | "app_update"
   | "subscription"
   | "renewal"
-  | "connector"
-  | "onboarding"
   | "poll"
-  | "workspace";
+  | "workspace"
+  | "recording"
+  | "meeting";
 
 export interface AppNotification {
   id: string;
@@ -36,6 +36,7 @@ export interface AppNotification {
   pollSnapshot?: VoicePoll;
   updateVersion?: string;
   updateReleaseNotes?: string;
+  recordingSessionId?: string;
 }
 
 export interface FriendRequestNotificationInput {
@@ -49,6 +50,8 @@ export interface FriendRequestNotificationInput {
 interface NotificationsState {
   items: AppNotification[];
   panelOpen: boolean;
+  /** Increments on each panel open to replay the pop-up animation. */
+  panelOpenGeneration: number;
   currentIndex: number;
   persistedEmail: string | null;
   unreadCount: () => number;
@@ -57,7 +60,10 @@ interface NotificationsState {
   togglePanel: () => void;
   openPanel: () => void;
   closePanel: () => void;
-  push: (item: Omit<AppNotification, "id" | "createdAt" | "read"> & { id?: string }) => void;
+  push: (
+    item: Omit<AppNotification, "id" | "createdAt" | "read"> & { id?: string },
+    options?: { openPanel?: boolean },
+  ) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
   removeNotification: (id: string) => void;
@@ -80,6 +86,7 @@ function commitItems(
 export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   items: [],
   panelOpen: false,
+  panelOpenGeneration: 0,
   currentIndex: 0,
   persistedEmail: null,
 
@@ -135,12 +142,16 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     }),
 
   togglePanel: () => {
-    const { panelOpen, items } = get();
+    const { panelOpen, items, panelOpenGeneration } = get();
     if (!panelOpen && items.length === 0) return;
     const next = !panelOpen;
     if (next) {
       closePanelsOnSide("left", "notifications");
-      set({ panelOpen: true, currentIndex: firstUnreadIndex(items) });
+      set({
+        panelOpen: true,
+        currentIndex: firstUnreadIndex(items),
+        panelOpenGeneration: panelOpenGeneration + 1,
+      });
       return;
     }
     set({ panelOpen: false });
@@ -148,13 +159,17 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
   openPanel: () => {
     closePanelsOnSide("left", "notifications");
-    const items = get().items;
-    set({ panelOpen: true, currentIndex: firstUnreadIndex(items) });
+    const { items, panelOpenGeneration } = get();
+    set({
+      panelOpen: true,
+      currentIndex: firstUnreadIndex(items),
+      panelOpenGeneration: panelOpenGeneration + 1,
+    });
   },
 
   closePanel: () => set({ panelOpen: false }),
 
-  push: (item) =>
+  push: (item, options) =>
     set((s) => {
       const { id: stableId, ...rest } = item;
       const id = stableId ?? `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -170,7 +185,16 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         },
         ...s.items,
       ]);
-      return { items, currentIndex: 0 };
+      const next = { items, currentIndex: 0 };
+      if (options?.openPanel && items.length > 0) {
+        closePanelsOnSide("left", "notifications");
+        return {
+          ...next,
+          panelOpen: true,
+          panelOpenGeneration: s.panelOpenGeneration + 1,
+        };
+      }
+      return next;
     }),
 
   markRead: (id) =>

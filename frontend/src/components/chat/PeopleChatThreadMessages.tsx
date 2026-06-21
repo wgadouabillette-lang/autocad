@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import clsx from "clsx";
 import type { PeopleMessage } from "../../lib/peopleChat";
+import { parseManageComposerText } from "../../lib/manageSchedulePrompt";
 import HandoffInboxCard from "./HandoffInboxCard";
+import ManageSchedulePromptLine from "./ManageSchedulePromptLine";
 import { useHandoffStore } from "../../store/useHandoffStore";
 import {
   buildPeopleChatTimeline,
@@ -17,6 +19,10 @@ interface PeopleChatThreadMessagesProps {
   className?: string;
   compact?: boolean;
   showAuthors?: boolean;
+  handoffSelectionMode?: boolean;
+  handoffSelectedIndices?: Set<number>;
+  onToggleHandoffIndex?: (index: number) => void;
+  tailContent?: ReactNode;
 }
 
 function PeopleChatBubble({
@@ -24,11 +30,19 @@ function PeopleChatBubble({
   mine,
   compact,
   showAuthors,
+  messageIndex,
+  handoffSelectionMode,
+  handoffSelected,
+  onToggleHandoffIndex,
 }: {
   item: PeopleChatRenderItem;
   mine: boolean;
   compact?: boolean;
   showAuthors?: boolean;
+  messageIndex: number;
+  handoffSelectionMode?: boolean;
+  handoffSelected?: boolean;
+  onToggleHandoffIndex?: (index: number) => void;
 }) {
   const { message, isFirstInGroup, isLastInGroup } = item;
   const openHandoffPreview = useHandoffStore((s) => s.openPreview);
@@ -53,7 +67,43 @@ function PeopleChatBubble({
     );
   }
 
-  return (
+  if (message.kind === "manage") {
+    const manageDraft = parseManageComposerText(message.manageDisplayText ?? message.text);
+
+    return (
+      <div
+        className={clsx(
+          "people-chat-bubble-wrap",
+          mine && "people-chat-bubble-wrap--mine",
+          isFirstInGroup && "people-chat-bubble-wrap--first",
+          isLastInGroup && "people-chat-bubble-wrap--last",
+        )}
+      >
+        <div className="people-chat-bubble-stack">
+          {!mine && isFirstInGroup && showAuthors && (
+            <span className="people-chat-bubble-stack__author">{message.author}</span>
+          )}
+          <div
+            className={clsx(
+              "people-chat-bubble people-chat-bubble--manage",
+              mine ? "people-chat-bubble--outgoing" : "people-chat-bubble--incoming",
+              isFirstInGroup && "people-chat-bubble--first",
+              isLastInGroup && "people-chat-bubble--last",
+              compact && "people-chat-bubble--compact",
+            )}
+          >
+            {manageDraft ? (
+              <ManageSchedulePromptLine draft={manageDraft} readOnly />
+            ) : (
+              <p className="people-chat-bubble__text">{message.manageDisplayText ?? message.text}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const bubble = (
     <div
       className={clsx(
         "people-chat-bubble-wrap",
@@ -81,6 +131,27 @@ function PeopleChatBubble({
       </div>
     </div>
   );
+
+  if (!handoffSelectionMode || !onToggleHandoffIndex) return bubble;
+
+  return (
+    <div
+      className={clsx(
+        "handoff-select-row",
+        "handoff-select-row--active",
+        handoffSelected && "handoff-select-row--selected",
+      )}
+    >
+      <button
+        type="button"
+        className={clsx("handoff-select-row__check", handoffSelected && "is-checked")}
+        aria-pressed={handoffSelected}
+        aria-label={handoffSelected ? "Deselect message" : "Select message"}
+        onClick={() => onToggleHandoffIndex(messageIndex)}
+      />
+      <div className="handoff-select-row__bubble">{bubble}</div>
+    </div>
+  );
 }
 
 export default function PeopleChatThreadMessages({
@@ -90,8 +161,16 @@ export default function PeopleChatThreadMessages({
   className,
   compact,
   showAuthors = false,
+  handoffSelectionMode = false,
+  handoffSelectedIndices,
+  onToggleHandoffIndex,
+  tailContent,
 }: PeopleChatThreadMessagesProps) {
   const timeline = useMemo(() => buildPeopleChatTimeline(messages), [messages]);
+  const messageIndexById = useMemo(
+    () => new Map(messages.map((message, index) => [message.id, index])),
+    [messages],
+  );
   const prevLastMessageIdRef = useRef<string | undefined>();
   const [risingMessageId, setRisingMessageId] = useState<string | null>(null);
 
@@ -126,18 +205,32 @@ export default function PeopleChatThreadMessages({
               hasRisingMessage && "people-chat-thread__group--rise",
             )}
           >
-            {entry.items.map((item) => (
+            {entry.items.map((item) => {
+              const messageIndex = messageIndexById.get(item.message.id) ?? -1;
+              return (
               <PeopleChatBubble
                 key={item.message.id}
                 item={item}
                 mine={entry.mine}
                 compact={compact}
                 showAuthors={showAuthors}
+                messageIndex={messageIndex}
+                handoffSelectionMode={handoffSelectionMode}
+                handoffSelected={
+                  messageIndex >= 0 && (handoffSelectedIndices?.has(messageIndex) ?? false)
+                }
+                onToggleHandoffIndex={onToggleHandoffIndex}
               />
-            ))}
+              );
+            })}
           </li>
         );
       })}
+      {tailContent ? (
+        <li className="people-chat-thread__tail people-chat-thread__group--mine">
+          {tailContent}
+        </li>
+      ) : null}
     </ul>
   );
 }

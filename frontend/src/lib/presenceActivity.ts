@@ -6,8 +6,6 @@ export type PresenceActivityId =
   | "none"
   | "calendar"
   | "gmail"
-  | "notion"
-  | "figma"
   | "grok"
   | "claude"
   | "auto"
@@ -24,8 +22,6 @@ export const PRESENCE_ACTIVITY_OPTIONS: PresenceActivityOption[] = [
   { id: "none", label: "Disponible", icon: Circle },
   { id: "calendar", label: "Calendrier", imageSrc: connectorIconPath(CONNECTOR_ICON_FILES.calendar) },
   { id: "gmail", label: "Gmail", imageSrc: connectorIconPath(CONNECTOR_ICON_FILES.gmail) },
-  { id: "notion", label: "Notion", imageSrc: connectorIconPath(CONNECTOR_ICON_FILES.notion) },
-  { id: "figma", label: "Figma", imageSrc: connectorIconPath(CONNECTOR_ICON_FILES.figma) },
   { id: "grok", label: "Grok 4.1 / xAI", imageSrc: `${import.meta.env.BASE_URL}icons/ai/xai.svg` },
   { id: "claude", label: "Claude", imageSrc: `${import.meta.env.BASE_URL}icons/ai/claude.svg` },
   { id: "auto", label: "Auto", icon: Bot },

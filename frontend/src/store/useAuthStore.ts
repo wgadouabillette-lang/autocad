@@ -25,12 +25,9 @@ import {
 import { removeProfilePhoto, uploadProfilePhoto } from "../lib/firebase/profilePhoto";
 import { pushProfileToJoinedWorkspaces } from "../lib/firebase/workspacePresence";
 import {
-  effectiveOnDemandUsage,
-  effectiveSubscriptionPlan,
-} from "../lib/subscriptionPlans";
-import {
   writeUserPreferences,
   normalizeSidePanelSide,
+  resolveCalendarWorkingHours,
   type SidePanelSide,
   type UserPreferences,
 } from "../lib/userPreferences";
@@ -122,12 +119,14 @@ function resolveProfileSidePanelSide(profile: UserProfileDoc): SidePanelSide {
 
 function applyLocalProfile(profile: UserProfileDoc) {
   const sidePanelSide = resolveProfileSidePanelSide(profile);
-  const billingManaged = profile.billingManaged === true;
-  const subscriptionPlan = effectiveSubscriptionPlan(profile.subscriptionPlan, billingManaged);
-  const onDemandUsageEnabled = effectiveOnDemandUsage(
-    subscriptionPlan,
-    profile.onDemandUsageEnabled,
-    billingManaged,
+  // Stripe désactivé — on conserve le toggle local plutôt que d'écraser depuis Firestore.
+  const currentState = useStore.getState();
+  const subscriptionPlan = currentState.subscriptionPlan;
+  const billingManaged = currentState.billingManaged;
+  const onDemandUsageEnabled = currentState.onDemandUsageEnabled;
+  const calendarHours = resolveCalendarWorkingHours(
+    profile.calendarWorkStartMinutes ?? currentState.calendarWorkStartMinutes,
+    profile.calendarWorkEndMinutes ?? currentState.calendarWorkEndMinutes,
   );
   useStore.setState({
     chatWorkMode: profile.chatWorkMode,
@@ -144,12 +143,11 @@ function applyLocalProfile(profile: UserProfileDoc) {
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
     colorTheme: profile.colorTheme === "light" || profile.colorTheme === "system" ? profile.colorTheme : "dark",
-    subscriptionPlan,
-    onDemandUsageEnabled,
-    billingManaged,
     agentChatInstructions: profile.agentChatInstructions ?? "",
     agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
+    calendarWorkStartMinutes: calendarHours.startMinutes,
+    calendarWorkEndMinutes: calendarHours.endMinutes,
     aiModel: isAiModel(profile.aiModel) ? profile.aiModel : useStore.getState().aiModel,
   });
   writeUserPreferences({
@@ -167,11 +165,14 @@ function applyLocalProfile(profile: UserProfileDoc) {
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
     colorTheme: profile.colorTheme === "light" || profile.colorTheme === "system" ? profile.colorTheme : "dark",
-    subscriptionPlan: "free",
-    onDemandUsageEnabled: false,
+    subscriptionPlan,
+    billingManaged,
+    onDemandUsageEnabled,
     agentChatInstructions: profile.agentChatInstructions ?? "",
     agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
+    calendarWorkStartMinutes: calendarHours.startMinutes,
+    calendarWorkEndMinutes: calendarHours.endMinutes,
   });
   useCallsStore.getState().syncLocalParticipantProfile({
     photoURL: profile.photoURL ?? null,
@@ -181,6 +182,8 @@ function applyLocalProfile(profile: UserProfileDoc) {
 
 function profileFromStore(user: User): UserProfileDoc {
   const state = useStore.getState();
+  // Stripe désactivé: on n'envoie plus `subscriptionPlan`/`onDemandUsageEnabled` à Firestore
+  // (les rules ne laissent passer que le SDK Admin via webhook). Le toggle vit en localStorage.
   const profile: UserProfileDoc = {
     email: user.email?.trim().toLowerCase() ?? state.userEmail,
     photoURL: state.photoURL ?? user.photoURL ?? undefined,
@@ -197,11 +200,11 @@ function profileFromStore(user: User): UserProfileDoc {
     chatPanelOpen: state.chatPanelOpen,
     sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
     colorTheme: state.colorTheme,
-    subscriptionPlan: state.subscriptionPlan,
-    onDemandUsageEnabled: state.onDemandUsageEnabled,
     agentChatInstructions: state.agentChatInstructions,
     agentFollowUpInstructions: state.agentFollowUpInstructions,
     agentAiNotesInstructions: state.agentAiNotesInstructions,
+    calendarWorkStartMinutes: state.calendarWorkStartMinutes,
+    calendarWorkEndMinutes: state.calendarWorkEndMinutes,
   };
   return profile;
 }
@@ -230,6 +233,8 @@ function profileSyncKey(profile: UserProfileDoc): string {
     agentChatInstructions: profile.agentChatInstructions ?? "",
     agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
+    calendarWorkStartMinutes: profile.calendarWorkStartMinutes ?? null,
+    calendarWorkEndMinutes: profile.calendarWorkEndMinutes ?? null,
     aiModel: profile.aiModel ?? null,
   });
 }
@@ -636,9 +641,12 @@ export function currentUserPreferencesSnapshot(): UserPreferences {
     sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
     colorTheme: state.colorTheme,
     subscriptionPlan: state.subscriptionPlan,
+    billingManaged: state.billingManaged,
     onDemandUsageEnabled: state.onDemandUsageEnabled,
     agentChatInstructions: state.agentChatInstructions,
     agentFollowUpInstructions: state.agentFollowUpInstructions,
     agentAiNotesInstructions: state.agentAiNotesInstructions,
+    calendarWorkStartMinutes: state.calendarWorkStartMinutes,
+    calendarWorkEndMinutes: state.calendarWorkEndMinutes,
   };
 }

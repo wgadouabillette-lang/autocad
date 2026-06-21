@@ -1,17 +1,46 @@
 import { api } from "./api";
 import { isManageSchedulePrompt } from "./chatSkills";
-import type { ManageSchedulePromptDraft } from "./manageSchedulePrompt";
+import {
+  formatTaskDurationLabel,
+  isNaturalLanguageManageRequest,
+  normalizeManagePromptDraft,
+  parseDurationMinutes,
+  resolveTaskDurationMinutes,
+  type ManageSchedulePromptDraft,
+} from "./manageSchedulePrompt";
 import type { CalendarEvent } from "../store/useCalendarStore";
 import { useCalendarStore } from "../store/useCalendarStore";
-import { syncEventsToGoogleCalendar } from "./calendarSync";
-import { useNotificationsStore } from "../store/useNotificationsStore";
 import {
+  fetchGoogleCalendarEventsForRange,
+  fetchGoogleCalendarStatus,
+} from "./calendarSync";
+import {
+  fetchOutlookCalendarEventsForRange,
+  fetchOutlookCalendarStatus,
+} from "./outlookCalendarSync";
+import { useStore } from "../store/useStore";
+import {
+  DEFAULT_CALENDAR_WORK_END_MINUTES,
+  DEFAULT_CALENDAR_WORK_START_MINUTES,
+  formatCalendarWorkTime,
+  resolveCalendarWorkingHours,
+  type CalendarWorkingHours,
+} from "./userPreferences";
+import {
+  coerceDateKey,
   formatDayLabel,
   formatScheduleTime,
+  minutesFromMidnightLocal,
+  normalizeDateKey,
   parseDateKey,
+  parseManageDeadline,
   toDateKey,
   type DayScheduleEvent,
 } from "./daySchedule";
+
+export const DEFAULT_WORK_START_MINUTES = DEFAULT_CALENDAR_WORK_START_MINUTES;
+export const DEFAULT_WORK_END_MINUTES = DEFAULT_CALENDAR_WORK_END_MINUTES;
+export const SCHEDULE_BUFFER_MINUTES = 15;
 
 export interface ManageScheduleEventDraft {
   title: string;
@@ -28,12 +57,27 @@ export interface ManageScheduleResult {
   firstDateKey: string | null;
 }
 
+/** Heures de travail configurées dans Paramètres → General. */
+export function getCalendarWorkingHours(): CalendarWorkingHours {
+  const state = useStore.getState();
+  return resolveCalendarWorkingHours(
+    state.calendarWorkStartMinutes,
+    state.calendarWorkEndMinutes,
+  );
+}
+
+interface ParsedManageTask {
+  title: string;
+  durationMinutes: number;
+}
+
 interface ParsedManageBlock {
   deadline: string;
+  deadlineMinutes?: number;
   workStartMinutes: number;
   workEndMinutes: number;
   defaultDurationMinutes: number;
-  tasks: string[];
+  tasks: ParsedManageTask[];
 }
 
 function parseJsonFromLlm(text: string): Record<string, unknown> {
@@ -63,28 +107,90 @@ function parseTimeToMinutes(value: string, fallback: number): number {
 }
 
 function defaultManageDeadlineFromParsed(): string {
-  const fallback = new Date();
-  fallback.setDate(fallback.getDate() + 7);
-  return toDateKey(fallback);
+  return coerceDateKey("");
+}
+
+/** Normalise une deadline /manage → clé valide + heure optionnelle, repli J+7. */
+function normalizeDeadline(raw: string): { dateKey: string; deadlineMinutes?: number } {
+  return parseManageDeadline(raw.trim());
 }
 
 function formatParsedBlockForAi(parsed: ParsedManageBlock): string {
+  const deadlineLine =
+    parsed.deadlineMinutes != null
+      ? `Deadline: ${parsed.deadline} at ${formatScheduleTime(parsed.deadlineMinutes)}`
+      : `Deadline: ${parsed.deadline}`;
+  const hoursLabel = `${formatCalendarWorkTime(parsed.workStartMinutes)}-${formatCalendarWorkTime(parsed.workEndMinutes)}`;
   return [
     "Tasks:",
-    ...parsed.tasks.map((task) => `- ${task}`),
-    `Deadline: ${parsed.deadline}`,
-    "Working hours: 09:00-18:00",
-    "Default task duration: 30 minutes",
+    ...parsed.tasks.map(
+      (task) => `- ${task.title} (${formatTaskDurationLabel(task.durationMinutes)})`,
+    ),
+    deadlineLine,
+    `Working hours: ${hoursLabel}`,
+    `Default task duration: ${parsed.defaultDurationMinutes} minutes`,
   ].join("\n");
 }
 
+function splitNaturalManageTasks(raw: string): string[] {
+  return raw
+    .replace(/,?\s*taking into account my current schedule\.?$/i, "")
+    .replace(/,?\s*en tenant compte de mon (?:horaire|planning|calendrier)(?: actuel)?\.?$/i, "")
+    .split(/,\s*|\s+(?:and|et)\s+/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function pushParsedNaturalTasks(
+  tasksRaw: string,
+  defaultDurationMinutes: number,
+  tasks: ParsedManageTask[],
+): void {
+  for (const part of splitNaturalManageTasks(tasksRaw)) {
+    const parenMatch = part.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+    if (parenMatch) {
+      const title = parenMatch[1]!.trim();
+      const durationMinutes =
+        parseDurationMinutes(parenMatch[2]!) ?? defaultDurationMinutes;
+      if (title) {
+        tasks.push({
+          title,
+          durationMinutes: resolveTaskDurationMinutes(durationMinutes),
+        });
+      }
+      continue;
+    }
+    tasks.push({ title: part, durationMinutes: defaultDurationMinutes });
+  }
+}
+
+function tryParseNaturalManage(text: string): { tasksRaw: string; deadlineRaw: string } | null {
+  const patterns = [
+    /need to do\s+(.+?)\s+before\s+(?:the\s+)?([^,\n.]+)/i,
+    /(?:want|need) to\s+(?:do|finish|complete)\s+(.+?)\s+(?:before|by)\s+(?:the\s+)?([^,\n.]+)/i,
+    /(?:je\s+(?:veux|dois|voudrais)\s+(?:faire|terminer|finir|accomplir)|j'ai besoin de (?:faire|terminer))\s+(.+?)\s+avant\s+(?:le\s+)?([^,\n.]+)/i,
+    /\bfaire\s+(.+?)\s+avant\s+(?:le\s+)?([^,\n.]+)/i,
+    /(?:planifier|organiser|schedule)\s+(.+?)\s+(?:avant|before|by|d'ici)\s+(?:le\s+|the\s+)?([^,\n.]+)/i,
+    /(?:t[âa]ches?\s*(?:à faire|:)?\s*)(.+?)\s+(?:avant|before|d'ici|by)\s+(?:le\s+|the\s+)?([^,\n.]+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]?.trim() && match[2]?.trim()) {
+      return { tasksRaw: match[1].trim(), deadlineRaw: match[2].trim() };
+    }
+  }
+  return null;
+}
+
 function parseManageBlock(text: string): ParsedManageBlock {
+  const configuredHours = getCalendarWorkingHours();
   const lines = text.split("\n");
-  let deadline = "";
-  let workStartMinutes = 9 * 60;
-  let workEndMinutes = 18 * 60;
+  let deadlineRaw = "";
+  let workStartMinutes = configuredHours.startMinutes;
+  let workEndMinutes = configuredHours.endMinutes;
   let defaultDurationMinutes = 30;
-  const tasks: string[] = [];
+  const tasks: ParsedManageTask[] = [];
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -92,7 +198,7 @@ function parseManageBlock(text: string): ParsedManageBlock {
 
     const deadlineMatch = trimmed.match(/^deadline:\s*(.+)$/i);
     if (deadlineMatch) {
-      deadline = deadlineMatch[1].trim();
+      deadlineRaw = deadlineMatch[1].trim();
       continue;
     }
 
@@ -113,35 +219,35 @@ function parseManageBlock(text: string): ParsedManageBlock {
 
     const taskMatch = trimmed.match(/^[-*•]\s*(.+)$/);
     if (taskMatch) {
-      const title = taskMatch[1].trim();
-      if (title && !/^task title \d+$/i.test(title) && title !== "YYYY-MM-DD") {
-        tasks.push(title);
+      const rawTitle = taskMatch[1].trim();
+      if (!rawTitle || /^task title \d+$/i.test(rawTitle) || rawTitle === "YYYY-MM-DD") {
+        continue;
       }
+      const parenMatch = rawTitle.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (parenMatch) {
+        const title = parenMatch[1]!.trim();
+        const durationMinutes =
+          parseDurationMinutes(parenMatch[2]!) ?? defaultDurationMinutes;
+        if (title) tasks.push({ title, durationMinutes: resolveTaskDurationMinutes(durationMinutes) });
+        continue;
+      }
+      tasks.push({ title: rawTitle, durationMinutes: defaultDurationMinutes });
     }
   }
 
   if (tasks.length === 0) {
-    const natural =
-      text.match(/need to do\s+(.+?)\s+before\s+([^,\n.]+)/i) ??
-      text.match(/faire\s+(.+?)\s+avant\s+le\s+([^,\n.]+)/i);
+    const natural = tryParseNaturalManage(text);
     if (natural) {
-      const parsedTasks = natural[1]!
-        .split(/,\s*|\s+(?:and|et)\s+/i)
-        .map((part) => part.trim())
-        .filter(Boolean);
-      if (parsedTasks.length > 0) tasks.push(...parsedTasks);
-      if (!deadline) deadline = natural[2]?.trim() ?? "";
+      pushParsedNaturalTasks(natural.tasksRaw, defaultDurationMinutes, tasks);
+      if (!deadlineRaw) deadlineRaw = natural.deadlineRaw;
     }
   }
 
-  if (!deadline || deadline === "YYYY-MM-DD") {
-    const fallback = new Date();
-    fallback.setDate(fallback.getDate() + 7);
-    deadline = toDateKey(fallback);
-  }
+  const { dateKey: deadline, deadlineMinutes } = normalizeDeadline(deadlineRaw || "");
 
   return {
     deadline,
+    deadlineMinutes,
     workStartMinutes,
     workEndMinutes,
     defaultDurationMinutes,
@@ -150,9 +256,12 @@ function parseManageBlock(text: string): ParsedManageBlock {
 }
 
 function enumerateDateKeys(fromKey: string, toKey: string): string[] {
+  const from = normalizeDateKey(fromKey, toDateKey(new Date()));
+  const to = normalizeDateKey(toKey, from);
   const out: string[] = [];
-  const cursor = parseDateKey(fromKey);
-  const end = parseDateKey(toKey);
+  const cursor = parseDateKey(from);
+  const end = parseDateKey(to);
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime())) return out;
   while (cursor <= end) {
     out.push(toDateKey(cursor));
     cursor.setDate(cursor.getDate() + 1);
@@ -166,6 +275,56 @@ function gatherCalendarContext(dateKeys: string[]): Array<{ dateKey: string; eve
     dateKey,
     events: calendar.eventsForDate(dateKey),
   }));
+}
+
+/**
+ * Pré-charge les events Google + Outlook pour toute la fenêtre de planification afin
+ * que `eventsForDate` (et donc le contexte donné au LLM + le fallback local) couvre
+ * tout l'horaire visible dans l'onglet Calendrier, pas uniquement la date sélectionnée.
+ * External calendars are read-only context for scheduling; manage blocks are written to the in-app store only.
+ */
+async function preloadCalendarConflictsForRange(dateKeys: string[]): Promise<void> {
+  if (dateKeys.length === 0) return;
+
+  const store = useCalendarStore.getState();
+  const fromKey = dateKeys[0]!;
+  const toKey = dateKeys[dateKeys.length - 1]!;
+
+  try {
+    const googleStatus = await fetchGoogleCalendarStatus();
+    if (googleStatus.configured && googleStatus.connected) {
+      const events = await fetchGoogleCalendarEventsForRange(fromKey, toKey);
+      const byDate = new Map<string, typeof events>();
+      for (const event of events) {
+        const bucket = byDate.get(event.dateKey);
+        if (bucket) bucket.push(event);
+        else byDate.set(event.dateKey, [event]);
+      }
+      for (const dateKey of dateKeys) {
+        store.setGoogleEvents(byDate.get(dateKey) ?? [], dateKey);
+      }
+    }
+  } catch {
+    // Connecteur non lié ou erreur transitoire — on continue avec les events déjà connus.
+  }
+
+  try {
+    const outlookStatus = await fetchOutlookCalendarStatus();
+    if (outlookStatus.configured && outlookStatus.connected) {
+      const events = await fetchOutlookCalendarEventsForRange(fromKey, toKey);
+      const byDate = new Map<string, typeof events>();
+      for (const event of events) {
+        const bucket = byDate.get(event.dateKey);
+        if (bucket) bucket.push(event);
+        else byDate.set(event.dateKey, [event]);
+      }
+      for (const dateKey of dateKeys) {
+        store.setOutlookEvents(byDate.get(dateKey) ?? [], dateKey);
+      }
+    }
+  } catch {
+    // Connecteur non lié ou erreur transitoire.
+  }
 }
 
 function formatCalendarContext(
@@ -189,22 +348,41 @@ function formatCalendarContext(
 function buildManageScheduleAiPrompt(
   userBlock: string,
   calendarContext: Array<{ dateKey: string; events: DayScheduleEvent[] }>,
+  parsed: ParsedManageBlock,
 ): string {
-  const today = toDateKey(new Date());
+  const now = new Date();
+  const today = toDateKey(now);
+  const currentTime = formatScheduleTime(minutesFromMidnightLocal(now));
+  const deadlineKey = effectiveDeadlineKey(parsed.deadline);
+  const deadlineTimeLine =
+    parsed.deadlineMinutes != null
+      ? ` Tasks must finish by ${formatScheduleTime(parsed.deadlineMinutes)} on ${deadlineKey}.`
+      : "";
+  const startLabel = formatCalendarWorkTime(parsed.workStartMinutes);
+  const endLabel = formatCalendarWorkTime(parsed.workEndMinutes);
   return [
-    "You are a scheduling assistant.",
-    "Parse the user's /manage block and schedule every listed task on the in-app calendar before the deadline.",
-    "Respond ONLY with valid JSON (no markdown) shaped as:",
-    '{"summary":"short explanation in French","events":[{"title":"...","detail":"optional","dateKey":"YYYY-MM-DD","startMinutes":540,"endMinutes":570}]}',
-    "Rules:",
-    "- startMinutes/endMinutes are minutes from midnight (09:00 = 540).",
-    "- Respect working hours and avoid overlapping existing events.",
-    "- Spread tasks from today through the deadline.",
-    "- Keep at least 15 minutes per task.",
-    "- Include every task from the user list.",
-    `- Today is ${today}.`,
+    "You are a scheduling assistant inside a calendar app.",
+    "Parse the user's /manage block and schedule every listed task in their calendar before the deadline.",
+    "Respond ONLY with valid JSON (no markdown, no prose) shaped exactly as:",
+    `{"summary":"short explanation in French","events":[{"title":"...","detail":"optional","dateKey":"YYYY-MM-DD","startMinutes":${parsed.workStartMinutes},"endMinutes":${parsed.workStartMinutes + 30}}]}`,
     "",
-    "Existing calendar events:",
+    "Strict rules:",
+    `- startMinutes/endMinutes are minutes from midnight (${startLabel} = ${parsed.workStartMinutes}, 14:30 = 870).`,
+    `- Working hours are ${startLabel}-${endLabel} unless the user overrides them in the /manage block.`,
+    `- Today is ${today} at ${currentTime} local time. Never schedule before the current time on today.`,
+    `- The deadline is ${deadlineKey}.${deadlineTimeLine}`,
+    "- Schedule ONLY in the future — never before today, and never before the current time on today.",
+    "- The 'Existing calendar events' block below lists busy time slots. Your scheduled tasks MUST NOT overlap any of them.",
+    "- Spread tasks across the days from today through the deadline. Prefer earlier days when possible.",
+    "- Each task duration is listed beside the task name (e.g. \"45 min\"). Respect those durations when setting startMinutes/endMinutes.",
+    "- Each task must last at least 15 minutes (default 30 minutes when unspecified).",
+    "- Insert a 10 minute buffer between two consecutive tasks on the same day.",
+    "- Include EVERY task from the user list. Never skip a task — always return exactly one event per task.",
+    "- If a day is fully busy, schedule on the next available day (still before or on the deadline when possible).",
+    "- Generate a clear French title for each event block (can match or refine the task name).",
+    "- The summary field must be in French.",
+    "",
+    "Existing calendar events (busy slots, do not overlap):",
     formatCalendarContext(calendarContext),
     "",
     "User /manage block:",
@@ -212,13 +390,16 @@ function buildManageScheduleAiPrompt(
   ].join("\n");
 }
 
-function normalizeEventsFromLlm(data: Record<string, unknown>): ManageScheduleEventDraft[] {
+function normalizeEventsFromLlm(
+  data: Record<string, unknown>,
+  parsed: ParsedManageBlock,
+): ManageScheduleEventDraft[] {
   const rows = Array.isArray(data.events) ? data.events : [];
   const events: ManageScheduleEventDraft[] = [];
   for (const item of rows) {
     const row = item as Record<string, unknown>;
-    const dateKey = asString(row.dateKey);
-    const startMinutes = asNumber(row.startMinutes, 9 * 60);
+    const dateKey = normalizeDateKey(asString(row.dateKey));
+    const startMinutes = asNumber(row.startMinutes, parsed.workStartMinutes);
     const endMinutes = asNumber(row.endMinutes, startMinutes + 30);
     const title = asString(row.title);
     if (!dateKey || !title) continue;
@@ -233,6 +414,38 @@ function normalizeEventsFromLlm(data: Record<string, unknown>): ManageScheduleEv
   return events;
 }
 
+function filterValidScheduleEvents(
+  events: ManageScheduleEventDraft[],
+  parsed: ParsedManageBlock,
+): ManageScheduleEventDraft[] {
+  const today = toDateKey(new Date());
+  const deadlineKey = effectiveDeadlineKey(parsed.deadline);
+
+  return events.filter((event) => {
+    const minStart = minStartMinutesForDate(
+      event.dateKey,
+      today,
+      parsed.workStartMinutes,
+      parsed.workEndMinutes,
+      event.endMinutes - event.startMinutes,
+    );
+    if (minStart == null) return false;
+    if (event.dateKey < today) return false;
+    if (event.dateKey === today && event.startMinutes < minStart) return false;
+    if (event.startMinutes < parsed.workStartMinutes) return false;
+    if (event.endMinutes > parsed.workEndMinutes) return false;
+    if (event.dateKey > deadlineKey) return false;
+    if (
+      event.dateKey === deadlineKey &&
+      parsed.deadlineMinutes != null &&
+      event.endMinutes > parsed.deadlineMinutes
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
 function overlaps(
   startA: number,
   endA: number,
@@ -242,59 +455,206 @@ function overlaps(
   return startA < endB && endA > startB;
 }
 
-function localFallbackSchedule(userBlock: string): ManageScheduleResult {
-  const parsed = parseManageBlock(userBlock);
+const MAX_SCHEDULE_EXTENSION_DAYS = 30;
+const EXTENSION_STEP_DAYS = 7;
+
+function addDaysToDateKey(dateKey: string, days: number): string {
+  const safeKey = normalizeDateKey(dateKey);
+  const cursor = parseDateKey(safeKey);
+  cursor.setDate(cursor.getDate() + days);
+  return toDateKey(cursor);
+}
+
+function effectiveDeadlineKey(deadline: string): string {
+  const normalized = normalizeDeadline(deadline).dateKey;
   const today = toDateKey(new Date());
-  const dateKeys = enumerateDateKeys(today, parsed.deadline);
+  const todayDate = parseDateKey(today);
+  const deadlineDate = parseDateKey(normalized);
+  if (!Number.isNaN(deadlineDate.getTime()) && deadlineDate < todayDate) {
+    return addDaysToDateKey(today, 7);
+  }
+  return normalized;
+}
+
+function planningWindowEndKey(deadline: string): string {
+  return addDaysToDateKey(effectiveDeadlineKey(deadline), MAX_SCHEDULE_EXTENSION_DAYS);
+}
+
+type BusySlot = { dateKey: string; startMinutes: number; endMinutes: number };
+
+function minStartMinutesForDate(
+  dateKey: string,
+  today: string,
+  workStartMinutes: number,
+  workEndMinutes: number,
+  durationMinutes: number,
+): number | null {
+  if (dateKey !== today) return workStartMinutes;
+
+  const nowMinutes = minutesFromMidnightLocal();
+  const bufferedStart = Math.max(workStartMinutes, nowMinutes + SCHEDULE_BUFFER_MINUTES);
+  if (bufferedStart + durationMinutes <= workEndMinutes) return bufferedStart;
+
+  const immediateStart = Math.max(workStartMinutes, nowMinutes);
+  if (immediateStart + durationMinutes <= workEndMinutes) return immediateStart;
+
+  return null;
+}
+
+function busySlotsForDate(
+  dateKey: string,
+  scheduled: ManageScheduleEventDraft[],
+): BusySlot[] {
   const calendar = useCalendarStore.getState();
-  const scheduled: ManageScheduleEventDraft[] = [];
+  const fromCalendar = calendar.eventsForDate(dateKey).map((event) => ({
+    dateKey,
+    startMinutes: event.startMinutes,
+    endMinutes: event.endMinutes,
+  }));
+  const fromScheduled = scheduled
+    .filter((event) => event.dateKey === dateKey)
+    .map((event) => ({
+      dateKey: event.dateKey,
+      startMinutes: event.startMinutes,
+      endMinutes: event.endMinutes,
+    }));
+  return [...fromCalendar, ...fromScheduled];
+}
 
-  let taskIndex = 0;
-  for (const dateKey of dateKeys) {
-    if (taskIndex >= parsed.tasks.length) break;
-    const dayEvents = calendar.eventsForDate(dateKey);
-    let cursor = parsed.workStartMinutes;
+function findFreeSlotOnDay(
+  dateKey: string,
+  durationMinutes: number,
+  workStartMinutes: number,
+  workEndMinutes: number,
+  busy: BusySlot[],
+  minStartMinutes?: number,
+): { startMinutes: number; endMinutes: number } | null {
+  let cursor = Math.max(workStartMinutes, minStartMinutes ?? workStartMinutes);
+  while (cursor + durationMinutes <= workEndMinutes) {
+    const endMinutes = cursor + durationMinutes;
+    const conflict = busy.some((slot) =>
+      overlaps(cursor, endMinutes, slot.startMinutes, slot.endMinutes),
+    );
+    if (!conflict) return { startMinutes: cursor, endMinutes };
+    cursor += 15;
+  }
+  return null;
+}
 
-    while (taskIndex < parsed.tasks.length && cursor + parsed.defaultDurationMinutes <= parsed.workEndMinutes) {
-      const endMinutes = cursor + parsed.defaultDurationMinutes;
-      const conflict = dayEvents.some((event) =>
-        overlaps(cursor, endMinutes, event.startMinutes, event.endMinutes),
-      ) || scheduled.some(
-        (event) =>
-          event.dateKey === dateKey &&
-          overlaps(cursor, endMinutes, event.startMinutes, event.endMinutes),
-      );
+/**
+ * Place chaque tâche dans un créneau futur libre (heures configurées dans Paramètres → General).
+ * Étend la fenêtre au-delà de la deadline si nécessaire (max ~30 jours).
+ * Ne retourne jamais moins d'events que de tâches — au pire force un créneau.
+ */
+function scheduleTasksLocally(
+  parsed: ParsedManageBlock,
+  seedEvents: ManageScheduleEventDraft[] = [],
+): ManageScheduleEventDraft[] {
+  if (parsed.tasks.length === 0) return seedEvents;
 
-      if (conflict) {
-        cursor += 15;
-        continue;
+  const today = toDateKey(new Date());
+  const deadlineKey = effectiveDeadlineKey(parsed.deadline);
+  const scheduled = [...seedEvents];
+  const tasksToPlace =
+    seedEvents.length >= parsed.tasks.length
+      ? []
+      : parsed.tasks.slice(seedEvents.length);
+
+  let searchEndKey = deadlineKey;
+  const maxEndKey = planningWindowEndKey(parsed.deadline);
+
+  for (const task of tasksToPlace) {
+    const durationMinutes = resolveTaskDurationMinutes(task.durationMinutes);
+    let placed = false;
+
+    while (!placed && parseDateKey(searchEndKey) <= parseDateKey(maxEndKey)) {
+      for (const dateKey of enumerateDateKeys(today, searchEndKey)) {
+        const isDeadlineDay = dateKey === deadlineKey;
+
+        let maxEnd = parsed.workEndMinutes;
+        if (isDeadlineDay && parsed.deadlineMinutes != null) {
+          maxEnd = Math.min(maxEnd, parsed.deadlineMinutes);
+        }
+
+        const minStart = minStartMinutesForDate(
+          dateKey,
+          today,
+          parsed.workStartMinutes,
+          maxEnd,
+          durationMinutes,
+        );
+        if (minStart == null) continue;
+
+        const slot = findFreeSlotOnDay(
+          dateKey,
+          durationMinutes,
+          parsed.workStartMinutes,
+          maxEnd,
+          busySlotsForDate(dateKey, scheduled),
+          minStart,
+        );
+        if (!slot) continue;
+        scheduled.push({
+          title: task.title,
+          dateKey,
+          startMinutes: slot.startMinutes,
+          endMinutes: slot.endMinutes,
+          detail: "Planifié par /manage",
+        });
+        placed = true;
+        break;
       }
+      if (placed) break;
+      searchEndKey = addDaysToDateKey(searchEndKey, EXTENSION_STEP_DAYS);
+    }
 
+    if (!placed) {
+      const fallbackDateKey =
+        parseDateKey(searchEndKey) <= parseDateKey(maxEndKey) ? searchEndKey : maxEndKey;
+      const fallbackStart =
+        minStartMinutesForDate(
+          fallbackDateKey,
+          today,
+          parsed.workStartMinutes,
+          parsed.workEndMinutes,
+          durationMinutes,
+        ) ?? parsed.workStartMinutes;
       scheduled.push({
-        title: parsed.tasks[taskIndex]!,
-        dateKey,
-        startMinutes: cursor,
-        endMinutes,
-        detail: "Scheduled by /manage",
+        title: task.title,
+        dateKey: fallbackDateKey,
+        startMinutes: fallbackStart,
+        endMinutes: fallbackStart + durationMinutes,
+        detail: "Planifié par /manage",
       });
-      taskIndex += 1;
-      cursor = endMinutes + 10;
     }
   }
 
-  if (scheduled.length === 0) {
+  return scheduled;
+}
+
+export function buildManageScheduleIntro(deadline: string): string {
+  const label = formatDayLabel(effectiveDeadlineKey(deadline));
+  return `Voici comment j'organise vos tâches avant le ${label}. Cliquez sur **Appliquer au calendrier** pour les ajouter.`;
+}
+
+function localFallbackSchedule(userBlock: string): ManageScheduleResult {
+  const parsed = parseManageBlock(userBlock);
+
+  if (parsed.tasks.length === 0) {
     return {
       applied: false,
-      summary: "Impossible de planifier automatiquement. Vérifiez la deadline et les créneaux disponibles.",
+      summary: "Aucune tâche détectée dans la commande /manage.",
       events: [],
       firstDateKey: null,
     };
   }
 
+  const scheduled = scheduleTasksLocally(parsed);
+
   return {
-    applied: true,
+    applied: false,
     summary: formatManageScheduleSummary(
-      "Planification locale (AI indisponible)",
+      `${buildManageScheduleIntro(parsed.deadline)} (mode local)`,
       scheduled,
     ),
     events: scheduled,
@@ -313,7 +673,14 @@ export function formatManageScheduleSummary(
   return `${intro}\n\n${lines.join("\n")}`;
 }
 
-function applyEvents(events: ManageScheduleEventDraft[]): CalendarEvent[] {
+/**
+ * Pousse les blocs proposés par /manage dans le calendrier in-app uniquement.
+ * Appelé uniquement quand l'utilisateur clique "Appliquer au calendrier" dans la bulle d'IA.
+ */
+export function applyManageScheduleEvents(
+  events: ManageScheduleEventDraft[],
+): CalendarEvent[] {
+  if (events.length === 0) return [];
   const now = Date.now();
   const payload: CalendarEvent[] = events.map((event, index) => ({
     id: `manage-${now}-${index}`,
@@ -325,17 +692,6 @@ function applyEvents(events: ManageScheduleEventDraft[]): CalendarEvent[] {
     source: "manage-skill",
   }));
   useCalendarStore.getState().addEvents(payload);
-  void syncEventsToGoogleCalendar(
-    payload.map((event) => ({
-      title: event.title,
-      detail: event.detail,
-      dateKey: event.dateKey,
-      startMinutes: event.startMinutes,
-      endMinutes: event.endMinutes,
-    })),
-  ).then(() => {
-    window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
-  });
   return payload;
 }
 
@@ -344,61 +700,109 @@ export async function runManageScheduleSkill(
   signal?: AbortSignal,
   draft?: ManageSchedulePromptDraft,
 ): Promise<ManageScheduleResult> {
-  if (!isManageSchedulePrompt(userBlock) && !draft) {
+  if (
+    !isManageSchedulePrompt(userBlock) &&
+    !draft &&
+    !isNaturalLanguageManageRequest(userBlock)
+  ) {
     return { applied: false, summary: "", events: [], firstDateKey: null };
   }
 
   const parsed = draft
-    ? {
-        deadline: draft.deadline.trim() || defaultManageDeadlineFromParsed(),
-        workStartMinutes: 9 * 60,
-        workEndMinutes: 18 * 60,
-        defaultDurationMinutes: 30,
-        tasks: draft.tasks.map((t) => t.trim()).filter(Boolean),
-      }
+    ? (() => {
+        const normalized = normalizeManagePromptDraft(draft);
+        const { dateKey, deadlineMinutes } = normalizeDeadline(normalized.deadline);
+        const hours = getCalendarWorkingHours();
+        return {
+          deadline: dateKey,
+          deadlineMinutes,
+          workStartMinutes: hours.startMinutes,
+          workEndMinutes: hours.endMinutes,
+          defaultDurationMinutes: 30,
+          tasks: normalized.tasks
+            .map((task) => ({
+              title: task.title.trim(),
+              durationMinutes: resolveTaskDurationMinutes(task.durationMinutes),
+            }))
+            .filter((task) => task.title.length > 0),
+        };
+      })()
     : parseManageBlock(userBlock);
   const today = toDateKey(new Date());
-  const dateKeys = enumerateDateKeys(today, parsed.deadline);
+  const preloadEndKey = planningWindowEndKey(parsed.deadline);
+  const dateKeys = enumerateDateKeys(today, preloadEndKey);
+  // Aspire les events Google + Outlook pour toute la fenêtre, pas seulement la date sélectionnée
+  // dans la tab Calendrier — sinon le LLM raisonne sur un horaire incomplet.
+  if (dateKeys.length > 0) {
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    await preloadCalendarConflictsForRange(dateKeys);
+  }
   const calendarContext = gatherCalendarContext(dateKeys);
+  const blockForAi =
+    draft || isNaturalLanguageManageRequest(userBlock)
+      ? formatParsedBlockForAi(parsed)
+      : userBlock;
   const prompt = buildManageScheduleAiPrompt(
-    draft ? formatParsedBlockForAi(parsed) : userBlock,
+    blockForAi,
     calendarContext,
+    parsed,
   );
 
   try {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const response = await api.chat(prompt, "auto", [], signal);
     const data = parseJsonFromLlm(response.message);
-    const events = normalizeEventsFromLlm(data);
-    if (events.length === 0) throw new Error("Aucun événement");
+    let events = filterValidScheduleEvents(normalizeEventsFromLlm(data, parsed), parsed);
 
-    applyEvents(events);
-    const intro = asString(data.summary, `${events.length} tâche(s) planifiée(s) dans votre calendrier.`);
-    useNotificationsStore.getState().push({
-      kind: "new_feature",
-      title: "Calendrier mis à jour",
-      body: `${events.length} tâche(s) ajoutée(s) par /manage.`,
-    });
+    if (events.length < parsed.tasks.length) {
+      events = scheduleTasksLocally(parsed, events);
+    }
+    if (events.length === 0 && parsed.tasks.length > 0) {
+      throw new Error("Aucun événement");
+    }
+
+    // L'utilisateur doit explicitement cliquer "Appliquer au calendrier" pour pousser les blocs.
+    const intro = asString(data.summary, buildManageScheduleIntro(parsed.deadline));
 
     return {
-      applied: true,
+      applied: false,
       summary: formatManageScheduleSummary(intro, events),
       events,
       firstDateKey: events[0]?.dateKey ?? null,
     };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
-    const fallback = localFallbackSchedule(
-      draft ? formatParsedBlockForAi(parsed) : userBlock,
-    );
-    if (fallback.applied) {
-      applyEvents(fallback.events);
-      useNotificationsStore.getState().push({
-        kind: "new_feature",
-        title: "Calendrier mis à jour",
-        body: `${fallback.events.length} tâche(s) ajoutée(s) par /manage.`,
-      });
+    if (typeof console !== "undefined") {
+      console.warn("[/manage] AI scheduling failed, falling back to local heuristics", error);
     }
-    return fallback;
+    try {
+      const fallback = localFallbackSchedule(blockForAi);
+      return {
+        ...fallback,
+        // Même en fallback local, on attend la confirmation utilisateur.
+        applied: false,
+      };
+    } catch (fallbackError) {
+      if (typeof console !== "undefined") {
+        console.warn("[/manage] local fallback failed, using minimal schedule", fallbackError);
+      }
+      const { dateKey, deadlineMinutes } = normalizeDeadline(parsed.deadline);
+      const safeParsed: ParsedManageBlock = {
+        ...parsed,
+        deadline: dateKey,
+        deadlineMinutes,
+      };
+      const scheduled =
+        safeParsed.tasks.length > 0 ? scheduleTasksLocally(safeParsed) : [];
+      return {
+        applied: false,
+        summary:
+          scheduled.length > 0
+            ? formatManageScheduleSummary("Planification locale (AI indisponible).", scheduled)
+            : "Impossible de planifier automatiquement. Vérifiez la deadline et les créneaux disponibles.",
+        events: scheduled,
+        firstDateKey: scheduled[0]?.dateKey ?? null,
+      };
+    }
   }
 }

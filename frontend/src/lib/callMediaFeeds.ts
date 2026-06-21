@@ -6,8 +6,42 @@ import {
   type RoomCallsState,
 } from "./calls";
 import type { TheaterState } from "./theater";
+import {
+  participantVideoStream,
+  type RemoteParticipantStreams,
+} from "./webrtc/workspaceVoiceRtc";
 
 export type CallMediaKind = "camera" | "screen";
+
+export interface CallParticipantVideoDisplay {
+  stream: MediaStream | null;
+  cover: boolean;
+}
+
+export function resolveCallParticipantVideoDisplay(input: {
+  isLocal: boolean;
+  cameraOn: boolean;
+  screenSharing: boolean;
+  localStream: MediaStream | null;
+  screenShareStream: MediaStream | null;
+  remoteMedia?: RemoteParticipantStreams;
+}): CallParticipantVideoDisplay {
+  if (input.isLocal) {
+    if (input.screenSharing && input.screenShareStream) {
+      return { stream: input.screenShareStream, cover: false };
+    }
+    if (input.cameraOn && input.localStream) {
+      return { stream: input.localStream, cover: true };
+    }
+    return { stream: null, cover: true };
+  }
+
+  const stream = participantVideoStream(input.remoteMedia);
+  if (!stream) return { stream: null, cover: true };
+  const isScreen =
+    !!input.remoteMedia?.screenStream && stream === input.remoteMedia.screenStream;
+  return { stream, cover: !isScreen };
+}
 
 export interface ParticipantMediaState {
   cameraOn: boolean;

@@ -1,14 +1,17 @@
-import { ArrowRightLeft, CalendarDays, FileText, Music2, UsersRound, type LucideIcon } from "lucide-react";
+import { ArrowRightLeft, CalendarDays, FileText, UsersRound, Video, type LucideIcon } from "lucide-react";
+import { CHAT_APP_LOGOS, type ChatAppLogoComponent } from "../components/chat/chatAppLogos";
 import { CREATE_GROUP_COMPOSER_TEXT } from "./createGroupSkill";
 import { MANAGE_COMPOSER_TEMPLATE } from "./manageSchedulePrompt";
 import { PLAY_SKILL_TEMPLATE } from "./playSkill";
+import { MEETING_SKILL_TEMPLATE } from "./meetingSkill";
 
 export interface ChatSkillDef {
   id: string;
   slash: string;
   label: string;
   description: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  logo?: ChatAppLogoComponent;
   template: string;
   requiresPaidPlan?: boolean;
 }
@@ -19,16 +22,17 @@ export const GROUP_SKILL_TEMPLATE = CREATE_GROUP_SKILL_TEMPLATE;
 export const RECAP_SKILL_TEMPLATE = `/recap`;
 export const HANDOFF_SKILL_TEMPLATE = `/handoff`;
 
-export { MANAGE_COMPOSER_TEMPLATE, CREATE_GROUP_COMPOSER_TEXT, PLAY_SKILL_TEMPLATE };
+export { MANAGE_COMPOSER_TEMPLATE, CREATE_GROUP_COMPOSER_TEXT, PLAY_SKILL_TEMPLATE, MEETING_SKILL_TEMPLATE };
 
 export const CHAT_SKILLS: ChatSkillDef[] = [
   {
     id: "manage",
     slash: "manage",
     label: "/manage",
-    description: "Schedule tasks into your calendar before a deadline",
+    description: "Schedule tasks into your calendar before a deadline (Pro)",
     icon: CalendarDays,
     template: MANAGE_SKILL_TEMPLATE,
+    requiresPaidPlan: true,
   },
   {
     id: "group",
@@ -51,8 +55,40 @@ export const CHAT_SKILLS: ChatSkillDef[] = [
     slash: "play",
     label: "/play",
     description: "Play a song on Spotify",
-    icon: Music2,
+    logo: CHAT_APP_LOGOS.spotify,
     template: PLAY_SKILL_TEMPLATE,
+  },
+  {
+    id: "meeting",
+    slash: "meeting",
+    label: "/meeting",
+    description: "Schedule a meeting with @people and add it to your calendar",
+    icon: Video,
+    template: MEETING_SKILL_TEMPLATE,
+  },
+  {
+    id: "calendar",
+    slash: "calendar",
+    label: "/calendar",
+    description: "Include today's Google Calendar events in your prompt",
+    logo: CHAT_APP_LOGOS.calendar,
+    template: "/calendar ",
+  },
+  {
+    id: "gmail",
+    slash: "gmail",
+    label: "/gmail",
+    description: "Include recent Gmail messages in your prompt",
+    logo: CHAT_APP_LOGOS.gmail,
+    template: "/gmail ",
+  },
+  {
+    id: "outlook",
+    slash: "outlook",
+    label: "/outlook",
+    description: "Include recent Outlook mail in your prompt",
+    logo: CHAT_APP_LOGOS.outlook,
+    template: "/outlook ",
   },
   {
     id: "recap",
@@ -81,8 +117,17 @@ export function filterChatSkills(query: string): ChatSkillDef[] {
   );
 }
 
+/** Connecteurs masqués du menu `/` — toujours utilisables en tapant le slash à la main. */
+const SLASH_MENU_HIDDEN_CONNECTOR_IDS = new Set(["calendar", "gmail", "outlook"]);
+
+export function filterChatSkillsForSlashMenu(query: string): ChatSkillDef[] {
+  return filterChatSkills(query).filter((skill) => !SLASH_MENU_HIDDEN_CONNECTOR_IDS.has(skill.id));
+}
+
 export function isManageSchedulePrompt(text: string): boolean {
   return /(?:^|\s)\/manage\b/i.test(text.trim());
 }
+
+export { isNaturalLanguageManageRequest } from "./manageSchedulePrompt";
 
 export { isPlaySkillPrompt } from "./playSkill";

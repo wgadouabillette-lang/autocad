@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./client";
 import type { CloudFriendMessage } from "./friendChats";
+import type { PeopleManageScheduleEvent } from "../peopleChat";
 
 export interface CloudGroupChat {
   id: string;
@@ -25,7 +26,7 @@ export interface CloudGroupChat {
   updatedAt?: { seconds: number; nanoseconds: number } | null;
   lastPreview?: string;
   lastMessageAuthorUid?: string;
-  lastMessageKind?: "text" | "handoff";
+  lastMessageKind?: "text" | "handoff" | "manage";
   lastHandoffTitle?: string;
 }
 
@@ -65,17 +66,24 @@ export async function sendGroupChatMessage(
   participants: string[],
   text: string,
   extras?: {
-    kind?: "text" | "handoff";
+    kind?: "text" | "handoff" | "manage";
     handoffId?: string;
     handoffTitle?: string;
     handoffPreview?: string;
+    manageDisplayText?: string;
+    manageEvents?: PeopleManageScheduleEvent[];
+    manageSummary?: string;
   },
 ): Promise<void> {
   const trimmed = text.trim();
   if (!trimmed) return;
   const sortedParticipants = [...new Set(participants)].sort();
   const previewText =
-    extras?.kind === "handoff" ? extras.handoffTitle?.trim() || trimmed : trimmed;
+    extras?.kind === "handoff"
+      ? extras.handoffTitle?.trim() || trimmed
+      : extras?.kind === "manage"
+        ? extras.manageDisplayText?.trim() || trimmed
+        : trimmed;
   await addDoc(messagesCol(groupId), {
     authorUid,
     authorName: authorName.trim() || authorUid,
@@ -91,6 +99,14 @@ export async function sendGroupChatMessage(
           handoffPreview: extras.handoffPreview ?? "",
         }
       : {}),
+    ...(extras?.kind === "manage" && extras.manageEvents?.length
+      ? {
+          kind: "manage",
+          manageDisplayText: extras.manageDisplayText ?? trimmed,
+          manageEvents: extras.manageEvents,
+          manageSummary: extras.manageSummary ?? "",
+        }
+      : {}),
   });
   await setDoc(
     groupRef(groupId),
@@ -99,7 +115,12 @@ export async function sendGroupChatMessage(
       updatedAt: serverTimestamp(),
       lastPreview: previewText.slice(0, 200),
       lastMessageAuthorUid: authorUid,
-      lastMessageKind: extras?.kind === "handoff" ? "handoff" : "text",
+      lastMessageKind:
+        extras?.kind === "handoff"
+          ? "handoff"
+          : extras?.kind === "manage"
+            ? "manage"
+            : "text",
       ...(extras?.kind === "handoff" && extras.handoffTitle
         ? { lastHandoffTitle: extras.handoffTitle.slice(0, 200) }
         : {}),
@@ -126,7 +147,9 @@ function mapGroupDoc(docSnap: QueryDocumentSnapshot<DocumentData>): CloudGroupCh
     lastMessageAuthorUid:
       typeof data.lastMessageAuthorUid === "string" ? data.lastMessageAuthorUid : undefined,
     lastMessageKind:
-      data.lastMessageKind === "handoff" || data.lastMessageKind === "text"
+      data.lastMessageKind === "handoff" ||
+      data.lastMessageKind === "manage" ||
+      data.lastMessageKind === "text"
         ? data.lastMessageKind
         : undefined,
     lastHandoffTitle:

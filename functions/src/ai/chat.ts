@@ -65,8 +65,7 @@ function rulesReply(prompt: string): string {
   );
 }
 
-const FREE_PLAN_UPGRADE =
-  "Passez au plan **Pro** ou activez **Entreprise** sur ce workspace dans **Paramètres → Facturation**.";
+const FREE_PLAN_UPGRADE = "[Passer au plan Pro](forma://upgrade-pro)";
 
 function freePlanReply(prompt: string): string {
   const low = prompt.trim().toLowerCase();

@@ -19,10 +19,14 @@ import { useWorkspaceVoiceRtc } from "./hooks/useWorkspaceVoiceRtc";
 import { useWorkspacePolls } from "./hooks/useWorkspacePolls";
 import { useWorkspaceOpenVoiceChannels } from "./hooks/useWorkspaceOpenVoiceChannels";
 import JoinKnockOverlay from "./components/calls/JoinKnockOverlay";
+import WorkspaceOverlay from "./components/workspace/WorkspaceOverlay";
+import WorkspaceQuickMenu from "./components/workspace/WorkspaceQuickMenu";
 import { useColorTheme } from "./hooks/useColorTheme";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useDesktopUpdater } from "./hooks/useDesktopUpdater";
+import { useMeetingReminders } from "./hooks/useMeetingReminders";
 import { useMobileLayout } from "./hooks/useMobileLayout";
+import { canAccessApp, DESKTOP_VIEWPORT_QUERY, getLandingUrl } from "./lib/appAccess";
 import { runAppBoot, type AppBootStatus } from "./lib/appBoot";
 import { runDashboardOnboardingIfNeeded } from "./lib/dashboardOnboarding";
 import { normalizeSettingsTab } from "./lib/settingsSearchSuggestions";
@@ -32,6 +36,7 @@ import { useWorkspacesStore } from "./store/useWorkspacesStore";
 import { useCallsStore } from "./store/useCallsStore";
 import { useStore } from "./store/useStore";
 import { useNotificationsStore } from "./store/useNotificationsStore";
+import { useConnectorsStore } from "./store/useConnectorsStore";
 import { usePeopleStore } from "./store/usePeopleStore";
 import { useWorkspacePresenceStore } from "./store/useWorkspacePresenceStore";
 import { LOCAL_USER_ID } from "./lib/workspaces";
@@ -53,7 +58,20 @@ export default function App() {
   // #endregion
   const [bootStatus, setBootStatus] = useState<AppBootStatus>("loading");
   const isMobileLayout = useMobileLayout();
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(DESKTOP_VIEWPORT_QUERY);
+    const enforceDesktopAccess = () => {
+      if (!canAccessApp()) {
+        window.location.replace(getLandingUrl());
+      }
+    };
+    enforceDesktopAccess();
+    mediaQuery.addEventListener("change", enforceDesktopAccess);
+    return () => mediaQuery.removeEventListener("change", enforceDesktopAccess);
+  }, []);
   const activePage = useStore((s) => s.activePage);
+  const settingsOpen = activePage === "settings";
   const chatPanelOpen = useStore((s) => s.chatPanelOpen);
   const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
   const chatPanelLeaveAnimating = useStore((s) => s.chatPanelLeaveAnimating);
@@ -70,7 +88,6 @@ export default function App() {
   const recording = useCallsStore((s) => s.recording);
   const handleRecordingStreamEnded = useCallsStore((s) => s.handleRecordingStreamEnded);
   const handleRecordingCaptureLost = useCallsStore((s) => s.handleRecordingCaptureLost);
-  const pushNotification = useNotificationsStore((s) => s.push);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authReady = useAuthStore((s) => s.ready);
   const authEmail = useAuthStore((s) => s.authEmail);
@@ -92,6 +109,7 @@ export default function App() {
   useAppKeyboardShortcuts();
   useColorTheme();
   useDesktopUpdater();
+  useMeetingReminders();
   useCallVoiceActivity(inVoiceCall);
   useRemoteVoiceActivity(inVoiceCall);
   useWorkspacePresence();
@@ -224,26 +242,12 @@ export default function App() {
 
     useStore.getState().openSettingsTab(normalizeSettingsTab(tab ?? "usage"));
 
-    if (checkout === "success") {
-      pushNotification({
-        kind: "subscription",
-        title: "Paiement reçu",
-        body: "Votre abonnement Pro sera activé dès confirmation Stripe (quelques secondes).",
-      });
-    } else if (checkout === "cancel") {
-      pushNotification({
-        kind: "subscription",
-        title: "Paiement annulé",
-        body: "Aucun changement sur votre forfait.",
-      });
-    }
-
     params.delete("checkout");
     params.delete("tab");
     const next = params.toString();
     const url = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;
     window.history.replaceState(null, "", url);
-  }, [bootStatus, isAuthenticated, pushNotification]);
+  }, [bootStatus, isAuthenticated]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -253,19 +257,17 @@ export default function App() {
     const oauthMessage = params.get("connector_oauth_message");
     if (oauth === "success") {
       window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
-      if (connectorId) {
-        pushNotification({
-          kind: "connector",
-          title: `${connectorId} connected`,
-          body: "Your account is linked and ready to use in chat.",
-        });
-      }
     } else if (oauth === "error") {
-      pushNotification({
-        kind: "connector",
-        title: connectorId ? `${connectorId} — connexion échouée` : "Connexion OAuth échouée",
-        body: oauthMessage || "Réessayez ou vérifiez la configuration backend.",
+      const detail =
+        oauthMessage ??
+        "Connexion au connecteur impossible. Vérifiez la configuration OAuth.";
+      console.warn("[connector-oauth]", connectorId ?? "unknown", detail);
+      useNotificationsStore.getState().push({
+        kind: "workspace",
+        title: "Connecteur non lié",
+        body: detail,
       });
+      useConnectorsStore.getState().setError(detail);
     }
     params.delete("connector_oauth");
     params.delete("connector_id");
@@ -273,7 +275,7 @@ export default function App() {
     const next = params.toString();
     const url = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;
     window.history.replaceState(null, "", url);
-  }, [pushNotification]);
+  }, []);
 
   useEffect(() => {
     const onEnded = () => {
@@ -318,6 +320,8 @@ export default function App() {
       <RecordingCameraPreview />
       <VoiceRemoteAudioSink />
       <JoinKnockOverlay />
+      <WorkspaceOverlay />
+      <WorkspaceQuickMenu />
       {workspaceSwitching ? (
         <AppLoadingScreen connectionError={false} label="Loading workspace…" />
       ) : null}
@@ -328,14 +332,15 @@ export default function App() {
           isMobileLayout && "app-layout--mobile",
           chatFullscreenOverlay && "app-layout--chat-fullscreen-overlay",
           panelOnLeft ? "app-layout--panel-left" : "app-layout--panel-right",
+          settingsOpen && "app-layout--settings",
         )}
         style={layoutStyle}
       >
-        <AppChromeRow />
+        {!settingsOpen && <AppChromeRow />}
         <main className="app-layout__main">
-          {activePage === "settings" ? <SettingsPage /> : <CallsView />}
+          {settingsOpen ? <SettingsPage /> : <CallsView />}
         </main>
-        <BottomHeader />
+        {!settingsOpen && <BottomHeader />}
         {chatPanelOpen && <ChatPanelShell key={sidePanelSide} />}
       </div>
     </div>

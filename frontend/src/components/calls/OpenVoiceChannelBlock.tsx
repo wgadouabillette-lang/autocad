@@ -141,6 +141,7 @@ export default function OpenVoiceChannelBlock({ index = 0, channel }: OpenVoiceC
           "call-block--cascade",
           "call-block--center-slot",
           canJoin && "call-block--clickable",
+          canJoin && "call-block--open-channel",
           isHere && "call-block--local",
           hasRemoteParticipants && "call-block--connected",
         )}
