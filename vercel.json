@@ -12,13 +12,12 @@
       "framework": "vite"
     },
     "backend": {
-      "root": "backend",
-      "entrypoint": "main.py",
+      "entrypoint": "backend/main.py",
       "framework": "fastapi",
       "routePrefix": "/_/backend",
       "memory": 1024,
       "maxDuration": 30,
-      "excludeFiles": "{.venv/**,**/__pycache__/**,app/engine/**,app/vision/**,app/ai/**,**/*.pyc}"
+      "excludeFiles": "backend/{.venv/**,**/__pycache__/**,app/engine/**,app/vision/**,app/ai/**}"
     }
   },
   "rewrites": [
