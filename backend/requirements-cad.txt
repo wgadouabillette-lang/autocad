@@ -1,0 +1,18 @@
+# Dépendances lourdes (CAO / vision) — local & app bureau uniquement.
+# Vercel n'installe pas ce fichier (bundle trop gros pour serverless).
+#
+#   pip install -r requirements.txt -r requirements-cad.txt
+
+# --- Noyau geometrique ---
+numpy>=1.26,<3
+scipy>=1.11
+trimesh>=4.4
+shapely>=2.0
+manifold3d>=2.3
+mapbox-earcut>=1.0
+networkx>=3.1
+
+# --- Vision / import dessins ---
+opencv-python-headless>=4.9
+pillow>=10
+PyMuPDF>=1.24

@@ -119,6 +119,7 @@ const python =
 
 run(python, ["-m", "pip", "install", "--upgrade", "pip"]);
 run(python, ["-m", "pip", "install", "-r", path.join(backendOut, "requirements.txt")]);
+run(python, ["-m", "pip", "install", "-r", path.join(backendOut, "requirements-cad.txt")]);
 
 function materializeSymlinks(dir) {
   if (!fs.existsSync(dir)) return;

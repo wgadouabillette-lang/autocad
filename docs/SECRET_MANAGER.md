@@ -86,14 +86,28 @@ firebase deploy --only functions
 
 ## Vercel (backend Python)
 
-Le runtime Vercel **n’a pas accès** à Google Secret Manager (pas de compte de service GCP). Les variables backend doivent être dans **Vercel → Settings → Environment Variables**, pas seulement dans GSM.
+Le runtime Vercel **n’a pas accès** à Google Secret Manager et **n’installe pas** les dépendances CAO lourdes (`requirements-cad.txt` — bundle trop gros). Vercel utilise uniquement `backend/requirements.txt` (API connecteurs / billing).
+
+Les variables backend doivent être dans **Vercel → Settings → Environment Variables**, pas seulement dans GSM :
 
 ```bash
 vercel login
 ./scripts/sync-gsm-to-vercel-env.sh
+vercel --prod
 ```
 
-Ajoutez aussi `FIREBASE_SERVICE_ACCOUNT_JSON` (JSON du compte de service Firebase) pour que Firestore enregistre les tokens OAuth des connecteurs.
+Variables **obligatoires** pour que `/api/connectors` fonctionne en prod :
+
+| Variable | Exemple |
+|----------|---------|
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | JSON compte de service Firebase (une ligne) |
+| `FIREBASE_PROJECT_ID` | `forma-cad-dev` |
+| `FORMA_OAUTH_REDIRECT_BASE` | `https://autocad-blue.vercel.app` |
+| `FORMA_FRONTEND_ORIGIN` | `https://autocad-blue.vercel.app` |
+| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | Dashboard Spotify |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud Console |
+
+Sans `FIREBASE_SERVICE_ACCOUNT_JSON`, le backend démarre mais Firestore (tokens OAuth) est indisponible.
 
 Le backend détecte `VERCEL=1` et **ne tente pas** GSM au démarrage (évite `FUNCTION_INVOCATION_FAILED`).
 

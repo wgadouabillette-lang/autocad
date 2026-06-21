@@ -4,6 +4,7 @@ Lancer (Windows) :
     cd backend
     py -m venv .venv && .venv\\Scripts\\activate
     pip install -r requirements.txt
+    pip install -r requirements-cad.txt
     uvicorn app.main:app --reload
 """
 from __future__ import annotations
@@ -23,8 +24,14 @@ from app.api.outlook_calendar_sync import router as outlook_calendar_sync_router
 from app.api.connector_resources import router as connector_resources_router
 from app.api.connectors import router as connectors_router
 from app.api.desktop_auth import router as desktop_auth_router
-from app.api.routes import router
 from app.core.config import ensure_desktop_env, settings
+
+_IS_VERCEL = bool(os.getenv("VERCEL"))
+
+if _IS_VERCEL:
+    from app.api.routes_lite import router
+else:
+    from app.api.routes import router
 
 app = FastAPI(
     title=settings.app_name,

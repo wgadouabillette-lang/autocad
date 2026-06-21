@@ -97,6 +97,7 @@ cp .env.example .env
 #   XAI_API_KEY=xai-...
 #   FORMA_LLM_PROVIDER=xai
 pip install -r requirements.txt
+pip install -r requirements-cad.txt
 ```
 
 - **`@Modelling` + image** → Grok vision lit le plan et génère le modèle 3D (`/api/agent`)

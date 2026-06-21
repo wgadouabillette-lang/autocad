@@ -11,6 +11,7 @@ source .venv/bin/activate
 echo "[2/3] Dependances backend…"
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+pip install -r requirements-cad.txt
 cd ..
 
 echo "[3/3] Dependances frontend…"

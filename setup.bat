@@ -15,6 +15,7 @@ echo.
 echo [2/3] Installation des dependances backend...
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+pip install -r requirements-cad.txt
 cd ..
 
 echo.

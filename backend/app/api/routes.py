@@ -39,6 +39,8 @@ def health():
         "llm_provider": settings.llm_provider if settings.has_llm else "rules",
         "modelling_vision_model": settings.xai_modelling_vision_model,
         "modelling_cad_model": settings.xai_modelling_cad_model,
+        "cad": True,
+        "runtime": "full",
     }
 
 
