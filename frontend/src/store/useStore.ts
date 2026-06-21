@@ -63,7 +63,7 @@ import {
   runManageScheduleSkill,
   type ManageScheduleEventDraft,
 } from "../lib/manageScheduleSkill";
-import { parsePlaySkillQuery, runPlaySkill } from "../lib/playSkill";
+import { parsePlaySkillQuery, runPlaySearchSkill } from "../lib/playSkill";
 import type { ManageSchedulePromptDraft } from "../lib/manageSchedulePrompt";
 import type { MeetingPromptDraft } from "../lib/meetingSkill";
 import {
@@ -95,6 +95,7 @@ export interface ChatMessage {
   /** True une fois que l'utilisateur a cliqué "Sync to Calendar" et que les blocs sont en place. */
   manageEventsApplied?: boolean;
   playQuery?: string;
+  spotifySearch?: SpotifyTrackCard[];
   spotifyTrack?: SpotifyTrackCard;
   spotifyPlay?: SpotifyPlayState;
   actions?: { kind: string; description: string }[];
@@ -991,7 +992,7 @@ export const useStore = create<State>((set, get) => ({
         }
 
         try {
-          const playResult = await runPlaySkill(playQuery, signal);
+          const playResult = await runPlaySearchSkill(playQuery, signal);
           await waitMinChatProcessing(processingStartedAt, signal);
           const assistantText = playResult.summary;
           const summary =
@@ -1004,14 +1005,7 @@ export const useStore = create<State>((set, get) => ({
                   role: "assistant",
                   text: assistantText,
                   source: "play-skill",
-                  spotifyTrack: playResult.track ?? undefined,
-                  spotifyPlay: playResult.track
-                    ? {
-                        playing: playResult.playing,
-                        requiresPremium: playResult.requiresPremium,
-                        requiresActiveDevice: playResult.requiresActiveDevice,
-                      }
-                    : undefined,
+                  spotifySearch: playResult.tracks,
                 },
               ],
               s.openChatTabs,

@@ -3,16 +3,16 @@ import type { ChatConnectorId } from "../chat/chatConnectors";
 import {
   fetchConnectorPreview,
   type ConnectorPreviewMessage,
-  type SpotifyPreviewResult,
 } from "../../lib/connectorsApi";
 import type { GoogleCalendarEvent } from "../../lib/calendarSync";
+import { useSpotifyPlayerStore } from "../../store/useSpotifyPlayerStore";
 
 type PreviewState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "messages"; items: ConnectorPreviewMessage[] }
-  | { status: "spotify"; data: SpotifyPreviewResult }
+  | { status: "spotify" }
   | { status: "calendar"; items: GoogleCalendarEvent[] };
 
 export default function ConnectorPluginPreview({
@@ -30,6 +30,11 @@ export default function ConnectorPluginPreview({
       return;
     }
 
+    if (connectorId === "spotify") {
+      setState({ status: "spotify" });
+      return;
+    }
+
     let cancelled = false;
     setState({ status: "loading" });
 
@@ -38,10 +43,6 @@ export default function ConnectorPluginPreview({
         if (cancelled) return;
         if (connectorId === "gmail" || connectorId === "outlook") {
           setState({ status: "messages", items: data as ConnectorPreviewMessage[] });
-          return;
-        }
-        if (connectorId === "spotify") {
-          setState({ status: "spotify", data: data as SpotifyPreviewResult });
           return;
         }
         if (connectorId === "calendar") {
@@ -92,31 +93,16 @@ export default function ConnectorPluginPreview({
       )}
       {state.status === "spotify" && (
         <div className="connector-plugin-preview__spotify">
-          {!state.data.track ? (
-            <p className="connector-plugin-preview__meta">
-              {state.data.playing ? "Lecture en cours…" : "Aucune lecture active."}
-            </p>
-          ) : (
-            <div className="connector-plugin-preview__item">
-              {state.data.track.url ? (
-                <a
-                  href={state.data.track.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="connector-plugin-preview__title connector-plugin-preview__link"
-                >
-                  {state.data.track.name}
-                </a>
-              ) : (
-                <span className="connector-plugin-preview__title">{state.data.track.name}</span>
-              )}
-              <span className="connector-plugin-preview__meta">
-                {state.data.track.artists}
-                {state.data.track.album ? ` · ${state.data.track.album}` : ""}
-                {state.data.device ? ` · ${state.data.device}` : ""}
-              </span>
-            </div>
-          )}
+          <p className="connector-plugin-preview__meta">
+            Recherche une piste, choisis-la dans la liste et écoute-la directement dans l&apos;app.
+          </p>
+          <button
+            type="button"
+            className="connector-plugin-preview__open-player"
+            onClick={() => useSpotifyPlayerStore.getState().openPanel()}
+          >
+            Ouvrir le lecteur Spotify
+          </button>
         </div>
       )}
       {state.status === "calendar" && (

@@ -6944,6 +6944,178 @@ body {
   @apply mt-0.5 truncate text-[11px] text-muted-300;
 }
 
+.spotify-track-list {
+  @apply m-0 list-none space-y-1.5 p-0;
+}
+
+.spotify-track-list__empty {
+  @apply text-[11px] text-muted-400;
+}
+
+.spotify-track-list__row {
+  @apply flex items-center gap-2.5 rounded-lg border border-transparent px-2 py-1.5 transition-colors;
+  background: rgb(29 185 84 / 0.04);
+}
+
+.spotify-track-list__row--active {
+  border-color: rgb(29 185 84 / 0.35);
+  background: rgb(29 185 84 / 0.12);
+}
+
+.spotify-track-list__art {
+  @apply h-10 w-10 shrink-0 overflow-hidden rounded-md;
+}
+
+.spotify-track-list__img,
+.spotify-track-list__fallback {
+  @apply h-full w-full object-cover;
+}
+
+.spotify-track-list__body {
+  @apply min-w-0 flex-1;
+}
+
+.spotify-track-list__title {
+  @apply truncate text-[12px] font-medium text-muted-100;
+}
+
+.spotify-track-list__meta {
+  @apply truncate text-[10px] text-muted-400;
+}
+
+.spotify-track-list__actions {
+  @apply shrink-0;
+}
+
+.spotify-track-list__play {
+  @apply flex h-8 w-8 items-center justify-center rounded-full border transition-colors;
+  border-color: rgb(29 185 84 / 0.45);
+  background: rgb(29 185 84 / 0.15);
+  color: rgb(187 247 208);
+}
+
+.spotify-track-list__play:hover {
+  border-color: rgb(29 185 84 / 0.65);
+  background: rgb(29 185 84 / 0.28);
+}
+
+.spotify-track-list__play--link {
+  @apply no-underline;
+}
+
+.spotify-player-overlay {
+  @apply fixed inset-0 z-[220] flex items-end justify-center p-3 sm:items-center;
+}
+
+.spotify-player-overlay__backdrop {
+  @apply absolute inset-0 border-0 bg-black/55 p-0;
+}
+
+.spotify-player-panel {
+  @apply relative z-10 flex max-h-[min(80vh,640px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border shadow-2xl;
+  border-color: rgb(29 185 84 / 0.25);
+  background: linear-gradient(180deg, rgb(18 28 44 / 0.98), rgb(10 16 28 / 0.98));
+}
+
+.spotify-player-panel__header {
+  @apply flex items-center justify-between gap-2 border-b px-4 py-3;
+  border-color: rgb(29 185 84 / 0.15);
+}
+
+.spotify-player-panel__brand {
+  @apply inline-flex items-center gap-2 text-sm font-semibold text-muted-100;
+}
+
+.spotify-player-panel__logo {
+  @apply h-5 w-5;
+}
+
+.spotify-player-panel__close {
+  @apply inline-flex h-8 w-8 items-center justify-center rounded-full border border-ink-700 text-muted-300 transition-colors hover:bg-ink-750 hover:text-muted-100;
+}
+
+.spotify-player-panel__search {
+  @apply mx-4 mt-3 flex items-center gap-2 rounded-xl border px-2.5 py-1.5;
+  border-color: rgb(29 185 84 / 0.2);
+  background: rgb(0 0 0 / 0.2);
+}
+
+.spotify-player-panel__search-icon {
+  @apply shrink-0 text-muted-500;
+}
+
+.spotify-player-panel__search-input {
+  @apply min-w-0 flex-1 border-0 bg-transparent text-[12px] text-muted-100 outline-none placeholder:text-muted-500;
+}
+
+.spotify-player-panel__search-btn {
+  @apply shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-medium text-emerald-100 transition-colors disabled:opacity-40;
+  background: rgb(29 185 84 / 0.25);
+}
+
+.spotify-player-panel__hint {
+  @apply mx-4 mt-2 text-[10px] leading-relaxed text-muted-500;
+}
+
+.spotify-player-panel__error {
+  @apply mx-4 mt-2 text-[11px] text-red-300;
+}
+
+.spotify-player-panel__results {
+  @apply min-h-0 flex-1 overflow-y-auto px-3 py-3;
+}
+
+.spotify-player-panel__footer {
+  @apply border-t px-3 py-2;
+  border-color: rgb(29 185 84 / 0.15);
+}
+
+.spotify-now-playing {
+  @apply flex items-center gap-2.5 rounded-xl border px-2.5 py-2;
+  border-color: rgb(29 185 84 / 0.25);
+  background: rgb(29 185 84 / 0.08);
+}
+
+.spotify-now-playing--compact {
+  @apply fixed bottom-[calc(var(--bottom-bar-height,3.5rem)+0.75rem)] left-1/2 z-[210] w-[min(24rem,calc(100vw-1.5rem))] -translate-x-1/2 shadow-xl;
+}
+
+.spotify-now-playing__art {
+  @apply h-10 w-10 shrink-0 overflow-hidden rounded-md;
+}
+
+.spotify-now-playing__art img {
+  @apply h-full w-full object-cover;
+}
+
+.spotify-now-playing__info {
+  @apply min-w-0 flex-1 border-0 bg-transparent p-0 text-left;
+}
+
+.spotify-now-playing__title {
+  @apply block truncate text-[12px] font-medium text-muted-100;
+}
+
+.spotify-now-playing__meta {
+  @apply block truncate text-[10px] text-muted-400;
+}
+
+.spotify-now-playing__toggle {
+  @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-40;
+  border-color: rgb(29 185 84 / 0.45);
+  background: rgb(29 185 84 / 0.15);
+  color: rgb(187 247 208);
+}
+
+.connector-plugin-preview__open-player {
+  @apply mt-2 rounded-lg px-3 py-2 text-[11px] font-medium text-emerald-100 transition-colors;
+  background: rgb(29 185 84 / 0.2);
+}
+
+.connector-plugin-preview__open-player:hover {
+  background: rgb(29 185 84 / 0.32);
+}
+
 .create-group-prompt-chip__prefix {
   @apply shrink-0 text-[12px] font-semibold;
   color: rgb(168 182 210);

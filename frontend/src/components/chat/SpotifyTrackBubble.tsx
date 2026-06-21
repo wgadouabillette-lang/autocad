@@ -1,7 +1,7 @@
 import { Pause, Play } from "lucide-react";
-import { useRef, useState } from "react";
 import type { SpotifyPlayState, SpotifyTrackCard } from "../../lib/connectorsApi";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../../lib/connectorIcons";
+import { useSpotifyPlayerStore } from "../../store/useSpotifyPlayerStore";
 
 export default function SpotifyTrackBubble({
   track,
@@ -10,19 +10,16 @@ export default function SpotifyTrackBubble({
   track: SpotifyTrackCard;
   playState?: SpotifyPlayState;
 }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const playTrack = useSpotifyPlayerStore((s) => s.playTrack);
+  const currentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
+  const globalPlaying = useSpotifyPlayerStore((s) => s.playing);
   const previewUrl = track.previewUrl?.trim() || null;
+  const isActive = currentTrack?.id === track.id;
+  const previewPlaying = isActive && globalPlaying;
 
   const togglePreview = () => {
-    const audio = audioRef.current;
-    if (!audio || !previewUrl) return;
-    if (previewPlaying) {
-      audio.pause();
-      setPreviewPlaying(false);
-      return;
-    }
-    void audio.play().then(() => setPreviewPlaying(true)).catch(() => setPreviewPlaying(false));
+    if (!previewUrl) return;
+    void playTrack(track);
   };
 
   return (
@@ -72,28 +69,19 @@ export default function SpotifyTrackBubble({
       </div>
 
       {previewUrl ? (
-        <>
-          <audio
-            ref={audioRef}
-            src={previewUrl}
-            preload="none"
-            onEnded={() => setPreviewPlaying(false)}
-            onPause={() => setPreviewPlaying(false)}
-          />
-          <button
-            type="button"
-            className="spotify-track-card__play"
-            onClick={togglePreview}
-            aria-label={previewPlaying ? "Pause extrait" : "Lire l'extrait"}
-            title={previewPlaying ? "Pause" : "Lire l'extrait (30 s)"}
-          >
-            {previewPlaying ? (
-              <Pause size={16} fill="currentColor" aria-hidden />
-            ) : (
-              <Play size={16} fill="currentColor" aria-hidden />
-            )}
-          </button>
-        </>
+        <button
+          type="button"
+          className="spotify-track-card__play"
+          onClick={togglePreview}
+          aria-label={previewPlaying ? "Pause extrait" : "Lire l'extrait"}
+          title={previewPlaying ? "Pause" : "Lire l'extrait (30 s)"}
+        >
+          {previewPlaying ? (
+            <Pause size={16} fill="currentColor" aria-hidden />
+          ) : (
+            <Play size={16} fill="currentColor" aria-hidden />
+          )}
+        </button>
       ) : null}
     </div>
   );

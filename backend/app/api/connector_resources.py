@@ -17,7 +17,10 @@ router = APIRouter(prefix="/api/connectors", tags=["connectors"])
 
 
 class SpotifyPlayBody(BaseModel):
-    query: str = Field(min_length=1, max_length=200)
+    query: str = Field(default="", max_length=200)
+    track_id: Optional[str] = Field(default=None, alias="trackId", max_length=64)
+
+    model_config = ConfigDict(populate_by_name=True, populate_by_alias=True)
 
 
 class ConnectorStatusOut(BaseModel):
@@ -251,33 +254,81 @@ def _spotify_track_card(track: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-@router.post("/spotify/play")
-async def spotify_play(
-    body: SpotifyPlayBody,
+@router.get("/spotify/search")
+async def spotify_search(
+    q: str = Query(min_length=1, max_length=200),
+    limit: int = Query(default=8, ge=1, le=20),
     user: FirebaseUser = Depends(require_firebase_user),
 ):
     token = await _require_token(user.uid, "spotify")
-    query = body.query.strip()
+    query = q.strip()
     async with httpx.AsyncClient(timeout=25) as client:
         search_r = await client.get(
             "https://api.spotify.com/v1/search",
             headers={"Authorization": f"Bearer {token}"},
-            params={"q": query, "type": "track", "limit": 1},
+            params={"q": query, "type": "track", "limit": limit},
         )
     if search_r.status_code != 200:
         raise HTTPException(
             search_r.status_code,
             _spotify_api_error_message(search_r.status_code, search_r.text),
         )
-
     items = search_r.json().get("tracks", {}).get("items") or []
-    if not items or not isinstance(items[0], dict):
-        raise HTTPException(404, "Aucune piste trouvée pour cette recherche.")
+    tracks = [_spotify_track_card(item) for item in items if isinstance(item, dict)]
+    return {"tracks": tracks, "query": query}
 
-    track = items[0]
-    track_id = track.get("id")
-    if not track_id:
-        raise HTTPException(404, "Aucune piste trouvée pour cette recherche.")
+
+async def _fetch_spotify_track(token: str, track_id: str) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=25) as client:
+        r = await client.get(
+            f"https://api.spotify.com/v1/tracks/{track_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if r.status_code != 200:
+        raise HTTPException(
+            r.status_code,
+            _spotify_api_error_message(r.status_code, r.text),
+        )
+    data = r.json()
+    if not isinstance(data, dict):
+        raise HTTPException(404, "Piste introuvable.")
+    return data
+
+
+@router.post("/spotify/play")
+async def spotify_play(
+    body: SpotifyPlayBody,
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    token = await _require_token(user.uid, "spotify")
+    track_id = (body.track_id or "").strip()
+    query = body.query.strip()
+
+    if track_id:
+        track = await _fetch_spotify_track(token, track_id)
+    else:
+        if not query:
+            raise HTTPException(400, "Indiquez une recherche ou un identifiant de piste.")
+        async with httpx.AsyncClient(timeout=25) as client:
+            search_r = await client.get(
+                "https://api.spotify.com/v1/search",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"q": query, "type": "track", "limit": 1},
+            )
+        if search_r.status_code != 200:
+            raise HTTPException(
+                search_r.status_code,
+                _spotify_api_error_message(search_r.status_code, search_r.text),
+            )
+
+        items = search_r.json().get("tracks", {}).get("items") or []
+        if not items or not isinstance(items[0], dict):
+            raise HTTPException(404, "Aucune piste trouvée pour cette recherche.")
+
+        track = items[0]
+        track_id = str(track.get("id") or "")
+        if not track_id:
+            raise HTTPException(404, "Aucune piste trouvée pour cette recherche.")
 
     uri = f"spotify:track:{track_id}"
     async with httpx.AsyncClient(timeout=25) as client:

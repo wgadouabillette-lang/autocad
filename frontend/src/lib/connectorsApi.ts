@@ -154,6 +154,21 @@ export async function fetchSpotifyPreview(): Promise<SpotifyPreviewResult> {
   return (await r.json()) as SpotifyPreviewResult;
 }
 
+export async function searchSpotifyTracks(
+  query: string,
+  limit = 8,
+  signal?: AbortSignal,
+): Promise<SpotifyTrackCard[]> {
+  const params = new URLSearchParams({ q: query.trim(), limit: String(limit) });
+  const r = await fetch(`${BASE}/spotify/search?${params}`, {
+    headers: await authHeaders(),
+    signal,
+  });
+  if (!r.ok) throw new Error(await readError(r));
+  const data = (await r.json()) as { tracks?: SpotifyTrackCard[] };
+  return data.tracks ?? [];
+}
+
 export async function playSpotifyTrack(
   query: string,
   signal?: AbortSignal,
@@ -162,6 +177,20 @@ export async function playSpotifyTrack(
     method: "POST",
     headers: await authHeaders(true),
     body: JSON.stringify({ query }),
+    signal,
+  });
+  if (!r.ok) throw new Error(await readError(r));
+  return (await r.json()) as SpotifyPlayResult;
+}
+
+export async function playSpotifyTrackById(
+  trackId: string,
+  signal?: AbortSignal,
+): Promise<SpotifyPlayResult> {
+  const r = await fetch(`${BASE}/spotify/play`, {
+    method: "POST",
+    headers: await authHeaders(true),
+    body: JSON.stringify({ trackId }),
     signal,
   });
   if (!r.ok) throw new Error(await readError(r));

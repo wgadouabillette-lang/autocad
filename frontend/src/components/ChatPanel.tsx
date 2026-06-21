@@ -61,6 +61,7 @@ import ManageSchedulePromptLine from "./chat/ManageSchedulePromptLine";
 import MeetingPromptLine from "./chat/MeetingPromptLine";
 import PlayPromptLine from "./chat/PlayPromptLine";
 import SpotifyTrackBubble from "./chat/SpotifyTrackBubble";
+import SpotifyTrackList from "./chat/SpotifyTrackList";
 import {
   filterSlashSkillMenu,
   slashQueryAt,
@@ -248,6 +249,9 @@ function ChatBubble({
 
   return (
     <div className="chat-assistant-bubble">
+      {message.spotifySearch?.length ? (
+        <SpotifyTrackList tracks={message.spotifySearch} compact />
+      ) : null}
       {message.spotifyTrack ? (
         <SpotifyTrackBubble track={message.spotifyTrack} playState={message.spotifyPlay} />
       ) : null}

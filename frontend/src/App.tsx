@@ -19,6 +19,7 @@ import { useWorkspaceVoiceRtc } from "./hooks/useWorkspaceVoiceRtc";
 import { useWorkspacePolls } from "./hooks/useWorkspacePolls";
 import { useWorkspaceOpenVoiceChannels } from "./hooks/useWorkspaceOpenVoiceChannels";
 import JoinKnockOverlay from "./components/calls/JoinKnockOverlay";
+import SpotifyPlayerShell from "./components/chat/SpotifyPlayerShell";
 import WorkspaceOverlay from "./components/workspace/WorkspaceOverlay";
 import WorkspaceQuickMenu from "./components/workspace/WorkspaceQuickMenu";
 import { useColorTheme } from "./hooks/useColorTheme";
@@ -320,6 +321,7 @@ export default function App() {
       <RecordingCameraPreview />
       <VoiceRemoteAudioSink />
       <JoinKnockOverlay />
+      <SpotifyPlayerShell />
       <WorkspaceOverlay />
       <WorkspaceQuickMenu />
       {workspaceSwitching ? (

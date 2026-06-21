@@ -1,4 +1,4 @@
-import { playSpotifyTrack, type SpotifyPlayResult } from "./connectorsApi";
+import { searchSpotifyTracks, type SpotifyTrackCard } from "./connectorsApi";
 
 export const PLAY_SKILL_TEMPLATE = `/play `;
 
@@ -14,38 +14,32 @@ export function parsePlaySkillQuery(text: string): string | null {
   return query || null;
 }
 
-export type PlaySkillResult = SpotifyPlayResult & {
+export interface PlaySearchSkillResult {
+  query: string;
+  tracks: SpotifyTrackCard[];
   summary: string;
-};
-
-function buildPlaySummary(result: SpotifyPlayResult): string {
-  const track = result.track;
-  if (!track) return "Aucune piste trouvée.";
-
-  const label = `**${track.name}** — ${track.artists}`;
-
-  if (result.playing) {
-    return `Lecture lancée sur ton appareil Spotify : ${label}.`;
-  }
-
-  if (result.requiresActiveDevice) {
-    return `Ouvre Spotify sur ton téléphone ou ordinateur, puis réessaie. Piste trouvée : ${label}.`;
-  }
-
-  if (result.requiresPremium) {
-    if (track.previewUrl) {
-      return `Extrait de 30 s disponible dans la carte (bouton ▶). Pour la piste complète depuis Lyte, il faut Spotify Premium — sinon clique la carte pour ouvrir dans Spotify : ${label}.`;
-    }
-    return `Pas d'extrait pour cette piste. Clique la carte pour l'ouvrir dans Spotify : ${label}.`;
-  }
-
-  return `${label} (lecture non démarrée).`;
 }
 
-export async function runPlaySkill(
+function buildSearchSummary(query: string, tracks: SpotifyTrackCard[]): string {
+  if (tracks.length === 0) {
+    return `Aucun résultat pour « ${query} ».`;
+  }
+  const previewCount = tracks.filter((track) => track.previewUrl?.trim()).length;
+  const previewHint =
+    previewCount > 0
+      ? " Clique ▶ sur une piste pour l'écouter directement dans l'app (extrait 30 s)."
+      : " Ces pistes n'ont pas d'extrait — ouvre-les dans Spotify via le lien ↗.";
+  return `${tracks.length} résultat${tracks.length > 1 ? "s" : ""} pour « ${query} ».${previewHint}`;
+}
+
+export async function runPlaySearchSkill(
   query: string,
   signal?: AbortSignal,
-): Promise<PlaySkillResult> {
-  const result = await playSpotifyTrack(query, signal);
-  return { ...result, summary: buildPlaySummary(result) };
+): Promise<PlaySearchSkillResult> {
+  const tracks = await searchSpotifyTracks(query, 8, signal);
+  return {
+    query,
+    tracks,
+    summary: buildSearchSummary(query, tracks),
+  };
 }
