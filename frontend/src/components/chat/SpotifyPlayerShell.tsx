@@ -58,6 +58,9 @@ export default function SpotifyPlayerShell() {
   const results = useSpotifyPlayerStore((s) => s.results);
   const searching = useSpotifyPlayerStore((s) => s.searching);
   const searchError = useSpotifyPlayerStore((s) => s.searchError);
+  const playerNotice = useSpotifyPlayerStore((s) => s.playerNotice);
+  const premiumAvailable = useSpotifyPlayerStore((s) => s.premiumAvailable);
+  const playbackMode = useSpotifyPlayerStore((s) => s.playbackMode);
   const currentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
   const closePanel = useSpotifyPlayerStore((s) => s.closePanel);
   const setSearchQuery = useSpotifyPlayerStore((s) => s.setSearchQuery);
@@ -124,8 +127,13 @@ export default function SpotifyPlayerShell() {
             </form>
 
             <p className="spotify-player-panel__hint">
-              Choisis une piste puis ▶ pour l&apos;écouter ici (extrait 30 s). Piste complète via Spotify Premium.
+              {premiumAvailable
+                ? "Premium détecté — lecture complète dans l'app via le Web Playback SDK."
+                : "Recherche une piste et écoute-la ici. Premium + reconnexion Spotify pour la piste complète, sinon extrait 30 s."}
+              {playbackMode === "full" ? " · Lecture complète" : playbackMode === "preview" ? " · Extrait 30 s" : ""}
             </p>
+
+            {playerNotice ? <p className="spotify-player-panel__notice">{playerNotice}</p> : null}
 
             {searchError ? <p className="spotify-player-panel__error">{searchError}</p> : null}
 

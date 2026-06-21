@@ -230,6 +230,27 @@ async def spotify_me(user: FirebaseUser = Depends(require_firebase_user)):
     }
 
 
+@router.get("/spotify/player-config")
+async def spotify_player_config(user: FirebaseUser = Depends(require_firebase_user)):
+    import os
+
+    client_id = os.getenv("SPOTIFY_CLIENT_ID", "").strip()
+    if not client_id:
+        raise HTTPException(400, "Spotify OAuth non configuré sur le backend.")
+    await _require_token(user.uid, "spotify")
+    me = await spotify_me(user)
+    return {
+        "clientId": client_id,
+        "premium": me.get("product") == "premium",
+    }
+
+
+@router.get("/spotify/player-token")
+async def spotify_player_token(user: FirebaseUser = Depends(require_firebase_user)):
+    token = await _require_token(user.uid, "spotify")
+    return {"accessToken": token}
+
+
 def _spotify_track_card(track: dict[str, Any]) -> dict[str, Any]:
     artists = track.get("artists") or []
     artist_names = ", ".join(

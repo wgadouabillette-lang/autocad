@@ -169,6 +169,19 @@ export async function searchSpotifyTracks(
   return data.tracks ?? [];
 }
 
+export async function fetchSpotifyPlayerConfig(): Promise<{ clientId: string; premium: boolean }> {
+  const r = await fetch(`${BASE}/spotify/player-config`, { headers: await authHeaders() });
+  if (!r.ok) throw new Error(await readError(r));
+  return (await r.json()) as { clientId: string; premium: boolean };
+}
+
+export async function fetchSpotifyPlayerToken(): Promise<string> {
+  const r = await fetch(`${BASE}/spotify/player-token`, { headers: await authHeaders() });
+  if (!r.ok) throw new Error(await readError(r));
+  const data = (await r.json()) as { accessToken: string };
+  return data.accessToken;
+}
+
 export async function playSpotifyTrack(
   query: string,
   signal?: AbortSignal,

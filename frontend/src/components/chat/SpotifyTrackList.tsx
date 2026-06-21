@@ -13,6 +13,7 @@ export default function SpotifyTrackList({
 }) {
   const currentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
   const playing = useSpotifyPlayerStore((s) => s.playing);
+  const premiumAvailable = useSpotifyPlayerStore((s) => s.premiumAvailable);
   const playTrack = useSpotifyPlayerStore((s) => s.playTrack);
 
   if (tracks.length === 0) {
@@ -25,6 +26,7 @@ export default function SpotifyTrackList({
         const isActive = currentTrack?.id === track.id;
         const isPlaying = isActive && playing;
         const hasPreview = !!track.previewUrl?.trim();
+        const canPlayFull = !!track.id && premiumAvailable;
 
         return (
           <li key={track.id ?? `${track.name}-${track.artists}`}>
@@ -55,13 +57,19 @@ export default function SpotifyTrackList({
               </div>
 
               <div className="spotify-track-list__actions">
-                {hasPreview ? (
+                {canPlayFull || hasPreview ? (
                   <button
                     type="button"
                     className="spotify-track-list__play"
                     onClick={() => void playTrack(track)}
                     aria-label={isPlaying ? "Pause" : "Lire dans l'app"}
-                    title={isPlaying ? "Pause" : "Lire l'extrait (30 s)"}
+                    title={
+                      isPlaying
+                        ? "Pause"
+                        : canPlayFull
+                          ? "Lire la piste complète"
+                          : "Lire l'extrait (30 s)"
+                    }
                   >
                     {isPlaying ? (
                       <Pause size={14} fill="currentColor" aria-hidden />

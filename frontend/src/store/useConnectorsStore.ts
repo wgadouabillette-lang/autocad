@@ -92,6 +92,10 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
   disconnect: async (id) => {
     try {
       await apiDisconnectConnector(id);
+      if (id === "spotify") {
+        const { resetSpotifyWebPlayer } = await import("../lib/spotifyWebPlayback");
+        resetSpotifyWebPlayer();
+      }
       await get().refresh(true);
       window.dispatchEvent(
         new CustomEvent("forma-connector-disconnect-done", { detail: { connectorId: id } }),

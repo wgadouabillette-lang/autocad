@@ -27,8 +27,8 @@ function buildSearchSummary(query: string, tracks: SpotifyTrackCard[]): string {
   const previewCount = tracks.filter((track) => track.previewUrl?.trim()).length;
   const previewHint =
     previewCount > 0
-      ? " Clique ▶ sur une piste pour l'écouter directement dans l'app (extrait 30 s)."
-      : " Ces pistes n'ont pas d'extrait — ouvre-les dans Spotify via le lien ↗.";
+      ? " Clique ▶ pour écouter dans l'app (Premium = piste complète, sinon extrait 30 s)."
+      : " Ouvre une piste dans Spotify via le lien ↗ si aucun extrait n'est disponible.";
   return `${tracks.length} résultat${tracks.length > 1 ? "s" : ""} pour « ${query} ».${previewHint}`;
 }
 

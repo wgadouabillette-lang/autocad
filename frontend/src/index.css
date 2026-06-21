@@ -7061,6 +7061,10 @@ body {
   @apply mx-4 mt-2 text-[11px] text-red-300;
 }
 
+.spotify-player-panel__notice {
+  @apply mx-4 mt-2 text-[10px] leading-relaxed text-amber-200/85;
+}
+
 .spotify-player-panel__results {
   @apply min-h-0 flex-1 overflow-y-auto px-3 py-3;
 }

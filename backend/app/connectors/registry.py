@@ -59,6 +59,7 @@ CONNECTORS: dict[str, ConnectorDef] = {
         label="Spotify",
         provider="spotify",
         scopes=(
+            "streaming",
             "user-read-playback-state",
             "user-modify-playback-state",
             "user-read-currently-playing",
