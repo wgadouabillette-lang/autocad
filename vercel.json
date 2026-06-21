@@ -13,9 +13,12 @@
     },
     "backend": {
       "root": "backend",
-      "entrypoint": "app/vercel_main.py",
+      "entrypoint": "main.py",
       "framework": "fastapi",
-      "routePrefix": "/_/backend"
+      "routePrefix": "/_/backend",
+      "memory": 1024,
+      "maxDuration": 30,
+      "excludeFiles": "{.venv/**,**/__pycache__/**,app/engine/**,app/vision/**,app/ai/**,**/*.pyc}"
     }
   },
   "rewrites": [
