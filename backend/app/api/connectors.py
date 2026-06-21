@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.connectors.oauth import create_authorize_session, exchange_code, pop_state
@@ -20,6 +20,16 @@ from app.core.auth_deps import require_firebase_user
 from app.core.firebase import FirebaseUser
 
 router = APIRouter(prefix="/api/connectors", tags=["connectors"])
+
+
+def _request_public_origin(request: Request) -> str | None:
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+    forwarded_host = request.headers.get("x-forwarded-host", "").split(",")[0].strip()
+    host = forwarded_host or request.headers.get("host", "").split(",")[0].strip()
+    if not host:
+        return None
+    scheme = forwarded_proto or request.url.scheme
+    return f"{scheme}://{host}".rstrip("/")
 
 
 @router.get("")
@@ -45,6 +55,7 @@ def list_connectors(user: FirebaseUser = Depends(require_firebase_user)):
 @router.get("/{connector_id}/authorize")
 def authorize_connector(
     connector_id: str,
+    request: Request,
     return_origin: Optional[str] = Query(default=None),
     return_path: Optional[str] = Query(default=None),
     user: FirebaseUser = Depends(require_firebase_user),
@@ -64,6 +75,7 @@ def authorize_connector(
         user.uid,
         return_origin=safe_origin,
         return_path=safe_path,
+        request_origin=_request_public_origin(request),
     )
     return {"url": url}
 
@@ -91,9 +103,9 @@ async def oauth_callback(
                 "Invalid or expired OAuth state.",
             )
         )
-    connector_id, uid, return_origin, return_path = popped
+    connector_id, uid, return_origin, return_path, redirect_base = popped
     try:
-        await exchange_code(connector_id, uid, code)
+        await exchange_code(connector_id, uid, code, redirect_base)
     except Exception as exc:  # noqa: BLE001 — surface provider errors to UI
         return HTMLResponse(
             _callback_html(

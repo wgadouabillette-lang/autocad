@@ -61,6 +61,7 @@ export function useConnectors() {
   useEffect(() => {
     if (CONNECTORS_VISUAL_ONLY) return;
     const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
       if (!isConnectorOAuthMessage(event.data)) return;
       setConnectingId(null);
       if (event.data.status === "success" && event.data.connectorId) {

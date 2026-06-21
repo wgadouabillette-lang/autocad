@@ -70,8 +70,33 @@ CONNECTORS: dict[str, ConnectorDef] = {
 }
 
 
+_DEFAULT_LOCAL_OAUTH_BASE = "http://127.0.0.1:8000"
+
+
 def oauth_redirect_base() -> str:
-    return os.getenv("FORMA_OAUTH_REDIRECT_BASE", "http://127.0.0.1:8000").rstrip("/")
+    return os.getenv("FORMA_OAUTH_REDIRECT_BASE", _DEFAULT_LOCAL_OAUTH_BASE).rstrip("/")
+
+
+def resolve_oauth_redirect_base(
+    return_origin: str | None = None,
+    request_origin: str | None = None,
+) -> str:
+    """Pick the OAuth callback host (API origin).
+
+    Local dev uses port 8000. On Vercel, frontend and API share the same HTTPS
+    origin — if env still points at localhost, infer from the browser request.
+    """
+    env_base = oauth_redirect_base()
+    if env_base != _DEFAULT_LOCAL_OAUTH_BASE:
+        return env_base
+
+    for hint in (return_origin, request_origin):
+        if not hint:
+            continue
+        origin = hint.strip().rstrip("/")
+        if origin.startswith("https://"):
+            return origin
+    return env_base
 
 
 def frontend_origin() -> str:
@@ -101,8 +126,9 @@ def frontend_app_url(
     return url
 
 
-def callback_url() -> str:
-    return f"{oauth_redirect_base()}/api/connectors/oauth/callback"
+def callback_url(redirect_base: str | None = None) -> str:
+    base = (redirect_base or oauth_redirect_base()).rstrip("/")
+    return f"{base}/api/connectors/oauth/callback"
 
 
 def microsoft_oauth_tenant() -> str:
@@ -128,10 +154,15 @@ def connector_configured(connector_id: str) -> bool:
     return provider_configured(spec.provider)
 
 
-def google_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
+def google_authorize_url(
+    state: str,
+    scopes: tuple[str, ...],
+    *,
+    redirect_base: str | None = None,
+) -> str:
     params = {
         "client_id": os.getenv("GOOGLE_CLIENT_ID", ""),
-        "redirect_uri": callback_url(),
+        "redirect_uri": callback_url(redirect_base),
         "response_type": "code",
         "scope": " ".join(scopes),
         "access_type": "offline",
@@ -141,11 +172,16 @@ def google_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
     return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
 
-def microsoft_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
+def microsoft_authorize_url(
+    state: str,
+    scopes: tuple[str, ...],
+    *,
+    redirect_base: str | None = None,
+) -> str:
     tenant = microsoft_oauth_tenant()
     params = {
         "client_id": os.getenv("MICROSOFT_OAUTH_CLIENT_ID", ""),
-        "redirect_uri": callback_url(),
+        "redirect_uri": callback_url(redirect_base),
         "response_type": "code",
         "scope": " ".join(scopes),
         "response_mode": "query",
@@ -155,23 +191,33 @@ def microsoft_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
     return f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize?{urlencode(params)}"
 
 
-def spotify_authorize_url(state: str, scopes: tuple[str, ...]) -> str:
+def spotify_authorize_url(
+    state: str,
+    scopes: tuple[str, ...],
+    *,
+    redirect_base: str | None = None,
+) -> str:
     params = {
         "client_id": os.getenv("SPOTIFY_CLIENT_ID", ""),
         "response_type": "code",
-        "redirect_uri": callback_url(),
+        "redirect_uri": callback_url(redirect_base),
         "scope": " ".join(scopes),
         "state": state,
     }
     return f"https://accounts.spotify.com/authorize?{urlencode(params)}"
 
 
-def build_authorize_url(connector_id: str, state: str) -> str:
+def build_authorize_url(
+    connector_id: str,
+    state: str,
+    *,
+    redirect_base: str | None = None,
+) -> str:
     spec = CONNECTORS[connector_id]
     if spec.provider == "google":
-        return google_authorize_url(state, spec.scopes)
+        return google_authorize_url(state, spec.scopes, redirect_base=redirect_base)
     if spec.provider == "microsoft":
-        return microsoft_authorize_url(state, spec.scopes)
+        return microsoft_authorize_url(state, spec.scopes, redirect_base=redirect_base)
     if spec.provider == "spotify":
-        return spotify_authorize_url(state, spec.scopes)
+        return spotify_authorize_url(state, spec.scopes, redirect_base=redirect_base)
     raise ValueError(f"Unknown provider: {spec.provider}")

@@ -69,8 +69,9 @@ Le plugin Outlook couvre **mail + calendrier** (Microsoft Graph). Les événemen
 ## Spotify
 
 1. [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) → **Create app**
-2. **Settings → Redirect URIs** :
-   `http://127.0.0.1:8000/api/connectors/oauth/callback`
+2. **Settings → Redirect URIs** — ajoutez **les deux** :
+   - `http://127.0.0.1:8000/api/connectors/oauth/callback` (dev local)
+   - `https://autocad-blue.vercel.app/api/connectors/oauth/callback` (production)
 3. Copier **Client ID** et **Client Secret**
 
 ```env
@@ -97,6 +98,7 @@ Dans le chat, utilisez le skill **`/play`** (menu `/`) ou la commande **`/play t
 | Google « non validé » | App en Testing — ajoutez-vous en test user ou soumettez à la validation |
 | Outlook `AADSTS` | Mauvais tenant ou permissions API manquantes |
 | Spotify sans lecture | Ouvrir Spotify sur un appareil actif (Premium requis pour contrôle à distance) |
+| Safari « ne peut pas ouvrir le serveur » | Redirect URI OAuth pointe vers `127.0.0.1:8000` en prod — ajoutez l’URL Vercel dans Spotify Dashboard **et** définissez `FORMA_OAUTH_REDIRECT_BASE=https://autocad-blue.vercel.app` sur Vercel |
 | Spotify `Active premium subscription required for the owner of the app` | Le **compte propriétaire** de l'app sur [developer.spotify.com](https://developer.spotify.com/dashboard) doit avoir **Spotify Premium** (règle Spotify Dev Mode, fév. 2026). Ce n'est pas le forfait Lyte ni forcément le compte utilisateur connecté dans Lyte. Propagation : quelques heures après activation. |
 
 ---

@@ -13,6 +13,7 @@ from app.connectors.registry import (
     build_authorize_url,
     callback_url,
     microsoft_oauth_tenant,
+    resolve_oauth_redirect_base,
 )
 from app.connectors.user_store import set_connection
 
@@ -32,47 +33,57 @@ def create_authorize_session(
     uid: str,
     return_origin: str | None = None,
     return_path: str | None = None,
+    request_origin: str | None = None,
 ) -> tuple[str, str]:
     _gc_states()
     state = secrets.token_urlsafe(24)
+    redirect_base = resolve_oauth_redirect_base(return_origin, request_origin)
     _PENDING_STATES[state] = {
         "connector_id": connector_id,
         "uid": uid,
         "created": time.time(),
         "return_origin": return_origin,
         "return_path": return_path,
+        "redirect_base": redirect_base,
     }
-    url = build_authorize_url(connector_id, state)
+    url = build_authorize_url(connector_id, state, redirect_base=redirect_base)
     return state, url
 
 
-def pop_state(state: str) -> tuple[str, str, str | None, str | None] | None:
+def pop_state(state: str) -> tuple[str, str, str | None, str | None, str | None] | None:
     _gc_states()
     entry = _PENDING_STATES.pop(state, None)
     if not entry:
         return None
+    redirect_base = entry.get("redirect_base")
     return (
         str(entry["connector_id"]),
         str(entry["uid"]),
         str(entry["return_origin"]).strip() if entry.get("return_origin") else None,
         str(entry["return_path"]).strip() if entry.get("return_path") else None,
+        str(redirect_base).strip() if redirect_base else None,
     )
 
 
-async def exchange_code(connector_id: str, uid: str, code: str) -> dict[str, Any]:
+async def exchange_code(
+    connector_id: str,
+    uid: str,
+    code: str,
+    redirect_base: str | None = None,
+) -> dict[str, Any]:
     spec = CONNECTORS[connector_id]
     if spec.provider == "google":
-        tokens = await _exchange_google(code)
+        tokens = await _exchange_google(code, redirect_base)
         email = await _fetch_google_email(tokens.get("access_token"))
         if email:
             tokens["account_email"] = email
     elif spec.provider == "microsoft":
-        tokens = await _exchange_microsoft(code)
+        tokens = await _exchange_microsoft(code, redirect_base)
         email = await _fetch_microsoft_email(tokens.get("access_token"))
         if email:
             tokens["account_email"] = email
     elif spec.provider == "spotify":
-        tokens = await _exchange_spotify(code)
+        tokens = await _exchange_spotify(code, redirect_base)
         profile = await _fetch_spotify_profile(tokens.get("access_token"))
         if profile.get("email"):
             tokens["account_email"] = profile["email"]
@@ -85,7 +96,7 @@ async def exchange_code(connector_id: str, uid: str, code: str) -> dict[str, Any
     return tokens
 
 
-async def _exchange_google(code: str) -> dict[str, Any]:
+async def _exchange_google(code: str, redirect_base: str | None = None) -> dict[str, Any]:
     import os
 
     async with httpx.AsyncClient(timeout=30) as client:
@@ -95,7 +106,7 @@ async def _exchange_google(code: str) -> dict[str, Any]:
                 "code": code,
                 "client_id": os.getenv("GOOGLE_CLIENT_ID", ""),
                 "client_secret": os.getenv("GOOGLE_CLIENT_SECRET", ""),
-                "redirect_uri": callback_url(),
+                "redirect_uri": callback_url(redirect_base),
                 "grant_type": "authorization_code",
             },
         )
@@ -140,7 +151,7 @@ async def _fetch_microsoft_email(access_token: Any) -> str | None:
     return str(email).strip() if email else None
 
 
-async def _exchange_microsoft(code: str) -> dict[str, Any]:
+async def _exchange_microsoft(code: str, redirect_base: str | None = None) -> dict[str, Any]:
     import os
 
     tenant = microsoft_oauth_tenant()
@@ -151,7 +162,7 @@ async def _exchange_microsoft(code: str) -> dict[str, Any]:
                 "client_id": os.getenv("MICROSOFT_OAUTH_CLIENT_ID", ""),
                 "client_secret": os.getenv("MICROSOFT_OAUTH_CLIENT_SECRET", ""),
                 "code": code,
-                "redirect_uri": callback_url(),
+                "redirect_uri": callback_url(redirect_base),
                 "grant_type": "authorization_code",
             },
         )
@@ -166,7 +177,7 @@ async def _exchange_microsoft(code: str) -> dict[str, Any]:
     }
 
 
-async def _exchange_spotify(code: str) -> dict[str, Any]:
+async def _exchange_spotify(code: str, redirect_base: str | None = None) -> dict[str, Any]:
     import os
 
     client_id = os.getenv("SPOTIFY_CLIENT_ID", "")
@@ -182,7 +193,7 @@ async def _exchange_spotify(code: str) -> dict[str, Any]:
             data={
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": callback_url(),
+                "redirect_uri": callback_url(redirect_base),
             },
         )
         r.raise_for_status()

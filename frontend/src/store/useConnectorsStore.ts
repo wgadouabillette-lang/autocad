@@ -16,6 +16,14 @@ const VISUAL_STATUSES: ConnectorStatus[] = CHAT_CONNECTORS.map(({ id, label }) =
   configured: false,
 }));
 
+/** Safari / iOS bloquent souvent les popups OAuth — même onglet plus fiable. */
+function prefersSameTabOAuth(): boolean {
+  const ua = navigator.userAgent;
+  const isIos = /iPad|iPhone|iPod/.test(ua);
+  const isSafari = /Safari/i.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/i.test(ua);
+  return isIos || isSafari;
+}
+
 interface ConnectorsState {
   statuses: ConnectorStatus[];
   loading: boolean;
@@ -69,9 +77,13 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
     set({ connectingId: id, error: null });
     try {
       const url = await startConnectorOAuth(id);
+      if (prefersSameTabOAuth()) {
+        window.location.assign(url);
+        return;
+      }
       const popup = window.open(url, "forma-connector-oauth", "width=520,height=720");
       if (!popup) {
-        window.location.href = url;
+        window.location.assign(url);
         return;
       }
       const timer = window.setInterval(() => {

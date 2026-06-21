@@ -199,16 +199,13 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
 
     if (heard) return;
 
-    if (track.url) {
-      window.open(track.url, "_blank", "noopener,noreferrer");
-      set({ playerNotice: "Pas d'extrait disponible — ouverture dans Spotify." });
-    } else {
-      set({
-        playing: false,
-        playbackMode: null,
-        playerNotice: "Impossible de lire cette piste dans l'app.",
-      });
-    }
+    set({
+      playing: false,
+      playbackMode: null,
+      playerNotice: track.url
+        ? "Pas d'extrait disponible ici. Utilise le lien ↗ sur la piste pour ouvrir Spotify."
+        : "Impossible de lire cette piste dans l'app.",
+    });
   },
 
   togglePlayback: () => {
