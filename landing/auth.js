@@ -61,6 +61,10 @@ function providerForId(id) {
       prompt: "select_account",
       tenant: "common",
     });
+    provider.addScope("email");
+    provider.addScope("profile");
+    provider.addScope("openid");
+    provider.addScope("User.Read");
     return provider;
   }
   const provider = new FacebookAuthProvider();

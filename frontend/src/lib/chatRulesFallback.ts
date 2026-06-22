@@ -51,19 +51,3 @@ export function isBackendUnavailableError(message: string): boolean {
     /load failed/i.test(message)
   );
 }
-
-/** Message utilisateur quand fetch() n'atteint pas l'API (backend arrêté, proxy Vite, etc.). */
-export function backendUnavailableUserMessage(context: "connectors" | "default" = "default"): string {
-  const cmd =
-    typeof window !== "undefined" && window.location.hostname === "127.0.0.1"
-      ? "./start.sh ou ./scripts/desktop-dev.sh"
-      : "le déploiement backend (Vercel)";
-  if (context === "connectors") {
-    return `Backend inaccessible — lancez l'API (port 8000) avec ${cmd}, puis rechargez la page.`;
-  }
-  return `Backend inaccessible — vérifiez ${cmd}.`;
-}
-
-export function formatBackendError(message: string, context: "connectors" | "default" = "default"): string {
-  return isBackendUnavailableError(message) ? backendUnavailableUserMessage(context) : message;
-}

@@ -38,7 +38,10 @@ microsoftProvider.setCustomParameters({
   prompt: "select_account",
   tenant: import.meta.env.VITE_MICROSOFT_OAUTH_TENANT?.trim() || "common",
 });
-// Do not add scopes — Firebase requests openid/email/profile internally.
+microsoftProvider.addScope("email");
+microsoftProvider.addScope("profile");
+microsoftProvider.addScope("openid");
+microsoftProvider.addScope("User.Read");
 
 const facebookProvider = new FacebookAuthProvider();
 facebookProvider.addScope("email");

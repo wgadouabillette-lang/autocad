@@ -118,12 +118,6 @@ echo ""
 MICROSOFT_CLIENT_ID="${MICROSOFT_OAUTH_CLIENT_ID:-}"
 MICROSOFT_CLIENT_SECRET="${MICROSOFT_OAUTH_CLIENT_SECRET:-}"
 
-if [[ -n "$MICROSOFT_CLIENT_SECRET" ]] && [[ "$MICROSOFT_CLIENT_SECRET" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
-  echo "✗ Microsoft — MICROSOFT_OAUTH_CLIENT_SECRET ressemble à un Secret ID Azure (UUID)."
-  echo "  Azure → Certificates & secrets → copiez la colonne **Value** (affichée une seule fois), pas Secret ID."
-  exit 1
-fi
-
 if [[ -z "$MICROSOFT_CLIENT_ID" || -z "$MICROSOFT_CLIENT_SECRET" ]]; then
   echo "○ Microsoft — en attente de credentials Azure AD"
   echo "  1. https://portal.azure.com → App registrations → New registration"
