@@ -28,13 +28,23 @@
         "oAuthBrandDisplayName": "Lyte",
         "supportEmail": "wgadouabillette@gmail.com",
         "authorizedRedirectUris": [
+          "http://localhost",
+          "http://127.0.0.1",
           "https://forma-cad-dev.web.app",
           "https://forma-cad-dev.firebaseapp.com",
           "https://forma.app",
           "https://autocad-blue.vercel.app"
         ]
       }
-    }
+    },
+    "authorizedDomains": [
+      "localhost",
+      "127.0.0.1",
+      "forma-cad-dev.web.app",
+      "forma-cad-dev.firebaseapp.com",
+      "forma.app",
+      "autocad-blue.vercel.app"
+    ]
   },
   "hosting": {
     "public": "landing",

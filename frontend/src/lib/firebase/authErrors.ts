@@ -1,4 +1,11 @@
 import type { FirebaseError } from "firebase/app";
+import type { FirebaseAuthProvider } from "./client";
+
+const PROVIDER_LABELS: Record<FirebaseAuthProvider, string> = {
+  google: "Google",
+  microsoft: "Microsoft",
+  facebook: "Facebook",
+};
 
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
   "auth/popup-blocked":
@@ -16,7 +23,7 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   "auth/network-request-failed": "Problème réseau. Vérifiez votre connexion.",
 };
 
-export function formatAuthError(error: unknown): string {
+export function formatAuthError(error: unknown, provider?: FirebaseAuthProvider | null): string {
   if (error instanceof Error && error.message === "oauth-redirect-started") {
     return "";
   }
@@ -27,6 +34,10 @@ export function formatAuthError(error: unknown): string {
     typeof (error as FirebaseError).code === "string"
       ? (error as FirebaseError).code
       : null;
+  if (code === "auth/invalid-credential" && provider) {
+    const label = PROVIDER_LABELS[provider];
+    return `Connexion ${label} refusée (session expirée ou configuration OAuth). Réessayez ou utilisez un autre mode de connexion.`;
+  }
   if (code && AUTH_ERROR_MESSAGES[code]) {
     return AUTH_ERROR_MESSAGES[code];
   }
@@ -47,6 +58,7 @@ export function shouldFallbackToOAuthRedirect(error: unknown): boolean {
   return (
     code === "auth/popup-blocked" ||
     code === "auth/popup-closed-by-user" ||
-    code === "auth/cancelled-popup-request"
+    code === "auth/cancelled-popup-request" ||
+    code === "auth/invalid-credential"
   );
 }

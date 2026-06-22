@@ -535,7 +535,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set(applyFirebaseUser(user));
     } catch (error) {
       if (error instanceof OAuthRedirectStartedError) return;
-      set({ authError: formatAuthError(error) });
+      set({ authError: formatAuthError(error, provider) });
     }
   },
 

@@ -26,7 +26,6 @@ import {
   canCreateOwnedWorkspace,
   FREE_OWNED_WORKSPACE_LIMIT,
 } from "../lib/subscriptionPlans";
-import { auth } from "../lib/firebase/client";
 import { resolveActiveWorkspaceId } from "../lib/lastActiveWorkspace";
 import { useCallsStore } from "./useCallsStore";
 import { useStore } from "./useStore";

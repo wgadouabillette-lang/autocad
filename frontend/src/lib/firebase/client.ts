@@ -30,20 +30,6 @@ if (import.meta.env.DEV && import.meta.env.VITE_FIREBASE_FUNCTIONS_EMULATOR === 
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);
 }
 
-const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: "select_account" });
-
-const microsoftProvider = new OAuthProvider("microsoft.com");
-microsoftProvider.setCustomParameters({
-  prompt: "select_account",
-  tenant: import.meta.env.VITE_MICROSOFT_OAUTH_TENANT?.trim() || "common",
-});
-// Do not add scopes — Firebase requests openid/email/profile internally.
-
-const facebookProvider = new FacebookAuthProvider();
-facebookProvider.addScope("email");
-facebookProvider.addScope("public_profile");
-
 export type FirebaseAuthProvider = "google" | "microsoft" | "facebook";
 
 const EMAIL_LINK_STORAGE_KEY = "forma-email-for-sign-in";
@@ -68,10 +54,32 @@ function isOAuthPopupUrl(url: string): boolean {
   }
 }
 
+/** Popup OAuth often fails on third-party hosts (Vercel, etc.) — redirect is reliable there. */
+function preferOAuthRedirect(): boolean {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname;
+  if (!host || host === "localhost" || host === "127.0.0.1") return false;
+  return !host.endsWith(".firebaseapp.com") && !host.endsWith(".web.app");
+}
+
 export function providerForId(id: FirebaseAuthProvider) {
-  if (id === "google") return googleProvider;
-  if (id === "microsoft") return microsoftProvider;
-  return facebookProvider;
+  if (id === "google") {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    return provider;
+  }
+  if (id === "microsoft") {
+    const provider = new OAuthProvider("microsoft.com");
+    provider.setCustomParameters({
+      prompt: "select_account",
+      tenant: import.meta.env.VITE_MICROSOFT_OAUTH_TENANT?.trim() || "common",
+    });
+    return provider;
+  }
+  const provider = new FacebookAuthProvider();
+  provider.addScope("email");
+  provider.addScope("public_profile");
+  return provider;
 }
 
 export class OAuthRedirectStartedError extends Error {
@@ -83,6 +91,10 @@ export class OAuthRedirectStartedError extends Error {
 
 export async function signInWithOAuthProvider(id: FirebaseAuthProvider): Promise<User> {
   const provider = providerForId(id);
+  if (preferOAuthRedirect()) {
+    await signInWithRedirect(auth, provider);
+    throw new OAuthRedirectStartedError();
+  }
   try {
     const result = await signInWithPopup(auth, provider);
     return result.user;
