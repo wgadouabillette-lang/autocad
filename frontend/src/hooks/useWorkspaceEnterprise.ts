@@ -2,14 +2,17 @@ import { useEffect } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { effectiveWorkspaceEnterprise } from "../lib/subscriptionPlans";
 import { db } from "../lib/firebase/client";
+import { useAuthStore } from "../store/useAuthStore";
 import { useStore } from "../store/useStore";
 
 export function useWorkspaceEnterprise(): void {
   const activeRoomId = useStore((s) => s.activeRoomId);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
 
   useEffect(() => {
     const workspaceId = activeRoomId.trim().toLowerCase();
-    if (!workspaceId) {
+    if (!isAuthenticated || !firebaseUid || !workspaceId) {
       useStore.setState({ workspaceEnterpriseActive: false });
       return;
     }
@@ -31,5 +34,5 @@ export function useWorkspaceEnterprise(): void {
     );
 
     return unsubscribe;
-  }, [activeRoomId]);
+  }, [activeRoomId, firebaseUid, isAuthenticated]);
 }

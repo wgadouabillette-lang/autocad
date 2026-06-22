@@ -10,6 +10,7 @@ import {
   type Workspace,
 } from "../lib/workspaces";
 import { generateWorkspaceInviteId } from "../lib/workspaceInvite";
+import { auth } from "../lib/firebase/client";
 import {
   fetchJoinRequestForUser,
   fetchSharedWorkspace,
@@ -321,9 +322,11 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       return { customServers, memberships };
     });
 
-    void publishSharedWorkspace(server).catch(() => {
-      // Le workspace reste utilisable localement même si l'enregistrement cloud échoue.
-    });
+    if (auth.currentUser) {
+      void publishSharedWorkspace(server).catch(() => {
+        // Le workspace reste utilisable localement même si l'enregistrement cloud échoue.
+      });
+    }
 
     return id;
   },

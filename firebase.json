@@ -54,6 +54,15 @@
     ],
     "headers": [
       {
+        "source": "/auth",
+        "headers": [
+          {
+            "key": "Cross-Origin-Opener-Policy",
+            "value": "same-origin-allow-popups"
+          }
+        ]
+      },
+      {
         "source": "/downloads/**",
         "headers": [
           { "key": "Content-Disposition", "value": "attachment" },

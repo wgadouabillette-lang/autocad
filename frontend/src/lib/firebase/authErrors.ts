@@ -11,7 +11,8 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
     "Ce mode de connexion n'est pas activé dans Firebase Authentication.",
   "auth/account-exists-with-different-credential":
     "Un compte existe déjà avec cette adresse email via un autre fournisseur.",
-  "auth/invalid-credential": "Identifiants Microsoft invalides ou expirés. Réessayez.",
+  "auth/invalid-credential":
+    "Connexion refusée par le fournisseur (identifiants expirés ou mauvaise config OAuth). Réessayez ou utilisez Google / email.",
   "auth/network-request-failed": "Problème réseau. Vérifiez votre connexion.",
 };
 
@@ -43,5 +44,9 @@ export function shouldFallbackToOAuthRedirect(error: unknown): boolean {
     typeof (error as FirebaseError).code === "string"
       ? (error as FirebaseError).code
       : null;
-  return code === "auth/popup-blocked" || code === "auth/popup-closed-by-user";
+  return (
+    code === "auth/popup-blocked" ||
+    code === "auth/popup-closed-by-user" ||
+    code === "auth/cancelled-popup-request"
+  );
 }
