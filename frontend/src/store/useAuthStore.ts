@@ -502,8 +502,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (message && !disposed) set({ authError: message, ready: true });
       }
 
+      let redirectUser: User | null = null;
       try {
-        await completeOAuthRedirectIfPresent();
+        redirectUser = await completeOAuthRedirectIfPresent();
       } catch (error: unknown) {
         const message = formatAuthError(error);
         if (message && !disposed) set({ authError: message, ready: true });
@@ -512,13 +513,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (disposed) return;
       pendingAuthResolved = true;
 
-      unsubscribe = watchAuthState((user) => {
+      const user = redirectUser ?? auth.currentUser;
+      if (user) {
+        handleAuthenticatedUser(user);
+      } else {
+        setSignedOut();
+      }
+
+      unsubscribe = watchAuthState((nextUser) => {
         if (disposed) return;
-        if (!user) {
+        if (!nextUser) {
           setSignedOut();
           return;
         }
-        handleAuthenticatedUser(user);
+        if (nextUser.uid === get().firebaseUid && get().isAuthenticated && get().ready) {
+          return;
+        }
+        handleAuthenticatedUser(nextUser);
       });
     })();
 
@@ -544,10 +555,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signInWithProvider: async (provider) => {
-    set({ authError: null });
+    set({ authError: null, ready: false });
     try {
-      const user = await signInWithOAuthProvider(provider);
-      set(applyFirebaseUser(user));
+      await signInWithOAuthProvider(provider);
     } catch (error) {
       if (error instanceof OAuthRedirectStartedError) return;
       set({ authError: formatAuthError(error, provider) });

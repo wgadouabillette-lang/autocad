@@ -26,6 +26,14 @@
       "destination": "/_/backend/api/$1"
     },
     {
+      "source": "/__/auth/:path*",
+      "destination": "https://forma-cad-dev.firebaseapp.com/__/auth/:path*"
+    },
+    {
+      "source": "/__/firebase/:path*",
+      "destination": "https://forma-cad-dev.firebaseapp.com/__/firebase/:path*"
+    },
+    {
       "source": "/auth",
       "destination": "/auth.html"
     },

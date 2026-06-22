@@ -54,14 +54,6 @@ function isOAuthPopupUrl(url: string): boolean {
   }
 }
 
-/** Popup OAuth often fails on third-party hosts (Vercel, etc.) — redirect is reliable there. */
-function preferOAuthRedirect(): boolean {
-  if (typeof window === "undefined") return false;
-  const host = window.location.hostname;
-  if (!host || host === "localhost" || host === "127.0.0.1") return false;
-  return !host.endsWith(".firebaseapp.com") && !host.endsWith(".web.app");
-}
-
 export function providerForId(id: FirebaseAuthProvider) {
   if (id === "google") {
     const provider = new GoogleAuthProvider();
@@ -89,17 +81,22 @@ export class OAuthRedirectStartedError extends Error {
   }
 }
 
+function ensureCanonicalAppUrl(): void {
+  if (typeof window === "undefined") return;
+  const { pathname, search, hash } = window.location;
+  if (pathname === "/app") {
+    window.history.replaceState(null, "", `/app/${search}${hash}`);
+  }
+}
+
 export async function signInWithOAuthProvider(id: FirebaseAuthProvider): Promise<User> {
   const provider = providerForId(id);
-  if (preferOAuthRedirect()) {
-    await signInWithRedirect(auth, provider);
-    throw new OAuthRedirectStartedError();
-  }
   try {
     const result = await signInWithPopup(auth, provider);
     return result.user;
   } catch (error) {
     if (shouldFallbackToOAuthRedirect(error)) {
+      ensureCanonicalAppUrl();
       await signInWithRedirect(auth, provider);
       throw new OAuthRedirectStartedError();
     }
@@ -109,18 +106,26 @@ export async function signInWithOAuthProvider(id: FirebaseAuthProvider): Promise
 
 let oauthRedirectResultPromise: Promise<User | null> | null = null;
 
+async function resolveOAuthRedirectUser(): Promise<User | null> {
+  const result = await getRedirectResult(auth);
+  if (result?.user) return result.user;
+  await auth.authStateReady();
+  return auth.currentUser;
+}
+
 /** Must run once per page load — React StrictMode would consume the redirect twice otherwise. */
 export function completeOAuthRedirectIfPresent(): Promise<User | null> {
   if (!oauthRedirectResultPromise) {
-    oauthRedirectResultPromise = getRedirectResult(auth)
-      .then((result) => result?.user ?? null)
-      .catch((error) => {
-        oauthRedirectResultPromise = null;
-        throw error;
-      });
+    oauthRedirectResultPromise = resolveOAuthRedirectUser().catch((error) => {
+      oauthRedirectResultPromise = null;
+      throw error;
+    });
   }
   return oauthRedirectResultPromise;
 }
+
+// Start redirect resolution as early as possible (before React mounts).
+void completeOAuthRedirectIfPresent().catch(() => {});
 
 export function isFirebaseOAuthPopupUrl(url: string): boolean {
   return isOAuthPopupUrl(url);
