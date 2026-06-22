@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Architecture Lyte / Forma</title>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+  </script>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, sans-serif; line-height: 1.5; color: #111; }
+    body { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    h1 { font-size: 2rem; border-bottom: 2px solid #111; padding-bottom: .5rem; }
+    h2 { margin-top: 2.5rem; font-size: 1.4rem; border-bottom: 1px solid #ccc; padding-bottom: .3rem; }
+    h3 { margin-top: 1.5rem; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .9rem; }
+    th, td { border: 1px solid #ddd; padding: .45rem .6rem; text-align: left; vertical-align: top; }
+    th { background: #f5f5f5; }
+    pre:not(.mermaid) { background: #f6f8fa; padding: 1rem; overflow-x: auto; border-radius: 6px; font-size: .82rem; }
+    blockquote { border-left: 4px solid #0066cc; margin: 1rem 0; padding: .5rem 1rem; background: #f0f7ff; }
+    .toolbar { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #eee; padding: .75rem 0; margin-bottom: 1.5rem; z-index: 10; display: flex; gap: .75rem; flex-wrap: wrap; }
+    .toolbar button, .toolbar a { padding: .5rem 1rem; border-radius: 6px; border: 1px solid #ccc; background: #fff; cursor: pointer; text-decoration: none; color: #111; font-size: .9rem; }
+    .toolbar button.primary { background: #111; color: #fff; border-color: #111; }
+    .mermaid { margin: 1.5rem 0; text-align: center; }
+    @media print {
+      .toolbar { display: none; }
+      body { padding: 0; max-width: none; }
+      pre.mermaid { break-inside: avoid; }
+      h2 { break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="primary" onclick="window.print()">Enregistrer en PDF (Imprimer)</button>
+    <a href="ARCHITECTURE.md" download>Télécharger ARCHITECTURE.md</a>
+  </div>
+  <h1>Architecture Lyte / Forma</h1><p>Documentation complète de l&#x27;architecture applicative — authentification, features, appels, connecteurs, Firebase, billing Stripe et autorisations.</p><blockquote>**Téléchargement / export**</blockquote><blockquote>- Ce fichier : `docs/ARCHITECTURE.md` (Markdown, versionné dans le repo)</blockquote><blockquote>- Version HTML navigable : `docs/ARCHITECTURE.html` (ouvrir dans le navigateur → Imprimer → Enregistrer en PDF)</blockquote><blockquote>- Diagrammes Mermaid : copier un bloc ` ```mermaid ` dans [mermaid.live](https://mermaid.live) pour exporter PNG/SVG</blockquote><p><strong>Projet Firebase :</strong> <code>forma-cad-dev</code>  </p><p><strong>Déploiement prod :</strong> Vercel — SPA <code>/app</code>, API <code>/api/*</code> → FastAPI, landing <code>/</code>  </p><p><strong>Secrets :</strong> Google Secret Manager (<code>forma-backend-env</code>, <code>forma-functions-env</code>, <code>forma-frontend-env</code>)</p><hr><h2 id="table-des-mati-res">Table des matières</h2><p>1. [Vue d&#x27;ensemble](#1-vue-densemble)</p><p>2. [Parcours utilisateur](#2-parcours-utilisateur)</p><p>3. [Authentification](#3-authentification)</p><p>4. [Modèle Firestore](#4-modèle-firestore)</p><p>5. [Connecteurs OAuth](#5-connecteurs-oauth)</p><p>6. [Appels vocaux &amp; Théâtre](#6-appels-vocaux--théâtre)</p><p>7. [Chat IA vs Messages](#7-chat-ia-vs-messages)</p><p>8. [Billing Stripe](#8-billing-stripe)</p><p>9. [Autorisations](#9-autorisations)</p><p>10. [Routes API](#10-routes-api)</p><p>11. [Référence fichiers](#11-référence-fichiers)</p><hr><h2 id="1-vue-d-ensemble">1. Vue d&#x27;ensemble</h2><pre class="mermaid">flowchart TB
+  subgraph CLIENT[&quot;Frontend React (Vite)&quot;]
+    APP[App.tsx]
+    AUTH_STORE[useAuthStore]
+    WS_STORE[useWorkspacesStore]
+    CALLS[useCallsStore]
+    CHAT[useStore — AI Chat]
+    PEOPLE[FriendsChatPanel — Messages]
+    BILLING_UI[BillingSettings]
+    CONNECTORS_UI[useConnectors]
+  end
+
+  subgraph FIREBASE[&quot;Firebase&quot;]
+    FB_AUTH[Firebase Auth]
+    FS[(Firestore)]
+    CF[Cloud Functions europe-west1]
+    HOSTING[Hosting / Vercel SPA]
+  end
+
+  subgraph BACKEND[&quot;Backend FastAPI&quot;]
+    AUTH_DEP[auth_deps — verify ID token]
+    CONNECTORS[/api/connectors]
+    BILLING[/api/billing]
+    HANDOFFS[/api/handoffs]
+    CAL_SYNC[calendar_sync]
+    CAD[/api — CAD local]
+  end
+
+  subgraph EXTERNAL[&quot;Services externes&quot;]
+    STRIPE[Stripe]
+    GOOGLE[Google OAuth + Calendar + Gmail]
+    MS[Microsoft OAuth + Outlook]
+    SPOTIFY[Spotify OAuth]
+    LLM[xAI / OpenAI / Anthropic]
+  end
+
+  APP --&gt; AUTH_STORE
+  AUTH_STORE --&gt; FB_AUTH
+  AUTH_STORE --&gt; FS
+  APP --&gt; WS_STORE &amp; CALLS &amp; CHAT &amp; PEOPLE
+  CHAT --&gt; CF
+  CONNECTORS_UI --&gt; CONNECTORS
+  BILLING_UI --&gt; BILLING
+  PEOPLE --&gt; FS
+  CALLS --&gt; FS
+
+  CONNECTORS --&gt; GOOGLE &amp; MS &amp; SPOTIFY
+  CONNECTORS --&gt; FS
+  BILLING --&gt; STRIPE
+  BILLING --&gt; FS
+  CAL_SYNC --&gt; GOOGLE &amp; MS
+  CF --&gt; LLM
+  CF --&gt; FS
+  AUTH_DEP --&gt; FB_AUTH
+  BACKEND --&gt; AUTH_DEP</pre><h3>Carte des composants</h3><table><tr><th>Couche</th><th>Éléments clés</th></tr><tr><td>**UI**</td><td>`AuthPage`, `ChatPanel`, `FriendsChatPanel`, `CallsView`, `TheaterView`, `PlanSettingsSection`</td></tr><tr><td>**Stores**</td><td>`useAuthStore`, `useWorkspacesStore`, `useCallsStore`, `useStore`, `usePeopleStore`, `useConnectorsStore`</td></tr><tr><td>**Firebase client**</td><td>`client.ts`, `userData.ts`, `friendChats.ts`, `webrtcSignaling.ts`</td></tr><tr><td>**Backend**</td><td>`main.py`, `connectors/`, `billing/`, `api/handoffs.py`</td></tr><tr><td>**Cloud Functions**</td><td>`aiChat`, `setUserApiKey`, `stripeWebhook`, `completeDesktopAuthSession`</td></tr><tr><td>**Externe**</td><td>Stripe, Google, Microsoft, Spotify, LLM providers</td></tr></table><hr><h2 id="2-parcours-utilisateur">2. Parcours utilisateur</h2><pre class="mermaid">flowchart LR
+  A[1. Connexion Firebase] --&gt; B[2. Onboarding workspace]
+  B --&gt; C[3. Chat IA / Skills]
+  B --&gt; D[4. Messages amis/groupes]
+  B --&gt; E[5. Appels vocaux / Théâtre]
+  B --&gt; F[6. Connecteurs OAuth]
+  C --&gt; G[7. Abonnement Pro / Enterprise]
+  G --&gt; H[8. AI Notes / Follow-up]
+  D --&gt; I[9. Handoffs]
+  F --&gt; J[10. Calendrier / Mail / Spotify]</pre><table><tr><th>#</th><th>Parcours</th><th>Fichiers principaux</th></tr><tr><td>1</td><td>Connexion OAuth ou magic link</td><td>`useAuthStore.ts`, `firebase/client.ts`</td></tr><tr><td>2</td><td>Création/jointure workspace</td><td>`useWorkspacesStore.ts`, `workspacesShared/`</td></tr><tr><td>3</td><td>Chat agent IA</td><td>`ChatPanel.tsx`, CF `aiChat`</td></tr><tr><td>4</td><td>Skills slash</td><td>`chatSkills.ts`, `mailSkill.ts`, `playSkill.ts`</td></tr><tr><td>5</td><td>Messages people</td><td>`FriendsChatPanel.tsx`, `friendChats/`, `groupChats/`</td></tr><tr><td>6</td><td>Appel vocal workspace</td><td>`useCallsStore.ts`, WebRTC signaling</td></tr><tr><td>7</td><td>Mode théâtre</td><td>`TheaterView.tsx`, `theaterChat/`</td></tr><tr><td>8</td><td>Calendrier sync</td><td>`calendarSync.ts`, `calendar_sync.py`</td></tr><tr><td>9</td><td>Connecteurs OAuth</td><td>`useConnectors.ts`, `connectors.py`</td></tr><tr><td>10</td><td>Abonnement Pro</td><td>`billingApi.ts`, Stripe webhooks</td></tr><tr><td>11</td><td>Enterprise workspace</td><td>`subscriptionPlans.ts`, checkout enterprise</td></tr><tr><td>12</td><td>Handoff</td><td>`useHandoffStore.ts`, `/api/handoffs`</td></tr><tr><td>13</td><td>Desktop Electron</td><td>`desktopAuthSessions/`, custom token</td></tr><tr><td>14</td><td>CAD (local only)</td><td>`/api/agent`, `/api/rebuild`</td></tr></table><hr><h2 id="3-authentification">3. Authentification</h2><pre class="mermaid">sequenceDiagram
+  participant U as Utilisateur
+  participant FE as Frontend
+  participant FA as Firebase Auth
+  participant FS as Firestore
+  participant BE as Backend FastAPI
+  participant CF as Cloud Functions
+
+  U-&gt;&gt;FE: Ouvre /app/
+  FE-&gt;&gt;FA: watchAuthState()
+
+  alt Email magic link
+    U-&gt;&gt;FE: continueWithEmail(email)
+    FE-&gt;&gt;FA: sendEmailSignInLink
+    U-&gt;&gt;FA: Clique lien email
+    FA-&gt;&gt;FE: completeEmailSignInIfPresent()
+  else OAuth Google / Microsoft / Facebook
+    U-&gt;&gt;FE: signInWithProvider()
+    FA-&gt;&gt;FE: completeOAuthRedirectIfPresent()
+  end
+
+  FA--&gt;&gt;FE: User uid, email, token
+  FE-&gt;&gt;FS: loadUserProfile, loadUserWorkspaces
+  FE-&gt;&gt;FS: saveUserDirectoryProfile
+  FE-&gt;&gt;WS_STORE: hydrate workspaces actifs
+
+  Note over FE,BE: Requêtes API authentifiées
+  FE-&gt;&gt;BE: Authorization Bearer Firebase ID Token
+  BE-&gt;&gt;FA: verify_id_token()
+  BE--&gt;&gt;FE: FirebaseUser uid/email
+
+  FE-&gt;&gt;CF: onCall aiChat / setUserApiKey
+  CF-&gt;&gt;FA: request.auth.uid</pre><h3>Documents Firestore à l&#x27;auth</h3><table><tr><th>Collection</th><th>Contenu</th></tr><tr><td>`users/{uid}`</td><td>profil, préférences, `subscriptionPlan`, `billingManaged`</td></tr><tr><td>`users/{uid}/private/apiKeys`</td><td>clés LLM BYOK (Functions/backend only)</td></tr><tr><td>`users/{uid}/private/connectors`</td><td>tokens OAuth (backend only)</td></tr><tr><td>`userDirectory/{uid}`</td><td>email, displayName pour @mentions</td></tr></table><h3>Auth desktop</h3><pre class="mermaid">sequenceDiagram
+  participant D as App Desktop
+  participant B as Navigateur
+  participant CF as Cloud Functions
+  participant FS as Firestore
+
+  D-&gt;&gt;D: Génère sessionId UUID
+  D-&gt;&gt;B: Ouvre /auth/desktop?session=...
+  B-&gt;&gt;B: Login Firebase normal
+  B-&gt;&gt;CF: completeDesktopAuthSession(sessionId)
+  CF-&gt;&gt;FS: desktopAuthSessions/{sessionId} = customToken
+  D-&gt;&gt;CF: claimDesktopAuthSession(sessionId)
+  CF--&gt;&gt;D: customToken
+  D-&gt;&gt;D: signInWithCustomToken</pre><hr><h2 id="4-mod-le-firestore">4. Modèle Firestore</h2><pre class="mermaid">erDiagram
+  USERS ||--o{ PRIVATE : subcollections
+  USERS ||--o| USER_DIRECTORY : miroir public
+  USERS ||--o{ FRIEND_CHATS : DM
+  USERS ||--o{ GROUP_CHATS : groupes
+
+  WORKSPACES_SHARED ||--o{ VOICE_RTC : signaling WebRTC
+  WORKSPACES_SHARED ||--o{ THEATER_CHAT : chat scène
+  WORKSPACES_SHARED ||--o{ VOICE_POLL : sondages
+  WORKSPACES_SHARED ||--o{ PRESENCE : membres en ligne
+  WORKSPACES_SHARED ||--o{ HANDOFFS : transferts
+
+  USERS {
+    string uid PK
+    string email
+    string subscriptionPlan
+    bool billingManaged
+    string stripeCustomerId
+  }
+
+  WORKSPACES_SHARED {
+    string workspaceId PK
+    string ownerUid
+    bool enterpriseBillingManaged
+    array memberIds
+  }
+
+  VOICE_RTC {
+    string sessionId PK
+    subcollection signals
+  }</pre><h3>Arborescence complète</h3><pre><code>users/{uid}                          # profil (owner read/write)
+users/{uid}/workspaces/{id}
+users/{uid}/memberships/{id}
+users/{uid}/chatSessions/{id}
+users/{uid}/projects/{id}            # CAD autosave
+users/{uid}/friends/{friendUid}
+users/{uid}/notifications/{id}
+users/{uid}/private/billing          # Admin write only
+users/{uid}/private/connectors         # Admin write only
+users/{uid}/private/apiKeys/{provider}
+users/{uid}/private/usage
+
+userDirectory/{uid}
+friendRequests/{id}
+friendChats/{id}/messages/{msgId}
+groupChats/{id}/messages/{msgId}
+handoffs/{id}                        # create via Admin API
+
+workspacesShared/{wid}
+workspacesShared/{wid}/joinRequests/{uid}
+workspacesShared/{wid}/members/{uid}
+workspacesShared/{wid}/presence/{uid}
+workspacesShared/{wid}/voiceKnocks/{id}
+workspacesShared/{wid}/openVoiceChannels/{id}
+workspacesShared/{wid}/voicePoll/active
+workspacesShared/{wid}/theaterChat/{msgId}
+workspacesShared/{wid}/voiceRtc/{sessionId}/signals/{signalId}
+workspacesShared/{wid}/private/billing
+
+desktopAuthSessions/{sessionId}</code></pre><hr><h2 id="5-connecteurs-oauth">5. Connecteurs OAuth</h2><h3>Registry</h3><table><tr><th>ID</th><th>Provider</th><th>Scopes principaux</th><th>Skill</th></tr><tr><td>`calendar`</td><td>Google</td><td>calendar.readonly, calendar.events</td><td>`/manage`, `/meeting`</td></tr><tr><td>`gmail`</td><td>Google</td><td>gmail.readonly, gmail.send</td><td>`/mail`</td></tr><tr><td>`outlook`</td><td>Microsoft</td><td>Mail.Read, Calendars.ReadWrite</td><td>calendrier Outlook</td></tr><tr><td>`spotify`</td><td>Spotify</td><td>streaming, playback</td><td>`/play`</td></tr></table><h3>Cycle OAuth complet</h3><pre class="mermaid">sequenceDiagram
+  participant U as User
+  participant FE as Frontend
+  participant BE as Backend
+  participant P as Provider
+  participant FS as Firestore
+
+  U-&gt;&gt;FE: Clique Connecter Gmail
+  FE-&gt;&gt;BE: GET /connectors/gmail/authorize + Bearer token
+  BE-&gt;&gt;BE: require_firebase_user()
+  BE-&gt;&gt;BE: create_authorize_session(uid, state)
+  BE--&gt;&gt;FE: url provider OAuth
+  FE-&gt;&gt;P: Redirect
+  P-&gt;&gt;U: Consent screen
+  P-&gt;&gt;BE: GET /oauth/callback?code&amp;state
+  BE-&gt;&gt;BE: pop_state → uid, connector_id
+  BE-&gt;&gt;P: POST token exchange
+  P--&gt;&gt;BE: access_token + refresh_token
+  BE-&gt;&gt;FS: users/{uid}/private/connectors
+  BE--&gt;&gt;FE: HTML postMessage → app reconnectée
+  FE-&gt;&gt;BE: GET /connectors (status connected)</pre><pre class="mermaid">flowchart LR
+  UI[Settings / Chat] --&gt; AUTHZ[GET /authorize]
+  AUTHZ --&gt; REDIR[Redirect provider]
+  REDIR --&gt; CB[GET /oauth/callback]
+  CB --&gt; STORE[Firestore private/connectors]
+  STORE --&gt; SKILLS[Skills /mail /play /manage]
+  SKILLS --&gt; API[POST connector_resources]
+  API --&gt; EXT[Gmail / Calendar / Spotify API]</pre><p><strong>Redirect URI prod :</strong> <code>https://autocad-blue.vercel.app/api/connectors/oauth/callback</code>  </p><p><strong>Redirect URI dev :</strong> <code>http://127.0.0.1:8000/api/connectors/oauth/callback</code></p><h3>Exemple `/mail`</h3><pre class="mermaid">sequenceDiagram
+  participant U as User
+  participant FE as ChatPanel
+  participant BE as Backend
+  participant G as Gmail API
+  participant FS as Firestore
+
+  U-&gt;&gt;FE: /mail @alice sujet: Hello corps: ...
+  FE-&gt;&gt;FE: mailSkill.ts parse recipients
+  FE-&gt;&gt;FS: userDirectory lookup @alice
+  FE-&gt;&gt;BE: POST /connectors/gmail/send + Bearer token
+  BE-&gt;&gt;FS: users/{uid}/private/connectors
+  BE-&gt;&gt;G: Gmail API send MIME
+  G--&gt;&gt;BE: messageId
+  BE--&gt;&gt;FE: ok</pre><hr><h2 id="6-appels-vocaux-th-tre">6. Appels vocaux &amp; Théâtre</h2><pre class="mermaid">flowchart TB
+  subgraph JOIN[&quot;Rejoindre un appel&quot;]
+    J1[User clique Rejoindre]
+    J2[useCallsStore.joinCall]
+    J3[Session voiceRtc/sessionId]
+    J4[RTCPeerConnection]
+  end
+
+  subgraph SIGNAL[&quot;Signaling Firestore&quot;]
+    S1[sendRtcSignal offer/answer/candidate]
+    S2[workspacesShared/wid/voiceRtc/session/signals]
+    S3[watchIncomingRtcSignals toUid]
+  end
+
+  subgraph TYPES[&quot;Types d&#x27;appel&quot;]
+    T1[Bloc privé 1:1 — knock]
+    T2[Canal ouvert — openVoiceChannels]
+    T3[Théâtre — speaker/audience]
+  end
+
+  subgraph FEATURES[&quot;Features en appel&quot;]
+    F1[VoiceParticipantsInCallGrid]
+    F2[TheaterChatPanel]
+    F3[AI Notes Pro/Enterprise]
+    F4[Follow-up post-appel]
+    F5[Voice polls]
+  end
+
+  J1 --&gt; J2 --&gt; J3 --&gt; J4
+  J4 --&gt; S1 --&gt; S2 --&gt; S3 --&gt; J4
+  TYPES --&gt; JOIN
+  J3 --&gt; FEATURES</pre><h3>Cycle WebRTC</h3><pre class="mermaid">sequenceDiagram
+  participant A as User A caller
+  participant FS as Firestore signals
+  participant B as User B callee
+
+  A-&gt;&gt;A: createOffer()
+  A-&gt;&gt;FS: signal type offer toUid B
+  FS--&gt;&gt;B: onSnapshot offer
+  B-&gt;&gt;B: setRemoteDescription + createAnswer()
+  B-&gt;&gt;FS: signal type answer toUid A
+  FS--&gt;&gt;A: onSnapshot answer
+  A-&gt;&gt;B: ICE candidates via FS
+  Note over A,B: Connexion P2P — audio/vidéo direct</pre><h3>Knock flow</h3><p>1. Appelant : <code>sendVoiceKnock(workspaceId, fromUid, toUid)</code></p><p>2. Destinataire : <code>JoinKnockOverlay</code> → accept/decline</p><p>3. Accept : <code>completeRemoteKnockJoin</code> → session RTC <code>private__{sorted_uids}</code></p><p>4. Présence : <code>workspacesShared/{wid}/presence/{uid}</code> — <code>voiceInPrivateCall</code>, <code>voiceSpeaking</code></p><hr><h2 id="7-chat-ia-vs-messages">7. Chat IA vs Messages</h2><pre class="mermaid">flowchart TB
+  subgraph AI[&quot;Chat IA — ChatPanel&quot;]
+    AC1[useStore.sendChat]
+    AC2[Skills slash]
+    AC3{Type?}
+    AC4[connectorSkills → Backend API]
+    AC5[Cloud Function aiChat]
+    AC6[LLM xAI/OpenAI/Anthropic]
+    AC1 --&gt; AC2 --&gt; AC3
+    AC3 --&gt;|Connector| AC4
+    AC3 --&gt;|IA pure| AC5 --&gt; AC6
+  end
+
+  subgraph PEOPLE[&quot;Messages — FriendsChatPanel&quot;]
+    PC1[friendChats / groupChats]
+    PC2[/manage /group /handoff]
+    PC3[Firestore temps réel]
+    PC1 --&gt; PC2 --&gt; PC3
+  end
+
+  subgraph SHARED[&quot;Partagé&quot;]
+    M1[userDirectory @mentions]
+    M2[handoffs + /api/handoffs]
+    M3[workspacePolls]
+  end
+
+  AI --&gt; SHARED
+  PEOPLE --&gt; SHARED</pre><h3>Skills slash</h3><table><tr><th>Skill</th><th>Fichier</th><th>Pro requis</th><th>Connecteur</th></tr><tr><td>`/manage`</td><td>`manageSchedulePrompt.ts`</td><td>Oui</td><td>Calendar</td></tr><tr><td>`/meeting`</td><td>`meetingSkill.ts`</td><td>Non</td><td>Calendar</td></tr><tr><td>`/mail`</td><td>`mailSkill.ts`</td><td>Non</td><td>Gmail</td></tr><tr><td>`/play`</td><td>`playSkill.ts`</td><td>Non</td><td>Spotify</td></tr><tr><td>`/group`</td><td>`createGroupSkill.ts`</td><td>Non</td><td>—</td></tr><tr><td>`/handoff`</td><td>`useHandoffStore.ts`</td><td>Si dest. non-Pro</td><td>—</td></tr><tr><td>`/recap`</td><td>`recapSkill.ts`</td><td>Oui</td><td>—</td></tr></table><hr><h2 id="8-billing-stripe">8. Billing Stripe</h2><pre class="mermaid">flowchart TB
+  subgraph PLANS[&quot;Plans&quot;]
+    FREE[Gratuit — workspace, appels, messages, connecteurs]
+    PRO[Pro 30 USD/mois — IA + AI Notes + Follow-up]
+    ENT[Enterprise — pool IA workspace ≥10 membres]
+  end
+
+  subgraph CHECKOUT[&quot;Checkout&quot;]
+    C1[UpgradeProButton]
+    C2[POST /api/billing/checkout]
+    C3[Stripe Checkout Session]
+    C4[Paiement Stripe]
+    C5[Webhook checkout.session.completed]
+  end
+
+  subgraph STATE[&quot;Firestore&quot;]
+    S1[subscriptionPlan pro]
+    S2[billingManaged true]
+    S3[enterpriseBillingManaged workspace]
+    S4[private/billing stripe IDs]
+  end
+
+  subgraph ACCESS[&quot;Gates frontend&quot;]
+    A1[hasAiAccess]
+    A2[AI Chat]
+    A3[AI Notes]
+    A4[Follow-up / recap]
+    A5[On-demand add-on]
+  end
+
+  PRO --&gt; C1 --&gt; C2 --&gt; C3 --&gt; C4 --&gt; C5 --&gt; STATE
+  STATE --&gt; A1 --&gt; A2 &amp; A3 &amp; A4 &amp; A5</pre><pre class="mermaid">sequenceDiagram
+  participant S as Stripe
+  participant WH as stripeWebhook CF ou /api/billing/webhook
+  participant FS as Firestore
+  participant FE as Frontend
+
+  S-&gt;&gt;WH: checkout.session.completed
+  WH-&gt;&gt;WH: verify signature
+  WH-&gt;&gt;FS: subscriptionPlan + billingManaged
+  FE-&gt;&gt;FE: GET /api/billing/status
+  FE-&gt;&gt;FE: effectiveSubscriptionPlan()
+  FE-&gt;&gt;FE: hasAiAccess() débloque IA</pre><table><tr><th>Plan</th><th>Condition effective</th><th>Capacités</th></tr><tr><td>**free**</td><td>défaut ou `billingManaged !== true`</td><td>Workspace, appels, messages, connecteurs</td></tr><tr><td>**pro**</td><td>`subscriptionPlan === &quot;pro&quot; &amp;&amp; billingManaged`</td><td>IA, AI Notes, Follow-up, quota $30/mois</td></tr><tr><td>**enterprise**</td><td>workspace `enterpriseBillingManaged`</td><td>Pool IA partagé (≥10 membres)</td></tr></table><blockquote>**Règle critique :** `subscriptionPlan: &quot;pro&quot;` sans `billingManaged: true` = **free effectif**.</blockquote><hr><h2 id="9-autorisations">9. Autorisations</h2><pre class="mermaid">flowchart TB
+  subgraph L1[&quot;Niveau 1 — Firestore Rules&quot;]
+    R1[users/uid owner write]
+    R2[private/* DENY client write]
+    R3[workspacesShared members]
+    R4[friendChats participants]
+    R5[voiceRtc signals participants]
+    R6[billing fields webhook-only]
+  end
+
+  subgraph L2[&quot;Niveau 2 — Backend&quot;]
+    B1[require_firebase_user Bearer token]
+    B2[Connectors uid scoped tokens]
+    B3[Billing uid scoped Stripe]
+  end
+
+  subgraph L3[&quot;Niveau 3 — Cloud Functions&quot;]
+    C1[assertAuthenticated]
+    C2[checkUsageGate quota Pro/Enterprise]
+  end
+
+  subgraph L4[&quot;Niveau 4 — Frontend&quot;]
+    F1[hasAiAccess subscriptionPlans.ts]
+    F2[FREE_OWNED_WORKSPACE_LIMIT 3]
+    F3[appAccess redirect mobile landing]
+  end
+
+  L1 --&gt; L2 --&gt; L3 --&gt; L4</pre><h3>Matrice d&#x27;accès</h3><table><tr><th>Ressource</th><th>Client rules</th><th>Backend</th><th>Condition métier</th></tr><tr><td>`users/{uid}` profil</td><td>owner</td><td>token verify</td><td>billing fields protégés</td></tr><tr><td>`users/{uid}/private/*`</td><td>deny write</td><td>Admin SDK</td><td>connectors, billing, usage</td></tr><tr><td>`workspacesShared/{wid}`</td><td>signed-in read</td><td>membership</td><td>enterprise webhook-only</td></tr><tr><td>`friendChats`, `groupChats`</td><td>participants</td><td>handoffs API</td><td>—</td></tr><tr><td>`handoffs/{id}`</td><td>read participants</td><td>create Admin only</td><td>Pro si dest. non-Pro</td></tr><tr><td>Connecteurs API</td><td>—</td><td>require_firebase_user</td><td>tokens server-side</td></tr><tr><td>IA chat</td><td>—</td><td>usage gate CF/backend</td><td>Pro ou Enterprise workspace</td></tr></table><hr><h2 id="10-routes-api">10. Routes API</h2><p>Base : <code>/api</code> (Vercel rewrite → FastAPI).</p><h3>Connecteurs</h3><table><tr><th>Method</th><th>Route</th></tr><tr><td>GET</td><td>`/api/connectors`</td></tr><tr><td>GET</td><td>`/api/connectors/{id}/authorize`</td></tr><tr><td>GET</td><td>`/api/connectors/oauth/callback`</td></tr><tr><td>DELETE</td><td>`/api/connectors/{id}`</td></tr><tr><td>GET/POST</td><td>`/api/connectors/calendar/events`</td></tr><tr><td>GET/POST</td><td>`/api/connectors/gmail/send`, `/gmail/messages`</td></tr><tr><td>GET/POST</td><td>`/api/connectors/outlook/calendar/events`</td></tr><tr><td>GET/POST</td><td>`/api/connectors/spotify/play`, `/playback`, `/search`</td></tr></table><h3>Billing</h3><table><tr><th>Method</th><th>Route</th></tr><tr><td>GET</td><td>`/api/billing/config`, `/status`, `/summary`, `/usage`</td></tr><tr><td>POST</td><td>`/api/billing/checkout/pro`, `/checkout/enterprise`</td></tr><tr><td>POST</td><td>`/api/billing/portal`, `/cancel`, `/sync`</td></tr><tr><td>POST</td><td>`/api/billing/on-demand/enable`, `/disable`</td></tr><tr><td>POST</td><td>`/api/billing/webhook`</td></tr></table><h3>Autres</h3><table><tr><th>Method</th><th>Route</th></tr><tr><td>POST</td><td>`/api/handoffs`</td></tr><tr><td>POST/GET</td><td>`/api/auth/desktop/complete`, `/claim`</td></tr><tr><td>POST</td><td>`/api/chat`, `/api/recap` (full backend / local)</td></tr></table><h3>Cloud Functions (callable)</h3><p><code>aiChat</code>, <code>aiHealth</code>, <code>setUserApiKey</code>, <code>deleteUserApiKey</code>, <code>getUserApiKeyStatus</code>, <code>completeDesktopAuthSession</code>, <code>claimDesktopAuthSession</code>, <code>stripeWebhook</code></p><hr><h2 id="11-r-f-rence-fichiers">11. Référence fichiers</h2><table><tr><th>Domaine</th><th>Fichier</th></tr><tr><td>Règles Firestore</td><td>`firestore.rules`</td></tr><tr><td>Entry backend</td><td>`backend/app/main.py`</td></tr><tr><td>Registry connecteurs</td><td>`backend/app/connectors/registry.py`</td></tr><tr><td>OAuth flow</td><td>`backend/app/connectors/oauth.py`, `api/connectors.py`</td></tr><tr><td>Billing</td><td>`backend/app/api/billing.py`, `docs/STRIPE_BILLING.md`</td></tr><tr><td>Plans</td><td>`frontend/src/lib/subscriptionPlans.ts`</td></tr><tr><td>Auth store</td><td>`frontend/src/store/useAuthStore.ts`</td></tr><tr><td>Calls</td><td>`frontend/src/store/useCallsStore.ts`</td></tr><tr><td>WebRTC</td><td>`frontend/src/lib/webrtc/workspaceVoiceRtc.ts`</td></tr><tr><td>Skills</td><td>`frontend/src/lib/chatSkills.ts`</td></tr><tr><td>Cloud Functions</td><td>`functions/src/index.ts`</td></tr><tr><td>Connecteurs doc</td><td>`docs/CONNECTORS.md`</td></tr><tr><td>Déploiement</td><td>`vercel.json`, `firebase.json`</td></tr></table><hr><h2 id="carte-mentale-des-features">Carte mentale des features</h2><pre class="mermaid">mindmap
+  root((Lyte App))
+    Auth
+      Email magic link
+      Google OAuth
+      Microsoft OAuth
+      Facebook OAuth
+      Desktop auth session
+    Workspace
+      Création switch
+      Membres présence
+      Polls workspace
+      CAD Agent local
+    Appels
+      Voice WebRTC P2P
+      Theater scène
+      AI Notes Pro
+      Follow-up post-appel
+      Voice polls
+    Chat IA
+      Agent mode
+      Skills slash
+      Connectors inline
+    Messages
+      DM friendChats
+      Groupes groupChats
+      manage handoff group
+    Connectors
+      Google Calendar
+      Gmail send
+      Outlook calendar
+      Spotify play
+    Billing
+      Pro 30 USD
+      Enterprise par siège
+      On-demand usage
+      Stripe webhooks</pre>
+</body>
+</html>

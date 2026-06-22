@@ -5,8 +5,9 @@ import {
   participantHasHandRaised,
   type CallUser,
 } from "../../lib/calls";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
-import { useMiniChatStore } from "../../store/useMiniChatStore";
+import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
 import UserAvatar from "../UserAvatar";
 import PresenceActivityButton from "./PresenceActivityButton";
@@ -57,9 +58,16 @@ export default function CallBlockCard({
   standby = false,
 }: CallBlockCardProps) {
   const activeRoomId = useStore((s) => s.activeRoomId);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const speakingByParticipant = useCallsStore((s) => s.speakingByParticipant);
   const handRaises = useCallsStore((s) => s.callsByRoom[activeRoomId]?.handRaises ?? []);
-  const openColleagueChat = useMiniChatStore((s) => s.openForColleague);
+  const openMemberConversation = usePeopleStore((s) => s.openWorkspaceMemberConversation);
+
+  const canMessageParticipant = (user: CallUser) => {
+    if (user.isLocal || user.id === "local") return false;
+    if (firebaseUid && user.id === firebaseUid) return false;
+    return true;
+  };
 
   const previewTiles = participants.slice(0, CALL_BLOCK_TILE_SLOTS);
   const avatarParticipants = participants.slice(0, CALL_BLOCK_AVATAR_SLOTS);
@@ -75,23 +83,23 @@ export default function CallBlockCard({
       isLocal={user.isLocal}
       className={clsx(
         "call-block__avatar",
-        !user.isLocal && "call-block__avatar--message",
+        canMessageParticipant(user) && "call-block__avatar--message",
         speakingByParticipant[user.id] && "call-voice-speaking",
       )}
-      {...(!user.isLocal
+      {...(canMessageParticipant(user)
         ? {
             role: "button" as const,
             tabIndex: 0,
             title: `Message à ${user.name}`,
             onClick: (event: React.MouseEvent) => {
               event.stopPropagation();
-              openColleagueChat(activeRoomId, user.id, user.name);
+              openMemberConversation(activeRoomId, user.id, user.name);
             },
             onKeyDown: (event: React.KeyboardEvent) => {
               if (event.key !== "Enter" && event.key !== " ") return;
               event.stopPropagation();
               event.preventDefault();
-              openColleagueChat(activeRoomId, user.id, user.name);
+              openMemberConversation(activeRoomId, user.id, user.name);
             },
           }
         : { title: user.name })}

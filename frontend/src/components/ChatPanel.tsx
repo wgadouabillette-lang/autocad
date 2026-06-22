@@ -42,10 +42,12 @@ import { useActiveVoicePoll } from "../hooks/useActiveVoicePoll";
 import { useVoicePollStore } from "../store/useVoicePollStore";
 import type { ChatSkillDef } from "../lib/chatSkills";
 import {
+  chatSkillBySlash,
   CREATE_GROUP_COMPOSER_TEXT,
   CREATE_GROUP_SKILL_TEMPLATE,
   MANAGE_SKILL_TEMPLATE,
   MEETING_SKILL_TEMPLATE,
+  MAIL_SKILL_TEMPLATE,
   RECAP_SKILL_TEMPLATE,
   HANDOFF_SKILL_TEMPLATE,
 } from "../lib/chatSkills";
@@ -59,6 +61,7 @@ import {
 } from "../lib/manageSchedulePrompt";
 import ManageSchedulePromptLine from "./chat/ManageSchedulePromptLine";
 import MeetingPromptLine from "./chat/MeetingPromptLine";
+import MailPromptLine from "./chat/MailPromptLine";
 import PlayPromptLine from "./chat/PlayPromptLine";
 import SpotifyTrackBubble from "./chat/SpotifyTrackBubble";
 import SpotifyTrackList from "./chat/SpotifyTrackList";
@@ -82,6 +85,7 @@ import { useHandoffStore } from "../store/useHandoffStore";
 import {
   buildEligibleGroupChatMembers,
   collectAllWorkspaceMembers,
+  workspaceMembersForRoom,
 } from "../lib/peopleChat";
 import { useAuthStore } from "../store/useAuthStore";
 import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
@@ -96,6 +100,7 @@ import {
   HANDOFF_TIMELINE_STEPS,
   MANAGE_TIMELINE_STEPS,
   MEETING_TIMELINE_STEPS,
+  MAIL_TIMELINE_STEPS,
   RECAP_TIMELINE_STEPS,
   SKILL_ACTION_LABELS,
   SKILL_SUCCESS_LABELS,
@@ -108,6 +113,14 @@ import {
   runMeetingSkill,
   type MeetingPromptDraft,
 } from "../lib/meetingSkill";
+import {
+  buildMailDisplayText,
+  createDefaultMailDraft,
+  isMailDraftReady,
+  runMailSkill,
+  type MailPromptDraft,
+} from "../lib/mailSkill";
+import { fetchGmailStatus } from "../lib/connectorsApi";
 
 const CHAT_COMPOSER_SURFACE_STYLE: CSSProperties = {
   backgroundColor: "var(--forma-chat-composer-bg)",
@@ -234,6 +247,14 @@ function ChatBubble({
       );
     }
 
+    if (message.mailPrompt && message.source === "mail-prompt") {
+      return (
+        <div className="chat-user-bubble chat-user-bubble--mail-prompt">
+          <MailPromptLine draft={message.mailPrompt} readOnly peopleHandles={[]} />
+        </div>
+      );
+    }
+
     return (
       <div className="chat-user-bubble">
         <span className="min-w-0 whitespace-pre-wrap break-words">{message.text}</span>
@@ -317,6 +338,10 @@ export default function ChatPanel() {
   const switchChatPanelMode = useStore((s) => s.switchChatPanelMode);
   const roomBlocks = useCallsStore((s) => s.callsByRoom[activeRoomId]?.blocks);
   const ensureRoom = useCallsStore((s) => s.ensureRoom);
+  const activeWorkspaceMembers = useMemo(
+    () => workspaceMembersForRoom(membersByWorkspace, activeRoomId, firebaseUid),
+    [membersByWorkspace, activeRoomId, firebaseUid],
+  );
   const mentionablePeople = useMemo(
     () =>
       mentionablePeopleForWorkspace(
@@ -324,8 +349,9 @@ export default function ChatPanel() {
         friends,
         colleagueThreads,
         (roomBlocks ?? []).flatMap((block) => block.participants),
+        activeWorkspaceMembers,
       ),
-    [activeRoomId, friends, colleagueThreads, roomBlocks],
+    [activeRoomId, friends, colleagueThreads, roomBlocks, activeWorkspaceMembers],
   );
   const eligibleGroupMembers = useMemo(
     () =>
@@ -357,7 +383,7 @@ export default function ChatPanel() {
   const [slashFilter, setSlashFilter] = useState("");
   const [slashIndex, setSlashIndex] = useState(0);
   const [activeComposerSkill, setActiveComposerSkill] = useState<
-    "manage" | "group" | "recap" | "meeting" | null
+    "manage" | "group" | "recap" | "meeting" | "mail" | null
   >(null);
   const [manageDraft, setManageDraft] = useState<ManageSchedulePromptDraft>(
     createDefaultManageDraft,
@@ -365,6 +391,8 @@ export default function ChatPanel() {
   const [meetingDraft, setMeetingDraft] = useState<MeetingPromptDraft>(
     createDefaultMeetingDraft,
   );
+  const [mailDraft, setMailDraft] = useState<MailPromptDraft>(createDefaultMailDraft);
+  const [mailAttachments, setMailAttachments] = useState<File[]>([]);
   const subscriptionPlan = useStore((s) => s.subscriptionPlan);
   const billingManaged = useStore((s) => s.billingManaged);
   const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
@@ -404,6 +432,7 @@ export default function ChatPanel() {
   const recapFileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const meetingAttendeesRef = useRef<HTMLTextAreaElement>(null);
+  const mailRecipientsRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const [scrollPadBottom] = useState(12);
@@ -760,6 +789,27 @@ export default function ChatPanel() {
   };
 
   const insertMentionItem = (item: MentionMenuItem) => {
+    if (activeComposerSkill === "mail") {
+      const el = mailRecipientsRef.current;
+      const caret = el?.selectionStart ?? mailDraft.recipients.length;
+      const mq = mentionQueryAt(mailDraft.recipients, caret);
+      const start = mq?.start ?? caret;
+      const token =
+        item.kind === "person"
+          ? `@${item.target.mention} `
+          : `@${item.action.mention} `;
+      const next =
+        mailDraft.recipients.slice(0, start) + token + mailDraft.recipients.slice(caret);
+      setMailDraft((draft) => ({ ...draft, recipients: next }));
+      setMentionOpen(false);
+      requestAnimationFrame(() => {
+        const pos = start + token.length;
+        el?.focus();
+        el?.setSelectionRange(pos, pos);
+      });
+      return;
+    }
+
     if (activeComposerSkill === "meeting") {
       const el = meetingAttendeesRef.current;
       const caret = el?.selectionStart ?? meetingDraft.attendees.length;
@@ -840,6 +890,14 @@ export default function ChatPanel() {
     if (skill.id === "meeting") {
       setActiveComposerSkill("meeting");
       setMeetingDraft(createDefaultMeetingDraft());
+      setText("");
+      setSlashOpen(false);
+      return;
+    }
+    if (skill.id === "mail") {
+      setActiveComposerSkill("mail");
+      setMailDraft(createDefaultMailDraft());
+      setMailAttachments([]);
       setText("");
       setSlashOpen(false);
       return;
@@ -961,6 +1019,138 @@ export default function ChatPanel() {
     openCalendarPanel,
     sendMeetingInviteMessage,
   ]);
+
+  const submitMailFromDraft = useCallback(async () => {
+    if (!isMailDraftReady(mailDraft, mentionablePeople)) return;
+    const savedDraft = {
+      ...mailDraft,
+      attachmentNames: mailAttachments.map((f) => f.name),
+    };
+    const savedAttachments = [...mailAttachments];
+    const displayText = buildMailDisplayText(savedDraft, mentionablePeople);
+    setMailDraft(createDefaultMailDraft());
+    setMailAttachments([]);
+    setActiveComposerSkill(null);
+    setActiveSkillRun(buildSkillRun("mail", MAIL_TIMELINE_STEPS));
+
+    const userMsg: ChatMessage = {
+      role: "user",
+      text: displayText,
+      source: "mail-prompt",
+      mailPrompt: savedDraft,
+    };
+    const state = useStore.getState();
+    const nextChat = [...state.chat, userMsg];
+    useStore.setState({
+      chat: nextChat,
+      openChatTabs: updateActiveTabInTabs(
+        state.openChatTabs,
+        state.activeChatTabId,
+        nextChat,
+      ),
+    });
+
+    const finishMailRun = async (result: Awaited<ReturnType<typeof runMailSkill>>) => {
+      if (!result.ok) {
+        setActiveSkillRun((prev) =>
+          prev && prev.skillId === "mail"
+            ? { ...prev, apiError: result.error ?? "Impossible d'envoyer l'email." }
+            : prev,
+        );
+        return;
+      }
+
+      const assistantMsg: ChatMessage = {
+        role: "assistant",
+        text: result.summary,
+        source: "mail-skill",
+      };
+      const afterState = useStore.getState();
+      const afterChat = [...afterState.chat, assistantMsg];
+      useStore.setState({
+        chat: afterChat,
+        openChatTabs: updateActiveTabInTabs(
+          afterState.openChatTabs,
+          afterState.activeChatTabId,
+          afterChat,
+        ),
+      });
+
+      setActiveSkillRun((prev) =>
+        prev && prev.skillId === "mail"
+          ? {
+              ...prev,
+              apiDone: true,
+              success: { label: SKILL_SUCCESS_LABELS.mail },
+            }
+          : prev,
+      );
+    };
+
+    const runSend = async () => {
+      const result = await runMailSkill({
+        draft: savedDraft,
+        people: mentionablePeople,
+        attachments: savedAttachments,
+      });
+      await finishMailRun(result);
+    };
+
+    try {
+      const gmailStatus = await fetchGmailStatus();
+      if (!gmailStatus.connected || !gmailStatus.canSend) {
+        const onOauthDone = () => {
+          window.removeEventListener("forma-connector-oauth-done", onOauthDone);
+          void runSend();
+        };
+        window.addEventListener("forma-connector-oauth-done", onOauthDone);
+        void connectConnector("gmail");
+        return;
+      }
+      await runSend();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Impossible d'envoyer l'email.";
+      setActiveSkillRun((prev) =>
+        prev && prev.skillId === "mail" ? { ...prev, apiError: message } : prev,
+      );
+    }
+  }, [
+    buildSkillRun,
+    connectConnector,
+    mailAttachments,
+    mailDraft,
+    mentionablePeople,
+  ]);
+
+  const handleMailComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionOpen && mentionOptions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % mentionOptions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex((i) => (i - 1 + mentionOptions.length) % mentionOptions.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        insertMentionItem(mentionOptions[mentionIndex]!);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionOpen(false);
+        return;
+      }
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void submitMailFromDraft();
+    }
+  };
 
   const handleMeetingComposerKeyDown = (
     e: React.KeyboardEvent<HTMLTextAreaElement>,
@@ -1084,6 +1274,11 @@ export default function ChatPanel() {
       void submitMeetingFromDraft();
       return;
     }
+    if (activeComposerSkill === "mail") {
+      if (!isMailDraftReady(mailDraft, mentionablePeople)) return;
+      void submitMailFromDraft();
+      return;
+    }
 
     const raw = text.trim();
     if (!raw && attachments.length === 0) return;
@@ -1140,6 +1335,8 @@ export default function ChatPanel() {
       ? isManageDraftReady(manageDraft)
       : activeComposerSkill === "meeting"
       ? isMeetingDraftReady(meetingDraft, mentionablePeople)
+      : activeComposerSkill === "mail"
+      ? isMailDraftReady(mailDraft, mentionablePeople)
       : text.trim().length > 0 || attachments.length > 0;
 
   const playQueryDraft = parsePlaySkillQuery(text);
@@ -1149,6 +1346,12 @@ export default function ChatPanel() {
       : canSubmit;
 
   const insertConnectorSlash = (slash: string) => {
+    const skill = chatSkillBySlash(slash);
+    if (skill) {
+      setConnectorsOpen(false);
+      insertSkillTemplate(skill);
+      return;
+    }
     setText((prev) => (prev.trim() ? `${prev.trimEnd()} ${slash} ` : `${slash} `));
     setConnectorsOpen(false);
     requestAnimationFrame(() => textareaRef.current?.focus());
@@ -1253,7 +1456,11 @@ export default function ChatPanel() {
                           </span>
                           <span className="mt-0.5 block text-[10px] leading-snug text-muted-500">
                             @{target.mention}
-                            {target.section === "friends" ? " · Friend" : " · Colleague"}
+                            {target.section === "workspace"
+                              ? " · Workspace"
+                              : target.section === "friends"
+                                ? " · Friend"
+                                : " · Colleague"}
                           </span>
                         </span>
                       </button>
@@ -1332,6 +1539,28 @@ export default function ChatPanel() {
                   setMeetingDraft(createDefaultMeetingDraft());
                 }}
               />
+            ) : activeComposerSkill === "mail" ? (
+              <MailPromptLine
+                draft={mailDraft}
+                onChange={setMailDraft}
+                peopleHandles={peopleHandles}
+                recipientsRef={mailRecipientsRef}
+                attachments={mailAttachments}
+                onAttachmentsChange={(files) => {
+                  setMailAttachments(files);
+                  setMailDraft((draft) => ({
+                    ...draft,
+                    attachmentNames: files.map((f) => f.name),
+                  }));
+                }}
+                onRecipientsSync={(caret) => syncMentionMenu(mailDraft.recipients, caret)}
+                onRecipientsKeyDown={handleMailComposerKeyDown}
+                onDismiss={() => {
+                  setActiveComposerSkill(null);
+                  setMailDraft(createDefaultMailDraft());
+                  setMailAttachments([]);
+                }}
+              />
             ) : (
             <HighlightedPromptInput
               ref={textareaRef}
@@ -1400,6 +1629,14 @@ export default function ChatPanel() {
                 if (trimmed === MEETING_SKILL_TEMPLATE) {
                   setActiveComposerSkill("meeting");
                   setMeetingDraft(createDefaultMeetingDraft());
+                  setText("");
+                  setSlashOpen(false);
+                  return;
+                }
+                if (trimmed === MAIL_SKILL_TEMPLATE) {
+                  setActiveComposerSkill("mail");
+                  setMailDraft(createDefaultMailDraft());
+                  setMailAttachments([]);
                   setText("");
                   setSlashOpen(false);
                   return;

@@ -7,6 +7,7 @@ import {
   startConnectorOAuth,
   type ConnectorStatus,
 } from "../lib/connectorsApi";
+import { formatBackendError } from "../lib/chatRulesFallback";
 import { tryFinishConnectorOAuthFromStorage } from "../lib/connectorOAuthResult";
 
 const VISUAL_STATUSES: ConnectorStatus[] = CHAT_CONNECTORS.map(({ id, label }) => ({
@@ -63,9 +64,8 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
         const items = await fetchConnectorStatuses();
         set({ statuses: items, error: null });
       } catch (err) {
-        set({
-          error: err instanceof Error ? err.message : "Failed to load connectors.",
-        });
+        const message = err instanceof Error ? err.message : "Failed to load connectors.";
+        set({ error: formatBackendError(message, "connectors") });
       } finally {
         set({ loading: false, inflight: null });
       }
@@ -110,9 +110,10 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
         }
       }, 400);
     } catch (err) {
+      const message = err instanceof Error ? err.message : "OAuth failed.";
       set({
         connectingId: null,
-        error: err instanceof Error ? err.message : "OAuth failed.",
+        error: formatBackendError(message, "connectors"),
       });
     }
   },

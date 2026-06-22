@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { usePeopleStore } from "./usePeopleStore";
-import { useStore } from "./useStore";
 
 interface MiniChatState {
   open: boolean;
@@ -16,12 +15,9 @@ export const useMiniChatStore = create<MiniChatState>((set) => ({
   personName: "",
 
   openForColleague: (workspaceId, personId, personName) => {
-    const threadId = usePeopleStore
+    usePeopleStore
       .getState()
-      .ensureColleagueThread(workspaceId, personId, personName);
-    usePeopleStore.getState().markThreadRead(threadId);
-    useStore.getState().switchChatPanelMode("friends");
-    usePeopleStore.getState().setActiveFriendThread(threadId);
+      .openWorkspaceMemberConversation(workspaceId, personId, personName);
     set({ open: false, threadId: null, personName: "" });
   },
 

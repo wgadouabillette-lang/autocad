@@ -24,18 +24,18 @@ export function chatPanelModeTabs(
   workspaceEnterprise = false,
 ): ChatPanelModeTab[] {
   const tabs: ChatPanelModeTab[] = [
-    { id: "agent", label: "Chat", icon: MessageSquare },
-    { id: "ai-notes", label: "Notes", icon: Sparkles },
+    { id: "agent", label: "Agent", icon: MessageSquare },
     { id: "calendar", label: "Calendar", icon: Calendar },
     { id: "friends", label: "Messages", icon: Users },
+    { id: "ai-notes", label: "Notes", icon: Sparkles },
   ];
-
-  if (inTheaterView) {
-    tabs.push({ id: "theater", label: "Theater", icon: Theater });
-  }
 
   if (hasFollowUpAccess(plan, billingManaged, workspaceEnterprise)) {
     tabs.push({ id: "follow-up", label: "Follow-up", icon: ListTodo });
+  }
+
+  if (inTheaterView) {
+    tabs.push({ id: "theater", label: "Theater", icon: Theater });
   }
 
   return tabs;

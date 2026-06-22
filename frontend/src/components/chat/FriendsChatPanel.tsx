@@ -1,23 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import clsx from "clsx";
 import { ArrowUp, FileImage, Paperclip, Smile, Trash2, UsersRound, X } from "lucide-react";
-import { useMobileLayout } from "../../hooks/useMobileLayout";
 import type { ChatSkillDef } from "../../lib/chatSkills";
 import {
   buildGroupNameFromMembers,
-  createDefaultCreateGroupDraft,
-  type CreateGroupSkillDraft,
+  memberIdsFromComposerText,
 } from "../../lib/createGroupSkill";
 import {
-  createDefaultManageDraft,
   isManageDraftReady,
+  looksLikeManageComposer,
+  manageComposerTaskSelection,
+  parseManagePromptFromText,
   type ManageSchedulePromptDraft,
 } from "../../lib/manageSchedulePrompt";
-import {
-  PEOPLE_GROUP_SKILL_TEMPLATE,
-  PEOPLE_HANDOFF_SKILL_TEMPLATE,
-  PEOPLE_MANAGE_SKILL_TEMPLATE,
-} from "../../lib/peopleChatSkills";
 import type { PeopleMessage, Person } from "../../lib/peopleChat";
 import {
   buildEligibleGroupChatMembers,
@@ -35,14 +30,11 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useHandoffStore } from "../../store/useHandoffStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
-import { usePeopleChatSkillsOverlayStore } from "../../store/usePeopleChatSkillsOverlayStore";
 import { useNotificationsStore } from "../../store/useNotificationsStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
 import UserAvatar from "../UserAvatar";
 import ChatSkillsList from "./ChatSkillsList";
-import CreateGroupPromptLine from "./CreateGroupPromptLine";
-import ManageSchedulePromptLine from "./ManageSchedulePromptLine";
 import HandoffComposerBar from "./HandoffComposerBar";
 import HighlightedPromptInput from "./HighlightedPromptInput";
 import PeopleChatEmojiPicker from "./PeopleChatEmojiPicker";
@@ -61,6 +53,7 @@ import {
   type SkillTimelineId,
 } from "../../lib/skillTimelines";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
+import type { ComposerSkillMode } from "../../lib/skillPromptSegments";
 import { hasAiAccess } from "../../lib/subscriptionPlans";
 
 const EMPTY_MESSAGES: PeopleMessage[] = [];
@@ -144,9 +137,6 @@ export default function FriendsChatPanel() {
     return EMPTY_MESSAGES;
   });
 
-  const isMobileLayout = useMobileLayout();
-  const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
-  const chatPanelLeaveAnimating = useStore((s) => s.chatPanelLeaveAnimating);
   const subscriptionPlan = useStore((s) => s.subscriptionPlan);
   const billingManaged = useStore((s) => s.billingManaged);
   const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
@@ -160,13 +150,6 @@ export default function FriendsChatPanel() {
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
-  const [activeComposerSkill, setActiveComposerSkill] = useState<"group" | "manage" | null>(null);
-  const [memberPromptDraft, setMemberPromptDraft] = useState<CreateGroupSkillDraft>(
-    createDefaultCreateGroupDraft(),
-  );
-  const [manageDraft, setManageDraft] = useState<ManageSchedulePromptDraft>(
-    createDefaultManageDraft,
-  );
   const [manageSubmitting, setManageSubmitting] = useState(false);
   const [activeSkillRun, setActiveSkillRun] = useState<{
     runId: string;
@@ -188,20 +171,9 @@ export default function FriendsChatPanel() {
   const messagesScrollRef = useRef<HTMLUListElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isFullscreen =
-    !isMobileLayout && (chatPanelExpanded || chatPanelLeaveAnimating);
   const slashOptions = filterPeopleSlashSkillMenu(slashFilter);
-  const fullscreenSkills = filterPeopleSlashSkillMenu(slashFilter);
-  const skillComposerOpen = activeComposerSkill !== null;
-  const showFullscreenSkills =
-    isFullscreen &&
-    !!thread &&
-    !emojiPickerOpen &&
-    !handoffSelectionMode &&
-    !skillComposerOpen &&
-    fullscreenSkills.length > 0;
-  const showFooterSlashMenu =
-    !isFullscreen && slashOpen && slashOptions.length > 0 && !handoffSelectionMode && !skillComposerOpen;
+  const showSlashMenu =
+    slashOpen && slashOptions.length > 0 && !handoffSelectionMode;
 
   const seedMembers = useMemo(
     () => (thread ? seedMembersForPeopleThread(thread, firebaseUid) : []),
@@ -227,10 +199,51 @@ export default function FriendsChatPanel() {
     }
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "fr"));
   }, [seedMembers, eligibleMembers]);
-  const memberPromptReady = isPeopleMemberPromptReady(
-    memberPromptDraft.selectedMemberIds,
-    requiredMemberIds,
+  const memberPromptReady = useMemo(() => {
+    if (!thread) return false;
+    const memberIds = memberIdsFromComposerText(draft, promptMembers);
+    return isPeopleMemberPromptReady(memberIds, requiredMemberIds);
+  }, [thread, draft, promptMembers, requiredMemberIds]);
+
+  const parsedManagePrompt = useMemo(
+    () => parseManagePromptFromText(draft),
+    [draft],
   );
+
+  const composerSkill = useMemo((): ComposerSkillMode => {
+    if (looksLikeManageComposer(draft) || parsedManagePrompt) return "manage";
+    if (/(?:^|\s)\/group\b/i.test(draft.trim())) return "group";
+    return null;
+  }, [draft, parsedManagePrompt]);
+
+  const isHandoffSkillDraft = useMemo(() => {
+    const trimmed = draft.trim();
+    return (
+      /(?:^|\s)\/handoff\b/i.test(trimmed) &&
+      trimmed.replace(/(?:^|\s)\/handoff\b/i, "").trim().length === 0
+    );
+  }, [draft]);
+
+  const activeSkillPreset = useMemo(() => {
+    const trimmed = draft.trim();
+    if (
+      looksLikeManageComposer(draft) ||
+      parsedManagePrompt ||
+      /(?:^|\s)\/manage\b/i.test(trimmed)
+    ) {
+      return "/manage";
+    }
+    if (/(?:^|\s)\/group\b/i.test(trimmed)) return "/group";
+    if (/(?:^|\s)\/handoff\b/i.test(trimmed)) return "/handoff";
+    return null;
+  }, [draft, parsedManagePrompt]);
+
+  const clearSkillPreset = useCallback(() => {
+    setDraft("");
+    setSlashOpen(false);
+    setSlashFilter("");
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -351,8 +364,6 @@ export default function FriendsChatPanel() {
       setSlashOpen(false);
       setSlashFilter("");
       setSlashIndex(0);
-      setActiveComposerSkill(null);
-      setMemberPromptDraft(createDefaultCreateGroupDraft());
       setManageSubmitting(false);
       setActiveSkillRun(null);
       exitHandoffSelection();
@@ -409,32 +420,37 @@ export default function FriendsChatPanel() {
     setDeleteTargetId(null);
   };
 
-  const insertManageComposer = useCallback(() => {
-    setActiveComposerSkill("manage");
-    setManageDraft(createDefaultManageDraft());
-    setDraft("");
-    setSlashOpen(false);
-  }, []);
-
   const submit = () => {
-    if (handoffSelectionMode) return;
-    if (activeComposerSkill === "group") {
-      if (!memberPromptReady) return;
-      void submitPeopleGroupSkill();
-      return;
-    }
-    if (activeComposerSkill === "manage") {
-      if (!isManageDraftReady(manageDraft) || manageSubmitting) return;
-      void submitPeopleManageSkill(manageDraft);
-      setActiveComposerSkill(null);
-      setManageDraft(createDefaultManageDraft());
-      return;
-    }
-    if (skillComposerOpen) return;
-    if (!thread) return;
+    if (handoffSelectionMode || !thread) return;
 
     const trimmed = draft.trim();
     if (!trimmed && attachments.length === 0) return;
+
+    if (isHandoffSkillDraft) {
+      setDraft("");
+      setSlashOpen(false);
+      enterPeopleHandoffSelection(thread.id);
+      return;
+    }
+
+    if (parsedManagePrompt && isManageDraftReady(parsedManagePrompt)) {
+      if (!manageSkillAvailable) {
+        openSettingsTab("usage");
+        setDraft("");
+        return;
+      }
+      if (manageSubmitting) return;
+      void submitPeopleManageSkill(parsedManagePrompt);
+      return;
+    }
+
+    if (/(?:^|\s)\/group\b/i.test(trimmed)) {
+      if (!memberPromptReady) return;
+      const memberIds = memberIdsFromComposerText(draft, promptMembers);
+      void submitPeopleGroupSkill(memberIds);
+      return;
+    }
+
     if (trimmed) sendMessage(thread.id, trimmed);
     setActiveSkillRun(null);
     setDraft("");
@@ -463,13 +479,6 @@ export default function FriendsChatPanel() {
     setSlashOpen(false);
   }, []);
 
-  const dismissComposerSkill = useCallback(() => {
-    setActiveComposerSkill(null);
-    setMemberPromptDraft(createDefaultCreateGroupDraft());
-    setManageDraft(createDefaultManageDraft());
-    setManageSubmitting(false);
-  }, []);
-
   const buildSkillRun = useCallback(
     (threadId: string, skillId: SkillTimelineId, steps: SkillTimelineStep[]) => ({
       runId: `${skillId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -483,21 +492,21 @@ export default function FriendsChatPanel() {
     [],
   );
 
-  const submitPeopleGroupSkill = useCallback(async () => {
+  const submitPeopleGroupSkill = useCallback(async (selectedMemberIds: string[]) => {
     if (!thread) return;
-    if (!isPeopleMemberPromptReady(memberPromptDraft.selectedMemberIds, requiredMemberIds)) {
+    if (!isPeopleMemberPromptReady(selectedMemberIds, requiredMemberIds)) {
       return;
     }
     const members = participantPeopleFromIds(
-      memberPromptDraft.selectedMemberIds,
+      selectedMemberIds,
       eligibleMembers,
       seedMembers,
     );
     if (members.length === 0) return;
     const name = buildGroupNameFromMembers(members);
     const sourceThreadId = thread.id;
+    setDraft("");
     setActiveSkillRun(buildSkillRun(sourceThreadId, "group", GROUP_TIMELINE_STEPS));
-    dismissComposerSkill();
     const result = await createGroupChat(
       name,
       members.map((member) => member.id),
@@ -531,12 +540,10 @@ export default function FriendsChatPanel() {
     }
   }, [
     thread,
-    memberPromptDraft.selectedMemberIds,
     requiredMemberIds,
     eligibleMembers,
     seedMembers,
     createGroupChat,
-    dismissComposerSkill,
     setActiveFriendThread,
     buildSkillRun,
   ]);
@@ -649,31 +656,6 @@ export default function FriendsChatPanel() {
         return;
       }
 
-      if (skill.id === "manage") {
-        insertManageComposer();
-        return;
-      }
-
-      if (skill.id === "handoff") {
-        setSlashOpen(false);
-        setSlashFilter("");
-        setDraft("");
-        enterPeopleHandoffSelection(thread.id);
-        return;
-      }
-
-      if (skill.id === "group") {
-        setSlashOpen(false);
-        setSlashFilter("");
-        setDraft("");
-        setActiveComposerSkill("group");
-        setMemberPromptDraft({
-          selectedMemberIds: seedMembers.map((member) => member.id),
-          query: "",
-        });
-        return;
-      }
-
       const el = textareaRef.current;
       const value = el?.value ?? draft;
       const caret = el?.selectionStart ?? value.length;
@@ -682,47 +664,22 @@ export default function FriendsChatPanel() {
       const next = value.slice(0, start) + skill.template + value.slice(caret);
       setDraft(next);
       setSlashOpen(false);
+      setSlashFilter("");
       requestAnimationFrame(() => {
+        if (skill.id === "manage") {
+          const { start: taskStart, end: taskEnd } = manageComposerTaskSelection();
+          el?.focus();
+          el?.setSelectionRange(taskStart, taskEnd);
+          return;
+        }
         const pos = start + skill.template.length;
         el?.focus();
         el?.setSelectionRange(pos, pos);
         syncComposerMenu(next, pos);
       });
     },
-    [
-      thread,
-      draft,
-      syncComposerMenu,
-      insertManageComposer,
-      enterPeopleHandoffSelection,
-      seedMembers,
-      manageSkillAvailable,
-      openSettingsTab,
-    ],
+    [thread, draft, syncComposerMenu, manageSkillAvailable, openSettingsTab],
   );
-
-  const syncSkillsOverlay = usePeopleChatSkillsOverlayStore((s) => s.syncOverlay);
-
-  useEffect(() => {
-    if (!thread || !showFullscreenSkills) {
-      syncSkillsOverlay(null);
-      return;
-    }
-    syncSkillsOverlay({
-      skills: fullscreenSkills,
-      activeIndex: slashIndex,
-      onActiveIndexChange: setSlashIndex,
-      onSelect: insertSkillTemplate,
-    });
-    return () => syncSkillsOverlay(null);
-  }, [
-    thread,
-    showFullscreenSkills,
-    fullscreenSkills,
-    slashIndex,
-    insertSkillTemplate,
-    syncSkillsOverlay,
-  ]);
 
   if (thread) {
     const partnerPhotoURL = thread.section === "groups"
@@ -731,25 +688,27 @@ export default function FriendsChatPanel() {
     const canSubmit =
       handoffSelectionMode
         ? false
-        : activeComposerSkill === "group"
-          ? memberPromptReady
-          : activeComposerSkill === "manage"
-            ? isManageDraftReady(manageDraft) && !manageSubmitting
-            : draft.trim().length > 0 || attachments.length > 0;
+        : parsedManagePrompt && isManageDraftReady(parsedManagePrompt)
+          ? !manageSubmitting
+          : /(?:^|\s)\/group\b/i.test(draft.trim())
+            ? memberPromptReady
+            : isHandoffSkillDraft
+              ? true
+              : draft.trim().length > 0 || attachments.length > 0;
     const composerPlaceholder =
       thread.section === "groups"
         ? `Écrire dans ${thread.groupName ?? thread.personName}…`
         : `Write to ${thread.personName}…`;
     return (
-      <div className="chat-panel-layout relative overflow-hidden">
-        <div className="flex min-h-0 flex-col overflow-hidden">
+      <div className="chat-panel-layout relative h-full min-h-0 min-w-0 w-full max-w-full overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <PeopleChatThreadMessages
             partnerName={thread.groupName ?? thread.personName}
             partnerId={thread.personId}
             partnerPhotoURL={partnerPhotoURL}
             messages={messages}
             listRef={messagesScrollRef}
-            className="chat-messages-scroll min-h-0 flex-1"
+            className="min-h-0 min-w-0 flex-1"
             showAuthors={thread.section === "groups"}
             handoffSelectionMode={handoffSelectionMode}
             handoffSelectedIndices={handoffSelectedIndices}
@@ -771,24 +730,33 @@ export default function FriendsChatPanel() {
 
         <div
           className={clsx(
-            "chat-panel-footer pointer-events-none shrink-0 px-3 pb-3 pt-0",
-            (emojiPickerOpen || skillComposerOpen) && "chat-panel-footer--poll-morph",
+            "chat-panel-footer pointer-events-none w-full min-w-0 max-w-full shrink-0 overflow-x-hidden px-3 pb-3 pt-0",
+            emojiPickerOpen && "chat-panel-footer--poll-morph",
           )}
         >
-          <form
-            className="pointer-events-auto relative"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submit();
-            }}
-          >
+          <div className="pointer-events-auto relative w-full min-w-0 max-w-full">
+            {showSlashMenu ? (
+              <div className="chat-connectors-stage chat-connectors-stage--footer">
+                <ChatSkillsList
+                  skills={slashOptions}
+                  activeIndex={slashIndex}
+                  onActiveIndexChange={setSlashIndex}
+                  onSelect={insertSkillTemplate}
+                />
+              </div>
+            ) : null}
+            <form
+              className="w-full min-w-0 max-w-full"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submit();
+              }}
+            >
             <div
               className={clsx(
                 "relative",
-                (emojiPickerOpen || skillComposerOpen) &&
-                  "chat-composer chat-composer-morph rounded-xl",
+                emojiPickerOpen && "chat-composer chat-composer-morph rounded-xl",
                 !emojiPickerOpen &&
-                  !skillComposerOpen &&
                   "chat-composer z-10 flex flex-col gap-1 rounded-xl px-2 py-1.5",
               )}
               style={CHAT_COMPOSER_SURFACE_STYLE}
@@ -808,33 +776,19 @@ export default function FriendsChatPanel() {
                   onCancel={exitHandoffSelection}
                   onSubmit={submitPeopleHandoffSkill}
                 />
-              ) : activeComposerSkill === "group" ? (
-                <CreateGroupPromptLine
-                  draft={memberPromptDraft}
-                  members={promptMembers}
-                  lockedMemberIds={requiredMemberIds}
-                  chipLabel="Créer un groupe"
-                  onChange={setMemberPromptDraft}
-                  onDismiss={dismissComposerSkill}
-                  onSubmit={() => void submitPeopleGroupSkill()}
-                  canSubmit={memberPromptReady}
-                />
-              ) : activeComposerSkill === "manage" ? (
-                <ManageSchedulePromptLine
-                  draft={manageDraft}
-                  onChange={setManageDraft}
-                  onDismiss={dismissComposerSkill}
-                />
               ) : (
                 <>
-              {showFooterSlashMenu ? (
-                <div className="chat-connectors-stage chat-connectors-stage--footer">
-                  <ChatSkillsList
-                    skills={slashOptions}
-                    activeIndex={slashIndex}
-                    onActiveIndexChange={setSlashIndex}
-                    onSelect={insertSkillTemplate}
-                  />
+              {activeSkillPreset ? (
+                <div className="people-chat-skill-preset__header">
+                  <span className="people-chat-skill-preset__slash">{activeSkillPreset}</span>
+                  <button
+                    type="button"
+                    className="people-chat-skill-preset__dismiss"
+                    onClick={clearSkillPreset}
+                    aria-label="Effacer le preset du skill"
+                  >
+                    <X size={14} aria-hidden />
+                  </button>
                 </div>
               ) : null}
               {attachments.length > 0 && (
@@ -884,37 +838,8 @@ export default function FriendsChatPanel() {
                 ref={textareaRef}
                 value={draft}
                 placeholder={composerPlaceholder}
-                composerSkill={null}
+                composerSkill={composerSkill}
                 onChange={(value) => {
-                  const trimmed = value.trim().toLowerCase();
-                  if (trimmed === PEOPLE_MANAGE_SKILL_TEMPLATE) {
-                    if (!manageSkillAvailable) {
-                      openSettingsTab("usage");
-                      setDraft("");
-                      setSlashOpen(false);
-                      return;
-                    }
-                    insertManageComposer();
-                    return;
-                  }
-                  if (trimmed === PEOPLE_HANDOFF_SKILL_TEMPLATE && thread) {
-                    setSlashOpen(false);
-                    setSlashFilter("");
-                    setDraft("");
-                    enterPeopleHandoffSelection(thread.id);
-                    return;
-                  }
-                  if (trimmed === PEOPLE_GROUP_SKILL_TEMPLATE) {
-                    setSlashOpen(false);
-                    setSlashFilter("");
-                    setDraft("");
-                    setActiveComposerSkill("group");
-                    setMemberPromptDraft({
-                      selectedMemberIds: seedMembers.map((member) => member.id),
-                      query: "",
-                    });
-                    return;
-                  }
                   setDraft(value);
                   const caret = textareaRef.current?.selectionStart ?? value.length;
                   syncComposerMenu(value, caret);
@@ -928,26 +853,20 @@ export default function FriendsChatPanel() {
                   syncComposerMenu(draft, caret);
                 }}
                 onKeyDown={(e) => {
-                  const caret = textareaRef.current?.selectionStart ?? draft.length;
-                  const slashActive = !!slashQueryAt(draft, caret);
-                  const activeSkills = showFullscreenSkills ? fullscreenSkills : slashOptions;
-                  const skillsKeyboardActive =
-                    showFooterSlashMenu || (showFullscreenSkills && slashActive);
-
-                  if (skillsKeyboardActive && activeSkills.length > 0) {
+                  if (showSlashMenu && slashOptions.length > 0) {
                     if (e.key === "ArrowDown") {
                       e.preventDefault();
-                      setSlashIndex((i) => (i + 1) % activeSkills.length);
+                      setSlashIndex((i) => (i + 1) % slashOptions.length);
                       return;
                     }
                     if (e.key === "ArrowUp") {
                       e.preventDefault();
-                      setSlashIndex((i) => (i - 1 + activeSkills.length) % activeSkills.length);
+                      setSlashIndex((i) => (i - 1 + slashOptions.length) % slashOptions.length);
                       return;
                     }
                     if (e.key === "Enter" || e.key === "Tab") {
                       e.preventDefault();
-                      insertSkillTemplate(activeSkills[slashIndex]!);
+                      insertSkillTemplate(slashOptions[slashIndex]!);
                       return;
                     }
                     if (e.key === "Escape") {
@@ -957,7 +876,7 @@ export default function FriendsChatPanel() {
                     }
                   }
 
-                  if (e.key === "Enter" && !e.shiftKey && !handoffSelectionMode && !skillComposerOpen) {
+                  if (e.key === "Enter" && !e.shiftKey && !handoffSelectionMode) {
                     e.preventDefault();
                     submit();
                   }
@@ -1002,6 +921,7 @@ export default function FriendsChatPanel() {
               )}
             </div>
           </form>
+          </div>
         </div>
       </div>
     );

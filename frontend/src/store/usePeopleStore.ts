@@ -66,6 +66,8 @@ import {
   notifyInviteeOfMeetingInvite,
 } from "../lib/meetingInviteNotifications";
 import { useNotificationsStore } from "./useNotificationsStore";
+import { closePanelsOnSide } from "../lib/bottomPanelCoordination";
+import { useAuthStore } from "./useAuthStore";
 import { useStore } from "./useStore";
 import { useWorkspacePresenceStore } from "./useWorkspacePresenceStore";
 
@@ -308,6 +310,11 @@ interface PeopleState {
   ) => Promise<{ ok: boolean; threadId?: string; error?: string }>;
   deletePeopleThread: (threadId: string) => Promise<{ ok: boolean; error?: string }>;
   openMessageFromNotification: (personId: string, personName: string) => void;
+  openWorkspaceMemberConversation: (
+    workspaceId: string,
+    personId: string,
+    personName: string,
+  ) => void;
   cachePersonPhoto: (userId: string, photoURL?: string | null) => void;
   hydratePersonPhotos: (personIds: string[]) => Promise<void>;
 }
@@ -1827,15 +1834,36 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     }));
   },
 
-  openMessageFromNotification: (personId, personName) => {
+  openWorkspaceMemberConversation: (workspaceId, personId, personName) => {
+    const trimmedId = personId.trim();
+    const trimmedName = personName.trim();
+    if (!trimmedId || trimmedId === "local" || !trimmedName) return;
+
+    const firebaseUid = useAuthStore.getState().firebaseUid;
+    if (firebaseUid && trimmedId === firebaseUid) return;
+
+    closePanelsOnSide("left");
+    closePanelsOnSide("right", "chat");
     get().setFriendChatPanelActive(true);
-    const workspaceId = workspaceIdForPartner(personId);
-    const threadId = workspaceId
-      ? get().ensureColleagueThread(workspaceId, personId, personName)
-      : get().ensureFriendThread({ id: personId, name: personName, handle: personId });
+
+    const isFriend = get().friends.some((friend) => friend.id === trimmedId);
+    const threadId = isFriend
+      ? get().ensureFriendThread({
+          id: trimmedId,
+          name: trimmedName,
+          handle: trimmedId,
+        })
+      : get().ensureColleagueThread(workspaceId, trimmedId, trimmedName);
+
     get().markThreadRead(threadId);
     get().setActiveFriendThread(threadId);
     useStore.getState().switchChatPanelMode("friends");
+  },
+
+  openMessageFromNotification: (personId, personName) => {
+    const workspaceId =
+      workspaceIdForPartner(personId) ?? useStore.getState().activeRoomId;
+    get().openWorkspaceMemberConversation(workspaceId, personId, personName);
   },
 
   cachePersonPhoto: (userId, photoURL) => {

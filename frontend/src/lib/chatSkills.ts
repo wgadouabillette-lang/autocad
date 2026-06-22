@@ -4,6 +4,7 @@ import { CREATE_GROUP_COMPOSER_TEXT } from "./createGroupSkill";
 import { MANAGE_COMPOSER_TEMPLATE } from "./manageSchedulePrompt";
 import { PLAY_SKILL_TEMPLATE } from "./playSkill";
 import { MEETING_SKILL_TEMPLATE } from "./meetingSkill";
+import { MAIL_SKILL_TEMPLATE } from "./mailSkill";
 
 export interface ChatSkillDef {
   id: string;
@@ -22,7 +23,7 @@ export const GROUP_SKILL_TEMPLATE = CREATE_GROUP_SKILL_TEMPLATE;
 export const RECAP_SKILL_TEMPLATE = `/recap`;
 export const HANDOFF_SKILL_TEMPLATE = `/handoff`;
 
-export { MANAGE_COMPOSER_TEMPLATE, CREATE_GROUP_COMPOSER_TEXT, PLAY_SKILL_TEMPLATE, MEETING_SKILL_TEMPLATE };
+export { MANAGE_COMPOSER_TEMPLATE, CREATE_GROUP_COMPOSER_TEXT, PLAY_SKILL_TEMPLATE, MEETING_SKILL_TEMPLATE, MAIL_SKILL_TEMPLATE };
 
 export const CHAT_SKILLS: ChatSkillDef[] = [
   {
@@ -51,20 +52,28 @@ export const CHAT_SKILLS: ChatSkillDef[] = [
     template: HANDOFF_SKILL_TEMPLATE,
   },
   {
-    id: "play",
-    slash: "play",
-    label: "/play",
-    description: "Play a song on Spotify",
-    logo: CHAT_APP_LOGOS.spotify,
-    template: PLAY_SKILL_TEMPLATE,
-  },
-  {
     id: "meeting",
     slash: "meeting",
     label: "/meeting",
     description: "Schedule a meeting with @people and add it to your calendar",
     icon: Video,
     template: MEETING_SKILL_TEMPLATE,
+  },
+  {
+    id: "mail",
+    slash: "mail",
+    label: "/mail",
+    description: "Send an email via Gmail — @workspace members or any address",
+    logo: CHAT_APP_LOGOS.gmail,
+    template: MAIL_SKILL_TEMPLATE,
+  },
+  {
+    id: "play",
+    slash: "play",
+    label: "/play",
+    description: "Play a song on Spotify",
+    logo: CHAT_APP_LOGOS.spotify,
+    template: PLAY_SKILL_TEMPLATE,
   },
   {
     id: "calendar",

@@ -7,6 +7,7 @@ export interface ConnectorStatus {
   connected: boolean;
   configured: boolean;
   accountLabel?: string | null;
+  canSend?: boolean;
 }
 
 const BASE = "/api/connectors";
@@ -86,6 +87,56 @@ export async function fetchGmailPreview(limit = 5): Promise<ConnectorPreviewMess
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { messages?: ConnectorPreviewMessage[] };
   return data.messages ?? [];
+}
+
+export interface GmailStatus {
+  connected: boolean;
+  configured: boolean;
+  storageReady?: boolean;
+  accountLabel?: string | null;
+  canSend?: boolean;
+}
+
+export async function fetchGmailStatus(): Promise<GmailStatus> {
+  const r = await fetch(`${BASE}/gmail/status`, { headers: await authHeaders() });
+  if (!r.ok) throw new Error(await readError(r));
+  return (await r.json()) as GmailStatus;
+}
+
+export interface GmailSendAttachment {
+  filename: string;
+  mimeType: string;
+  contentBase64: string;
+}
+
+export interface GmailSendInput {
+  to: string[];
+  subject: string;
+  body: string;
+  bodyHtml?: boolean;
+  attachments?: GmailSendAttachment[];
+}
+
+export interface GmailSendResult {
+  ok: boolean;
+  messageId?: string | null;
+  recipients?: string[];
+}
+
+export async function sendGmailMessage(input: GmailSendInput): Promise<GmailSendResult> {
+  const r = await fetch(`${BASE}/gmail/send`, {
+    method: "POST",
+    headers: await authHeaders(true),
+    body: JSON.stringify({
+      to: input.to,
+      subject: input.subject,
+      body: input.body,
+      bodyHtml: input.bodyHtml ?? false,
+      attachments: input.attachments ?? [],
+    }),
+  });
+  if (!r.ok) throw new Error(await readError(r));
+  return (await r.json()) as GmailSendResult;
 }
 
 export async function fetchOutlookPreview(limit = 5): Promise<ConnectorPreviewMessage[]> {

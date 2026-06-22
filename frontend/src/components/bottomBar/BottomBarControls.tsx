@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { Children, Fragment, cloneElement, isValidElement, type ReactElement } from "react";
+import { ChromeSignetLabel, signetHostClassName, type SignetAlign } from "../chrome/ChromeSignetLabel";
 
 export type SegmentRole = "start" | "middle" | "end" | "single";
 
@@ -55,6 +56,7 @@ export function BottomBarButton({
   recording,
   badge,
   segment,
+  signetAlign = "center",
   children,
 }: {
   label: string;
@@ -65,6 +67,8 @@ export function BottomBarButton({
   recording?: boolean;
   badge?: number;
   segment?: SegmentRole;
+  /** Décale le signet vers le centre de l'écran pour éviter le clipping aux bords. */
+  signetAlign?: SignetAlign;
   children: React.ReactNode;
 }) {
   return (
@@ -73,6 +77,7 @@ export function BottomBarButton({
       data-segment={segment}
       className={clsx(
         "bottom-bar-btn",
+        signetHostClassName(signetAlign),
         active && "is-active",
         danger && "is-danger",
         recording && "is-recording",
@@ -80,10 +85,10 @@ export function BottomBarButton({
       )}
       onClick={onClick}
       disabled={disabled}
-      title={label}
       aria-label={label}
       aria-pressed={active}
     >
+      <ChromeSignetLabel label={label} placement="above" />
       {children}
       {badge != null && badge > 0 && <span className="forma-unread-dot" aria-hidden />}
     </button>

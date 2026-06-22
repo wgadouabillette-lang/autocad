@@ -4,6 +4,7 @@ import { type TheaterParticipant } from "../../lib/theater";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import UserAvatar from "../UserAvatar";
+import ParticipantAvatarSignetHost from "./ParticipantAvatarSignetHost";
 
 interface TheaterParticipantTileProps {
   participant: TheaterParticipant;
@@ -46,13 +47,43 @@ export default function TheaterParticipantTile({
     }
   };
 
-  const avatarTitle = canPromote
+  const avatarAriaLabel = canPromote
     ? canAcceptHandRaise
       ? `Faire monter ${participant.name} sur scène`
       : "Une question est déjà en cours"
     : canMessage
       ? `Message à ${participant.name}`
       : participant.name;
+
+  const avatar = (
+    <UserAvatar
+      userId={participant.id}
+      name={participant.name}
+      photoURL={participant.photoURL}
+      isLocal={participant.isLocal}
+      role={useAvatarAsButton ? "button" : undefined}
+      tabIndex={useAvatarAsButton ? 0 : undefined}
+      aria-disabled={promoteDisabled || undefined}
+      aria-label={avatarAriaLabel}
+      className={clsx(
+        "theater-tile__avatar",
+        canMessage && "theater-tile__avatar--message",
+        canPromote && "theater-tile__avatar--promote",
+        promoteDisabled && "theater-tile__avatar--promote-locked",
+        speakingByParticipant[participant.id] && "call-voice-speaking",
+      )}
+      onClick={useAvatarAsButton ? handleAvatarClick : undefined}
+      onKeyDown={
+        useAvatarAsButton
+          ? (e) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              e.preventDefault();
+              handleAvatarClick();
+            }
+          : undefined
+      }
+    />
+  );
 
   return (
     <article
@@ -66,40 +97,25 @@ export default function TheaterParticipantTile({
         promoteDisabled && "theater-tile--promotable-locked",
       )}
     >
-      <span className="theater-tile__avatar-wrap">
-        <UserAvatar
-          userId={participant.id}
-          name={participant.name}
-          photoURL={participant.photoURL}
-          isLocal={participant.isLocal}
-          role={useAvatarAsButton ? "button" : undefined}
-          tabIndex={useAvatarAsButton ? 0 : undefined}
-          aria-disabled={promoteDisabled || undefined}
-          className={clsx(
-            "theater-tile__avatar",
-            canMessage && "theater-tile__avatar--message",
-            canPromote && "theater-tile__avatar--promote",
-            promoteDisabled && "theater-tile__avatar--promote-locked",
-            speakingByParticipant[participant.id] && "call-voice-speaking",
+      {canMessage ? (
+        <ParticipantAvatarSignetHost name={participant.name} className="theater-tile__avatar-wrap">
+          {avatar}
+          {handRaised && (
+            <span className="theater-tile__hand" title="Main levée" aria-hidden>
+              ✋
+            </span>
           )}
-          title={avatarTitle}
-          onClick={useAvatarAsButton ? handleAvatarClick : undefined}
-          onKeyDown={
-            useAvatarAsButton
-              ? (e) => {
-                  if (e.key !== "Enter" && e.key !== " ") return;
-                  e.preventDefault();
-                  handleAvatarClick();
-                }
-              : undefined
-          }
-        />
-        {handRaised && (
-          <span className="theater-tile__hand" title="Main levée" aria-hidden>
-            ✋
-          </span>
-        )}
-      </span>
+        </ParticipantAvatarSignetHost>
+      ) : (
+        <span className="theater-tile__avatar-wrap">
+          {avatar}
+          {handRaised && (
+            <span className="theater-tile__hand" title="Main levée" aria-hidden>
+              ✋
+            </span>
+          )}
+        </span>
+      )}
       <div className="theater-tile__meta">
         <p className="theater-tile__name">{participant.name}</p>
         <p className="theater-tile__role">

@@ -183,7 +183,23 @@ export function isCloudCapablePersonId(personId: string): boolean {
   return true;
 }
 
-/** Members the creator may add: friends + colleagues from any shared workspace (deduped). */
+/** Members of a single workspace (for @mentions in workspace chat). */
+export function workspaceMembersForRoom(
+  membersByWorkspace: Record<string, Record<string, { displayName: string }>>,
+  workspaceId: string,
+  localUserId?: string | null,
+): Person[] {
+  const members = membersByWorkspace[workspaceId] ?? {};
+  return Object.entries(members)
+    .filter(([id]) => id !== localUserId)
+    .map(([id, entry]) => ({
+      id,
+      name: entry.displayName.trim() || "Membre",
+      handle: id,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+}
+
 export function collectAllWorkspaceMembers(
   membersByWorkspace: Record<string, Record<string, { displayName: string }>>,
 ): Person[] {

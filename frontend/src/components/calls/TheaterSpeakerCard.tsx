@@ -6,6 +6,7 @@ import { type TheaterParticipant } from "../../lib/theater";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import UserAvatar from "../UserAvatar";
+import ParticipantAvatarSignetHost from "./ParticipantAvatarSignetHost";
 import VoiceMuteBadge from "./VoiceMuteBadge";
 
 interface TheaterSpeakerCardProps {
@@ -29,6 +30,10 @@ export default function TheaterSpeakerCard({
   const localMuted = useCallsStore((s) => s.muted);
   const openColleagueChat = useMiniChatStore((s) => s.openForColleague);
   const canMessage = !participant.isLocal;
+
+  const openMessage = () => {
+    openColleagueChat(workspaceId, participant.id, participant.name);
+  };
 
   const remoteMedia = participant.isLocal ? undefined : remoteMediaByUid[participant.id];
   const { stream: videoStream, cover: videoCover } = resolveCallParticipantVideoDisplay({
@@ -68,34 +73,40 @@ export default function TheaterSpeakerCard({
             videoCover && "theater-speaker-card__media--cover",
           )}
         />
+      ) : canMessage ? (
+        <ParticipantAvatarSignetHost name={participant.name}>
+          <UserAvatar
+            userId={participant.id}
+            name={participant.name}
+            photoURL={participant.photoURL}
+            isLocal={participant.isLocal}
+            role="button"
+            tabIndex={0}
+            className={clsx(
+              "theater-speaker-card__avatar",
+              "theater-speaker-card__avatar--message",
+              speakingByParticipant[participant.id] && "call-voice-speaking",
+            )}
+            aria-label={`Message à ${participant.name}`}
+            onClick={openMessage}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              e.preventDefault();
+              openMessage();
+            }}
+          />
+        </ParticipantAvatarSignetHost>
       ) : (
         <UserAvatar
           userId={participant.id}
           name={participant.name}
           photoURL={participant.photoURL}
           isLocal={participant.isLocal}
-          role={canMessage ? "button" : undefined}
-          tabIndex={canMessage ? 0 : undefined}
           className={clsx(
             "theater-speaker-card__avatar",
-            canMessage && "theater-speaker-card__avatar--message",
             speakingByParticipant[participant.id] && "call-voice-speaking",
           )}
-          title={canMessage ? `Message à ${participant.name}` : participant.name}
-          onClick={
-            canMessage
-              ? () => openColleagueChat(workspaceId, participant.id, participant.name)
-              : undefined
-          }
-          onKeyDown={
-            canMessage
-              ? (e) => {
-                  if (e.key !== "Enter" && e.key !== " ") return;
-                  e.preventDefault();
-                  openColleagueChat(workspaceId, participant.id, participant.name);
-                }
-              : undefined
-          }
+          aria-label={participant.name}
         />
       )}
 

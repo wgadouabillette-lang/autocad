@@ -1,11 +1,15 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
+  doc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
+  where,
   type DocumentData,
   type QueryDocumentSnapshot,
   type Unsubscribe,
@@ -53,10 +57,10 @@ export async function sendTheaterHandRaiseNotice(
   authorUid: string,
   authorName: string,
   authorPhotoURL: string | null,
-): Promise<void> {
+): Promise<string | null> {
   const trimmedId = workspaceId.trim().toLowerCase();
-  if (!trimmedId || !authorUid) return;
-  await addDoc(messagesCol(trimmedId), {
+  if (!trimmedId || !authorUid) return null;
+  const ref = await addDoc(messagesCol(trimmedId), {
     authorUid,
     authorName: authorName.trim() || "Membre",
     authorPhotoURL,
@@ -64,6 +68,33 @@ export async function sendTheaterHandRaiseNotice(
     clientCreatedAt: Date.now(),
     createdAt: serverTimestamp(),
   });
+  return ref.id;
+}
+
+export async function deleteTheaterHandRaiseMessage(
+  workspaceId: string,
+  messageId: string,
+): Promise<void> {
+  const trimmedId = workspaceId.trim().toLowerCase();
+  if (!trimmedId || !messageId) return;
+  await deleteDoc(doc(messagesCol(trimmedId), messageId));
+}
+
+/** Fallback when the doc id was not tracked locally (race or reload). */
+export async function deleteTheaterHandRaiseNoticesForAuthor(
+  workspaceId: string,
+  authorUid: string,
+): Promise<void> {
+  const trimmedId = workspaceId.trim().toLowerCase();
+  if (!trimmedId || !authorUid) return;
+  const q = query(
+    messagesCol(trimmedId),
+    where("authorUid", "==", authorUid),
+    where("kind", "==", "hand_raise"),
+    limit(8),
+  );
+  const snap = await getDocs(q);
+  await Promise.all(snap.docs.map((docSnap) => deleteDoc(docSnap.ref)));
 }
 
 export function watchTheaterChatMessages(

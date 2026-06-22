@@ -1,11 +1,17 @@
 """Read APIs for connected third-party services."""
 from __future__ import annotations
 
+import base64
+import re
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Any, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.connectors.registry import connector_configured
 from app.connectors.tokens import connection_account_label, get_valid_access_token
@@ -14,6 +20,117 @@ from app.core.auth_deps import require_firebase_user
 from app.core.firebase import FirebaseUser, firestore_available
 
 router = APIRouter(prefix="/api/connectors", tags=["connectors"])
+
+GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
+MAX_GMAIL_ATTACHMENT_BYTES = 10 * 1024 * 1024
+EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
+
+
+class GmailAttachmentIn(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    mime_type: str = Field(default="application/octet-stream", alias="mimeType", max_length=128)
+    content_base64: str = Field(alias="contentBase64", min_length=1)
+
+    model_config = ConfigDict(populate_by_name=True, populate_by_alias=True)
+
+    @field_validator("filename")
+    @classmethod
+    def sanitize_filename(cls, value: str) -> str:
+        cleaned = re.sub(r"[^\w.\- ]", "_", value.strip())
+        if not cleaned:
+            raise ValueError("filename required")
+        return cleaned[:255]
+
+
+class GmailSendBody(BaseModel):
+    to: list[str] = Field(min_length=1, max_length=25)
+    subject: str = Field(default="", max_length=500)
+    body: str = Field(default="", max_length=50000)
+    body_html: bool = Field(default=False, alias="bodyHtml")
+    attachments: list[GmailAttachmentIn] = Field(default_factory=list, max_length=10)
+
+    model_config = ConfigDict(populate_by_name=True, populate_by_alias=True)
+
+    @field_validator("to")
+    @classmethod
+    def validate_recipients(cls, values: list[str]) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+        for raw in values:
+            email = raw.strip().lower()
+            if not email or email in seen:
+                continue
+            if not EMAIL_RE.match(email):
+                raise ValueError(f"invalid email: {raw}")
+            seen.add(email)
+            out.append(email)
+        if not out:
+            raise ValueError("at least one recipient required")
+        return out
+
+
+class GmailSendOut(BaseModel):
+    ok: bool
+    message_id: Optional[str] = Field(default=None, alias="messageId")
+    recipients: list[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True, populate_by_alias=True)
+
+
+def _connection_has_gmail_send_scope(entry: dict[str, Any] | None) -> bool:
+    if not entry:
+        return False
+    scope = str(entry.get("scope") or "")
+    return "gmail.send" in scope or GMAIL_SEND_SCOPE in scope
+
+
+def _build_gmail_raw_message(body: GmailSendBody) -> str:
+    msg = MIMEMultipart()
+    msg["To"] = ", ".join(body.to)
+    msg["Subject"] = body.subject.strip() or "(Sans objet)"
+
+    subtype = "html" if body.body_html else "plain"
+    msg.attach(MIMEText(body.body or "", subtype, "utf-8"))
+
+    total_bytes = 0
+    for attachment in body.attachments:
+        try:
+            raw = base64.b64decode(attachment.content_base64, validate=True)
+        except Exception:
+            raise HTTPException(400, f"Invalid attachment encoding: {attachment.filename}")
+        total_bytes += len(raw)
+        if total_bytes > MAX_GMAIL_ATTACHMENT_BYTES:
+            raise HTTPException(400, "Attachments exceed 10 MB total limit.")
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(raw)
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", f"attachment; filename={attachment.filename}")
+        if attachment.mime_type:
+            part.add_header("Content-Type", attachment.mime_type)
+        msg.attach(part)
+
+    encoded = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
+    return encoded.rstrip("=")
+
+
+async def _send_gmail_message(token: str, raw_message: str) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=45) as client:
+        r = await client.post(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"raw": raw_message},
+        )
+    if r.status_code == 403:
+        detail = r.text or ""
+        if "insufficient" in detail.lower() or "scope" in detail.lower():
+            raise HTTPException(403, "gmail_send_scope_required")
+        raise HTTPException(403, detail or "Gmail send permission denied.")
+    if r.status_code != 200:
+        raise HTTPException(r.status_code, r.text or "Gmail API error.")
+    data = r.json()
+    if not isinstance(data, dict):
+        raise HTTPException(500, "Unexpected Gmail API response.")
+    return data
 
 
 class SpotifyPlayBody(BaseModel):
@@ -28,6 +145,7 @@ class ConnectorStatusOut(BaseModel):
     configured: bool
     storage_ready: bool = Field(alias="storageReady")
     account_label: Optional[str] = Field(default=None, alias="accountLabel")
+    can_send: bool = Field(default=False, alias="canSend")
 
     model_config = ConfigDict(populate_by_name=True, populate_by_alias=True)
 
@@ -48,11 +166,13 @@ def _spotify_api_error_message(status_code: int, body: str) -> str:
 def _status(uid: str, connector_id: str) -> ConnectorStatusOut:
     entry = get_connection(uid, connector_id)
     configured = connector_configured(connector_id)
+    can_send = connector_id == "gmail" and _connection_has_gmail_send_scope(entry)
     return ConnectorStatusOut(
         connected=configured and is_connected(uid, connector_id),
         configured=configured,
         storageReady=firestore_available(),
         accountLabel=connection_account_label(entry),
+        canSend=can_send,
     )
 
 
@@ -117,6 +237,32 @@ async def gmail_messages(
         )
 
     return {"messages": summaries}
+
+
+@router.post("/gmail/send")
+async def gmail_send(
+    body: GmailSendBody,
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    entry = get_connection(user.uid, "gmail")
+    if not connector_configured("gmail"):
+        raise HTTPException(400, "Connector gmail is not configured on the server.")
+    if not is_connected(user.uid, "gmail"):
+        raise HTTPException(409, "not_connected")
+    if not _connection_has_gmail_send_scope(entry):
+        raise HTTPException(403, "gmail_send_scope_required")
+
+    token = await get_valid_access_token(user.uid, "gmail")
+    if not token:
+        raise HTTPException(409, "not_connected")
+
+    raw_message = _build_gmail_raw_message(body)
+    result = await _send_gmail_message(token, raw_message)
+    return GmailSendOut(
+        ok=True,
+        messageId=str(result.get("id") or "") or None,
+        recipients=body.to,
+    ).model_dump(by_alias=True)
 
 
 @router.get("/outlook/status")

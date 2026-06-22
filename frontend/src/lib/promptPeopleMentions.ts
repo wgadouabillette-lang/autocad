@@ -5,7 +5,7 @@ import { filterPromptActions, type PromptActionDef } from "./promptActions";
 
 export interface MentionablePerson {
   person: Person;
-  section: "friends" | "colleagues";
+  section: "workspace" | "friends" | "colleagues";
   mention: string;
 }
 
@@ -43,6 +43,7 @@ export function mentionablePeopleForWorkspace(
   };
 
   for (const friend of friends) push(friend, "friends");
+  for (const member of workspaceMembers) push(member, "workspace");
   for (const thread of colleagueThreads) {
     const person: Person = {
       id: thread.personId,
@@ -51,13 +52,21 @@ export function mentionablePeopleForWorkspace(
     };
     push(person, "colleagues");
   }
-  for (const member of workspaceMembers) push(member, "colleagues");
   for (const user of callParticipants) {
     const person = personFromParticipant(user);
     if (person) push(person, "colleagues");
   }
 
-  return out.sort((a, b) => a.person.name.localeCompare(b.person.name, "fr"));
+  const sectionOrder: Record<MentionablePerson["section"], number> = {
+    workspace: 0,
+    colleagues: 1,
+    friends: 2,
+  };
+  return out.sort((a, b) => {
+    const sectionDiff = sectionOrder[a.section] - sectionOrder[b.section];
+    if (sectionDiff !== 0) return sectionDiff;
+    return a.person.name.localeCompare(b.person.name, "fr");
+  });
 }
 
 export function filterMentionMenu(

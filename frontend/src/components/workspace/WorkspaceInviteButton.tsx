@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { Check, UserPlus } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { ChromeSignetLabel, signetHostClassName } from "../chrome/ChromeSignetLabel";
 import { buildWorkspaceJoinUrl } from "../../lib/workspaceInvite";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
@@ -36,12 +37,13 @@ export default function WorkspaceInviteButton() {
       className={clsx(
         "header-chrome-control",
         "header-chrome-circle",
+        signetHostClassName("inward-start-more"),
         copied && "is-active",
       )}
       onClick={() => void handleCopy()}
-      title={copied ? "Lien copié" : `Copier le lien d'invitation — ${workspaceName}`}
       aria-label={copied ? "Lien d'invitation copié" : `Copier le lien d'invitation pour ${workspaceName}`}
     >
+      <ChromeSignetLabel label="Partager le workspace" placement="below" />
       {copied ? (
         <Check size={13} strokeWidth={2.5} className="header-chrome-circle__icon" aria-hidden />
       ) : (

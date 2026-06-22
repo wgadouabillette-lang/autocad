@@ -1,19 +1,28 @@
 /** Largeurs de la grille salons vocaux — alignées sur index.css */
 export const CALLS_SIDE_COL_WIDTH_REM = 11;
 export const CALLS_CENTER_COL_WIDTH_REM = 18;
+export const CALLS_CENTER_COL_EXTRA_PX = 25;
 export const CALLS_GRID_GAP_REM = 0.5;
 export const CALLS_MOBILE_BREAKPOINT_PX = 768;
 
 export type CallsGridColumnCount = 1 | 2 | 3 | 4 | 5;
 
+export function callsCenterColWidthRem(rootFontSizePx: number): number {
+  const rem = rootFontSizePx || 16;
+  return CALLS_CENTER_COL_WIDTH_REM + CALLS_CENTER_COL_EXTRA_PX / rem;
+}
+
 function effectiveCenterColWidthRem(availableWidthPx: number, rootFontSizePx: number): number {
   if (availableWidthPx < CALLS_MOBILE_BREAKPOINT_PX) {
     return Math.max(11, (availableWidthPx - rootFontSizePx * 0.5) / rootFontSizePx);
   }
-  return CALLS_CENTER_COL_WIDTH_REM;
+  return callsCenterColWidthRem(rootFontSizePx);
 }
 
-function gridWidthRem(columnCount: CallsGridColumnCount, centerWidthRem = CALLS_CENTER_COL_WIDTH_REM): number {
+function gridWidthRem(
+  columnCount: CallsGridColumnCount,
+  centerWidthRem = callsCenterColWidthRem(16),
+): number {
   const side = CALLS_SIDE_COL_WIDTH_REM;
   const center = centerWidthRem;
   const gap = CALLS_GRID_GAP_REM;

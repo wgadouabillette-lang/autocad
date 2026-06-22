@@ -181,6 +181,7 @@ export default function BottomHeader() {
       onClick={toggleNotifications}
       active={notificationsOpen}
       badge={notificationBadge}
+      signetAlign="inward-start"
     >
       <Bell size={ICON_SIZE} />
     </BottomBarButton>
@@ -351,6 +352,7 @@ export default function BottomHeader() {
         onClick={() => void toggleRecording()}
         active={recording}
         recording={recording}
+        signetAlign="inward-end"
       >
         <Circle size={ICON_SIZE} className={clsx(recording && "fill-current")} />
       </BottomBarButton>

@@ -1,5 +1,9 @@
 import { create } from "zustand";
-import { sendTheaterHandRaiseNotice } from "../lib/firebase/theaterChat";
+import {
+  deleteTheaterHandRaiseMessage,
+  deleteTheaterHandRaiseNoticesForAuthor,
+  sendTheaterHandRaiseNotice,
+} from "../lib/firebase/theaterChat";
 import { useAuthStore } from "./useAuthStore";
 import { useStore } from "./useStore";
 
@@ -25,12 +29,14 @@ export interface TheaterChatMessage {
 
 interface TheaterChatState {
   messagesByWorkspace: Record<string, TheaterChatMessage[]>;
+  handRaiseNoticeIdByWorkspace: Record<string, string>;
   sendMessage: (
     workspaceId: string,
     text: string,
     attachments?: TheaterChatAttachment[],
   ) => void;
   sendHandRaiseNotice: (workspaceId: string) => void;
+  revokeHandRaiseNotice: (workspaceId: string) => void;
   ingestRemoteMessage: (workspaceId: string, message: TheaterChatMessage) => void;
   replaceSyncedMessages: (workspaceId: string, synced: TheaterChatMessage[]) => void;
   /** Le chat du théâtre est éphémère : on le purge dès que la dernière personne quitte le call. */
@@ -40,6 +46,7 @@ interface TheaterChatState {
 
 export const useTheaterChatStore = create<TheaterChatState>((set, get) => ({
   messagesByWorkspace: {},
+  handRaiseNoticeIdByWorkspace: {},
 
   sendMessage: (workspaceId, text, attachments = []) => {
     const trimmed = text.trim();
@@ -87,9 +94,19 @@ export const useTheaterChatStore = create<TheaterChatState>((set, get) => ({
         auth.firebaseUid,
         authorName,
         authorPhotoURL,
-      ).catch((error) => {
-        console.error("Theater hand raise notice failed", error);
-      });
+      )
+        .then((messageId) => {
+          if (!messageId) return;
+          set((state) => ({
+            handRaiseNoticeIdByWorkspace: {
+              ...state.handRaiseNoticeIdByWorkspace,
+              [trimmedId]: messageId,
+            },
+          }));
+        })
+        .catch((error) => {
+          console.error("Theater hand raise notice failed", error);
+        });
       return;
     }
 
@@ -105,11 +122,48 @@ export const useTheaterChatStore = create<TheaterChatState>((set, get) => ({
     };
 
     set((state) => ({
+      handRaiseNoticeIdByWorkspace: {
+        ...state.handRaiseNoticeIdByWorkspace,
+        [trimmedId]: message.id,
+      },
       messagesByWorkspace: {
         ...state.messagesByWorkspace,
         [trimmedId]: [...(state.messagesByWorkspace[trimmedId] ?? []), message],
       },
     }));
+  },
+
+  revokeHandRaiseNotice: (workspaceId) => {
+    const trimmedId = workspaceId.trim();
+    if (!trimmedId) return;
+
+    const auth = useAuthStore.getState();
+    const authorId = auth.firebaseUid ?? "local";
+    const trackedId = get().handRaiseNoticeIdByWorkspace[trimmedId];
+
+    set((state) => {
+      const nextNoticeIds = { ...state.handRaiseNoticeIdByWorkspace };
+      delete nextNoticeIds[trimmedId];
+      return {
+        handRaiseNoticeIdByWorkspace: nextNoticeIds,
+        messagesByWorkspace: {
+          ...state.messagesByWorkspace,
+          [trimmedId]: (state.messagesByWorkspace[trimmedId] ?? []).filter(
+            (message) => !(message.kind === "hand_raise" && message.authorId === authorId),
+          ),
+        },
+      };
+    });
+
+    if (!auth.firebaseUid) return;
+
+    const deleteRemote = trackedId
+      ? deleteTheaterHandRaiseMessage(trimmedId, trackedId)
+      : deleteTheaterHandRaiseNoticesForAuthor(trimmedId, auth.firebaseUid);
+
+    void deleteRemote.catch((error) => {
+      console.error("Theater hand raise revoke failed", error);
+    });
   },
 
   ingestRemoteMessage: (workspaceId, message) => {
@@ -144,10 +198,14 @@ export const useTheaterChatStore = create<TheaterChatState>((set, get) => ({
 
   clearWorkspace: (workspaceId) => {
     set((state) => {
-      if (!state.messagesByWorkspace[workspaceId]) return state;
+      if (!state.messagesByWorkspace[workspaceId]) {
+        if (!state.handRaiseNoticeIdByWorkspace[workspaceId]) return state;
+      }
       const next = { ...state.messagesByWorkspace };
       delete next[workspaceId];
-      return { messagesByWorkspace: next };
+      const nextNoticeIds = { ...state.handRaiseNoticeIdByWorkspace };
+      delete nextNoticeIds[workspaceId];
+      return { messagesByWorkspace: next, handRaiseNoticeIdByWorkspace: nextNoticeIds };
     });
   },
 

@@ -39,6 +39,7 @@ CONNECTORS: dict[str, ConnectorDef] = {
             "openid",
             "email",
             "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.send",
         ),
     ),
     "outlook": ConnectorDef(
@@ -72,10 +73,38 @@ CONNECTORS: dict[str, ConnectorDef] = {
 
 _DEFAULT_LOCAL_OAUTH_BASE = "http://127.0.0.1:8000"
 _PRODUCTION_OAUTH_BASE = "https://autocad-blue.vercel.app"
+_FRONTEND_DEV_PORTS = frozenset({5173, 5174, 3000, 4173})
+
+
+def _env_or_default(name: str, default: str) -> str:
+    raw = (os.getenv(name) or "").strip()
+    return raw.rstrip("/") if raw else default
+
+
+def _on_vercel() -> bool:
+    return bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("VERCEL_URL"))
+
+
+def _normalize_oauth_redirect_base(base: str) -> str:
+    """OAuth callbacks must hit the API, not the Vite dev server."""
+    from urllib.parse import urlparse
+
+    trimmed = base.strip().rstrip("/")
+    if not trimmed:
+        return _DEFAULT_LOCAL_OAUTH_BASE
+
+    parsed = urlparse(trimmed)
+    if parsed.port in _FRONTEND_DEV_PORTS:
+        host = parsed.hostname or "127.0.0.1"
+        scheme = parsed.scheme or "http"
+        return f"{scheme}://{host}:8000"
+
+    return trimmed
 
 
 def oauth_redirect_base() -> str:
-    return os.getenv("FORMA_OAUTH_REDIRECT_BASE", _DEFAULT_LOCAL_OAUTH_BASE).rstrip("/")
+    raw = _env_or_default("FORMA_OAUTH_REDIRECT_BASE", _DEFAULT_LOCAL_OAUTH_BASE)
+    return _normalize_oauth_redirect_base(raw)
 
 
 def _is_local_oauth_base(base: str) -> bool:
@@ -94,25 +123,26 @@ def resolve_oauth_redirect_base(
     Local dev uses port 8000. On Vercel, frontend and API share the same HTTPS
     origin — never use localhost if the browser or request is on production.
     """
-    env_base = oauth_redirect_base()
-    if not _is_local_oauth_base(env_base):
+    env_base = _normalize_oauth_redirect_base(oauth_redirect_base())
+    if env_base and not _is_local_oauth_base(env_base):
         return env_base
 
     for hint in (return_origin, request_origin):
         if not hint:
             continue
-        origin = hint.strip().rstrip("/")
+        origin = _normalize_oauth_redirect_base(hint.strip())
         if origin.startswith("https://"):
             return origin
 
-    if os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("VERCEL_URL"):
+    if _on_vercel():
         return _PRODUCTION_OAUTH_BASE
 
-    return env_base
+    return env_base or _DEFAULT_LOCAL_OAUTH_BASE
 
 
 def frontend_origin() -> str:
-    return os.getenv("FORMA_FRONTEND_ORIGIN", "http://127.0.0.1:5173").rstrip("/")
+    default = _PRODUCTION_OAUTH_BASE if _on_vercel() else "http://127.0.0.1:5173"
+    return _env_or_default("FORMA_FRONTEND_ORIGIN", default)
 
 
 def frontend_base_path() -> str:
@@ -139,7 +169,11 @@ def frontend_app_url(
 
 
 def callback_url(redirect_base: str | None = None) -> str:
-    base = (redirect_base or oauth_redirect_base()).rstrip("/")
+    base = _normalize_oauth_redirect_base(
+        redirect_base or oauth_redirect_base() or _DEFAULT_LOCAL_OAUTH_BASE
+    )
+    if _on_vercel() and _is_local_oauth_base(base):
+        base = _PRODUCTION_OAUTH_BASE
     return f"{base}/api/connectors/oauth/callback"
 
 

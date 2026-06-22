@@ -1,6 +1,6 @@
 import type { SkillTimelineStep } from "../components/chat/SkillTimeline";
 
-export type SkillTimelineId = "manage" | "group" | "handoff" | "recap" | "play" | "meeting";
+export type SkillTimelineId = "manage" | "group" | "handoff" | "recap" | "play" | "meeting" | "mail";
 
 const PROCESSING_STEP: SkillTimelineStep = {
   id: "processing",
@@ -63,6 +63,21 @@ export const MEETING_TIMELINE_STEPS: SkillTimelineStep[] = [
   },
 ];
 
+export const MAIL_TIMELINE_STEPS: SkillTimelineStep[] = [
+  {
+    id: "resolve",
+    label: "Resolving recipients",
+    minMs: 1000,
+    maxMs: 1500,
+  },
+  {
+    id: "send",
+    label: "Sending via Gmail",
+    minMs: 1200,
+    maxMs: 2000,
+  },
+];
+
 export function buildPlayTimelineSteps(query: string): SkillTimelineStep[] {
   const trimmed = query.trim();
   const label = trimmed ? `Searching "${trimmed}"` : "Searching";
@@ -83,6 +98,7 @@ export const SKILL_SUCCESS_LABELS: Record<SkillTimelineId, string> = {
   handoff: "Handoff sent",
   play: "Now playing",
   meeting: "Meeting scheduled",
+  mail: "Email sent",
 };
 
 export const SKILL_ACTION_LABELS: Partial<Record<SkillTimelineId, string>> = {

@@ -66,6 +66,7 @@ import {
 import { parsePlaySkillQuery, runPlaySearchSkill } from "../lib/playSkill";
 import type { ManageSchedulePromptDraft } from "../lib/manageSchedulePrompt";
 import type { MeetingPromptDraft } from "../lib/meetingSkill";
+import type { MailPromptDraft } from "../lib/mailSkill";
 import {
   isMeetingSkillPrompt,
   isNaturalLanguageMeetingRequest,
@@ -90,6 +91,7 @@ export interface ChatMessage {
   source?: string;
   managePrompt?: ManageSchedulePromptDraft;
   meetingPrompt?: MeetingPromptDraft;
+  mailPrompt?: MailPromptDraft;
   /** Blocs de calendrier proposés par /manage, en attente de "Appliquer au calendrier". */
   manageEvents?: ManageScheduleEventDraft[];
   /** True une fois que l'utilisateur a cliqué "Sync to Calendar" et que les blocs sont en place. */
@@ -2507,8 +2509,8 @@ export const useStore = create<State>((set, get) => ({
     const inTheaterView =
       useCallsStore.getState().getCallsViewMode(state.activeRoomId) === "theater";
     const modes: Array<"agent" | "friends" | "calendar" | "theater"> = inTheaterView
-      ? ["agent", "friends", "calendar", "theater"]
-      : ["agent", "friends", "calendar"];
+      ? ["agent", "calendar", "friends", "theater"]
+      : ["agent", "calendar", "friends"];
     const cycleMode =
       state.chatPanelMode === "ai-notes" || state.chatPanelMode === "follow-up"
         ? "agent"

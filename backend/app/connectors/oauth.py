@@ -87,18 +87,42 @@ async def exchange_code(
 async def _exchange_google(code: str, redirect_base: str | None = None) -> dict[str, Any]:
     import os
 
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    redirect_uri = callback_url(redirect_base)
+
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.post(
             "https://oauth2.googleapis.com/token",
             data={
                 "code": code,
-                "client_id": os.getenv("GOOGLE_CLIENT_ID", ""),
-                "client_secret": os.getenv("GOOGLE_CLIENT_SECRET", ""),
-                "redirect_uri": callback_url(redirect_base),
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "redirect_uri": redirect_uri,
                 "grant_type": "authorization_code",
             },
         )
-        r.raise_for_status()
+        if r.status_code >= 400:
+            detail = r.text
+            try:
+                err = r.json()
+                error = str(err.get("error") or "")
+                desc = str(err.get("error_description") or "")
+                detail = desc or error or detail
+                if r.status_code == 401 and error == "invalid_client":
+                    raise ValueError(
+                        "Google OAuth : le client_secret ne correspond pas au GOOGLE_CLIENT_ID. "
+                        "Copiez le secret du même client OAuth dans Google Cloud Console "
+                        f"(Credentials → {client_id[:24]}…), mettez-le dans backend/.env, "
+                        "puis redémarrez le backend."
+                    ) from None
+            except ValueError:
+                raise
+            except Exception:
+                pass
+            raise ValueError(
+                f"Google OAuth token exchange failed ({r.status_code}): {detail}"
+            ) from None
         data = r.json()
     return {
         "access_token": data.get("access_token"),

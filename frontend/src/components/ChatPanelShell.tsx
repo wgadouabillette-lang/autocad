@@ -15,7 +15,6 @@ import VoiceAssistPanel from "./chat/VoiceAssistPanel";
 import { isVoiceAssistPanelMode } from "../lib/voiceAssistPanel";
 import ChatFullscreenMediaPip from "./chat/ChatFullscreenMediaPip";
 import CalendarFullscreenComposerPip from "./calendar/CalendarFullscreenComposerPip";
-import PeopleChatFullscreenSkillsPip from "./chat/PeopleChatFullscreenSkillsPip";
 import RecordingPlaybackView from "./chat/RecordingPlaybackView";
 
 const LEAVE_ANIM_MS = 540;
@@ -185,7 +184,6 @@ export default function ChatPanelShell() {
         </div>
       </div>
       {isOverlay && chatPanelMode === "calendar" && <CalendarFullscreenComposerPip />}
-      {isOverlay && chatPanelMode === "friends" && <PeopleChatFullscreenSkillsPip />}
     </aside>
     </>
   );

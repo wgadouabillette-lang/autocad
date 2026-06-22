@@ -38,10 +38,10 @@ microsoftProvider.setCustomParameters({
   prompt: "select_account",
   tenant: import.meta.env.VITE_MICROSOFT_OAUTH_TENANT?.trim() || "common",
 });
+// Firebase Microsoft sign-in: openid/email/profile only — Graph scopes (User.Read) break auth.
 microsoftProvider.addScope("email");
 microsoftProvider.addScope("profile");
 microsoftProvider.addScope("openid");
-microsoftProvider.addScope("User.Read");
 
 const facebookProvider = new FacebookAuthProvider();
 facebookProvider.addScope("email");

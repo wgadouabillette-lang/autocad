@@ -8,9 +8,15 @@ export const CHAT_CONNECTORS = [
     Logo: CHAT_APP_LOGOS.calendar,
   },
   {
+    id: "spotify",
+    label: "Spotify",
+    slash: "/play",
+    Logo: CHAT_APP_LOGOS.spotify,
+  },
+  {
     id: "gmail",
     label: "Gmail",
-    slash: "/gmail",
+    slash: "/mail",
     Logo: CHAT_APP_LOGOS.gmail,
   },
   {
@@ -18,12 +24,6 @@ export const CHAT_CONNECTORS = [
     label: "Outlook",
     slash: "/outlook",
     Logo: CHAT_APP_LOGOS.outlook,
-  },
-  {
-    id: "spotify",
-    label: "Spotify",
-    slash: "/play",
-    Logo: CHAT_APP_LOGOS.spotify,
   },
 ] as const;
 

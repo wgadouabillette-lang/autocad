@@ -1251,6 +1251,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
   cancelHandRaise: (workspaceId, requestId) => {
     get().declineHandRaise(workspaceId, requestId);
+    useTheaterChatStore.getState().revokeHandRaiseNotice(workspaceId);
   },
 
   endQuestion: (workspaceId) => {

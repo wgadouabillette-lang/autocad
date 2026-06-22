@@ -48,22 +48,32 @@ function assertLiveVideoTrack(stream: MediaStream): MediaStream {
 async function acquireViaDisplayMedia(): Promise<MediaStream> {
   requireDisplayMedia();
 
+  // Fenêtre complète (pas seulement l'onglet / la surface in-app).
   const stream = await navigator.mediaDevices.getDisplayMedia({
     video: true,
     audio: true,
-    ...(hasFormaDesktop()
-      ? {}
-      : {
-          preferCurrentTab: true,
-          selfBrowserSurface: "include",
-          surfaceSwitching: "exclude",
-          monitorTypeSurfaces: "exclude",
-        }),
-  } as DisplayMediaStreamOptions);
+  });
 
   return assertLiveVideoTrack(stream);
 }
 
+async function acquireDisplayStream(): Promise<MediaStream> {
+  if (hasFormaDesktop()) {
+    requireDisplayMedia();
+    try {
+      return assertLiveVideoTrack(
+        await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        }),
+      );
+    } catch (error) {
+      if (isScreenCapturePermissionError(error)) throw error;
+      return acquireViaElectronDesktop();
+    }
+  }
+  return acquireViaDisplayMedia();
+}
 async function acquireViaElectronDesktop(): Promise<MediaStream> {
   const sourceId = await window.formaDesktop!.getAppWindowSourceId();
   if (!sourceId) {
@@ -78,13 +88,6 @@ async function acquireViaElectronDesktop(): Promise<MediaStream> {
     if (isScreenCapturePermissionError(error)) throw error;
     return acquireViaDisplayMedia();
   }
-}
-
-async function acquireDisplayStream(): Promise<MediaStream> {
-  if (hasFormaDesktop()) {
-    return acquireViaElectronDesktop();
-  }
-  return acquireViaDisplayMedia();
 }
 
 async function acquireMicrophoneStream(): Promise<MediaStream | null> {
