@@ -107,9 +107,19 @@ export async function signInWithOAuthProvider(id: FirebaseAuthProvider): Promise
   }
 }
 
-export async function completeOAuthRedirectIfPresent(): Promise<User | null> {
-  const result = await getRedirectResult(auth);
-  return result?.user ?? null;
+let oauthRedirectResultPromise: Promise<User | null> | null = null;
+
+/** Must run once per page load — React StrictMode would consume the redirect twice otherwise. */
+export function completeOAuthRedirectIfPresent(): Promise<User | null> {
+  if (!oauthRedirectResultPromise) {
+    oauthRedirectResultPromise = getRedirectResult(auth)
+      .then((result) => result?.user ?? null)
+      .catch((error) => {
+        oauthRedirectResultPromise = null;
+        throw error;
+      });
+  }
+  return oauthRedirectResultPromise;
 }
 
 export function isFirebaseOAuthPopupUrl(url: string): boolean {

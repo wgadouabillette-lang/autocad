@@ -413,45 +413,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     let disposed = false;
     let stopProfileAutosync: (() => void) | null = null;
     let authLoadId = 0;
+    let pendingAuthResolved = false;
+    let unsubscribe: (() => void) | null = null;
+
+    const setSignedOut = () => {
+      set({
+        ready: true,
+        isAuthenticated: false,
+        authEmail: null,
+        authProvider: null,
+        firebaseUid: null,
+      });
+    };
+
     const readyFallback = window.setTimeout(() => {
-      if (!disposed && !get().ready) {
+      if (!disposed && !get().ready && pendingAuthResolved) {
         set({ ready: true });
       }
     }, 2500);
 
-    void completeEmailLinkSignInIfPresent()
-      .catch((error: unknown) => {
-        const message = formatAuthError(error);
-        if (message) set({ authError: message, ready: true });
-      });
-
-    void completeOAuthRedirectIfPresent()
-      .then((user) => {
-        if (user) set(applyFirebaseUser(user));
-      })
-      .catch((error: unknown) => {
-        const message = formatAuthError(error);
-        if (message) set({ authError: message, ready: true });
-      });
-
-    const unsubscribe = watchAuthState((user) => {
+    const handleAuthenticatedUser = (user: User) => {
       if (disposed) return;
       window.clearTimeout(readyFallback);
       authLoadId += 1;
       const loadId = authLoadId;
       stopProfileAutosync?.();
       stopProfileAutosync = null;
-
-      if (!user) {
-        set({
-          ready: true,
-          isAuthenticated: false,
-          authEmail: null,
-          authProvider: null,
-          firebaseUid: null,
-        });
-        return;
-      }
 
       set({ ready: false });
       set(applyFirebaseUser(user));
@@ -505,13 +492,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         }
       })();
-    });
+    };
+
+    void (async () => {
+      try {
+        await completeEmailLinkSignInIfPresent();
+      } catch (error: unknown) {
+        const message = formatAuthError(error);
+        if (message && !disposed) set({ authError: message, ready: true });
+      }
+
+      try {
+        await completeOAuthRedirectIfPresent();
+      } catch (error: unknown) {
+        const message = formatAuthError(error);
+        if (message && !disposed) set({ authError: message, ready: true });
+      }
+
+      if (disposed) return;
+      pendingAuthResolved = true;
+
+      unsubscribe = watchAuthState((user) => {
+        if (disposed) return;
+        if (!user) {
+          setSignedOut();
+          return;
+        }
+        handleAuthenticatedUser(user);
+      });
+    })();
 
     return () => {
       disposed = true;
       window.clearTimeout(readyFallback);
       stopProfileAutosync?.();
-      unsubscribe();
+      unsubscribe?.();
     };
   },
 
