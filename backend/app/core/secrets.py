@@ -5,6 +5,7 @@ import io
 import logging
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,14 @@ def use_secret_manager() -> bool:
         return False
     if os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("VERCEL_URL"):
         return False
+    # Local backend/.env exists → skip GSM (évite ~60s de timeout ADC en dev).
+    if _backend_env_file().exists():
+        return False
     return True
+
+
+def _backend_env_file() -> Path:
+    return Path(__file__).resolve().parents[2] / ".env"
 
 
 def secrets_required() -> bool:
@@ -58,7 +66,7 @@ def _fetch_secret_payload(project_id: str, secret_id: str) -> Optional[str]:
     try:
         client = secretmanager.SecretManagerServiceClient()
         name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
-        response = client.access_secret_version(request={"name": name})
+        response = client.access_secret_version(request={"name": name}, timeout=5.0)
     except Exception as exc:
         logger.warning("Secret Manager access failed for %s: %s", secret_id, exc)
         return None

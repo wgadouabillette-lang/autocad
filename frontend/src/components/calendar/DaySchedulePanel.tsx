@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus, X } from "lucide-react";
 import {
   eventStatusForDay,
   formatDayLabel,
@@ -9,9 +9,11 @@ import {
 } from "../../lib/daySchedule";
 import { useGoogleCalendarSync } from "../../hooks/useGoogleCalendarSync";
 import { useOutlookCalendarSync } from "../../hooks/useOutlookCalendarSync";
+import { usePersistedCalendarEvents } from "../../hooks/usePersistedCalendarEvents";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
 import { useStore } from "../../store/useStore";
+import { deleteCalendarEventById } from "../../lib/calendarEventDelete";
 import CalendarEventComposer from "./CalendarEventComposer";
 
 const HOUR_HEIGHT = 48;
@@ -41,8 +43,9 @@ export default function DaySchedulePanel() {
   const outlookEvents = useCalendarStore((s) => s.outlookEvents);
   useGoogleCalendarSync(selectedDate);
   useOutlookCalendarSync(selectedDate);
+  usePersistedCalendarEvents();
   const events = useMemo(
-    () => useCalendarStore.getState().eventsForDate(selectedDate),
+    () => useCalendarStore.getState().calendarEventsForDate(selectedDate),
     [selectedDate, userEvents, googleEvents, outlookEvents],
   );
   const viewingToday = isTodayKey(selectedDate);
@@ -84,6 +87,10 @@ export default function DaySchedulePanel() {
 
   const handleSlotClick = (hour: number) => {
     openComposer(hour);
+  };
+
+  const handleDeleteEvent = (eventId: string) => {
+    void deleteCalendarEventById(eventId);
   };
 
   return (
@@ -163,12 +170,24 @@ export default function DaySchedulePanel() {
               <div
                 key={event.id}
                 className={clsx(
-                  "calendar-panel__event",
+                  "calendar-panel__event group",
                   status === "now" && "calendar-panel__event--now",
                   status === "past" && "calendar-panel__event--past",
                 )}
                 style={{ top, height }}
               >
+                <button
+                  type="button"
+                  className="calendar-panel__event-delete"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteEvent(event.id);
+                  }}
+                  aria-label={`Supprimer ${event.title}`}
+                  title="Supprimer"
+                >
+                  <X size={11} strokeWidth={2.25} aria-hidden />
+                </button>
                 <div className="calendar-panel__event-time">
                   {formatScheduleTime(event.startMinutes)} –{" "}
                   {formatScheduleTime(event.endMinutes)}

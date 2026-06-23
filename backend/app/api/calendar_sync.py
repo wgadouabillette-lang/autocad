@@ -7,10 +7,11 @@ from typing import Any, List, Optional
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.concurrency import run_in_threadpool
 
 from app.connectors.registry import connector_configured
 from app.connectors.tokens import connection_account_label, get_valid_access_token
-from app.connectors.user_store import get_connection, is_connected
+from app.connectors.user_store import is_connected_from_items, load_all_connections
 from app.core.auth_deps import require_firebase_user
 from app.core.firebase import FirebaseUser
 
@@ -110,7 +111,7 @@ def _parse_google_event(item: dict[str, Any]) -> GoogleCalendarEventOut | None:
     )
 
 
-async def _create_google_event(token: str, item: CalendarEventInput) -> bool:
+async def _create_google_event(token: str, item: CalendarEventInput) -> str | None:
     start, end, tz_name = _event_datetimes(item)
     body: dict[str, Any] = {
         "summary": item.title,
@@ -124,7 +125,11 @@ async def _create_google_event(token: str, item: CalendarEventInput) -> bool:
             headers={"Authorization": f"Bearer {token}"},
             json=body,
         )
-    return r.status_code in {200, 201}
+    if r.status_code not in {200, 201}:
+        return None
+    data = r.json()
+    event_id = str(data.get("id") or "").strip()
+    return event_id or None
 
 
 async def _fetch_google_account_email(token: str) -> str | None:
@@ -143,8 +148,12 @@ async def _fetch_google_account_email(token: str) -> str | None:
 @router.get("/calendar/status")
 async def calendar_status(user: FirebaseUser = Depends(require_firebase_user)):
     configured = connector_configured("calendar")
-    connected = configured and is_connected(user.uid, "calendar")
-    account_email = connection_account_label(get_connection(user.uid, "calendar"))
+    connections = await run_in_threadpool(load_all_connections, user.uid)
+    entry = connections.get("calendar")
+    connected = configured and is_connected_from_items(connections, "calendar")
+    account_email = connection_account_label(
+        dict(entry) if isinstance(entry, dict) else None
+    )
     if connected and not account_email:
         token = await get_valid_access_token(user.uid, "calendar")
         if token:
@@ -164,7 +173,8 @@ async def list_calendar_events(
 ):
     if not connector_configured("calendar"):
         return {"events": [], "reason": "not_configured"}
-    if not is_connected(user.uid, "calendar"):
+    connections = await run_in_threadpool(load_all_connections, user.uid)
+    if not is_connected_from_items(connections, "calendar"):
         return {"events": [], "reason": "not_connected"}
 
     token = await get_valid_access_token(user.uid, "calendar")
@@ -204,7 +214,8 @@ async def sync_calendar_events(
     body: SyncEventsBody,
     user: FirebaseUser = Depends(require_firebase_user),
 ):
-    if not is_connected(user.uid, "calendar"):
+    connections = await run_in_threadpool(load_all_connections, user.uid)
+    if not is_connected_from_items(connections, "calendar"):
         return {"synced": False, "created": 0, "reason": "not_connected"}
 
     token = await get_valid_access_token(user.uid, "calendar")
@@ -224,3 +235,29 @@ async def sync_calendar_events(
         "created": created,
         "reason": None if created else "google_api_error",
     }
+
+
+@router.delete("/calendar/events/{event_id}")
+async def delete_calendar_event(
+    event_id: str,
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    connections = await run_in_threadpool(load_all_connections, user.uid)
+    if not is_connected_from_items(connections, "calendar"):
+        return {"ok": False, "reason": "not_connected"}
+
+    token = await get_valid_access_token(user.uid, "calendar")
+    if not token:
+        return {"ok": False, "reason": "not_connected"}
+
+    safe_id = (event_id or "").strip()
+    if not safe_id:
+        raise HTTPException(400, "Missing event id.")
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.delete(
+            f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{safe_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    return {"ok": r.status_code in {200, 204, 404}}

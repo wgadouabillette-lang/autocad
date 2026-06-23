@@ -258,6 +258,7 @@ export default function App() {
     const connectorId = params.get("connector_id");
     const oauthMessage = params.get("connector_oauth_message");
     if (oauth === "success") {
+      void useConnectorsStore.getState().refresh(true);
       window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
       useConnectorsStore.getState().setConnectingId(null);
       if (window.opener === null && window.name.startsWith("forma-connector-oauth")) {

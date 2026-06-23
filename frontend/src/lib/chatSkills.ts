@@ -1,7 +1,7 @@
 import { ArrowRightLeft, CalendarDays, FileText, UsersRound, Video, type LucideIcon } from "lucide-react";
 import { CHAT_APP_LOGOS, type ChatAppLogoComponent } from "../components/chat/chatAppLogos";
 import { CREATE_GROUP_COMPOSER_TEXT } from "./createGroupSkill";
-import { MANAGE_COMPOSER_TEMPLATE } from "./manageSchedulePrompt";
+import { MANAGE_COMPOSER_TEMPLATE, type ManageSchedulePromptDraft, isNaturalLanguageManageRequest } from "./manageSchedulePrompt";
 import { PLAY_SKILL_TEMPLATE } from "./playSkill";
 import { MEETING_SKILL_TEMPLATE } from "./meetingSkill";
 import { MAIL_SKILL_TEMPLATE } from "./mailSkill";
@@ -135,6 +135,20 @@ export function filterChatSkillsForSlashMenu(query: string): ChatSkillDef[] {
 
 export function isManageSchedulePrompt(text: string): boolean {
   return /(?:^|\s)\/manage\b/i.test(text.trim());
+}
+
+/** True when the message should run /manage (composer, slash, or NL task planning). */
+export function isManageScheduleRequest(
+  displayText: string,
+  prompt: string,
+  managePrompt?: ManageSchedulePromptDraft | null,
+): boolean {
+  return (
+    isManageSchedulePrompt(displayText) ||
+    isManageSchedulePrompt(prompt) ||
+    !!managePrompt ||
+    isNaturalLanguageManageRequest(displayText)
+  );
 }
 
 export { isNaturalLanguageManageRequest } from "./manageSchedulePrompt";

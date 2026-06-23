@@ -7,13 +7,19 @@ import time
 from pathlib import Path
 from typing import Any
 
+from app.core import firebase
 from app.core.config import _data_dir
-from app.core.firebase import _db, _ensure_db, firestore_available
 
 logger = logging.getLogger(__name__)
 
 CONNECTORS_DOC_ID = "connectors"
 _LOCAL_STORE_DIR = _data_dir() / "connector_tokens"
+_ITEMS_CACHE: dict[str, tuple[dict[str, Any], float]] = {}
+_ITEMS_CACHE_TTL_SEC = 30.0
+
+
+def _invalidate_items_cache(uid: str) -> None:
+    _ITEMS_CACHE.pop(uid, None)
 
 
 def _local_store_path(uid: str) -> Path:
@@ -41,23 +47,23 @@ def _save_local_doc(uid: str, items: dict[str, Any]) -> None:
 
 
 def _using_local_store() -> bool:
-    if firestore_available():
-        return False
-    _ensure_db()
-    return _db is None
+    firebase._ensure_db()
+    return firebase._db is None
 
 
 def _connectors_ref(uid: str):
-    _ensure_db()
-    if _db is None:
+    firebase._ensure_db()
+    if firebase._db is None:
         return None
-    return _db.collection("users").document(uid).collection("private").document(CONNECTORS_DOC_ID)
+    return (
+        firebase._db.collection("users")
+        .document(uid)
+        .collection("private")
+        .document(CONNECTORS_DOC_ID)
+    )
 
 
-def _load_doc(uid: str) -> dict[str, Any]:
-    if _using_local_store():
-        return _load_local_doc(uid)
-
+def _load_firestore_items(uid: str) -> dict[str, Any]:
     ref = _connectors_ref(uid)
     if ref is None:
         return {}
@@ -73,14 +79,10 @@ def _load_doc(uid: str) -> dict[str, Any]:
         return {}
 
 
-def _save_doc(uid: str, items: dict[str, Any]) -> None:
-    if _using_local_store():
-        _save_local_doc(uid, items)
-        return
-
+def _save_firestore_items(uid: str, items: dict[str, Any]) -> bool:
     ref = _connectors_ref(uid)
     if ref is None:
-        return
+        return False
     try:
         from firebase_admin import firestore
 
@@ -91,13 +93,67 @@ def _save_doc(uid: str, items: dict[str, Any]) -> None:
             },
             merge=True,
         )
+        return True
     except Exception as exc:
         logger.warning("Failed to save connectors for %s: %s", uid, exc)
+        return False
+
+
+def _load_doc(uid: str) -> dict[str, Any]:
+    now = time.time()
+    cached = _ITEMS_CACHE.get(uid)
+    if cached and cached[1] > now:
+        return dict(cached[0])
+
+    if _using_local_store():
+        items = _load_local_doc(uid)
+    else:
+        items = _load_firestore_items(uid)
+        if items:
+            _ITEMS_CACHE[uid] = (items, now + _ITEMS_CACHE_TTL_SEC)
+            return items
+
+        local_items = _load_local_doc(uid)
+        if not local_items:
+            items = {}
+        elif _save_firestore_items(uid, local_items):
+            logger.info(
+                "Migrated connector tokens for %s from local dev store to Firestore.",
+                uid,
+            )
+            items = local_items
+        else:
+            items = local_items
+
+    _ITEMS_CACHE[uid] = (items, now + _ITEMS_CACHE_TTL_SEC)
+    return items
+
+
+def _save_doc(uid: str, items: dict[str, Any]) -> None:
+    _invalidate_items_cache(uid)
+    if _using_local_store():
+        _save_local_doc(uid, items)
+        return
+
+    if _save_firestore_items(uid, items):
+        return
+
+    _save_local_doc(uid, items)
+    logger.info("Saved connector tokens for %s to local dev store (Firestore unavailable).", uid)
+
+
+def load_all_connections(uid: str) -> dict[str, Any]:
+    """All connector tokens for a user (one Firestore read, cached 30s)."""
+    return _load_doc(uid)
+
+
+def is_connected_from_items(items: dict[str, Any], connector_id: str) -> bool:
+    entry = items.get(connector_id)
+    return bool(entry and entry.get("access_token"))
 
 
 def is_connected(uid: str, connector_id: str) -> bool:
-    entry = _load_doc(uid).get(connector_id)
-    return bool(entry and entry.get("access_token"))
+    return is_connected_from_items(_load_doc(uid), connector_id)
 
 
 def get_connection(uid: str, connector_id: str) -> dict[str, Any] | None:

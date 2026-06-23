@@ -15,7 +15,11 @@ interface CalendarState {
   googleEvents: CalendarEvent[];
   outlookEvents: CalendarEvent[];
   eventsForDate: (dateKey: string) => DayScheduleEvent[];
+  calendarEventsForDate: (dateKey: string) => CalendarEvent[];
+  findCalendarEvent: (id: string) => CalendarEvent | undefined;
   addEvents: (events: CalendarEvent[]) => void;
+  setUserEvents: (events: CalendarEvent[]) => void;
+  removeCalendarEvent: (id: string) => void;
   setGoogleEvents: (events: GoogleCalendarEvent[], dateKey: string) => void;
   setOutlookEvents: (events: OutlookCalendarEvent[], dateKey: string) => void;
 }
@@ -85,9 +89,48 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     return [...local, ...google, ...outlook].sort((a, b) => a.startMinutes - b.startMinutes);
   },
 
+  calendarEventsForDate: (dateKey) => {
+    const user = get().userEvents.filter((e) => e.dateKey === dateKey);
+    const linkedGoogleIds = new Set(
+      user.map((event) => event.googleEventId).filter((id): id is string => Boolean(id)),
+    );
+    const linkedOutlookIds = new Set(
+      user.map((event) => event.outlookEventId).filter((id): id is string => Boolean(id)),
+    );
+    const google = get()
+      .googleEvents.filter(
+        (e) =>
+          e.dateKey === dateKey &&
+          !(e.googleEventId && linkedGoogleIds.has(e.googleEventId)) &&
+          !linkedGoogleIds.has(e.id.startsWith("google-") ? e.id.slice("google-".length) : e.id),
+      );
+    const outlook = get()
+      .outlookEvents.filter(
+        (e) =>
+          e.dateKey === dateKey &&
+          !(e.outlookEventId && linkedOutlookIds.has(e.outlookEventId)) &&
+          !linkedOutlookIds.has(e.id.startsWith("outlook-") ? e.id.slice("outlook-".length) : e.id),
+      );
+    return [...user, ...google, ...outlook].sort((a, b) => a.startMinutes - b.startMinutes);
+  },
+
+  findCalendarEvent: (id) => {
+    const all = [...get().userEvents, ...get().googleEvents, ...get().outlookEvents];
+    return all.find((event) => event.id === id);
+  },
+
   addEvents: (events) =>
     set((s) => ({
       userEvents: [...s.userEvents, ...events],
+    })),
+
+  setUserEvents: (events) => set({ userEvents: events }),
+
+  removeCalendarEvent: (id) =>
+    set((s) => ({
+      userEvents: s.userEvents.filter((event) => event.id !== id),
+      googleEvents: s.googleEvents.filter((event) => event.id !== id),
+      outlookEvents: s.outlookEvents.filter((event) => event.id !== id),
     })),
 
   setGoogleEvents: (events: GoogleCalendarEvent[], dateKey: string) =>

@@ -10,6 +10,7 @@ import {
 } from "./manageSchedulePrompt";
 import type { CalendarEvent } from "../store/useCalendarStore";
 import { useCalendarStore } from "../store/useCalendarStore";
+import { createUserCalendarEvents, fetchUserCalendarEvents } from "./calendarEventsApi";
 import {
   fetchGoogleCalendarEventsForRange,
   fetchGoogleCalendarStatus,
@@ -18,6 +19,7 @@ import {
   fetchOutlookCalendarEventsForRange,
   fetchOutlookCalendarStatus,
 } from "./outlookCalendarSync";
+import { notifyCalendarEventsChanged } from "../hooks/usePersistedCalendarEvents";
 import { useStore } from "../store/useStore";
 import {
   DEFAULT_CALENDAR_WORK_END_MINUTES,
@@ -674,25 +676,25 @@ export function formatManageScheduleSummary(
 }
 
 /**
- * Pousse les blocs proposés par /manage dans le calendrier in-app uniquement.
- * Appelé uniquement quand l'utilisateur clique "Appliquer au calendrier" dans la bulle d'IA.
+ * Persiste les blocs /manage dans Firestore et synchronise Google / Outlook.
  */
-export function applyManageScheduleEvents(
+export async function applyManageScheduleEvents(
   events: ManageScheduleEventDraft[],
-): CalendarEvent[] {
+): Promise<CalendarEvent[]> {
   if (events.length === 0) return [];
-  const now = Date.now();
-  const payload: CalendarEvent[] = events.map((event, index) => ({
-    id: `manage-${now}-${index}`,
+  const syncPayload = events.map((event) => ({
+    title: event.title,
+    detail: event.detail,
     dateKey: event.dateKey,
     startMinutes: event.startMinutes,
     endMinutes: event.endMinutes,
-    title: event.title,
-    detail: event.detail,
-    source: "manage-skill",
   }));
-  useCalendarStore.getState().addEvents(payload);
-  return payload;
+
+  const saved = await createUserCalendarEvents(syncPayload, "manage-skill");
+  useCalendarStore.getState().setUserEvents(await fetchUserCalendarEvents());
+  notifyCalendarEventsChanged();
+  window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
+  return saved;
 }
 
 export async function runManageScheduleSkill(
@@ -761,7 +763,7 @@ export async function runManageScheduleSkill(
       throw new Error("Aucun événement");
     }
 
-    // L'utilisateur doit explicitement cliquer "Appliquer au calendrier" pour pousser les blocs.
+    // L'utilisateur confirme encore via le bouton si l'application auto a échoué.
     const intro = asString(data.summary, buildManageScheduleIntro(parsed.deadline));
 
     return {

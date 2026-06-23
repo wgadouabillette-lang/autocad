@@ -15,7 +15,11 @@ from app.connectors.registry import (
     frontend_origin,
 )
 from app.connectors.tokens import connection_account_label
-from app.connectors.user_store import get_connection, is_connected, remove_connection
+from app.connectors.user_store import (
+    is_connected_from_items,
+    load_all_connections,
+    remove_connection,
+)
 from app.core.auth_deps import require_firebase_user
 from app.core.firebase import FirebaseUser
 
@@ -34,22 +38,25 @@ def _request_public_origin(request: Request) -> str | None:
 
 @router.get("")
 def list_connectors(user: FirebaseUser = Depends(require_firebase_user)):
-    items = []
+    items = load_all_connections(user.uid)
+    result = []
     for connector_id in CONNECTOR_IDS:
         spec = CONNECTORS[connector_id]
-        entry = get_connection(user.uid, connector_id)
+        entry = items.get(connector_id)
         configured = connector_configured(connector_id)
-        items.append(
+        result.append(
             {
                 "id": connector_id,
                 "label": spec.label,
                 "provider": spec.provider,
-                "connected": configured and is_connected(user.uid, connector_id),
+                "connected": configured and is_connected_from_items(items, connector_id),
                 "configured": configured,
-                "accountLabel": connection_account_label(entry),
+                "accountLabel": connection_account_label(
+                    dict(entry) if isinstance(entry, dict) else None
+                ),
             }
         )
-    return {"connectors": items}
+    return {"connectors": result}
 
 
 @router.get("/{connector_id}/authorize")

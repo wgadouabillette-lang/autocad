@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { syncEventsToGoogleCalendar } from "../lib/calendarSync";
+import { createUserCalendarEvents, fetchUserCalendarEvents } from "../lib/calendarEventsApi";
+import { notifyCalendarEventsChanged } from "../hooks/usePersistedCalendarEvents";
 import {
   generateFollowUpDraft,
   type CallFollowUpInput,
@@ -7,7 +8,6 @@ import {
   type FollowUpEmailDraft,
   type FollowUpDraft,
 } from "../lib/followUps";
-import type { CalendarEvent } from "./useCalendarStore";
 import { useCalendarStore } from "./useCalendarStore";
 import { useNotificationsStore } from "./useNotificationsStore";
 import { useStore } from "./useStore";
@@ -107,38 +107,22 @@ export const useFollowUpsStore = create<FollowUpsState>((set, get) => ({
     const selectedActions = draft.actions.filter((a) => a.selected);
     const selectedEmails = draft.emails.filter((e) => e.selected && e.to.trim());
 
-    const calendarEvents: CalendarEvent[] = selectedActions.map((action) => ({
-      id: `cal-fu-${action.id}`,
+    const calendarPayload = selectedActions.map((action) => ({
+      title: action.title,
+      detail: action.detail,
       dateKey: action.dueDate,
       startMinutes: action.startMinutes,
       endMinutes: action.endMinutes,
-      title: action.title,
-      detail: action.detail,
-      source: "follow-up",
     }));
-
-    useCalendarStore.getState().addEvents(calendarEvents);
 
     let syncNote = "Ajouté au calendrier in-app.";
     try {
-      const result = await syncEventsToGoogleCalendar(
-        selectedActions.map((a) => ({
-          title: a.title,
-          detail: a.detail,
-          dateKey: a.dueDate,
-          startMinutes: a.startMinutes,
-          endMinutes: a.endMinutes,
-        })),
-      );
-      if (result.synced) {
-        syncNote = `${result.created} événement(s) ajouté(s) au calendrier et synchronisé(s) avec Google Calendar.`;
-      } else if (result.reason === "not_connected") {
-        syncNote = "Ajouté au calendrier in-app. Connectez Google Calendar pour synchroniser.";
-      } else {
-        syncNote = `Ajouté au calendrier in-app. Sync Google : ${result.reason ?? "indisponible"}.`;
-      }
+      await createUserCalendarEvents(calendarPayload, "follow-up");
+      useCalendarStore.getState().setUserEvents(await fetchUserCalendarEvents());
+      notifyCalendarEventsChanged();
+      syncNote = `${calendarPayload.length} événement(s) enregistré(s) et synchronisé(s) avec votre calendrier.`;
     } catch {
-      syncNote = "Ajouté au calendrier in-app. Sync Google Calendar indisponible.";
+      syncNote = "Impossible d'enregistrer les événements dans le calendrier.";
     }
 
     if (selectedEmails.length > 0) {

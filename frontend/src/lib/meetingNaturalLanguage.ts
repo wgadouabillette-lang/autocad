@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { parseManageDeadline, toDateKey } from "./daySchedule";
+import { isNaturalLanguageManageRequest, looksLikeManageComposer } from "./manageSchedulePrompt";
 import type { MentionablePerson } from "./promptPeopleMentions";
 import {
   parsePeopleMentionsFromText,
@@ -61,6 +62,7 @@ export function isMeetingSkillPrompt(text: string): boolean {
 export function isNaturalLanguageMeetingRequest(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed || isMeetingSkillPrompt(trimmed)) return false;
+  if (looksLikeManageComposer(trimmed) || isNaturalLanguageManageRequest(trimmed)) return false;
   if (!MEETING_INTENT_RE.test(trimmed)) return false;
   return (
     TIME_SIGNAL_RE.test(trimmed) ||

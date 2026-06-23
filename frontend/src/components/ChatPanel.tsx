@@ -283,13 +283,19 @@ function ChatBubble({
       />
       {showManageCta ? (
         <div className="manage-sync-cta-wrap">
-          <p className="manage-sync-prompt">
-            Souhaitez-vous ajouter ces blocs à votre calendrier ?
-          </p>
-          <ApplyToCalendarButton
-            chatIndex={chatIndex!}
-            applied={message.manageEventsApplied}
-          />
+          {message.manageEventsApplied ? (
+            <p className="manage-sync-prompt">Blocs ajoutés à votre calendrier.</p>
+          ) : (
+            <>
+              <p className="manage-sync-prompt">
+                Souhaitez-vous ajouter ces blocs à votre calendrier ?
+              </p>
+              <ApplyToCalendarButton
+                chatIndex={chatIndex!}
+                applied={message.manageEventsApplied}
+              />
+            </>
+          )}
         </div>
       ) : null}
     </div>

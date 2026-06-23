@@ -138,3 +138,12 @@ export async function syncEventsToGoogleCalendar(
 
   return (await r.json()) as CalendarSyncResult;
 }
+
+export async function deleteGoogleCalendarEvent(eventId: string): Promise<void> {
+  const safeId = eventId.trim();
+  if (!safeId) return;
+  await fetch(`${BASE}/events/${encodeURIComponent(safeId)}`, {
+    method: "DELETE",
+    headers: await authHeaders(),
+  });
+}

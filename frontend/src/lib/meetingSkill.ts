@@ -1,6 +1,6 @@
-import { syncEventsToGoogleCalendar } from "./calendarSync";
+import { createUserCalendarEvents, fetchUserCalendarEvents } from "./calendarEventsApi";
 import { formatDayLabel, toDateKey } from "./daySchedule";
-import { syncEventsToOutlookCalendar } from "./outlookCalendarSync";
+import { notifyCalendarEventsChanged } from "../hooks/usePersistedCalendarEvents";
 import type { MentionablePerson } from "./promptPeopleMentions";
 import {
   parsePeopleMentionsFromText,
@@ -149,10 +149,8 @@ export async function runMeetingSkill(input: {
     source: "meeting-skill",
   };
 
-  useCalendarStore.getState().addEvents([event]);
-
-  await Promise.all([
-    syncEventsToGoogleCalendar([
+  await createUserCalendarEvents(
+    [
       {
         title,
         detail: event.detail,
@@ -160,19 +158,12 @@ export async function runMeetingSkill(input: {
         startMinutes,
         endMinutes,
       },
-    ]),
-    syncEventsToOutlookCalendar([
-      {
-        title,
-        detail: event.detail,
-        dateKey: draft.dateKey,
-        startMinutes,
-        endMinutes,
-      },
-    ]),
-  ]).then(() => {
-    window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
-  });
+    ],
+    "meeting-skill",
+  );
+  useCalendarStore.getState().setUserEvents(await fetchUserCalendarEvents());
+  notifyCalendarEventsChanged();
+  window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
 
   const dayLabel = formatDayLabel(draft.dateKey);
   const timeLabel = `${draft.startTime} – ${draft.endTime}`;

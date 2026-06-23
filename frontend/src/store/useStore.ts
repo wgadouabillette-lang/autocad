@@ -57,7 +57,7 @@ import {
   localRulesReply,
 } from "../lib/chatRulesFallback";
 import { waitMinChatProcessing } from "../lib/chatProcessing";
-import { isManageSchedulePrompt, isNaturalLanguageManageRequest, isPlaySkillPrompt } from "../lib/chatSkills";
+import { isManageSchedulePrompt, isManageScheduleRequest, isPlaySkillPrompt } from "../lib/chatSkills";
 import {
   applyManageScheduleEvents,
   runManageScheduleSkill,
@@ -426,7 +426,7 @@ interface State {
     options?: { managePrompt?: ManageSchedulePromptDraft },
   ) => Promise<void>;
   /** Pousse les blocs proposés par /manage dans le calendrier (déclenché par "Appliquer au calendrier"). */
-  applyManageEventsForChatMessage: (chatIndex: number) => void;
+  applyManageEventsForChatMessage: (chatIndex: number) => Promise<void>;
   sendAgent: (
     prompt: string,
     imageFiles?: File[],
@@ -1164,6 +1164,58 @@ export const useStore = create<State>((set, get) => ({
         return;
       }
 
+      if (isManageScheduleRequest(displayText, prompt, options?.managePrompt)) {
+        get().tickAiRunStep();
+        // Si le composer fournit un draft structuré, on lui passe ; sinon on parse le bloc texte (qui peut être dans `prompt` plutôt que `displayText`).
+        const blockForSkill = isManageSchedulePrompt(prompt) ? prompt : displayText;
+        const scheduleResult = await runManageScheduleSkill(
+          blockForSkill,
+          signal,
+          options?.managePrompt,
+        );
+        let manageEventsApplied = false;
+        if (scheduleResult.events.length > 0) {
+          await applyManageScheduleEvents(scheduleResult.events);
+          manageEventsApplied = true;
+          if (scheduleResult.firstDateKey) {
+            useCalendarOverlayStore.getState().setSelectedDate(scheduleResult.firstDateKey);
+          }
+        }
+        await waitMinChatProcessing(processingStartedAt, signal);
+        const assistantText =
+          scheduleResult.summary ||
+          "Je n'ai pas pu planifier les tâches. Vérifiez le bloc /manage.";
+        const summary =
+          assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
+        set((s) => ({
+          ...patchChatState(
+            [
+              ...s.chat,
+              {
+                role: "assistant",
+                text: assistantText,
+                source: "manage-skill",
+                manageEvents: scheduleResult.events.length ? scheduleResult.events : undefined,
+                manageEventsApplied,
+              },
+            ],
+            s.openChatTabs,
+            s.activeChatTabId,
+          ),
+          aiRun: {
+            ...run,
+            status: "done",
+            finishedAt: Date.now(),
+            summary,
+            message: assistantText,
+            source: "manage-skill",
+            steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+          },
+        }));
+        writeAutosave(get());
+        return;
+      }
+
       if (
         !isMeetingSkillPrompt(displayText) &&
         !isMeetingSkillPrompt(prompt) &&
@@ -1273,56 +1325,6 @@ export const useStore = create<State>((set, get) => ({
           writeAutosave(get());
           return;
         }
-      }
-
-      if (
-        isManageSchedulePrompt(displayText) ||
-        isManageSchedulePrompt(prompt) ||
-        options?.managePrompt ||
-        isNaturalLanguageManageRequest(displayText)
-      ) {
-        get().tickAiRunStep();
-        // Si le composer fournit un draft structuré, on lui passe ; sinon on parse le bloc texte (qui peut être dans `prompt` plutôt que `displayText`).
-        const blockForSkill = isManageSchedulePrompt(prompt) ? prompt : displayText;
-        const scheduleResult = await runManageScheduleSkill(
-          blockForSkill,
-          signal,
-          options?.managePrompt,
-        );
-        await waitMinChatProcessing(processingStartedAt, signal);
-        const assistantText =
-          scheduleResult.summary ||
-          "Je n'ai pas pu planifier les tâches. Vérifiez le bloc /manage.";
-        // Pas d'ouverture auto du calendrier — l'utilisateur clique "Appliquer au calendrier" pour confirmer.
-        const summary =
-          assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
-        set((s) => ({
-          ...patchChatState(
-            [
-              ...s.chat,
-              {
-                role: "assistant",
-                text: assistantText,
-                source: "manage-skill",
-                manageEvents: scheduleResult.events.length ? scheduleResult.events : undefined,
-                manageEventsApplied: false,
-              },
-            ],
-            s.openChatTabs,
-            s.activeChatTabId,
-          ),
-          aiRun: {
-            ...run,
-            status: "done",
-            finishedAt: Date.now(),
-            summary,
-            message: assistantText,
-            source: "manage-skill",
-            steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
-          },
-        }));
-        writeAutosave(get());
-        return;
       }
 
       const history = chatWithoutLastUserPrompt(get().chat, displayText)
@@ -1457,14 +1459,14 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
-  applyManageEventsForChatMessage: (chatIndex) => {
+  applyManageEventsForChatMessage: async (chatIndex) => {
     const message = get().chat[chatIndex];
     if (!message || message.role !== "assistant" || message.source !== "manage-skill") return;
     if (message.manageEventsApplied) return;
     const events = message.manageEvents;
     if (!events || events.length === 0) return;
 
-    applyManageScheduleEvents(events);
+    await applyManageScheduleEvents(events);
     if (events[0]?.dateKey) {
       useCalendarOverlayStore.getState().setSelectedDate(events[0].dateKey);
       get().openCalendarPanel();

@@ -3,8 +3,8 @@ import clsx from "clsx";
 import { X } from "lucide-react";
 import { avatarColor, userInitials } from "../../lib/calls";
 import { formatDayLabel, toDateKey } from "../../lib/daySchedule";
-import { syncEventsToGoogleCalendar } from "../../lib/calendarSync";
-import { syncEventsToOutlookCalendar } from "../../lib/outlookCalendarSync";
+import { createUserCalendarEvents, fetchUserCalendarEvents } from "../../lib/calendarEventsApi";
+import { notifyCalendarEventsChanged } from "../../hooks/usePersistedCalendarEvents";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
@@ -50,7 +50,6 @@ export default function CalendarEventComposer() {
   const composerInitialHour = useCalendarOverlayStore((s) => s.composerInitialHour);
   const composerInitialDate = useCalendarOverlayStore((s) => s.composerInitialDate);
   const closeComposer = useCalendarOverlayStore((s) => s.closeComposer);
-  const addEvents = useCalendarStore((s) => s.addEvents);
   const friends = usePeopleStore((s) => s.friends);
   const sendMessage = usePeopleStore((s) => s.sendMessage);
 
@@ -102,20 +101,9 @@ export default function CalendarEventComposer() {
     }
 
     const detailTrimmed = detail.trim();
-    const eventPayload = {
-      id: `user-${eventDate}-${Date.now()}`,
-      dateKey: eventDate,
-      startMinutes,
-      endMinutes,
-      title: trimmedTitle,
-      detail: detailTrimmed || undefined,
-      source: "user" as const,
-    };
 
-    addEvents([eventPayload]);
-
-    void Promise.all([
-      syncEventsToGoogleCalendar([
+    void createUserCalendarEvents(
+      [
         {
           title: trimmedTitle,
           detail: detailTrimmed || undefined,
@@ -123,19 +111,17 @@ export default function CalendarEventComposer() {
           startMinutes,
           endMinutes,
         },
-      ]),
-      syncEventsToOutlookCalendar([
-        {
-          title: trimmedTitle,
-          detail: detailTrimmed || undefined,
-          dateKey: eventDate,
-          startMinutes,
-          endMinutes,
-        },
-      ]),
-    ]).then(() => {
-      window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
-    });
+      ],
+      "user",
+    )
+      .then(async () => {
+        useCalendarStore.getState().setUserEvents(await fetchUserCalendarEvents());
+        notifyCalendarEventsChanged();
+        window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
+      })
+      .catch(() => {
+        setError("Impossible d'enregistrer l'événement.");
+      });
 
     if (invitedIds.size > 0) {
       const dayLabel = formatDayLabel(eventDate);

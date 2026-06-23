@@ -4983,6 +4983,19 @@ body {
     border: 1px solid rgb(96 165 250 / 0.45);
     box-shadow: 0 1px 0 var(--forma-drop-20);
   }
+  .calendar-panel__event-delete {
+    @apply absolute right-1 top-1 z-[2] inline-flex h-4 w-4 items-center justify-center rounded
+      text-muted-300 opacity-70 transition-opacity hover:text-muted-100 hover:opacity-100;
+    background-color: rgb(15 23 42 / 0.45);
+  }
+  .calendar-panel__event:not(:hover) .calendar-panel__event-delete {
+    @apply opacity-0;
+  }
+  @media (hover: none) {
+    .calendar-panel__event-delete {
+      @apply opacity-80;
+    }
+  }
   .calendar-panel__event--now {
     background-color: rgb(56 110 195 / 0.32);
     border-color: rgb(147 197 253 / 0.7);
@@ -5003,7 +5016,7 @@ body {
     @apply truncate text-[10.5px] leading-snug text-muted-400;
   }
   .calendar-panel__event-live {
-    @apply absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide
+    @apply absolute right-1.5 top-6 rounded-full px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide
       text-muted-100;
     background-color: rgb(96 165 250 / 0.35);
   }

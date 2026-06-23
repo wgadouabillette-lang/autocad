@@ -125,3 +125,12 @@ export async function syncEventsToOutlookCalendar(
 
   return (await r.json()) as CalendarSyncResult;
 }
+
+export async function deleteOutlookCalendarEvent(eventId: string): Promise<void> {
+  const safeId = eventId.trim();
+  if (!safeId) return;
+  await fetch(`${BASE}/events/${encodeURIComponent(safeId)}`, {
+    method: "DELETE",
+    headers: await authHeaders(),
+  });
+}
