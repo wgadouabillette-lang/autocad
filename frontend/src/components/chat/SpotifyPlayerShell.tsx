@@ -81,8 +81,6 @@ export default function SpotifyPlayerShell() {
 
   return (
     <>
-      {!panelOpen && currentTrack ? <SpotifyNowPlayingBar compact /> : null}
-
       {panelOpen ? (
         <div className="spotify-player-overlay" role="dialog" aria-modal="true" aria-label="Lecteur Spotify">
           <button

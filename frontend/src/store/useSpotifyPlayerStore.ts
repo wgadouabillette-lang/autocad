@@ -263,6 +263,6 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
   stop: () => {
     stopPreviewAudio();
     void pauseSpotifyWebPlayback();
-    set({ playing: false, currentTrack: null, playbackMode: null });
+    set({ playing: false, currentTrack: null, playbackMode: null, panelOpen: false });
   },
 }));

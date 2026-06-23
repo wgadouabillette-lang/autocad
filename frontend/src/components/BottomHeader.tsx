@@ -13,6 +13,7 @@ import {
   MicOff,
   MonitorUp,
   PhoneOff,
+  Square,
   Video,
   VideoOff,
 } from "lucide-react";
@@ -138,6 +139,9 @@ export default function BottomHeader() {
   const followUpBusy = useFollowUpCaptureStore((s) => s.busy);
   const toggleFollowUp = useFollowUpCaptureStore((s) => s.toggle);
   const openSpotifyPanel = useSpotifyPlayerStore((s) => s.openPanel);
+  const stopSpotify = useSpotifyPlayerStore((s) => s.stop);
+  const spotifyCurrentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
+  const spotifyPlaying = useSpotifyPlayerStore((s) => s.playing);
   const { connectedIds, connect, connectingId, statuses } = useConnectors();
   const spotifyStatus = statuses.find((s) => s.id === "spotify");
   const spotifyConnected = connectedIds.has("spotify");
@@ -187,35 +191,49 @@ export default function BottomHeader() {
     </BottomBarButton>
   );
 
-  const spotifyLabel = spotifyConnected
-    ? spotifyStatus?.accountLabel
-      ? `Spotify · ${spotifyStatus.accountLabel}`
-      : "Spotify connecté"
-    : spotifyConfigured
-      ? "Connecter Spotify"
-      : "Spotify (non configuré)";
+  const spotifyPlaybackActive = spotifyCurrentTrack != null;
+
+  const spotifyLabel = spotifyPlaybackActive
+    ? spotifyPlaying
+      ? `Arrêter · ${spotifyCurrentTrack.name}`
+      : "Arrêter la musique"
+    : spotifyConnected
+      ? spotifyStatus?.accountLabel
+        ? `Spotify · ${spotifyStatus.accountLabel}`
+        : "Spotify connecté"
+      : spotifyConfigured
+        ? "Connecter Spotify"
+        : "Spotify (non configuré)";
 
   const spotifyButton = (
     <BottomBarButton
       label={spotifyLabel}
       onClick={() => {
+        if (spotifyPlaybackActive) {
+          stopSpotify();
+          return;
+        }
         if (!spotifyConnected) {
           void connect("spotify");
           return;
         }
         openSpotifyPanel();
       }}
-      active={spotifyConnected}
+      active={spotifyPlaybackActive || spotifyConnected}
       disabled={!spotifyConfigured || connectingId === "spotify"}
     >
-      <img
-        src={connectorIconPath(CONNECTOR_ICON_FILES.spotify)}
-        alt=""
-        className="bottom-bar-btn__connector-icon"
-        width={ICON_SIZE}
-        height={ICON_SIZE}
-        draggable={false}
-      />
+      {spotifyPlaybackActive ? (
+        <Square size={ICON_SIZE} fill="currentColor" aria-hidden />
+      ) : (
+        <img
+          src={connectorIconPath(CONNECTOR_ICON_FILES.spotify)}
+          alt=""
+          className="bottom-bar-btn__connector-icon"
+          width={ICON_SIZE}
+          height={ICON_SIZE}
+          draggable={false}
+        />
+      )}
     </BottomBarButton>
   );
 
