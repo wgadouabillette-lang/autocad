@@ -18,9 +18,14 @@ import { getFirestore } from "firebase/firestore";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getStorage } from "firebase/storage";
 import { shouldFallbackToOAuthRedirect } from "./authErrors";
+import { debugLog } from "../debugLog";
 import { firebaseConfig, functionsRegion } from "./config";
+import { resolveAuthDomain } from "./resolveAuthDomain";
 
-const app = initializeApp(firebaseConfig);
+const app = initializeApp({
+  ...firebaseConfig,
+  authDomain: resolveAuthDomain(),
+});
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
@@ -108,6 +113,19 @@ let oauthRedirectResultPromise: Promise<User | null> | null = null;
 
 async function resolveOAuthRedirectUser(): Promise<User | null> {
   const result = await getRedirectResult(auth);
+  // #region agent log
+  debugLog(
+    "client.ts:resolveOAuthRedirectUser",
+    "OAuth redirect resolution",
+    {
+      redirectUid: result?.user?.uid ?? null,
+      currentUid: auth.currentUser?.uid ?? null,
+      pathname: window.location.pathname,
+      search: window.location.search,
+    },
+    "A",
+  );
+  // #endregion
   if (result?.user) return result.user;
   await auth.authStateReady();
   return auth.currentUser;

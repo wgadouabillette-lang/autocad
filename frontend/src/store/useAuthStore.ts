@@ -41,11 +41,14 @@ import { useCallsStore } from "./useCallsStore";
 import {
   applyDashboardOnboardingFromProfile,
 } from "../lib/dashboardOnboarding";
+import { debugLog } from "../lib/debugLog";
 
 export type AuthProvider = FirebaseAuthProvider;
 
 const PROFILE_SYNC_DEBOUNCE_MS = 600;
 const AUTH_HYDRATE_TIMEOUT_MS = 12_000;
+
+let activeAuthHydrateCleanup: (() => void) | null = null;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -410,13 +413,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   emailLinkSent: false,
 
   hydrate: () => {
+    activeAuthHydrateCleanup?.();
+    activeAuthHydrateCleanup = null;
+
     let disposed = false;
     let stopProfileAutosync: (() => void) | null = null;
     let authLoadId = 0;
     let pendingAuthResolved = false;
     let unsubscribe: (() => void) | null = null;
 
-    const setSignedOut = () => {
+    const setSignedOut = (reason: string) => {
+      // #region agent log
+      debugLog(
+        "useAuthStore.ts:setSignedOut",
+        "Auth signed out",
+        {
+          reason,
+          pathname: window.location.pathname,
+          hadUid: get().firebaseUid,
+        },
+        "B",
+      );
+      // #endregion
       set({
         ready: true,
         isAuthenticated: false,
@@ -432,8 +450,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }, 2500);
 
-    const handleAuthenticatedUser = (user: User) => {
+    const handleAuthenticatedUser = (user: User, source: string) => {
       if (disposed) return;
+      // #region agent log
+      debugLog(
+        "useAuthStore.ts:handleAuthenticatedUser",
+        "Hydrating authenticated user",
+        {
+          source,
+          uid: user.uid,
+          email: user.email ?? null,
+          priorReady: get().ready,
+          priorAuthenticated: get().isAuthenticated,
+        },
+        "E",
+      );
+      // #endregion
       window.clearTimeout(readyFallback);
       authLoadId += 1;
       const loadId = authLoadId;
@@ -514,31 +546,78 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       pendingAuthResolved = true;
 
       const user = redirectUser ?? auth.currentUser;
+      // #region agent log
+      debugLog(
+        "useAuthStore.ts:hydrateInitialUser",
+        "Resolved initial auth user",
+        {
+          redirectUid: redirectUser?.uid ?? null,
+          currentUid: auth.currentUser?.uid ?? null,
+          chosenUid: user?.uid ?? null,
+          pathname: window.location.pathname,
+          search: window.location.search,
+        },
+        "A",
+      );
+      // #endregion
       if (user) {
-        handleAuthenticatedUser(user);
+        handleAuthenticatedUser(user, "hydrate-initial");
       } else {
-        setSignedOut();
+        setSignedOut("hydrate-no-user");
       }
 
       unsubscribe = watchAuthState((nextUser) => {
         if (disposed) return;
+        // #region agent log
+        debugLog(
+          "useAuthStore.ts:watchAuthState",
+          "Auth state changed",
+          {
+            nextUid: nextUser?.uid ?? null,
+            currentUid: get().firebaseUid,
+            ready: get().ready,
+            isAuthenticated: get().isAuthenticated,
+          },
+          "B",
+        );
+        // #endregion
         if (!nextUser) {
-          setSignedOut();
+          void (async () => {
+            await auth.authStateReady();
+            if (disposed) return;
+            if (auth.currentUser) {
+              // #region agent log
+              debugLog(
+                "useAuthStore.ts:watchAuthState",
+                "Ignored spurious auth null",
+                { uid: auth.currentUser.uid },
+                "B",
+              );
+              // #endregion
+              return;
+            }
+            setSignedOut("watchAuthState-null");
+          })();
           return;
         }
-        if (nextUser.uid === get().firebaseUid && get().isAuthenticated && get().ready) {
+        if (nextUser.uid === get().firebaseUid && get().isAuthenticated) {
           return;
         }
-        handleAuthenticatedUser(nextUser);
+        handleAuthenticatedUser(nextUser, "watchAuthState");
       });
     })();
 
-    return () => {
+    const cleanup = () => {
       disposed = true;
       window.clearTimeout(readyFallback);
       stopProfileAutosync?.();
       unsubscribe?.();
+      if (activeAuthHydrateCleanup === cleanup) {
+        activeAuthHydrateCleanup = null;
+      }
     };
+    activeAuthHydrateCleanup = cleanup;
+    return cleanup;
   },
 
   continueWithEmail: async (email) => {
@@ -555,12 +634,50 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signInWithProvider: async (provider) => {
+    // #region agent log
+    debugLog(
+      "useAuthStore.ts:signInWithProvider",
+      "OAuth sign-in started",
+      { provider, pathname: window.location.pathname },
+      "E",
+    );
+    // #endregion
     set({ authError: null, ready: false });
     try {
-      await signInWithOAuthProvider(provider);
+      const user = await signInWithOAuthProvider(provider);
+      // #region agent log
+      debugLog(
+        "useAuthStore.ts:signInWithProvider",
+        "OAuth sign-in completed via popup",
+        { provider, uid: user.uid, email: user.email ?? null },
+        "E",
+      );
+      // #endregion
     } catch (error) {
-      if (error instanceof OAuthRedirectStartedError) return;
-      set({ authError: formatAuthError(error, provider) });
+      if (error instanceof OAuthRedirectStartedError) {
+        // #region agent log
+        debugLog(
+          "useAuthStore.ts:signInWithProvider",
+          "OAuth redirect started",
+          { provider },
+          "A",
+        );
+        // #endregion
+        return;
+      }
+      // #region agent log
+      debugLog(
+        "useAuthStore.ts:signInWithProvider",
+        "OAuth sign-in failed",
+        {
+          provider,
+          authDomain: auth.app.options.authDomain ?? null,
+          message: error instanceof Error ? error.message : String(error),
+        },
+        "E",
+      );
+      // #endregion
+      set({ authError: formatAuthError(error, provider), ready: true });
     }
   },
 

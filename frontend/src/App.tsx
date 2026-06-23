@@ -298,6 +298,32 @@ export default function App() {
     };
   }, [handleRecordingStreamEnded, handleRecordingCaptureLost]);
 
+  const renderBranch = !authReady
+    ? "loading-auth"
+    : !isAuthenticated
+      ? "auth-page"
+      : bootStatus !== "ready"
+        ? "loading-boot"
+        : "app";
+  // #region agent log
+  if (appRenderCount <= 60 || renderBranch !== "app") {
+    debugLog(
+      "App.tsx:renderBranch",
+      "App render branch",
+      {
+        renderBranch,
+        authReady,
+        isAuthenticated,
+        bootStatus,
+        authEmail,
+        firebaseUid,
+        pathname: window.location.pathname,
+      },
+      renderBranch === "auth-page" ? "C" : "D",
+    );
+  }
+  // #endregion
+
   if (!authReady) {
     return (
       <AppLoadingScreen

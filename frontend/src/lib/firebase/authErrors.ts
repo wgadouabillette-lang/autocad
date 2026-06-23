@@ -36,6 +36,10 @@ export function formatAuthError(error: unknown, provider?: FirebaseAuthProvider 
       : null;
   if (code === "auth/invalid-credential" && provider) {
     const label = PROVIDER_LABELS[provider];
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("invalid_client") || message.includes("client secret is invalid")) {
+      return `Connexion ${label} impossible : le client OAuth Firebase est mal configuré (secret invalide). Dans la console Firebase → Authentication → Google, désactivez puis réactivez le fournisseur, ou exécutez « firebase deploy --only auth ».`;
+    }
     return `Connexion ${label} refusée (session expirée ou configuration OAuth). Réessayez ou utilisez un autre mode de connexion.`;
   }
   if (code && AUTH_ERROR_MESSAGES[code]) {
@@ -48,6 +52,9 @@ export function formatAuthError(error: unknown, provider?: FirebaseAuthProvider 
 }
 
 export function shouldFallbackToOAuthRedirect(error: unknown): boolean {
+  // Popup is reliable in local dev; redirect often fails to restore the session on localhost.
+  if (import.meta.env.DEV) return false;
+
   const code =
     typeof error === "object" &&
     error !== null &&
@@ -55,10 +62,6 @@ export function shouldFallbackToOAuthRedirect(error: unknown): boolean {
     typeof (error as FirebaseError).code === "string"
       ? (error as FirebaseError).code
       : null;
-  return (
-    code === "auth/popup-blocked" ||
-    code === "auth/popup-closed-by-user" ||
-    code === "auth/cancelled-popup-request" ||
-    code === "auth/invalid-credential"
-  );
+  // Never redirect on invalid-credential — redirect would fail the same way and loops back to login.
+  return code === "auth/popup-blocked";
 }
