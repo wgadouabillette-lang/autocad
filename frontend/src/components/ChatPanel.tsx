@@ -88,6 +88,7 @@ import {
   workspaceMembersForRoom,
 } from "../lib/peopleChat";
 import { useAuthStore } from "../store/useAuthStore";
+import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
 import { debugLog } from "../lib/debugLog";
 import SkillTimeline, {
@@ -95,7 +96,6 @@ import SkillTimeline, {
   type SkillTimelineSuccess,
 } from "./chat/SkillTimeline";
 import {
-  buildPlayTimelineSteps,
   GROUP_TIMELINE_STEPS,
   HANDOFF_TIMELINE_STEPS,
   MANAGE_TIMELINE_STEPS,
@@ -1295,30 +1295,24 @@ export default function ChatPanel() {
     setText("");
     clearAttachments();
     if (playQuery) {
-      const spotifyConnected = connectedConnectors.has("spotify");
-      const playSteps: SkillTimelineStep[] = spotifyConnected
-        ? buildPlayTimelineSteps(playQuery)
-        : [
-            { id: "connect-spotify", label: "Connecting Spotify", minMs: 1500 },
-            ...buildPlayTimelineSteps(playQuery),
-          ];
-      setActiveSkillRun(buildSkillRun("play", playSteps, true));
-      if (!spotifyConnected) {
+      setActiveSkillRun(null);
+      if (!connectedConnectors.has("spotify")) {
+        useSpotifyPlayerStore.getState().openPanel(playQuery);
+        useSpotifyPlayerStore.setState({
+          playerNotice: "Connecte Spotify pour lancer la lecture.",
+        });
         const onOauthDone = () => {
           window.removeEventListener("forma-connector-oauth-done", onOauthDone);
-          void submitAssistantPrompt(prompt, imageFiles).then((result) => {
-            if (result?.blocked && result.requireImage) {
-              fileInputRef.current?.click();
-            }
-          });
+          void useSpotifyPlayerStore.getState().openPanelAndPlay(playQuery);
         };
         window.addEventListener("forma-connector-oauth-done", onOauthDone);
         void connectConnector("spotify");
         return;
       }
-    } else {
-      setActiveSkillRun(null);
+      void useSpotifyPlayerStore.getState().openPanelAndPlay(playQuery);
+      return;
     }
+    setActiveSkillRun(null);
     void submitAssistantPrompt(prompt, imageFiles).then((result) => {
       if (result?.blocked && result.requireImage) {
         fileInputRef.current?.click();

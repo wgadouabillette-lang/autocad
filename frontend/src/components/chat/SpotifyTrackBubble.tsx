@@ -50,7 +50,7 @@ export default function SpotifyTrackBubble({
             <span className="spotify-track-card__badge">Extrait 30 s</span>
           ) : null}
         </p>
-        {track.url ? (
+        {track.url && !canPlay ? (
           <a
             href={track.url}
             target="_blank"
@@ -60,7 +60,14 @@ export default function SpotifyTrackBubble({
             {track.name}
           </a>
         ) : (
-          <p className="spotify-track-card__title">{track.name}</p>
+          <button
+            type="button"
+            className="spotify-track-card__title spotify-track-card__title--link"
+            onClick={togglePlay}
+            disabled={!canPlay}
+          >
+            {track.name}
+          </button>
         )}
         <p className="spotify-track-card__meta">
           {track.artists}

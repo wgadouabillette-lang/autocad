@@ -35,7 +35,7 @@ import { useStore } from "../store/useStore";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { useConnectors } from "../hooks/useConnectors";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
-import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
+import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
 
 const ICON_SIZE = 19;
@@ -137,7 +137,7 @@ export default function BottomHeader() {
   const followUpActive = useFollowUpCaptureStore((s) => s.active);
   const followUpBusy = useFollowUpCaptureStore((s) => s.busy);
   const toggleFollowUp = useFollowUpCaptureStore((s) => s.toggle);
-  const insertAgentComposerText = useStore((s) => s.insertAgentComposerText);
+  const openSpotifyPanel = useSpotifyPlayerStore((s) => s.openPanel);
   const { connectedIds, connect, connectingId, statuses } = useConnectors();
   const spotifyStatus = statuses.find((s) => s.id === "spotify");
   const spotifyConnected = connectedIds.has("spotify");
@@ -203,7 +203,7 @@ export default function BottomHeader() {
           void connect("spotify");
           return;
         }
-        insertAgentComposerText(PLAY_SKILL_TEMPLATE);
+        openSpotifyPanel();
       }}
       active={spotifyConnected}
       disabled={!spotifyConfigured || connectingId === "spotify"}

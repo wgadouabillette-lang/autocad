@@ -56,6 +56,7 @@ interface SpotifyPlayerState {
   premiumAvailable: boolean | null;
   playerNotice: string | null;
   openPanel: (query?: string) => void;
+  openPanelAndPlay: (query: string) => Promise<void>;
   closePanel: () => void;
   setSearchQuery: (query: string) => void;
   search: (query?: string) => Promise<void>;
@@ -109,6 +110,37 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
     set({ panelOpen: true, searchQuery: trimmed, searchError: null, playerNotice: null });
     void get().refreshPlayerConfig();
     if (trimmed) void get().search(trimmed);
+  },
+
+  openPanelAndPlay: async (query) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      get().openPanel();
+      set({ playerNotice: "Indiquez un titre ou un artiste." });
+      return;
+    }
+
+    set({
+      panelOpen: true,
+      searchQuery: trimmed,
+      searchError: null,
+      playerNotice: null,
+      searching: true,
+    });
+    await get().refreshPlayerConfig();
+    await get().search(trimmed);
+
+    const first = get().results[0];
+    if (!first) {
+      set({
+        playerNotice: `Aucun résultat pour « ${trimmed} ».`,
+        panelOpen: true,
+      });
+      return;
+    }
+
+    await get().playTrack(first);
+    set({ panelOpen: false });
   },
 
   closePanel: () => set({ panelOpen: false }),
