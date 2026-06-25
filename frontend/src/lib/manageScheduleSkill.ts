@@ -701,6 +701,7 @@ export async function runManageScheduleSkill(
   userBlock: string,
   signal?: AbortSignal,
   draft?: ManageSchedulePromptDraft,
+  workspaceId?: string,
 ): Promise<ManageScheduleResult> {
   if (
     !isManageSchedulePrompt(userBlock) &&
@@ -752,7 +753,7 @@ export async function runManageScheduleSkill(
 
   try {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const response = await api.chat(prompt, "auto", [], signal);
+    const response = await api.chat(prompt, "auto", [], signal, undefined, workspaceId);
     const data = parseJsonFromLlm(response.message);
     let events = filterValidScheduleEvents(normalizeEventsFromLlm(data, parsed), parsed);
 

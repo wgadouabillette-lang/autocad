@@ -59,6 +59,11 @@ class BillingStatusResponse(BaseModel):
     stripeSubscriptionStatus: Optional[str] = None
 
 
+class DevPlanSyncRequest(BaseModel):
+    plan: str
+    onDemandUsageEnabled: bool = False
+
+
 class OnDemandLimitRequest(BaseModel):
     limitUsd: Optional[float] = None
 
@@ -200,6 +205,41 @@ def billing_status(user: FirebaseUser = Depends(require_firebase_user)):
         billingManaged=billing_managed,
         stripeSubscriptionStatus=str(billing.get("stripeSubscriptionStatus") or "") or None,
     )
+
+
+@router.post("/dev-plan-sync")
+def dev_plan_sync(
+    body: DevPlanSyncRequest,
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    """Sync local Pro toggle to Firestore for dev / when Stripe webhooks are not active."""
+    import os
+
+    allow_dev_sync = os.getenv("ALLOW_DEV_PLAN_SYNC", "1").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+    if settings.stripe_checkout_enabled and not allow_dev_sync:
+        raise HTTPException(403, "Dev plan sync is disabled while Stripe checkout is enabled.")
+
+    from app.ai.usage import init_usage_period_for_pro
+    from app.core.firebase import load_user_usage, update_user_subscription_profile
+
+    plan = "pro" if body.plan == "pro" else "free"
+    on_demand = plan == "pro" and bool(body.onDemandUsageEnabled)
+    update_user_subscription_profile(
+        user.uid,
+        subscription_plan=plan,
+        on_demand_usage_enabled=on_demand,
+        billing_managed=plan == "pro",
+    )
+    if plan == "pro":
+        existing = load_user_usage(user.uid)
+        if not isinstance(existing.get("allowanceUsdRetail"), (int, float)):
+            init_usage_period_for_pro(user.uid)
+    return {"ok": True, "plan": plan}
 
 
 def _workspace_display_name(workspace_id: str) -> str:

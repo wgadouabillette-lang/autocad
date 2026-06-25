@@ -59,29 +59,119 @@
           />
         </figure>
       </section>
+
+      <section class="home-highlights" aria-labelledby="highlights-heading">
+        <div class="home-highlights__inner">
+          <div class="home-highlights__header">
+            <h2 id="highlights-heading" class="section__title">Recent highlights</h2>
+          </div>
+
+          <div class="home-highlights__grid" id="highlights-grid">
+            <button type="button" class="home-highlights__card">
+              <span class="home-highlights__card-tag">Voice</span>
+              <span class="home-highlights__card-title">Spotlight vidéo</span>
+              <span class="home-highlights__card-desc">
+                Agrandissez la caméra ou le partage d'écran d'un participant en un clic.
+              </span>
+            </button>
+            <button type="button" class="home-highlights__card">
+              <span class="home-highlights__card-tag">Chat</span>
+              <span class="home-highlights__card-title">Handoff IA</span>
+              <span class="home-highlights__card-desc">
+                Transmettez un extrait de conversation à un collègue ou un groupe.
+              </span>
+            </button>
+            <button type="button" class="home-highlights__card">
+              <span class="home-highlights__card-tag">Calls</span>
+              <span class="home-highlights__card-title">AI Notes</span>
+              <span class="home-highlights__card-desc">
+                Transcription live pendant vos appels vocaux, directement dans Lyte.
+              </span>
+            </button>
+            <button type="button" class="home-highlights__card">
+              <span class="home-highlights__card-tag">Connectors</span>
+              <span class="home-highlights__card-title">Spotify dans le chat</span>
+              <span class="home-highlights__card-desc">
+                Lancez une piste ou ajoutez-la à la file depuis le composer.
+              </span>
+            </button>
+            <button type="button" class="home-highlights__card home-highlights__card--extra">
+              <span class="home-highlights__card-tag">Presence</span>
+              <span class="home-highlights__card-title">Mute &amp; main levée</span>
+              <span class="home-highlights__card-desc">
+                Voyez en direct qui est mute ou a levé la main dans l'appel.
+              </span>
+            </button>
+            <button type="button" class="home-highlights__card home-highlights__card--extra">
+              <span class="home-highlights__card-tag">Follow-up</span>
+              <span class="home-highlights__card-title">Récap post-appel</span>
+              <span class="home-highlights__card-desc">
+                Synthèse structurée, calendrier et e-mails après votre réunion.
+              </span>
+            </button>
+          </div>
+
+          <div class="home-highlights__actions">
+            <button
+              type="button"
+              class="home-highlights__more"
+              id="highlights-more"
+              aria-expanded="false"
+              aria-controls="highlights-grid"
+            >
+              <span class="home-highlights__more-label">View more product upgrades</span>
+              <svg
+                class="home-highlights__more-icon"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="home-try section-headline" aria-labelledby="try-heading">
+        <div class="home-try__container">
+          <div class="home-try__content">
+            <h2 id="try-heading" class="home-try__title">Try Lyte Now.</h2>
+            <div class="home-try__actions">
+              <div class="home-try__desktop">
+                <a
+                  class="btn btn--primary home-try__download"
+                  id="home-download"
+                  href="/downloads/Lyte-mac.dmg"
+                  download
+                >
+                  <span id="home-download-label">Download for macOS</span>
+                  <span class="btn-icon" aria-hidden="true">⤓</span>
+                </a>
+              </div>
+              <div class="home-try__mobile">
+                <a class="btn btn--primary" href="auth.html">
+                  <span>Commencer</span>
+                  <span class="btn-icon" aria-hidden="true">→</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
-    <footer class="site-footer">
-      <div class="site-footer__inner">
-        <small class="site-footer__copy">
-          © <span id="copy-year">2026</span> Lyte. Tous droits réservés.
-        </small>
-        <nav class="site-footer__links" aria-label="Liens du pied de page">
-          <a href="tarifs.html">Tarifs</a>
-          <a href="careers.html">Careers</a>
-          <a href="ressources.html">Ressources</a>
-          <a href="privacy.html">Confidentialité</a>
-          <a href="terms.html">Conditions</a>
-        </nav>
-      </div>
-    </footer>
+    <div id="site-footer"></div>
 
     <script src="nav.js"></script>
-    <script>
-      (function () {
-        var year = document.getElementById('copy-year');
-        if (year) year.textContent = String(new Date().getFullYear());
-      })();
-    </script>
+    <script src="footer.js"></script>
+    <script src="home.js"></script>
   </body>
 </html>

@@ -25,6 +25,9 @@ import {
   splitLocalFromBlock,
   splitRemoteParticipantFromBlock,
   syncRoomCallsWithMembers,
+  syncRemoteHandRaises,
+  mutedByParticipantSignature,
+  handRaisesSignature,
   type JoinRequest,
   type RoomCallsState,
 } from "../lib/calls";
@@ -43,8 +46,7 @@ import {
   upsertOpenVoiceChannel,
   type OpenVoiceChannelDoc,
 } from "../lib/firebase/workspaceOpenVoiceChannels";
-import { presenceActivityKey } from "../lib/presenceActivity";
-import { usePresenceActivityStore } from "./usePresenceActivityStore";
+import { getLocalPresenceActivityForSync } from "../lib/localPresenceActivity";
 import type { RemoteParticipantStreams } from "../lib/webrtc/workspaceVoiceRtc";
 import {
   acquireLocalMedia,
@@ -114,6 +116,7 @@ interface CallsState extends CallControls {
   remoteMediaByUid: Record<string, RemoteParticipantStreams>;
   lastSpokeAtByParticipant: Record<string, number>;
   speakingByParticipant: Record<string, boolean>;
+  mutedByParticipant: Record<string, boolean>;
 
   ensureRoom: (workspaceId: string) => void;
   syncPresenceMembers: (
@@ -203,20 +206,31 @@ function mediaMessage(error: unknown, fallback: string): string {
 }
 
 function localVoicePresence(get: () => CallsState, workspaceId: string): WorkspaceVoicePresence {
+  const inTheater = get().isLocalInTheaterCall(workspaceId);
   const inCall = get().isLocalInCall(workspaceId);
   const openChannelId = get().localOpenChannelByRoom[workspaceId] ?? null;
   const room = get().callsByRoom[workspaceId];
   const localBlock = room ? findLocalBlock(room.blocks) : undefined;
-  const inPrivateCall = inCall && !!localBlock?.inCall && !openChannelId;
+  const inPrivateCall = inCall && !!localBlock?.inCall && !openChannelId && !inTheater;
   const firebaseUid = useAuthStore.getState().firebaseUid;
   const speaking = firebaseUid
     ? !!(get().speakingByParticipant[firebaseUid] || get().speakingByParticipant.local)
     : get().speakingByParticipant.local === true;
+  const inVoice = inCall || inTheater;
   return {
     inPrivateCall,
     openChannelId: inCall && openChannelId ? openChannelId : null,
+    inTheaterCall: inTheater,
     speaking,
+    muted: inVoice ? get().muted : false,
+    handRaised: inVoice ? get().raiseHand : false,
   };
+}
+
+export function buildLocalVoicePresenceForWorkspace(
+  workspaceId: string,
+): WorkspaceVoicePresence {
+  return localVoicePresence(() => useCallsStore.getState(), workspaceId);
 }
 
 function voiceProfile() {
@@ -228,8 +242,7 @@ function voiceProfile() {
 function pushVoicePresence(get: () => CallsState, workspaceId: string) {
   const firebaseUid = useAuthStore.getState().firebaseUid;
   if (!firebaseUid || !workspaceId) return;
-  const activity =
-    usePresenceActivityStore.getState().byKey[presenceActivityKey(workspaceId, "local")] ?? null;
+  const activity = getLocalPresenceActivityForSync(workspaceId);
   void touchWorkspacePresence(
     workspaceId,
     firebaseUid,
@@ -328,6 +341,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   remoteMediaByUid: {},
   lastSpokeAtByParticipant: { ...DEFAULT_LAST_SPOKE_AT },
   speakingByParticipant: {},
+  mutedByParticipant: {},
 
   markParticipantVoiceActivity: (participantId, speaking) => {
     set((s) => {
@@ -348,9 +362,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   pushLocalSpeakingPresence: (workspaceId, speaking) => {
     const firebaseUid = useAuthStore.getState().firebaseUid;
     if (!firebaseUid || !workspaceId || !get().isLocalInCall(workspaceId)) return;
-    const activity =
-      usePresenceActivityStore.getState().byKey[presenceActivityKey(workspaceId, "local")] ??
-      null;
+    const activity = getLocalPresenceActivityForSync(workspaceId);
     void touchWorkspacePresence(
       workspaceId,
       firebaseUid,
@@ -475,6 +487,25 @@ export const useCallsStore = create<CallsState>((set, get) => ({
           ),
       );
 
+    const nextMutedByParticipant: Record<string, boolean> = {};
+    for (const member of members) {
+      if (localFirebaseUid && member.id === localFirebaseUid) continue;
+      const inVoice =
+        member.voice?.inPrivateCall ||
+        member.voice?.openChannelId ||
+        member.voice?.inTheaterCall;
+      if (inVoice) {
+        nextMutedByParticipant[member.id] = member.voice?.muted === true;
+      }
+    }
+
+    const blockHandRaiseMembers = members.filter(
+      (member) =>
+        member.voice?.inPrivateCall ||
+        member.voice?.openChannelId,
+    );
+    const theaterHandRaiseMembers = members.filter((member) => member.voice?.inTheaterCall);
+
     set((s) => {
       const current = s.callsByRoom[workspaceId] ?? createRoomCallsState(workspaceId);
       const mergedBlocks = removeDuplicateRemoteSelfBlocks(
@@ -501,23 +532,56 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       );
       blocks = splitDepartedRemotesFromMergedBlocks(blocks, voiceMembers);
 
-      if (
-        !partnerLeftMergedCall &&
+      const nextRoomHandRaises = syncRemoteHandRaises(
+        current.handRaises,
+        blockHandRaiseMembers,
+        localFirebaseUid ?? null,
+        workspaceId,
+      );
+      const theater = s.theaterByWorkspace[workspaceId];
+      const nextTheaterHandRaises = theater
+        ? syncRemoteHandRaises(
+            theater.handRaises,
+            theaterHandRaiseMembers,
+            localFirebaseUid ?? null,
+            workspaceId,
+          )
+        : null;
+
+      const blocksUnchanged =
         memberBlocksSignature(current.blocks) === memberBlocksSignature(blocks) &&
-        openChannelsSignature(current.openChannels) === openChannelsSignature(openChannels)
-      ) {
+        openChannelsSignature(current.openChannels) === openChannelsSignature(openChannels);
+      const voiceMetaUnchanged =
+        mutedByParticipantSignature(s.mutedByParticipant) ===
+          mutedByParticipantSignature(nextMutedByParticipant) &&
+        handRaisesSignature(current.handRaises) === handRaisesSignature(nextRoomHandRaises) &&
+        (!theater ||
+          handRaisesSignature(theater.handRaises) ===
+            handRaisesSignature(nextTheaterHandRaises ?? theater.handRaises));
+
+      if (!partnerLeftMergedCall && blocksUnchanged && voiceMetaUnchanged) {
         return s;
       }
 
       return {
         callsByRoom: {
           ...s.callsByRoom,
-          [workspaceId]: { ...current, blocks, openChannels },
+          [workspaceId]: { ...current, blocks, openChannels, handRaises: nextRoomHandRaises },
         },
+        mutedByParticipant: nextMutedByParticipant,
+        ...(nextTheaterHandRaises && theater
+          ? {
+              theaterByWorkspace: {
+                ...s.theaterByWorkspace,
+                [workspaceId]: { ...theater, handRaises: nextTheaterHandRaises },
+              },
+            }
+          : {}),
         ...(partnerLeftMergedCall
           ? {
               localInCallByRoom: { ...s.localInCallByRoom, [workspaceId]: false },
               speakingByParticipant: {},
+              mutedByParticipant: {},
               remoteMediaByUid: {},
               lastSpokeAtByParticipant: { ...DEFAULT_LAST_SPOKE_AT },
             }
@@ -1004,6 +1068,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     playMutedTransition(wasMuted, nextMuted);
     void get().startLocalMedia();
     playVoiceJoinSound();
+    pushVoicePresence(get, workspaceId);
   },
 
   promoteOwnerToTheaterSpeaker: (workspaceId) => {
@@ -1131,11 +1196,11 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
     playVoiceLeaveSound();
     get().closeTheaterView(workspaceId);
+    pushVoicePresence(get, workspaceId);
   },
 
   toggleBlockRaiseHand: (workspaceId) => {
     if (!get().isLocalInCall(workspaceId)) return;
-    if (!get().localOpenChannelByRoom[workspaceId]) return;
 
     const state = roomState(get, workspaceId);
     const existing = state.handRaises.find(
@@ -1157,6 +1222,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         },
         raiseHand: false,
       }));
+      pushVoicePresence(get, workspaceId);
       return;
     }
 
@@ -1178,6 +1244,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       },
       raiseHand: true,
     }));
+    pushVoicePresence(get, workspaceId);
   },
 
   toggleTheaterRaiseHand: (workspaceId) => {
@@ -1203,6 +1270,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     });
     set({ raiseHand: true });
     useTheaterChatStore.getState().sendHandRaiseNotice(workspaceId);
+    pushVoicePresence(get, workspaceId);
   },
 
   acceptHandRaise: (workspaceId, requestId) => {
@@ -1246,7 +1314,10 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     patchTheater(set, workspaceId, { handRaises });
 
     const request = theater.handRaises.find((r) => r.id === requestId);
-    if (request?.userId === LOCAL_USER.id) set({ raiseHand: false });
+    if (request?.userId === LOCAL_USER.id) {
+      set({ raiseHand: false });
+      pushVoicePresence(get, workspaceId);
+    }
   },
 
   cancelHandRaise: (workspaceId, requestId) => {
@@ -1605,6 +1676,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       syncStreamState(set);
       set({ muted: nextMuted, mediaError: null });
       playMutedTransition(wasMuted, nextMuted);
+      pushVoicePresence(get, activeRoomId);
     } catch (error) {
       set({ mediaError: mediaMessage(error, "Impossible d'accéder au micro.") });
     }

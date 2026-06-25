@@ -4,6 +4,7 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { runAiChat, assertAuthenticated } from "./ai/chat";
+import { syncDevSubscriptionPlan as applyDevSubscriptionPlan } from "./billing/syncDevSubscription";
 import "./loadSecrets";
 
 initializeApp();
@@ -96,6 +97,12 @@ export const getUserApiKeyStatus = onCall({ cors: true }, async (request) => {
 export const aiChat = onCall({ cors: true, timeoutSeconds: 120 }, async (request) => {
   assertAuthenticated(request.auth?.uid);
   return runAiChat(request.auth.uid, request.data ?? {});
+});
+
+/** Sync plan Pro local (Stripe désactivé) vers Firestore pour le quota IA. */
+export const syncDevSubscriptionPlan = onCall({ cors: true }, async (request) => {
+  assertAuthenticated(request.auth?.uid);
+  return applyDevSubscriptionPlan(request.auth.uid, request.data ?? {});
 });
 
 /** Statut LLM côté Cloud Functions (sans exposer de clés). */

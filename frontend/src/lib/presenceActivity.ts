@@ -9,7 +9,8 @@ export type PresenceActivityId =
   | "grok"
   | "claude"
   | "auto"
-  | "recording";
+  | "recording"
+  | "spotify";
 
 export interface PresenceActivityOption {
   id: PresenceActivityId;
@@ -26,6 +27,7 @@ export const PRESENCE_ACTIVITY_OPTIONS: PresenceActivityOption[] = [
   { id: "claude", label: "Claude", imageSrc: `${import.meta.env.BASE_URL}icons/ai/claude.svg` },
   { id: "auto", label: "Auto", icon: Bot },
   { id: "recording", label: "Enregistrement", icon: Sparkles },
+  { id: "spotify", label: "Spotify", imageSrc: connectorIconPath(CONNECTOR_ICON_FILES.spotify) },
 ];
 
 /** Options sélectionnables manuellement (hors états auto : IA, média, enregistrement). */
@@ -33,7 +35,8 @@ export const PRESENCE_ACTIVITY_PICKER_OPTIONS = PRESENCE_ACTIVITY_OPTIONS.filter
   (option) =>
     option.id !== "auto" &&
     option.id !== "none" &&
-    option.id !== "recording",
+    option.id !== "recording" &&
+    option.id !== "spotify",
 );
 
 export function isManualPresenceActivity(id: PresenceActivityId): boolean {

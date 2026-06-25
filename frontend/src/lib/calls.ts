@@ -450,6 +450,68 @@ export function participantHasHandRaised(
   );
 }
 
+export function syncRemoteHandRaises(
+  current: HandRaiseRequest[],
+  members: Array<{ id: string; name: string; voice?: { handRaised?: boolean } }>,
+  localUserId: string | null,
+  workspaceId: string,
+): HandRaiseRequest[] {
+  const remoteRaised = new Map<string, string>();
+  for (const member of members) {
+    if (localUserId && member.id === localUserId) continue;
+    if (member.voice?.handRaised) {
+      remoteRaised.set(member.id, member.name);
+    }
+  }
+
+  let next = current.filter(
+    (request) =>
+      request.userId === localUserId ||
+      request.status !== "pending" ||
+      remoteRaised.has(request.userId),
+  );
+
+  next = next.map((request) =>
+    request.userId !== localUserId &&
+    request.status === "pending" &&
+    !remoteRaised.has(request.userId)
+      ? { ...request, status: "declined" as const }
+      : request,
+  );
+
+  for (const [userId, userName] of remoteRaised) {
+    if (!next.some((request) => request.userId === userId && request.status === "pending")) {
+      next.push({
+        id: `hand-remote-${userId}`,
+        workspaceId,
+        userId,
+        userName,
+        status: "pending",
+      });
+    }
+  }
+
+  return next;
+}
+
+export function mutedByParticipantSignature(
+  mutedByParticipant: Record<string, boolean>,
+): string {
+  return Object.entries(mutedByParticipant)
+    .filter(([, muted]) => muted)
+    .map(([id]) => id)
+    .sort()
+    .join(",");
+}
+
+export function handRaisesSignature(handRaises: HandRaiseRequest[]): string {
+  return handRaises
+    .filter((request) => request.status === "pending")
+    .map((request) => `${request.userId}:${request.status}`)
+    .sort()
+    .join(";");
+}
+
 export function createOpenChannel(roomId: string, name: string): OpenVoiceChannel {
   const trimmedName = name.trim();
   return {

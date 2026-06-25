@@ -101,7 +101,15 @@ def run(
             if fallback
             else model_id
         )
-        usage.track_llm_result(uid, result.model_id or effective, result, workspace_id)
+        usage.track_llm_result(
+            uid,
+            result.model_id or effective,
+            result,
+            workspace_id,
+            system=chat_system,
+            history=history,
+            user_prompt=prompt.strip(),
+        )
         provider = llm.provider_for_model(model_id) or llm.active_provider() or "llm"
         if result.data and result.data.get("message"):
             message = str(result.data["message"]).strip()

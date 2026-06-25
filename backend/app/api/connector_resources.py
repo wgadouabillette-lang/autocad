@@ -462,6 +462,50 @@ async def _fetch_spotify_track(token: str, track_id: str) -> dict[str, Any]:
     return data
 
 
+@router.get("/spotify/tracks/{track_id}/beat-grid")
+async def spotify_beat_grid(
+    track_id: str,
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    token = await _require_token(user.uid, "spotify")
+    safe_id = track_id.strip()
+    if not safe_id:
+        raise HTTPException(400, "Identifiant de piste manquant.")
+    async with httpx.AsyncClient(timeout=25) as client:
+        r = await client.get(
+            f"https://api.spotify.com/v1/audio-analysis/{safe_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if r.status_code == 404:
+        async with httpx.AsyncClient(timeout=25) as client:
+            features_r = await client.get(
+                f"https://api.spotify.com/v1/audio-features/{safe_id}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        tempo = None
+        if features_r.status_code == 200 and isinstance(features_r.json(), dict):
+            raw_tempo = features_r.json().get("tempo")
+            if isinstance(raw_tempo, (int, float)):
+                tempo = float(raw_tempo)
+        return {"beats": [], "tempo": tempo}
+    if r.status_code != 200:
+        raise HTTPException(
+            r.status_code,
+            _spotify_api_error_message(r.status_code, r.text),
+        )
+    data = r.json()
+    if not isinstance(data, dict):
+        data = {}
+    beats_raw = data.get("beats") or []
+    beats: list[float] = []
+    for entry in beats_raw:
+        if isinstance(entry, dict) and isinstance(entry.get("start"), (int, float)):
+            beats.append(float(entry["start"]))
+    track_meta = data.get("track") if isinstance(data.get("track"), dict) else {}
+    tempo = track_meta.get("tempo") if isinstance(track_meta.get("tempo"), (int, float)) else None
+    return {"beats": beats, "tempo": tempo}
+
+
 @router.post("/spotify/play")
 async def spotify_play(
     body: SpotifyPlayBody,

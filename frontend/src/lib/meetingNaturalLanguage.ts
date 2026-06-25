@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { useStore } from "../store/useStore";
 import { parseManageDeadline, toDateKey } from "./daySchedule";
 import { isNaturalLanguageManageRequest, looksLikeManageComposer } from "./manageSchedulePrompt";
 import type { MentionablePerson } from "./promptPeopleMentions";
@@ -245,7 +246,8 @@ async function llmParseNaturalLanguageMeeting(
   ].join("\n");
 
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-  const response = await api.chat(prompt, "auto", [], signal);
+  const workspaceId = useStore.getState().activeRoomId;
+  const response = await api.chat(prompt, "auto", [], signal, undefined, workspaceId);
   const data = parseJsonFromLlm(response.message);
 
   const attendeeMentions = Array.isArray(data.attendeeMentions)

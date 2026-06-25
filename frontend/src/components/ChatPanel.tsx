@@ -65,11 +65,12 @@ import MailPromptLine from "./chat/MailPromptLine";
 import PlayPromptLine from "./chat/PlayPromptLine";
 import SpotifyTrackBubble from "./chat/SpotifyTrackBubble";
 import SpotifyTrackList from "./chat/SpotifyTrackList";
+import SpotifyComposerActions from "./chat/SpotifyComposerActions";
 import {
   filterSlashSkillMenu,
   slashQueryAt,
 } from "../lib/promptSlashSkills";
-import { isPlaySkillPrompt, parsePlaySkillQuery } from "../lib/playSkill";
+import { isAddQueueSkillPrompt, isPlaySkillPrompt, parseAddQueueSkillQuery, parsePlaySkillQuery } from "../lib/playSkill";
 import {
   buildGroupNameFromMembers,
   isCreateGroupComposerReady,
@@ -88,7 +89,6 @@ import {
   workspaceMembersForRoom,
 } from "../lib/peopleChat";
 import { useAuthStore } from "../store/useAuthStore";
-import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
 import { debugLog } from "../lib/debugLog";
 import SkillTimeline, {
@@ -104,6 +104,7 @@ import {
   RECAP_TIMELINE_STEPS,
   SKILL_ACTION_LABELS,
   SKILL_SUCCESS_LABELS,
+  buildPlayTimelineSteps,
   type SkillTimelineId,
 } from "../lib/skillTimelines";
 import {
@@ -121,6 +122,7 @@ import {
   type MailPromptDraft,
 } from "../lib/mailSkill";
 import { fetchGmailStatus } from "../lib/connectorsApi";
+import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 
 const CHAT_COMPOSER_SURFACE_STYLE: CSSProperties = {
   backgroundColor: "var(--forma-chat-composer-bg)",
@@ -230,6 +232,16 @@ function ChatBubble({
       message.playQuery ?? parsePlaySkillQuery(message.text) ?? undefined;
     if (
       playQuery &&
+      (message.source === "add-queue-prompt" || isAddQueueSkillPrompt(message.text))
+    ) {
+      return (
+        <div className="chat-user-bubble chat-user-bubble--play-prompt">
+          <PlayPromptLine query={playQuery} slash="/add-queue" readOnly />
+        </div>
+      );
+    }
+    if (
+      playQuery &&
       (message.source === "play-prompt" || /(?:^|\s)\/play\b/i.test(message.text))
     ) {
       return (
@@ -269,9 +281,18 @@ function ChatBubble({
     typeof chatIndex === "number";
 
   return (
-    <div className="chat-assistant-bubble">
+    <div
+      className={clsx(
+        "chat-assistant-bubble",
+        message.source === "play-skill" && "chat-assistant-bubble--play-skill",
+      )}
+    >
       {message.spotifySearch?.length ? (
-        <SpotifyTrackList tracks={message.spotifySearch} compact />
+        <SpotifyTrackList
+          tracks={message.spotifySearch}
+          compact
+          mode={message.spotifySearchMode ?? "play"}
+        />
       ) : null}
       {message.spotifyTrack ? (
         <SpotifyTrackBubble track={message.spotifyTrack} playState={message.spotifyPlay} />
@@ -431,6 +452,9 @@ export default function ChatPanel() {
   const setHandoffTarget = useHandoffStore((s) => s.setTarget);
   const submitSegmentHandoff = useHandoffStore((s) => s.submitSegmentHandoff);
   const closeHandoffPreview = useHandoffStore((s) => s.closePreview);
+  const spotifySessionTrack = useSpotifyPlayerStore(
+    (s) => s.currentTrack ?? s.lastPlayedTrack,
+  );
   const modelRef = useRef<HTMLDivElement>(null);
   const mentionRef = useRef<HTMLDivElement>(null);
   const skillsRef = useRef<HTMLDivElement>(null);
@@ -460,6 +484,10 @@ export default function ChatPanel() {
     connectingId,
     error: connectorError,
   } = useConnectors();
+  const spotifyConnected = connectedConnectors.has("spotify");
+  const showSpotifyComposerActions =
+    (!!spotifySessionTrack || spotifyConnected) && !handoffSelectionMode;
+  const prevChatTabIdRef = useRef<string | null>(null);
   const prevChatLenRef = useRef(chat.length);
 
   useEffect(() => {
@@ -478,6 +506,24 @@ export default function ChatPanel() {
       el?.setSelectionRange(pos, pos);
     });
   }, [agentComposerInsert, takeAgentComposerInsert]);
+
+  useEffect(() => {
+    if (prevChatTabIdRef.current === activeChatTabId) return;
+    prevChatTabIdRef.current = activeChatTabId;
+    setText("");
+    setAttachments([]);
+    setActiveComposerSkill(null);
+    setManageDraft(createDefaultManageDraft());
+    setMeetingDraft(createDefaultMeetingDraft());
+    setMailDraft(createDefaultMailDraft());
+    setMailAttachments([]);
+    setRecapDraft(null);
+    setSlashOpen(false);
+    setConnectorsOpen(false);
+    setMentionOpen(false);
+    setModelOpen(false);
+    setActiveSkillRun(null);
+  }, [activeChatTabId, setRecapDraft]);
 
   const buildSkillRun = useCallback(
     (skillId: SkillTimelineId, steps: SkillTimelineStep[], awaitingAssistant = false) => ({
@@ -1291,28 +1337,38 @@ export default function ChatPanel() {
 
     const prompt = raw || "(Attachments)";
     const imageFiles = attachments.filter((a) => a.isImage).map((a) => a.file);
-    const playQuery = isPlaySkillPrompt(prompt) ? parsePlaySkillQuery(prompt) : null;
+    const addQueueQuery = isAddQueueSkillPrompt(prompt) ? parseAddQueueSkillQuery(prompt) : null;
+    const playQuery =
+      !addQueueQuery && isPlaySkillPrompt(prompt) ? parsePlaySkillQuery(prompt) : null;
     setText("");
     clearAttachments();
-    if (playQuery) {
-      setActiveSkillRun(null);
-      if (!connectedConnectors.has("spotify")) {
-        useSpotifyPlayerStore.getState().openPanel(playQuery);
-        useSpotifyPlayerStore.setState({
-          playerNotice: "Connecte Spotify pour lancer la lecture.",
-        });
+    if (addQueueQuery || playQuery) {
+      const searchQuery = addQueueQuery ?? playQuery!;
+      const skillId = addQueueQuery ? "add-queue" : "play";
+      const spotifyConnected = connectedConnectors.has("spotify");
+      const playSteps: SkillTimelineStep[] = spotifyConnected
+        ? buildPlayTimelineSteps(searchQuery)
+        : [
+            { id: "connect-spotify", label: "Connecting Spotify", minMs: 1500 },
+            ...buildPlayTimelineSteps(searchQuery),
+          ];
+      setActiveSkillRun(buildSkillRun(skillId, playSteps, true));
+      if (!spotifyConnected) {
         const onOauthDone = () => {
           window.removeEventListener("forma-connector-oauth-done", onOauthDone);
-          void useSpotifyPlayerStore.getState().openPanelAndPlay(playQuery);
+          void submitAssistantPrompt(prompt, imageFiles).then((result) => {
+            if (result?.blocked && result.requireImage) {
+              fileInputRef.current?.click();
+            }
+          });
         };
         window.addEventListener("forma-connector-oauth-done", onOauthDone);
         void connectConnector("spotify");
         return;
       }
-      void useSpotifyPlayerStore.getState().openPanelAndPlay(playQuery);
-      return;
+    } else {
+      setActiveSkillRun(null);
     }
-    setActiveSkillRun(null);
     void submitAssistantPrompt(prompt, imageFiles).then((result) => {
       if (result?.blocked && result.requireImage) {
         fileInputRef.current?.click();
@@ -1340,8 +1396,10 @@ export default function ChatPanel() {
       : text.trim().length > 0 || attachments.length > 0;
 
   const playQueryDraft = parsePlaySkillQuery(text);
+  const addQueueQueryDraft = parseAddQueueSkillQuery(text);
   const canSubmitResolved =
-    isPlaySkillPrompt(text.trim()) && !playQueryDraft
+    (isPlaySkillPrompt(text.trim()) && !playQueryDraft) ||
+    (isAddQueueSkillPrompt(text.trim()) && !addQueueQueryDraft)
       ? false
       : canSubmit;
 
@@ -1988,6 +2046,11 @@ export default function ChatPanel() {
                   />
                 </div>
               )}
+              {showSpotifyComposerActions ? (
+                <div className="chat-spotify-actions-wrap">
+                  <SpotifyComposerActions />
+                </div>
+              ) : null}
               {composerBlock}
             </>
           )}

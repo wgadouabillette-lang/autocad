@@ -176,7 +176,11 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
   });
 
   if (result.message) {
-    await trackLlmResult(uid, modelId, result, workspaceId || undefined);
+    await trackLlmResult(uid, modelId, result, workspaceId || undefined, {
+      system: chatSystem,
+      history,
+      userPrompt: prompt,
+    });
     return {
       message: result.message,
       source: provider,
@@ -202,7 +206,11 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
         return { message: null, error: String(err), rateLimited: false, inputTokens: 0, outputTokens: 0, modelId: modelId };
       });
       if (retry.message) {
-        await trackLlmResult(uid, fallbackModel, retry, workspaceId || undefined);
+        await trackLlmResult(uid, fallbackModel, retry, workspaceId || undefined, {
+          system: chatSystem,
+          history,
+          userPrompt: prompt,
+        });
         return {
           message: `*(Modèle Auto — limite atteinte sur le modèle choisi.)*\n\n${retry.message}`,
           source: fallbackProvider,

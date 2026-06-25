@@ -233,6 +233,20 @@ export async function fetchSpotifyPlayerToken(): Promise<string> {
   return data.accessToken;
 }
 
+export async function fetchSpotifyBeatGrid(
+  trackId: string,
+): Promise<{ beats: number[]; tempo: number | null }> {
+  const r = await fetch(`${BASE}/spotify/tracks/${encodeURIComponent(trackId)}/beat-grid`, {
+    headers: await authHeaders(),
+  });
+  if (!r.ok) throw new Error(await readError(r));
+  const data = (await r.json()) as { beats?: number[]; tempo?: number | null };
+  return {
+    beats: Array.isArray(data.beats) ? data.beats : [],
+    tempo: typeof data.tempo === "number" ? data.tempo : null,
+  };
+}
+
 export async function playSpotifyTrack(
   query: string,
   signal?: AbortSignal,

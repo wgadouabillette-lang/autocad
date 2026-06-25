@@ -57,15 +57,20 @@ import {
   localRulesReply,
 } from "../lib/chatRulesFallback";
 import { waitMinChatProcessing } from "../lib/chatProcessing";
-import { isManageSchedulePrompt, isManageScheduleRequest, isPlaySkillPrompt } from "../lib/chatSkills";
+import { syncDevSubscriptionToFirestore } from "../lib/firebase/subscriptionSync";
+import { isManageSchedulePrompt, isManageScheduleRequest, isAddQueueSkillPrompt, isPlaySkillPrompt } from "../lib/chatSkills";
 import {
   applyManageScheduleEvents,
   runManageScheduleSkill,
   type ManageScheduleEventDraft,
 } from "../lib/manageScheduleSkill";
-import { parsePlaySkillQuery } from "../lib/playSkill";
+import { parseAddQueueSkillQuery, parsePlaySkillQuery, runPlaySearchSkill } from "../lib/playSkill";
 import type { ManageSchedulePromptDraft } from "../lib/manageSchedulePrompt";
 import type { MeetingPromptDraft } from "../lib/meetingSkill";
+
+function pushDevSubscriptionToFirestore(plan: SubscriptionPlan, onDemand: boolean): void {
+  void syncDevSubscriptionToFirestore(plan, onDemand).catch(() => {});
+}
 import type { MailPromptDraft } from "../lib/mailSkill";
 import {
   isMeetingSkillPrompt,
@@ -78,7 +83,6 @@ import {
   parseConnectorSlashCommand,
 } from "../lib/connectorSkills";
 import { useCalendarOverlayStore } from "./useCalendarOverlayStore";
-import { useSpotifyPlayerStore } from "./useSpotifyPlayerStore";
 import { auth } from "../lib/firebase/client";
 import {
   deleteChatSession as fbDeleteChatSession,
@@ -99,6 +103,7 @@ export interface ChatMessage {
   manageEventsApplied?: boolean;
   playQuery?: string;
   spotifySearch?: SpotifyTrackCard[];
+  spotifySearchMode?: "play" | "queue-add";
   spotifyTrack?: SpotifyTrackCard;
   spotifyPlay?: SpotifyPlayState;
   actions?: { kind: string; description: string }[];
@@ -703,6 +708,7 @@ export const useStore = create<State>((set, get) => ({
         onDemandUsageEnabled: onDemand,
       }),
     );
+    pushDevSubscriptionToFirestore(normalized, onDemand);
   },
 
   setOnDemandUsageEnabled: (enabled) => {
@@ -711,6 +717,7 @@ export const useStore = create<State>((set, get) => ({
     writeUserPreferences(
       userPreferencesSnapshot({ ...get(), onDemandUsageEnabled: enabled }),
     );
+    pushDevSubscriptionToFirestore("pro", enabled);
   },
 
   toggleOnDemandUsage: () => {
@@ -720,6 +727,7 @@ export const useStore = create<State>((set, get) => ({
     writeUserPreferences(
       userPreferencesSnapshot({ ...get(), onDemandUsageEnabled: next }),
     );
+    pushDevSubscriptionToFirestore("pro", next);
   },
 
   setAgentChatInstructions: (value) => {
@@ -918,20 +926,6 @@ export const useStore = create<State>((set, get) => ({
   sendChat: async (prompt, userChatText, options?: { managePrompt?: ManageSchedulePromptDraft }) => {
     const displayText = userChatText ?? prompt;
 
-    if (isPlaySkillPrompt(displayText)) {
-      const playQuery = parsePlaySkillQuery(displayText);
-      if (!playQuery) {
-        useSpotifyPlayerStore.getState().openPanel();
-        useSpotifyPlayerStore.setState({
-          playerNotice:
-            "Indiquez un titre ou un artiste après `/play`, par exemple : `/play Bohemian Rhapsody`.",
-        });
-        return;
-      }
-      await useSpotifyPlayerStore.getState().openPanelAndPlay(playQuery);
-      return;
-    }
-
     const { aiModel, chat, activeRoomId, agentChatInstructions } = get();
     const peopleState = usePeopleStore.getState();
     const roomCalls = useCallsStore.getState().getRoomCalls(activeRoomId);
@@ -960,6 +954,17 @@ export const useStore = create<State>((set, get) => ({
             ...(options?.managePrompt
               ? { source: "manage-prompt", managePrompt: options.managePrompt }
               : {}),
+            ...(isAddQueueSkillPrompt(displayText)
+              ? {
+                  source: "add-queue-prompt",
+                  playQuery: parseAddQueueSkillQuery(displayText) ?? undefined,
+                }
+              : isPlaySkillPrompt(displayText)
+                ? {
+                    source: "play-prompt",
+                    playQuery: parsePlaySkillQuery(displayText) ?? undefined,
+                  }
+                : {}),
           },
         ],
         s.openChatTabs,
@@ -973,6 +978,181 @@ export const useStore = create<State>((set, get) => ({
       if (AI_STUB_INFINITE_LOADING) {
         await waitUntilAborted(signal);
         return;
+      }
+
+      if (isAddQueueSkillPrompt(displayText)) {
+        get().tickAiRunStep();
+        const queueQuery = parseAddQueueSkillQuery(displayText);
+        if (!queueQuery) {
+          const assistantText =
+            "Indiquez un titre ou un artiste après `/add-queue`, par exemple : `/add-queue Bohemian Rhapsody`.";
+          await waitMinChatProcessing(processingStartedAt, signal);
+          set((s) => ({
+            ...patchChatState(
+              [...s.chat, { role: "assistant", text: assistantText, source: "play-skill" }],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "done",
+              finishedAt: Date.now(),
+              summary: assistantText.slice(0, 140),
+              message: assistantText,
+              source: "play-skill",
+              steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+            },
+          }));
+          writeAutosave(get());
+          return;
+        }
+
+        try {
+          const playResult = await runPlaySearchSkill(queueQuery, signal);
+          await waitMinChatProcessing(processingStartedAt, signal);
+          const assistantText = playResult.summary;
+          const summary =
+            assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
+          set((s) => ({
+            ...patchChatState(
+              [
+                ...s.chat,
+                {
+                  role: "assistant",
+                  text: assistantText,
+                  source: "play-skill",
+                  spotifySearch: playResult.tracks,
+                  spotifySearchMode: "queue-add" as const,
+                },
+              ],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "done",
+              finishedAt: Date.now(),
+              summary,
+              message: assistantText,
+              source: "play-skill",
+              steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+            },
+          }));
+          writeAutosave(get());
+          return;
+        } catch (queueErr: unknown) {
+          if (queueErr instanceof DOMException && queueErr.name === "AbortError") throw queueErr;
+          const message =
+            queueErr instanceof Error
+              ? queueErr.message
+              : "Impossible de rechercher sur Spotify.";
+          await waitMinChatProcessing(processingStartedAt, signal);
+          set((s) => ({
+            ...patchChatState(
+              [...s.chat, { role: "assistant", text: message, source: "play-skill" }],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "error",
+              finishedAt: Date.now(),
+              summary: message.slice(0, 140),
+              error: message,
+              source: "play-skill",
+              steps: [{ id: "1", label: "Spotify", detail: message, status: "error" }],
+            },
+          }));
+          writeAutosave(get());
+          return;
+        }
+      }
+
+      if (isPlaySkillPrompt(displayText)) {
+        get().tickAiRunStep();
+        const playQuery = parsePlaySkillQuery(displayText);
+        if (!playQuery) {
+          const assistantText =
+            "Indiquez un titre ou un artiste après `/play`, par exemple : `/play Bohemian Rhapsody`.";
+          await waitMinChatProcessing(processingStartedAt, signal);
+          set((s) => ({
+            ...patchChatState(
+              [...s.chat, { role: "assistant", text: assistantText, source: "play-skill" }],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "done",
+              finishedAt: Date.now(),
+              summary: assistantText.slice(0, 140),
+              message: assistantText,
+              source: "play-skill",
+              steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+            },
+          }));
+          writeAutosave(get());
+          return;
+        }
+
+        try {
+          const playResult = await runPlaySearchSkill(playQuery, signal);
+          await waitMinChatProcessing(processingStartedAt, signal);
+          const assistantText = playResult.summary;
+          const summary =
+            assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
+          set((s) => ({
+            ...patchChatState(
+              [
+                ...s.chat,
+                {
+                  role: "assistant",
+                  text: assistantText,
+                  source: "play-skill",
+                  spotifySearch: playResult.tracks,
+                },
+              ],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "done",
+              finishedAt: Date.now(),
+              summary,
+              message: assistantText,
+              source: "play-skill",
+              steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+            },
+          }));
+          writeAutosave(get());
+          return;
+        } catch (playErr: unknown) {
+          if (playErr instanceof DOMException && playErr.name === "AbortError") throw playErr;
+          const message =
+            playErr instanceof Error
+              ? playErr.message
+              : "Impossible de lancer la lecture Spotify.";
+          await waitMinChatProcessing(processingStartedAt, signal);
+          set((s) => ({
+            ...patchChatState(
+              [...s.chat, { role: "assistant", text: message, source: "play-skill" }],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "error",
+              finishedAt: Date.now(),
+              summary: message.slice(0, 140),
+              error: message,
+              source: "play-skill",
+              steps: [{ id: "1", label: "Spotify", detail: message, status: "error" }],
+            },
+          }));
+          writeAutosave(get());
+          return;
+        }
       }
 
       if (!hasAiAccess(get().subscriptionPlan, get().billingManaged, get().workspaceEnterpriseActive)) {
@@ -1094,6 +1274,7 @@ export const useStore = create<State>((set, get) => ({
           blockForSkill,
           signal,
           options?.managePrompt,
+          activeRoomId,
         );
         let manageEventsApplied = false;
         if (scheduleResult.events.length > 0) {

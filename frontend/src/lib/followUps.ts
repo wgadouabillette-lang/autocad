@@ -234,7 +234,7 @@ export async function generateFollowUpDraft(ctx: CallFollowUpInput): Promise<Fol
     ].join("\n");
 
     try {
-      const response = await api.chat(prompt, "auto", []);
+      const response = await api.chat(prompt, "auto", [], undefined, undefined, ctx.roomId);
       const parsed = parseJsonFromLlm(response.message);
       const draft = normalizeDraftFromLlm(parsed, ctx);
       if (draft.actions.length > 0 || draft.emails.length > 0 || draft.recap) {

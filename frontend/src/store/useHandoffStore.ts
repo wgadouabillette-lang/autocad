@@ -10,6 +10,7 @@ import type {
 import type { ChatMessage } from "./useStore";
 import { useStore } from "./useStore";
 import { auth } from "../lib/firebase/client";
+import { syncDevSubscriptionToFirestore } from "../lib/firebase/subscriptionSync";
 import { usePeopleStore } from "./usePeopleStore";
 import type { PeopleMessage } from "../lib/peopleChat";
 
@@ -82,6 +83,16 @@ async function deliverHandoffInboxMessage(
     payload.inboxText,
     extras,
   );
+}
+
+async function ensureDevSubscriptionSyncedForHandoff(): Promise<void> {
+  const { subscriptionPlan, billingManaged, onDemandUsageEnabled } = useStore.getState();
+  if (subscriptionPlan !== "pro" || !billingManaged) return;
+  try {
+    await syncDevSubscriptionToFirestore("pro", onDemandUsageEnabled);
+  } catch {
+    // Firestore sync can fail when Cloud Functions are offline; handoff will retry validation.
+  }
 }
 
 export const useHandoffStore = create<HandoffStore>((set, get) => ({
@@ -161,6 +172,7 @@ export const useHandoffStore = create<HandoffStore>((set, get) => ({
 
     set({ submitting: true, error: null });
     try {
+      await ensureDevSubscriptionSyncedForHandoff();
       const indices = [...selectedIndices].sort((a, b) => a - b);
       const result = await api.createHandoff({
         kind: "ai-segment",
@@ -188,6 +200,7 @@ export const useHandoffStore = create<HandoffStore>((set, get) => ({
 
     set({ submitting: true, error: null });
     try {
+      await ensureDevSubscriptionSyncedForHandoff();
       const indices = [...selectedIndices].sort((a, b) => a - b);
       const selectedMessages = indices
         .map((index) => messages[index])

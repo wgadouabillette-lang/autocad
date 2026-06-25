@@ -60,6 +60,7 @@ export default function CallBlockCard({
   const activeRoomId = useStore((s) => s.activeRoomId);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const speakingByParticipant = useCallsStore((s) => s.speakingByParticipant);
+  const mutedByParticipant = useCallsStore((s) => s.mutedByParticipant);
   const handRaises = useCallsStore((s) => s.callsByRoom[activeRoomId]?.handRaises ?? []);
   const openMemberConversation = usePeopleStore((s) => s.openWorkspaceMemberConversation);
 
@@ -113,6 +114,7 @@ export default function CallBlockCard({
       workspaceId={activeRoomId}
       speaking={speakingByParticipant[user.id] ?? false}
       handRaised={showHandRaise && participantHasHandRaised(handRaises, user.id)}
+      muted={user.isLocal ? undefined : mutedByParticipant[user.id] === true}
       allowVideo={false}
       compact
     />

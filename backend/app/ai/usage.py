@@ -190,6 +190,61 @@ def workspace_usage_quota_applies(workspace_id: str) -> bool:
     return plan == "enterprise" and billing_managed
 
 
+def user_has_enterprise_ai_access(uid: str) -> bool:
+    """True when uid belongs to at least one enterprise-billed workspace."""
+    from app.core.firebase import _db, _ensure_db
+
+    normalized = (uid or "").strip()
+    if not normalized:
+        return False
+    _ensure_db()
+    if _db is None:
+        return False
+
+    checked: set[str] = set()
+
+    def workspace_grants_ai(workspace_id: str) -> bool:
+        wid = workspace_id.strip().lower()
+        if not wid or wid in checked:
+            return False
+        checked.add(wid)
+        if not workspace_usage_quota_applies(wid):
+            return False
+        return is_workspace_member(normalized, wid)
+
+    try:
+        for doc in _db.collection_group("members").stream():
+            if doc.id != normalized:
+                continue
+            parent = doc.reference.parent.parent
+            if parent is None:
+                continue
+            if workspace_grants_ai(parent.id):
+                return True
+    except Exception as exc:
+        logger.warning("Enterprise AI access scan (members) failed for %s: %s", normalized, exc)
+
+    try:
+        owned = (
+            _db.collection("workspacesShared")
+            .where("ownerId", "==", normalized)
+            .limit(32)
+            .stream()
+        )
+        for doc in owned:
+            if workspace_grants_ai(doc.id):
+                return True
+    except Exception as exc:
+        logger.warning("Enterprise AI access scan (owned) failed for %s: %s", normalized, exc)
+
+    return False
+
+
+def user_has_ai_access(uid: str) -> bool:
+    """Pro personnel actif ou membre d'un workspace Entreprise facturé."""
+    return usage_quota_applies(uid) or user_has_enterprise_ai_access(uid)
+
+
 def resolve_usage_target(uid: Optional[str], workspace_id: Optional[str] = None) -> Optional[UsageTarget]:
     wid = (workspace_id or "").strip().lower()
     if uid and wid and workspace_usage_quota_applies(wid) and is_workspace_member(uid, wid):
@@ -468,18 +523,74 @@ def check_usage_gate(uid: Optional[str], workspace_id: Optional[str] = None) -> 
     return None
 
 
+def _estimate_tokens_from_text(text: str) -> int:
+    cleaned = (text or "").strip()
+    return max(1, (len(cleaned) + 3) // 4)
+
+
+def _resolve_token_counts(
+    *,
+    input_tokens: int,
+    output_tokens: int,
+    response_text: Optional[str] = None,
+    system: Optional[str] = None,
+    history: Optional[list] = None,
+    user_prompt: Optional[str] = None,
+) -> tuple[int, int]:
+    in_t = max(0, int(input_tokens or 0))
+    out_t = max(0, int(output_tokens or 0))
+    response = (response_text or "").strip()
+
+    if in_t <= 0 and out_t <= 0 and response:
+        parts = [system or ""]
+        for item in history or []:
+            if isinstance(item, dict):
+                parts.append(str(item.get("content") or ""))
+            else:
+                content = getattr(item, "content", None)
+                if content:
+                    parts.append(str(content))
+        parts.append(user_prompt or "")
+        in_t = _estimate_tokens_from_text("\n".join(parts))
+        out_t = _estimate_tokens_from_text(response)
+    else:
+        if in_t <= 0 and out_t > 0:
+            in_t = max(1, round(out_t * 0.5))
+        if out_t <= 0 and response:
+            out_t = _estimate_tokens_from_text(response)
+    return in_t, out_t
+
+
 def track_llm_result(
     uid: Optional[str],
     model_id: str,
     result: object,
     workspace_id: Optional[str] = None,
+    *,
+    system: Optional[str] = None,
+    history: Optional[list] = None,
+    user_prompt: Optional[str] = None,
 ) -> None:
     target = resolve_usage_target(uid, workspace_id)
     if not target:
         return
     billing_model = getattr(result, "model_id", None) or model_id
-    input_tokens = int(getattr(result, "input_tokens", 0) or 0)
-    output_tokens = int(getattr(result, "output_tokens", 0) or 0)
+    raw_in = int(getattr(result, "input_tokens", 0) or 0)
+    raw_out = int(getattr(result, "output_tokens", 0) or 0)
+    response_text = None
+    data = getattr(result, "data", None)
+    if isinstance(data, dict) and data.get("message"):
+        response_text = str(data.get("message") or "")
+    elif getattr(result, "message", None):
+        response_text = str(getattr(result, "message") or "")
+    input_tokens, output_tokens = _resolve_token_counts(
+        input_tokens=raw_in,
+        output_tokens=raw_out,
+        response_text=response_text,
+        system=system,
+        history=history,
+        user_prompt=user_prompt,
+    )
     if input_tokens <= 0 and output_tokens <= 0:
         return
     record_llm_usage(target, str(billing_model), input_tokens, output_tokens, uid=uid)

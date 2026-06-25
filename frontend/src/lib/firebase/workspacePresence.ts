@@ -15,7 +15,10 @@ import type { PresenceActivityId } from "../presenceActivity";
 export interface WorkspaceVoicePresence {
   inPrivateCall: boolean;
   openChannelId: string | null;
+  inTheaterCall?: boolean;
   speaking?: boolean;
+  muted?: boolean;
+  handRaised?: boolean;
 }
 
 export interface WorkspacePresenceDoc {
@@ -25,7 +28,10 @@ export interface WorkspacePresenceDoc {
   lastSeen?: { seconds: number; nanoseconds: number };
   voiceInPrivateCall?: boolean;
   voiceOpenChannelId?: string | null;
+  voiceInTheaterCall?: boolean;
   voiceSpeaking?: boolean;
+  voiceMuted?: boolean;
+  voiceHandRaised?: boolean;
   presenceActivity?: string | null;
 }
 
@@ -51,7 +57,10 @@ function voiceFromDoc(data: WorkspacePresenceDoc): WorkspaceVoicePresence {
       typeof data.voiceOpenChannelId === "string" && data.voiceOpenChannelId
         ? data.voiceOpenChannelId
         : null,
+    inTheaterCall: data.voiceInTheaterCall === true,
     speaking: data.voiceSpeaking === true,
+    muted: data.voiceMuted === true,
+    handRaised: data.voiceHandRaised === true,
   };
 }
 
@@ -114,7 +123,10 @@ export async function touchWorkspacePresence(
   if (voice) {
     payload.voiceInPrivateCall = voice.inPrivateCall;
     payload.voiceOpenChannelId = voice.openChannelId ?? deleteField();
+    payload.voiceInTheaterCall = voice.inTheaterCall === true;
     payload.voiceSpeaking = voice.speaking === true;
+    payload.voiceMuted = voice.muted === true;
+    payload.voiceHandRaised = voice.handRaised === true;
   }
   if (presenceActivity !== undefined) {
     payload.presenceActivity =

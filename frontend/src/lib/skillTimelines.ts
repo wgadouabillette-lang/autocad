@@ -1,6 +1,6 @@
 import type { SkillTimelineStep } from "../components/chat/SkillTimeline";
 
-export type SkillTimelineId = "manage" | "group" | "handoff" | "recap" | "play" | "meeting" | "mail";
+export type SkillTimelineId = "manage" | "group" | "handoff" | "recap" | "play" | "add-queue" | "meeting" | "mail";
 
 const PROCESSING_STEP: SkillTimelineStep = {
   id: "processing",
@@ -97,6 +97,7 @@ export const SKILL_SUCCESS_LABELS: Record<SkillTimelineId, string> = {
   group: "Group created",
   handoff: "Handoff sent",
   play: "Now playing",
+  "add-queue": "Added to queue",
   meeting: "Meeting scheduled",
   mail: "Email sent",
 };

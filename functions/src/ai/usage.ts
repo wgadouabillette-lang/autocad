@@ -9,6 +9,8 @@ import {
   usageMarkupMultiplier,
 } from "./usagePricing";
 import { reportOnDemandStripeUsage, resetOnDemandStripeReporting } from "../billing/onDemandUsage";
+import { resolveTokenCounts } from "./usageTokens";
+import type { ChatMessage } from "./llm";
 
 function onDemandBilledUsd(doc: Record<string, unknown>): number {
   const stored = doc.onDemandUsedUsdRetail;
@@ -410,14 +412,26 @@ export async function checkUsageGate(uid: string, workspaceId?: string): Promise
 export async function trackLlmResult(
   uid: string,
   modelId: string,
-  result: { inputTokens?: number; outputTokens?: number; modelId?: string },
+  result: {
+    inputTokens?: number;
+    outputTokens?: number;
+    modelId?: string;
+    message?: string | null;
+  },
   workspaceId?: string,
+  context?: { system?: string; history?: ChatMessage[]; userPrompt?: string },
 ): Promise<void> {
   const target = await resolveUsageTarget(uid, workspaceId);
   if (!target) return;
   const billingModel = result.modelId ?? modelId;
-  const inputTokens = result.inputTokens ?? 0;
-  const outputTokens = result.outputTokens ?? 0;
+  const { inputTokens, outputTokens } = resolveTokenCounts({
+    system: context?.system,
+    history: context?.history,
+    userPrompt: context?.userPrompt,
+    responseText: result.message ?? undefined,
+    inputTokens: result.inputTokens ?? 0,
+    outputTokens: result.outputTokens ?? 0,
+  });
   if (inputTokens <= 0 && outputTokens <= 0) return;
   await recordLlmUsage(target, billingModel, inputTokens, outputTokens, uid);
 }

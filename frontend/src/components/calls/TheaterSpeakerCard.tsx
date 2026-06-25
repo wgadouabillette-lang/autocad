@@ -28,6 +28,7 @@ export default function TheaterSpeakerCard({
   const screenShareStream = useCallsStore((s) => s.screenShareStream);
   const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
   const localMuted = useCallsStore((s) => s.muted);
+  const mutedByParticipant = useCallsStore((s) => s.mutedByParticipant);
   const openColleagueChat = useMiniChatStore((s) => s.openForColleague);
   const canMessage = !participant.isLocal;
 
@@ -122,7 +123,9 @@ export default function TheaterSpeakerCard({
         </p>
       </div>
 
-      {participant.isLocal && localMuted ? <VoiceMuteBadge /> : null}
+      {(participant.isLocal ? localMuted : mutedByParticipant[participant.id]) ? (
+        <VoiceMuteBadge />
+      ) : null}
     </article>
   );
 }

@@ -195,6 +195,10 @@ export const billingApi = {
     return jsonPost<BillingStatus>("/sync");
   },
 
+  syncDevPlan(body: { plan: "free" | "pro"; onDemandUsageEnabled: boolean }) {
+    return jsonPost<{ ok: boolean; plan: string }>("/dev-plan-sync", body);
+  },
+
   usage() {
     return jsonGet<UsageStatus>("/usage");
   },

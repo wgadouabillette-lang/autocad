@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import ChatFullscreenMediaPip from "./components/chat/ChatFullscreenMediaPip";
 import AppChromeRow from "./components/AppChromeRow";
+import PanelToolbarButtons from "./components/toolbar/PanelToolbarButtons";
 import AppLoadingScreen from "./components/AppLoadingScreen";
 import ChatPanelShell from "./components/ChatPanelShell";
 import BottomHeader from "./components/BottomHeader";
@@ -19,7 +21,6 @@ import { useWorkspaceVoiceRtc } from "./hooks/useWorkspaceVoiceRtc";
 import { useWorkspacePolls } from "./hooks/useWorkspacePolls";
 import { useWorkspaceOpenVoiceChannels } from "./hooks/useWorkspaceOpenVoiceChannels";
 import JoinKnockOverlay from "./components/calls/JoinKnockOverlay";
-import SpotifyPlayerShell from "./components/chat/SpotifyPlayerShell";
 import WorkspaceOverlay from "./components/workspace/WorkspaceOverlay";
 import WorkspaceQuickMenu from "./components/workspace/WorkspaceQuickMenu";
 import { useColorTheme } from "./hooks/useColorTheme";
@@ -353,7 +354,6 @@ export default function App() {
       <RecordingCameraPreview />
       <VoiceRemoteAudioSink />
       <JoinKnockOverlay />
-      <SpotifyPlayerShell />
       <WorkspaceOverlay />
       <WorkspaceQuickMenu />
       {workspaceSwitching ? (
@@ -367,12 +367,19 @@ export default function App() {
           chatFullscreenOverlay && "app-layout--chat-fullscreen-overlay",
           panelOnLeft ? "app-layout--panel-left" : "app-layout--panel-right",
           settingsOpen && "app-layout--settings",
+          !settingsOpen && inVoiceCall && "app-layout--voice-call",
         )}
         style={layoutStyle}
       >
-        {!settingsOpen && <AppChromeRow />}
+        {!settingsOpen && !inVoiceCall && <AppChromeRow />}
         <main className="app-layout__main">
+          {!settingsOpen && inVoiceCall ? (
+            <div className="app-voice-settings-floating">
+              <PanelToolbarButtons />
+            </div>
+          ) : null}
           {settingsOpen ? <SettingsPage /> : <CallsView />}
+          {settingsOpen && inVoiceCall ? <ChatFullscreenMediaPip placement="settings" /> : null}
         </main>
         {!settingsOpen && <BottomHeader />}
         {chatPanelOpen && <ChatPanelShell key={sidePanelSide} />}

@@ -56,7 +56,14 @@ function PipMediaTile({
   );
 }
 
-export default function ChatFullscreenMediaPip() {
+type ChatFullscreenMediaPipProps = {
+  placement?: "chat-panel" | "settings";
+};
+
+export default function ChatFullscreenMediaPip({
+  placement = "chat-panel",
+}: ChatFullscreenMediaPipProps) {
+  const settingsOpen = useStore((s) => s.activePage === "settings");
   const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
   const activeRoomId = useStore((s) => s.activeRoomId);
 
@@ -118,12 +125,23 @@ export default function ChatFullscreenMediaPip() {
     localOpenChannelId,
   ]);
 
-  const visible = chatPanelExpanded && inCall && feeds.length > 0;
+  const visible =
+    feeds.length > 0 &&
+    inCall &&
+    (placement === "settings"
+      ? settingsOpen
+      : chatPanelExpanded && !settingsOpen);
 
   if (!visible) return null;
 
   return (
-    <div className="chat-fullscreen-media-pip-stack" aria-label="Aperçus média de l'appel">
+    <div
+      className={clsx(
+        "chat-fullscreen-media-pip-stack",
+        placement === "settings" && "chat-fullscreen-media-pip-stack--settings",
+      )}
+      aria-label="Aperçus média de l'appel"
+    >
       {feeds.map((feed) => (
         <PipMediaTile
           key={feed.feedId}

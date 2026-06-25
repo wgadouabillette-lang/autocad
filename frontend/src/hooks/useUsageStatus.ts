@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { billingApi, type UsageStatus } from "../lib/billingApi";
+import { AI_USAGE_UPDATED_EVENT } from "../lib/usageEvents";
 
 const DEFAULT_POLL_MS = 20_000;
 
@@ -57,6 +58,13 @@ function useUsageLoader(
     const onFocus = () => void refresh();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
+  }, [enabled, refresh]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const onUsageUpdated = () => void refresh();
+    window.addEventListener(AI_USAGE_UPDATED_EVENT, onUsageUpdated);
+    return () => window.removeEventListener(AI_USAGE_UPDATED_EVENT, onUsageUpdated);
   }, [enabled, refresh]);
 
   return { usage, loading, error, refresh };

@@ -8,8 +8,9 @@ from typing import Any, Dict, List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.ai.usage import user_has_ai_access
 from app.core.auth_deps import require_firebase_user
-from app.core.firebase import FirebaseUser, get_user_subscription_state
+from app.core.firebase import FirebaseUser
 
 router = APIRouter(prefix="/api/handoffs", tags=["handoffs"])
 
@@ -46,11 +47,6 @@ class CreateHandoffResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-def _recipient_has_ai_access(uid: str) -> bool:
-    plan, billing_managed, _ = get_user_subscription_state(uid)
-    return plan == "pro" and billing_managed
-
-
 def _load_group_participants(group_id: str) -> List[str]:
     from app.core.firebase import _db, _ensure_db
 
@@ -77,17 +73,17 @@ def _assert_sender_can_handoff_ai_segment(
     group_id: Optional[str],
     target_type: str,
 ) -> None:
-    sender_is_pro = _recipient_has_ai_access(sender_uid)
+    sender_has_ai = user_has_ai_access(sender_uid)
 
     if target_type == "dm":
         if not recipient_uid:
             raise HTTPException(400, "recipientUid is required for DM handoffs.")
-        if _recipient_has_ai_access(recipient_uid):
+        if user_has_ai_access(recipient_uid):
             return
-        if not sender_is_pro:
+        if not sender_has_ai:
             raise HTTPException(
                 403,
-                "Un abonnement Pro est requis pour transmettre un extrait IA à un utilisateur sans Pro.",
+                "Un abonnement Pro (ou Entreprise) est requis pour transmettre un extrait IA à un utilisateur sans accès IA.",
             )
         return
 
@@ -98,12 +94,12 @@ def _assert_sender_can_handoff_ai_segment(
     if not participants:
         raise HTTPException(404, "Group not found.")
 
-    if all(_recipient_has_ai_access(uid) for uid in participants):
+    if all(user_has_ai_access(uid) for uid in participants):
         return
-    if not sender_is_pro:
+    if not sender_has_ai:
         raise HTTPException(
             403,
-            "Un abonnement Pro est requis : ce groupe contient au moins un membre sans Pro.",
+            "Un abonnement Pro (ou Entreprise) est requis : ce groupe contient au moins un membre sans accès IA.",
         )
 
 

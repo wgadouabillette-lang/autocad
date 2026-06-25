@@ -1,14 +1,16 @@
 import { useEffect } from "react";
 import { touchWorkspacePresence, watchWorkspacePresence } from "../lib/firebase/workspacePresence";
 import { createPresenceHeartbeat } from "../lib/firebase/workspacePresenceHeartbeat";
+import { getLocalPresenceActivityForSync } from "../lib/localPresenceActivity";
 import { presenceActivityKey } from "../lib/presenceActivity";
 import { LOCAL_USER_ID } from "../lib/workspaces";
 import { useAuthStore } from "../store/useAuthStore";
-import { useCallsStore } from "../store/useCallsStore";
+import { useCallsStore, buildLocalVoicePresenceForWorkspace } from "../store/useCallsStore";
 import { usePresenceActivityStore } from "../store/usePresenceActivityStore";
 import { useStore } from "../store/useStore";
 import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
 import { useWorkspacesStore } from "../store/useWorkspacesStore";
+import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 
 function workspaceIdsFromKey(key: string): string[] {
   return key ? key.split("\n") : [];
@@ -18,7 +20,9 @@ function isLocalInAnyVoiceSession(workspaceIds: string[]): boolean {
   const calls = useCallsStore.getState();
   return workspaceIds.some(
     (workspaceId) =>
-      calls.isLocalInCall(workspaceId) || !!calls.localOpenChannelByRoom[workspaceId],
+      calls.isLocalInCall(workspaceId) ||
+      !!calls.localOpenChannelByRoom[workspaceId] ||
+      calls.isLocalInTheaterCall(workspaceId),
   );
 }
 
@@ -46,24 +50,13 @@ export function useWorkspacePresence() {
     };
 
     const pushPresence = (workspaceId: string) => {
-      const voice = useCallsStore.getState().isLocalInCall(workspaceId)
-        ? (() => {
-            const room = useCallsStore.getState().callsByRoom[workspaceId];
-            const openChannelId =
-              useCallsStore.getState().localOpenChannelByRoom[workspaceId] ?? null;
-            const localBlock = room?.blocks.find((block) =>
-              block.participants.some((participant) => participant.isLocal),
-            );
-            const inPrivateCall = !!localBlock?.inCall && !openChannelId;
-            return {
-              inPrivateCall,
-              openChannelId: openChannelId ?? null,
-            };
-          })()
+      const calls = useCallsStore.getState();
+      const inVoice =
+        calls.isLocalInCall(workspaceId) || calls.isLocalInTheaterCall(workspaceId);
+      const voice = inVoice
+        ? buildLocalVoicePresenceForWorkspace(workspaceId)
         : { inPrivateCall: false, openChannelId: null };
-      const activity =
-        usePresenceActivityStore.getState().byKey[presenceActivityKey(workspaceId, "local")] ??
-        null;
+      const activity = getLocalPresenceActivityForSync(workspaceId);
       return touchWorkspacePresence(workspaceId, firebaseUid, profile, voice, activity);
     };
 
@@ -95,6 +88,10 @@ export function useWorkspacePresence() {
       const snapshot = JSON.stringify({
         inCall: state.localInCallByRoom,
         channels: state.localOpenChannelByRoom,
+        viewMode: state.callsViewModeByWorkspace,
+        muted: state.muted,
+        raiseHand: state.raiseHand,
+        theater: state.theaterByWorkspace,
       });
       if (snapshot === voiceSnapshotRef.current) return;
       voiceSnapshotRef.current = snapshot;
@@ -113,11 +110,21 @@ export function useWorkspacePresence() {
       scheduler.pulse();
     });
 
+    const spotifySnapshotRef = { current: "" };
+    const unsubSpotify = useSpotifyPlayerStore.subscribe(() => {
+      const { playing, currentTrack } = useSpotifyPlayerStore.getState();
+      const snapshot = JSON.stringify({ playing, trackId: currentTrack?.id ?? null });
+      if (snapshot === spotifySnapshotRef.current) return;
+      spotifySnapshotRef.current = snapshot;
+      scheduler.pulse();
+    });
+
     return () => {
       scheduler.stop();
       document.removeEventListener("visibilitychange", onVisible);
       unsubCalls();
       unsubActivity();
+      unsubSpotify();
     };
   }, [firebaseUid, isAuthenticated, userDisplayName, photoURL, workspaceIdsKey]);
 

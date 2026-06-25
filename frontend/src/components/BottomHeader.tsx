@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import {
   Bell,
   Calendar,
@@ -35,7 +35,9 @@ import { useVoicePollStore } from "../store/useVoicePollStore";
 import { useStore } from "../store/useStore";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { useConnectors } from "../hooks/useConnectors";
+import { useSpotifyAudioPulse } from "../hooks/useSpotifyAudioPulse";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
+import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
 
@@ -100,8 +102,8 @@ export default function BottomHeader() {
   const localOpenChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
   const inOpenChannel = inBlockCall && !!localOpenChannelId;
   const showHandRaiseControl =
-    (viewMode === "theater" && inCall && localRole === "audience") ||
-    (viewMode === "blocks" && inOpenChannel);
+    inCall &&
+    (viewMode === "blocks" || (viewMode === "theater" && localRole === "audience"));
   const participantCount =
     viewMode === "theater" && inTheaterCall && theater
       ? countTheaterParticipants(theater)
@@ -138,7 +140,7 @@ export default function BottomHeader() {
   const followUpActive = useFollowUpCaptureStore((s) => s.active);
   const followUpBusy = useFollowUpCaptureStore((s) => s.busy);
   const toggleFollowUp = useFollowUpCaptureStore((s) => s.toggle);
-  const openSpotifyPanel = useSpotifyPlayerStore((s) => s.openPanel);
+  const openSpotifyPanel = useStore((s) => s.insertAgentComposerText);
   const stopSpotify = useSpotifyPlayerStore((s) => s.stop);
   const spotifyCurrentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
   const spotifyPlaying = useSpotifyPlayerStore((s) => s.playing);
@@ -192,6 +194,14 @@ export default function BottomHeader() {
   );
 
   const spotifyPlaybackActive = spotifyCurrentTrack != null;
+  const spotifyPulseLevel = useSpotifyAudioPulse();
+  const spotifyPulseActive = spotifyPlaybackActive && spotifyPlaying;
+  const footerPulseStyle = spotifyPulseActive
+    ? ({
+        "--spotify-pulse": String(spotifyPulseLevel * 0.22),
+      } as CSSProperties)
+    : undefined;
+  const footerPulseClass = spotifyPulseActive ? "app-bottom-header--spotify-pulse" : undefined;
 
   const spotifyLabel = spotifyPlaybackActive
     ? spotifyPlaying
@@ -217,7 +227,7 @@ export default function BottomHeader() {
           void connect("spotify");
           return;
         }
-        openSpotifyPanel();
+        openSpotifyPanel(PLAY_SKILL_TEMPLATE);
       }}
       active={spotifyPlaybackActive || spotifyConnected}
       disabled={!spotifyConfigured || connectingId === "spotify"}
@@ -379,7 +389,10 @@ export default function BottomHeader() {
 
   if (isMobileLayout) {
     return (
-      <footer className="app-bottom-header app-bottom-header--mobile">
+      <footer
+        className={clsx("app-bottom-header app-bottom-header--mobile", footerPulseClass)}
+        style={footerPulseStyle}
+      >
         <div
           ref={notificationsAnchorRef}
           className="bottom-bar-capsule-anchor app-bottom-header__unified"
@@ -400,7 +413,7 @@ export default function BottomHeader() {
   }
 
   return (
-    <footer className="app-bottom-header">
+    <footer className={clsx("app-bottom-header", footerPulseClass)} style={footerPulseStyle}>
       <div
         ref={notificationsAnchorRef}
         className="bottom-bar-capsule-anchor app-bottom-header__cluster"

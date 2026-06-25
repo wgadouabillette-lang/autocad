@@ -12,6 +12,7 @@ import {
   type FirebaseAuthProvider,
 } from "../lib/firebase/client";
 import { formatAuthError } from "../lib/firebase/authErrors";
+import { syncDevSubscriptionToFirestore } from "../lib/firebase/subscriptionSync";
 import {
   loadChatSessionSummaries,
   loadLatestProjectSnapshot,
@@ -518,6 +519,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 { currentId: useStore.getState().activeRoomId, userId: user.uid },
               );
               if (target) useStore.getState().setActiveRoom(target);
+            }
+            const { subscriptionPlan, billingManaged, onDemandUsageEnabled } = useStore.getState();
+            if (subscriptionPlan === "pro" && billingManaged) {
+              void syncDevSubscriptionToFirestore("pro", onDemandUsageEnabled).catch(() => {});
             }
             set({ ready: true });
             useStore.getState().openAgentPanel();

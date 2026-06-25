@@ -1,4 +1,5 @@
 import { THEATER_BENCH_SEAT_COUNT, type TheaterParticipant } from "../../lib/theater";
+import { useCallsStore } from "../../store/useCallsStore";
 import TheaterParticipantTile from "./TheaterParticipantTile";
 
 interface TheaterAudienceBenchProps {
@@ -26,6 +27,12 @@ export default function TheaterAudienceBench({
   onPickSeat,
   onAcceptHandRaise,
 }: TheaterAudienceBenchProps) {
+  const localMuted = useCallsStore((s) => s.muted);
+  const mutedByParticipant = useCallsStore((s) => s.mutedByParticipant);
+
+  const participantMuted = (participant: TheaterParticipant) =>
+    participant.isLocal ? localMuted : mutedByParticipant[participant.id] === true;
+
   return (
     <article className="theater-bench" aria-label={`Banc ${benchIndex + 1}`}>
       <div className="theater-bench__seats">
@@ -65,7 +72,7 @@ export default function TheaterAudienceBench({
                 participant={participant}
                 workspaceId={workspaceId}
                 handRaised={isHandRaised}
-                muted
+                muted={participantMuted(participant)}
                 seat
                 onAcceptHandRaise={
                   promotable ? () => onAcceptHandRaise(requestId) : undefined

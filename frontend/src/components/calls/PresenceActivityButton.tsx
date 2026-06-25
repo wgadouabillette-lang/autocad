@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { MicOff, MonitorUp, Radio, Video } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { presenceActivityFromModel } from "../../lib/aiModelStroke";
+import { getLocalBlockPresenceActivityDisplay } from "../../lib/localPresenceActivity";
 import {
   getPresenceActivityOption,
   isManualPresenceActivity,
@@ -10,8 +10,9 @@ import {
   type PresenceActivityId,
 } from "../../lib/presenceActivity";
 import { useAiComposerStore } from "../../store/useAiComposerStore";
-import { useCallsStore } from "../../store/useCallsStore";
 import { usePresenceActivityStore } from "../../store/usePresenceActivityStore";
+import { useSpotifyPlayerStore } from "../../store/useSpotifyPlayerStore";
+import { useCallsStore } from "../../store/useCallsStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 import { pushWorkspacePresenceActivity } from "../../lib/firebase/workspacePresence";
@@ -39,10 +40,15 @@ function ActivityGlyph({ activityId }: { activityId: PresenceActivityId }) {
   return <Icon size={14} strokeWidth={2} aria-hidden />;
 }
 
-function LocalMediaStatusIcons() {
-  const muted = useCallsStore((s) => s.muted);
-  const cameraOn = useCallsStore((s) => s.cameraOn);
-  const screenSharing = useCallsStore((s) => s.screenSharing);
+function MediaStatusIcons({ userId, isLocal }: { userId: string; isLocal: boolean }) {
+  const localMuted = useCallsStore((s) => s.muted);
+  const localCameraOn = useCallsStore((s) => s.cameraOn);
+  const localScreenSharing = useCallsStore((s) => s.screenSharing);
+  const remoteMuted = useCallsStore((s) => s.mutedByParticipant[userId] === true);
+
+  const muted = isLocal ? localMuted : remoteMuted;
+  const cameraOn = isLocal ? localCameraOn : false;
+  const screenSharing = isLocal ? localScreenSharing : false;
 
   if (!muted && !cameraOn && !screenSharing) return null;
 
@@ -78,19 +84,21 @@ export default function PresenceActivityButton({
   const userDisplayName = useStore((s) => s.userDisplayName);
   const photoURL = useStore((s) => s.photoURL);
   const aiComposerEngaged = useAiComposerStore((s) => s.engaged);
-  const aiModel = useStore((s) => s.aiModel);
   const aiRun = useStore((s) => s.aiRun);
+  useSpotifyPlayerStore((s) => s.playing && !!s.currentTrack);
+  useCallsStore((s) => s.isLocalInCall(roomId));
+  useCallsStore((s) => s.getCallsViewMode(roomId));
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const aiGenerating = aiRun?.status === "running" && aiRun.runKind === "chat";
-  const showAiPresence = isLocal && (aiComposerEngaged || aiGenerating);
   const manualActivity = isManualPresenceActivity(storedActivity) ? storedActivity : null;
 
-  const pickerActivity: PresenceActivityId | "unset" = showAiPresence
-    ? presenceActivityFromModel(aiGenerating ? aiRun.aiModel : aiModel)
-    : manualActivity ?? "unset";
+  const pickerActivity: PresenceActivityId | "unset" = isLocal
+    ? getLocalBlockPresenceActivityDisplay(roomId)
+    : storedActivity === "none"
+      ? "unset"
+      : storedActivity;
 
   const updateMenuPosition = useCallback(() => {
     const button = buttonRef.current;
@@ -210,7 +218,7 @@ export default function PresenceActivityButton({
 
   return (
     <div className="call-block__activity-anchor">
-      <LocalMediaStatusIcons />
+      <MediaStatusIcons userId={userId} isLocal={isLocal} />
       <button
         ref={buttonRef}
         type="button"

@@ -21,6 +21,7 @@ export default function OpenVoiceInCallView({
       participants={channel.participants}
       ariaLabel="Participants du salon vocal"
       showHandRaise
+      enableSpotlight
     />
   );
 }

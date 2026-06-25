@@ -1,6 +1,7 @@
 import type { AgentImagePayload } from "./agentImages";
 import { getAuthIdToken } from "./firebase/authToken";
 import { callAiChat } from "./firebase/aiChat";
+import { notifyAiUsageUpdated } from "./usageEvents";
 import type {
   AgentResponse,
   AnalysisResponse,
@@ -20,6 +21,31 @@ async function authHeaders(): Promise<HeadersInit> {
   return headers;
 }
 
+async function parseApiError(response: Response): Promise<string> {
+  const text = (await response.text()).trim();
+  if (!text) return `HTTP ${response.status}`;
+  try {
+    const payload = JSON.parse(text) as { detail?: unknown; message?: unknown };
+    if (typeof payload.detail === "string") return payload.detail;
+    if (Array.isArray(payload.detail)) {
+      const parts = payload.detail
+        .map((entry) => {
+          if (typeof entry === "string") return entry;
+          if (entry && typeof entry === "object" && "msg" in entry) {
+            return String((entry as { msg?: unknown }).msg ?? "");
+          }
+          return "";
+        })
+        .filter(Boolean);
+      if (parts.length > 0) return parts.join(" ");
+    }
+    if (typeof payload.message === "string") return payload.message;
+  } catch {
+    // Plain-text error body from FastAPI HTTPException.
+  }
+  return text;
+}
+
 async function jsonPost<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const r = await fetch(`${BASE}${path}`, {
     method: "POST",
@@ -27,7 +53,7 @@ async function jsonPost<T>(path: string, body: unknown, signal?: AbortSignal): P
     body: JSON.stringify(body),
     signal,
   });
-  if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+  if (!r.ok) throw new Error(await parseApiError(r));
   return r.json() as Promise<T>;
 }
 
@@ -36,7 +62,7 @@ async function jsonGet<T>(path: string, signal?: AbortSignal): Promise<T> {
     headers: await authHeaders(),
     signal,
   });
-  if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+  if (!r.ok) throw new Error(await parseApiError(r));
   return r.json() as Promise<T>;
 }
 
@@ -59,17 +85,29 @@ async function chatViaCloudOrBackend(
   if (token) {
     try {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-      return await callAiChat(payload);
+      const response = await callAiChat(payload);
+      if (!["quota", "free_plan", "rules"].includes(response.source ?? "")) {
+        notifyAiUsageUpdated();
+      }
+      return response;
     } catch (err) {
       if (signal?.aborted) throw err;
       // Local desktop dev: fallback to FastAPI when Cloud Functions are unavailable.
       if (import.meta.env.DEV) {
-        return jsonPost<ChatResponse>("/chat", payload, signal);
+        const response = await jsonPost<ChatResponse>("/chat", payload, signal);
+        if (!["quota", "free_plan", "rules"].includes(response.source ?? "")) {
+          notifyAiUsageUpdated();
+        }
+        return response;
       }
       throw err;
     }
   }
-  return jsonPost<ChatResponse>("/chat", payload, signal);
+  const response = await jsonPost<ChatResponse>("/chat", payload, signal);
+  if (!["quota", "free_plan", "rules"].includes(response.source ?? "")) {
+    notifyAiUsageUpdated();
+  }
+  return response;
 }
 
 export interface UserLookupResponse {

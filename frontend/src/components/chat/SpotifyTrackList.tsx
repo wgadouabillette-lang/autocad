@@ -1,20 +1,32 @@
 import clsx from "clsx";
-import { ExternalLink, Pause, Play } from "lucide-react";
+import { ExternalLink, Pause, Play, Plus } from "lucide-react";
+import { useEffect } from "react";
 import type { SpotifyTrackCard } from "../../lib/connectorsApi";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../../lib/connectorIcons";
+import { primeSpotifyPreviewAudio } from "../../lib/spotifyAudioPulse";
+import { primeSpotifyWebAudioUnlock } from "../../lib/spotifyWebPlayback";
 import { useSpotifyPlayerStore } from "../../store/useSpotifyPlayerStore";
 
 export default function SpotifyTrackList({
   tracks,
   compact = false,
+  mode = "play",
 }: {
   tracks: SpotifyTrackCard[];
   compact?: boolean;
+  mode?: "play" | "queue-add";
 }) {
   const currentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
   const playing = useSpotifyPlayerStore((s) => s.playing);
   const premiumAvailable = useSpotifyPlayerStore((s) => s.premiumAvailable);
   const playTrack = useSpotifyPlayerStore((s) => s.playTrack);
+  const addToQueue = useSpotifyPlayerStore((s) => s.addToQueue);
+  const isTrackQueued = useSpotifyPlayerStore((s) => s.isTrackQueued);
+  const refreshPlayerConfig = useSpotifyPlayerStore((s) => s.refreshPlayerConfig);
+
+  useEffect(() => {
+    void refreshPlayerConfig();
+  }, [refreshPlayerConfig]);
 
   if (tracks.length === 0) {
     return <p className="spotify-track-list__empty">Aucun résultat.</p>;
@@ -27,13 +39,15 @@ export default function SpotifyTrackList({
         const isPlaying = isActive && playing;
         const hasPreview = !!track.previewUrl?.trim();
         const canPlayFull = !!track.id && premiumAvailable;
+        const queued = isTrackQueued(track.id);
+        const isCurrent = isActive;
 
         return (
           <li key={track.id ?? `${track.name}-${track.artists}`}>
             <div
               className={clsx(
                 "spotify-track-list__row",
-                isActive && "spotify-track-list__row--active",
+                (isActive || queued) && "spotify-track-list__row--active",
               )}
             >
               <div className="spotify-track-list__art" aria-hidden>
@@ -57,11 +71,41 @@ export default function SpotifyTrackList({
               </div>
 
               <div className="spotify-track-list__actions">
-                {canPlayFull || hasPreview ? (
+                {mode === "queue-add" ? (
+                  <button
+                    type="button"
+                    className={clsx(
+                      "spotify-track-list__play",
+                      (queued || isCurrent) && "spotify-track-list__play--queued",
+                    )}
+                    onClick={() => addToQueue(track)}
+                    disabled={queued || isCurrent}
+                    aria-label={
+                      isCurrent
+                        ? "Déjà en lecture"
+                        : queued
+                          ? "Déjà dans la file"
+                          : "Ajouter à la file"
+                    }
+                    title={
+                      isCurrent
+                        ? "Déjà en lecture"
+                        : queued
+                          ? "Déjà dans la file"
+                          : "Ajouter à la file"
+                    }
+                  >
+                    <Plus size={14} strokeWidth={2.5} aria-hidden />
+                  </button>
+                ) : canPlayFull || hasPreview ? (
                   <button
                     type="button"
                     className="spotify-track-list__play"
-                    onClick={() => void playTrack(track)}
+                    onClick={() => {
+                      primeSpotifyPreviewAudio();
+                      primeSpotifyWebAudioUnlock();
+                      void playTrack(track);
+                    }}
                     aria-label={isPlaying ? "Pause" : "Lire dans l'app"}
                     title={
                       isPlaying

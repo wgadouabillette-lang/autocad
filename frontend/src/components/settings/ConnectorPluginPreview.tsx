@@ -5,7 +5,8 @@ import {
   type ConnectorPreviewMessage,
 } from "../../lib/connectorsApi";
 import type { GoogleCalendarEvent } from "../../lib/calendarSync";
-import { useSpotifyPlayerStore } from "../../store/useSpotifyPlayerStore";
+import { PLAY_SKILL_TEMPLATE } from "../../lib/playSkill";
+import { useStore } from "../../store/useStore";
 
 type PreviewState =
   | { status: "idle" }
@@ -99,7 +100,7 @@ export default function ConnectorPluginPreview({
           <button
             type="button"
             className="connector-plugin-preview__open-player"
-            onClick={() => useSpotifyPlayerStore.getState().openPanel()}
+            onClick={() => useStore.getState().insertAgentComposerText(PLAY_SKILL_TEMPLATE)}
           >
             Ouvrir le lecteur Spotify
           </button>

@@ -27,6 +27,7 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
   const localStream = useCallsStore((s) => s.localStream);
   const speakingByParticipant = useCallsStore((s) => s.speakingByParticipant);
   const muted = useCallsStore((s) => s.muted);
+  const mutedByParticipant = useCallsStore((s) => s.mutedByParticipant);
   const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
 
   const primaryVideoRef = useRef<HTMLVideoElement>(null);
@@ -124,6 +125,7 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
               </div>
             )}
             <span className="call-present-tile__label">{partner.name}</span>
+            {partner && mutedByParticipant[partner.id] ? <VoiceMuteBadge /> : null}
             {canDisconnectPartner ? (
               <button
                 type="button"
