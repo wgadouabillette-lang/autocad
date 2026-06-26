@@ -1,15 +1,17 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta
       name="description"
-      content="Lyte — espace de travail collaboratif avec salons vocaux, chat IA et enregistrement d'écran."
+      data-i18n-content="meta.description"
+      content="Lyte — collaborative workspace with voice channels, AI chat, and screen recording."
     />
-    <title>Lyte — Espace de travail collaboratif</title>
+    <title data-i18n-title="meta.title">Lyte — Collaborative workspace</title>
     <link rel="icon" type="image/png" href="icon.png" />
     <link rel="stylesheet" href="styles.css" />
+    <script src="sitePrefs.js"></script>
   </head>
   <body>
     <div id="site-nav" data-active=""></div>
@@ -17,17 +19,16 @@
     <main class="home-main">
       <section class="hero">
         <div class="hero__text">
-          <h1 class="hero__title">
-            Votre espace de travail,<br />en une seule app.
+          <h1 class="hero__title" data-i18n-html="hero.title">
+            Your workspace,<br />in one app.
           </h1>
-          <p class="hero__lead">
-            Salons vocaux, chat IA, calendrier, enregistrement d'écran et
-            connecteurs — Lyte regroupe tout ce dont votre équipe a besoin au
-            quotidien.
+          <p class="hero__lead" data-i18n="hero.lead">
+            Voice channels, AI chat, calendar, screen recording, and connectors — Lyte brings
+            everything your team needs day to day.
           </p>
           <div class="hero__cta">
             <a class="btn btn--primary" href="auth.html">
-              <span>Commencer</span>
+              <span data-i18n="hero.cta.start">Get started</span>
               <svg
                 aria-hidden="true"
                 viewBox="0 0 24 24"
@@ -44,69 +45,258 @@
               </svg>
             </a>
             <a class="btn btn--ghost" href="tarifs.html">
-              <span>Voir les tarifs</span>
+              <span data-i18n="hero.cta.pricing">View pricing</span>
             </a>
           </div>
         </div>
 
-        <figure class="hero__shot" aria-label="Aperçu de l'application Lyte">
-          <img
-            class="hero__shot-img"
-            src="app-preview.png"
-            alt="Aperçu de Lyte — vue principale avec salons vocaux et chat IA"
-            loading="eager"
-            decoding="async"
-          />
-        </figure>
+        <div class="hero__shots">
+          <div
+            class="hero__shot hero__shot--dashboard"
+            id="workspaces"
+            aria-hidden="true"
+          ></div>
+
+          <div class="hero__shot-row">
+            <article class="hero__shot-block">
+              <figure class="hero__shot hero__shot--section">
+                <img
+                  class="hero__shot-img"
+                  src="app-preview.png"
+                  data-i18n-alt="hero.shot.voice.alt"
+                  alt="Lyte preview — voice channels and team calls"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <h3 class="hero__shot-title" data-i18n="hero.shot.voice.title">Voice channels</h3>
+              <p class="hero__shot-desc" data-i18n="hero.shot.voice.desc">
+                Join teammates in one click — camera, screen share, and live presence.
+              </p>
+            </article>
+            <article class="hero__shot-block" id="skills">
+              <figure class="hero__shot hero__shot--section">
+                <img
+                  class="hero__shot-img"
+                  src="app-preview.png"
+                  data-i18n-alt="hero.shot.ai.alt"
+                  alt="Lyte preview — AI chat and agent"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <h3 class="hero__shot-title" data-i18n="hero.shot.ai.title">AI assistant</h3>
+              <p class="hero__shot-desc" data-i18n="hero.shot.ai.desc">
+                Agent, live notes, and skills (/manage, /handoff) built into your workspace.
+              </p>
+            </article>
+            <article class="hero__shot-block" id="connectors">
+              <figure class="hero__shot hero__shot--section">
+                <img
+                  class="hero__shot-img"
+                  src="app-preview.png"
+                  data-i18n-alt="hero.shot.calendar.alt"
+                  alt="Lyte preview — calendar and connectors"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <h3 class="hero__shot-title" data-i18n="hero.shot.calendar.title">
+                Calendar &amp; connectors
+              </h3>
+              <p class="hero__shot-desc" data-i18n="hero.shot.calendar.desc">
+                Schedule meetings and connect Gmail, Calendar, Spotify, and more.
+              </p>
+            </article>
+          </div>
+
+          <div class="hero__shot-feature-stack">
+            <article class="hero__feature-card hero__feature-card--media-right">
+              <div class="hero__feature-copy">
+                <h3 class="hero__feature-title" data-i18n="hero.shot.notes.title">AI Notes</h3>
+                <p class="hero__feature-desc" data-i18n="hero.shot.notes.desc">
+                  Live transcription and structured notes during voice calls — without leaving
+                  Lyte.
+                </p>
+                <a class="hero__feature-link" href="auth.html">
+                  <span data-i18n="hero.shot.notes.cta">Explore AI Notes</span>
+                  <svg
+                    class="hero__feature-link-icon"
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </a>
+              </div>
+              <figure class="hero__feature-media">
+                <img
+                  class="hero__feature-img"
+                  src="app-preview.png"
+                  data-i18n-alt="hero.shot.notes.alt"
+                  alt="Lyte preview — AI Notes and call recording"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+            </article>
+            <article class="hero__feature-card hero__feature-card--media-left">
+              <figure class="hero__feature-media">
+                <img
+                  class="hero__feature-img"
+                  src="app-preview.png"
+                  data-i18n-alt="hero.shot.workspace.alt"
+                  alt="Lyte preview — collaborative workspace and messaging"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <div class="hero__feature-copy">
+                <h3 class="hero__feature-title" data-i18n="hero.shot.workspace.title">
+                  Team messaging
+                </h3>
+                <p class="hero__feature-desc" data-i18n="hero.shot.workspace.desc">
+                  Direct messages and group chats alongside voice — presence and history in one
+                  place.
+                </p>
+                <a class="hero__feature-link" href="auth.html">
+                  <span data-i18n="hero.shot.workspace.cta">Explore messaging</span>
+                  <svg
+                    class="hero__feature-link-icon"
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </a>
+              </div>
+            </article>
+            <article class="hero__feature-card hero__feature-card--media-right">
+              <div class="hero__feature-copy">
+                <h3 class="hero__feature-title" data-i18n="hero.shot.followup.title">
+                  Post-call follow-up
+                </h3>
+                <p class="hero__feature-desc" data-i18n="hero.shot.followup.desc">
+                  Structured recap, action items, and draft emails — generated right after your
+                  meeting.
+                </p>
+                <a class="hero__feature-link" href="auth.html">
+                  <span data-i18n="hero.shot.followup.cta">Explore follow-up</span>
+                  <svg
+                    class="hero__feature-link-icon"
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </a>
+              </div>
+              <figure class="hero__feature-media">
+                <img
+                  class="hero__feature-img"
+                  src="app-preview.png"
+                  data-i18n-alt="hero.shot.followup.alt"
+                  alt="Lyte preview — post-call follow-up and recap"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+            </article>
+          </div>
+        </div>
       </section>
 
       <section class="home-highlights" aria-labelledby="highlights-heading">
         <div class="home-highlights__inner">
           <div class="home-highlights__header">
-            <h2 id="highlights-heading" class="section__title">Recent highlights</h2>
+            <h2 id="highlights-heading" class="section__title" data-i18n="highlights.heading">
+              Recent highlights
+            </h2>
           </div>
 
           <div class="home-highlights__grid" id="highlights-grid">
             <button type="button" class="home-highlights__card">
-              <span class="home-highlights__card-tag">Voice</span>
-              <span class="home-highlights__card-title">Spotlight vidéo</span>
-              <span class="home-highlights__card-desc">
-                Agrandissez la caméra ou le partage d'écran d'un participant en un clic.
+              <span class="home-highlights__card-tag" data-i18n="highlights.card1.tag">Voice</span>
+              <span class="home-highlights__card-title" data-i18n="highlights.card1.title"
+                >Video spotlight</span
+              >
+              <span class="home-highlights__card-desc" data-i18n="highlights.card1.desc">
+                Expand a participant camera or screen share in one click.
               </span>
             </button>
             <button type="button" class="home-highlights__card">
-              <span class="home-highlights__card-tag">Chat</span>
-              <span class="home-highlights__card-title">Handoff IA</span>
-              <span class="home-highlights__card-desc">
-                Transmettez un extrait de conversation à un collègue ou un groupe.
+              <span class="home-highlights__card-tag" data-i18n="highlights.card2.tag">Chat</span>
+              <span class="home-highlights__card-title" data-i18n="highlights.card2.title"
+                >AI handoff</span
+              >
+              <span class="home-highlights__card-desc" data-i18n="highlights.card2.desc">
+                Share a conversation excerpt with a teammate or group.
               </span>
             </button>
             <button type="button" class="home-highlights__card">
-              <span class="home-highlights__card-tag">Calls</span>
-              <span class="home-highlights__card-title">AI Notes</span>
-              <span class="home-highlights__card-desc">
-                Transcription live pendant vos appels vocaux, directement dans Lyte.
+              <span class="home-highlights__card-tag" data-i18n="highlights.card3.tag">Calls</span>
+              <span class="home-highlights__card-title" data-i18n="highlights.card3.title"
+                >AI Notes</span
+              >
+              <span class="home-highlights__card-desc" data-i18n="highlights.card3.desc">
+                Live transcription during voice calls, right inside Lyte.
               </span>
             </button>
             <button type="button" class="home-highlights__card">
-              <span class="home-highlights__card-tag">Connectors</span>
-              <span class="home-highlights__card-title">Spotify dans le chat</span>
-              <span class="home-highlights__card-desc">
-                Lancez une piste ou ajoutez-la à la file depuis le composer.
+              <span class="home-highlights__card-tag" data-i18n="highlights.card4.tag"
+                >Connectors</span
+              >
+              <span class="home-highlights__card-title" data-i18n="highlights.card4.title"
+                >Spotify in chat</span
+              >
+              <span class="home-highlights__card-desc" data-i18n="highlights.card4.desc">
+                Play a track or queue it from the composer.
               </span>
             </button>
             <button type="button" class="home-highlights__card home-highlights__card--extra">
-              <span class="home-highlights__card-tag">Presence</span>
-              <span class="home-highlights__card-title">Mute &amp; main levée</span>
-              <span class="home-highlights__card-desc">
-                Voyez en direct qui est mute ou a levé la main dans l'appel.
+              <span class="home-highlights__card-tag" data-i18n="highlights.card5.tag"
+                >Presence</span
+              >
+              <span class="home-highlights__card-title" data-i18n="highlights.card5.title"
+                >Mute &amp; hand raise</span
+              >
+              <span class="home-highlights__card-desc" data-i18n="highlights.card5.desc">
+                See who is muted or has raised a hand during a call.
               </span>
             </button>
             <button type="button" class="home-highlights__card home-highlights__card--extra">
-              <span class="home-highlights__card-tag">Follow-up</span>
-              <span class="home-highlights__card-title">Récap post-appel</span>
-              <span class="home-highlights__card-desc">
-                Synthèse structurée, calendrier et e-mails après votre réunion.
+              <span class="home-highlights__card-tag" data-i18n="highlights.card6.tag"
+                >Follow-up</span
+              >
+              <span class="home-highlights__card-title" data-i18n="highlights.card6.title"
+                >Post-call recap</span
+              >
+              <span class="home-highlights__card-desc" data-i18n="highlights.card6.desc">
+                Structured summary, calendar, and emails after your meeting.
               </span>
             </button>
           </div>
@@ -119,7 +309,9 @@
               aria-expanded="false"
               aria-controls="highlights-grid"
             >
-              <span class="home-highlights__more-label">View more product upgrades</span>
+              <span class="home-highlights__more-label" data-i18n="highlights.more"
+                >View more product upgrades</span
+              >
               <svg
                 class="home-highlights__more-icon"
                 aria-hidden="true"
@@ -143,7 +335,7 @@
       <section class="home-try section-headline" aria-labelledby="try-heading">
         <div class="home-try__container">
           <div class="home-try__content">
-            <h2 id="try-heading" class="home-try__title">Try Lyte Now.</h2>
+            <h2 id="try-heading" class="home-try__title" data-i18n="try.title">Try Lyte Now.</h2>
             <div class="home-try__actions">
               <div class="home-try__desktop">
                 <a
@@ -152,13 +344,15 @@
                   href="/downloads/Lyte-mac.dmg"
                   download
                 >
-                  <span id="home-download-label">Download for macOS</span>
+                  <span id="home-download-label" data-i18n="try.downloadMac"
+                    >Download for macOS</span
+                  >
                   <span class="btn-icon" aria-hidden="true">⤓</span>
                 </a>
               </div>
               <div class="home-try__mobile">
                 <a class="btn btn--primary" href="auth.html">
-                  <span>Commencer</span>
+                  <span data-i18n="try.mobileStart">Get started</span>
                   <span class="btn-icon" aria-hidden="true">→</span>
                 </a>
               </div>
@@ -170,8 +364,11 @@
 
     <div id="site-footer"></div>
 
+    <script src="footerIcons.js"></script>
+    <script src="i18n.js"></script>
     <script src="nav.js"></script>
     <script src="footer.js"></script>
+    <script src="dashboardPreview.js"></script>
     <script src="home.js"></script>
   </body>
 </html>

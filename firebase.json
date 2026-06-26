@@ -50,7 +50,9 @@
       "package.json",
       "package-lock.json",
       "vite.config.js",
-      "downloads/**"
+      "downloads/**",
+      "dist/**",
+      "public/**"
     ],
     "rewrites": [
       { "source": "/auth", "destination": "/auth.html" },

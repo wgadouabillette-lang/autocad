@@ -1,0 +1,1 @@
+let e=null;function i(){var a;if(!((a=navigator.mediaDevices)!=null&&a.getUserMedia))throw new Error("Accès caméra non disponible dans ce navigateur.")}async function r(){return i(),e||(e=await navigator.mediaDevices.getUserMedia({video:!0,audio:!1}),e)}function n(){e==null||e.getTracks().forEach(a=>a.stop()),e=null}export{r as startRecordingCamera,n as stopRecordingCamera};

@@ -707,6 +707,43 @@ body {
     @apply relative flex h-full flex-col overflow-hidden;
     background-color: var(--forma-shell-bg);
   }
+  .marketing-preview-shell {
+    height: 100dvh;
+    pointer-events: none;
+    user-select: none;
+    --forma-calls-lift: 24px;
+  }
+  .marketing-preview-shell .app-layout {
+    border-radius: 0;
+    border: none;
+  }
+  .marketing-preview-shell .calls-view {
+    justify-content: center;
+    overflow-x: clip;
+  }
+  .marketing-preview-shell .calls-view__stage {
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 0.5rem 0 0.75rem;
+  }
+  .marketing-preview-shell .calls-view__grid--cascade {
+    transform: scale(0.9);
+    transform-origin: center center;
+  }
+  .marketing-preview-shell .chat-panel-mode-tabs,
+  .marketing-preview-shell .chat-panel-mode-tabs *,
+  .marketing-preview-shell .chat-tabs-bar,
+  .marketing-preview-shell .chat-tabs-bar * {
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .marketing-preview-shell .app-bottom-header .bottom-bar-btn:not(.marketing-preview-locked),
+  .marketing-preview-shell .app-bottom-header .bottom-bar-btn:not(.marketing-preview-locked) * {
+    pointer-events: auto;
+    cursor: pointer;
+  }
   .app-layout {
     position: relative;
     display: grid;

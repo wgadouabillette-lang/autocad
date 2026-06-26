@@ -5,6 +5,7 @@ import {
   applyConnectorOAuthResult,
   tryFinishConnectorOAuthFromStorage,
 } from "../lib/connectorOAuthResult";
+import { isMarketingPreview } from "../lib/marketingPreview";
 import { useAuthStore } from "../store/useAuthStore";
 import { useConnectorsStore } from "../store/useConnectorsStore";
 
@@ -30,15 +31,15 @@ export function useConnectors() {
   const setError = useConnectorsStore((s) => s.setError);
   const refresh = useCallback(
     async (force = false) => {
-      if (CONNECTORS_VISUAL_ONLY || !authReady || !isAuthenticated) return;
+      if (isMarketingPreview() || CONNECTORS_VISUAL_ONLY || !authReady || !isAuthenticated) return;
       await refreshStore(force);
     },
     [authReady, isAuthenticated, refreshStore],
   );
 
   useEffect(() => {
-    if (CONNECTORS_VISUAL_ONLY) {
-      setVisualOnly();
+    if (isMarketingPreview() || CONNECTORS_VISUAL_ONLY) {
+      if (!isMarketingPreview()) setVisualOnly();
       return;
     }
     if (!authReady) return;

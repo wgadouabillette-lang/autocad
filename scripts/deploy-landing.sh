@@ -11,5 +11,9 @@ fi
 # nav.js lives in public/ for Vite; copy for hosts that serve landing/ directly.
 cp landing/public/nav.js landing/nav.js
 
+if [[ "${SKIP_LANDING_PREVIEW_SYNC:-}" != "1" ]]; then
+  ./scripts/sync-landing-dashboard-preview.sh
+fi
+
 echo "Déploiement Firebase Hosting (landing/)…"
 firebase deploy --only hosting --message "Lyte landing $(date +%Y-%m-%d)"

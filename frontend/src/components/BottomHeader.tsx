@@ -38,6 +38,7 @@ import { useConnectors } from "../hooks/useConnectors";
 import { useSpotifyAudioPulse } from "../hooks/useSpotifyAudioPulse";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
 import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
+import { isMarketingPreview } from "../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
 
@@ -194,6 +195,7 @@ export default function BottomHeader() {
   );
 
   const spotifyPlaybackActive = spotifyCurrentTrack != null;
+  const spotifyStopLocked = isMarketingPreview() && spotifyPlaybackActive;
   const spotifyPulseLevel = useSpotifyAudioPulse();
   const spotifyPulseActive = spotifyPlaybackActive && spotifyPlaying;
   const footerPulseStyle = spotifyPulseActive
@@ -218,7 +220,9 @@ export default function BottomHeader() {
   const spotifyButton = (
     <BottomBarButton
       label={spotifyLabel}
+      className={spotifyStopLocked ? "marketing-preview-locked" : undefined}
       onClick={() => {
+        if (spotifyStopLocked) return;
         if (spotifyPlaybackActive) {
           stopSpotify();
           return;

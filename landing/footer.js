@@ -1,8 +1,5 @@
 // Shared footer injected on marketing pages via #site-footer placeholder.
 (function () {
-  var mount = document.getElementById("site-footer");
-  if (!mount) return;
-
   function resolveAppHref() {
     var hostname = window.location.hostname;
     var port = window.location.port;
@@ -13,7 +10,14 @@
     return "/app/";
   }
 
-  function link(href, label, external) {
+  function t(key, vars) {
+    var locale = window.LyteSitePrefs ? window.LyteSitePrefs.getLocale() : "en";
+    if (window.LyteLandingI18n) return window.LyteLandingI18n.t(key, locale, vars);
+    return key;
+  }
+
+  function link(href, labelKey, external) {
+    var label = t(labelKey);
     var ext = external
       ? '<span class="footer-link__ext" aria-hidden="true">&nbsp;↗</span>'
       : "";
@@ -30,11 +34,21 @@
     );
   }
 
-  function column(title, itemsHtml) {
+  function socialLink(href, label) {
+    return (
+      '<li><a class="footer-link" href="' +
+      href +
+      '" target="_blank" rel="noopener noreferrer">' +
+      label +
+      '<span class="footer-link__ext" aria-hidden="true">&nbsp;↗</span></a></li>'
+    );
+  }
+
+  function column(titleKey, itemsHtml) {
     return (
       '<div class="site-footer__col">' +
       '<h3 class="site-footer__col-title">' +
-      title +
+      t(titleKey) +
       "</h3>" +
       '<ul class="site-footer__col-list">' +
       itemsHtml +
@@ -43,50 +57,134 @@
     );
   }
 
-  var appHref = resolveAppHref();
-  var year = String(new Date().getFullYear());
+  function languageMenuHtml() {
+    var locale = window.LyteSitePrefs ? window.LyteSitePrefs.getLocale() : "en";
+    var checkIcon = window.LyteFooterIcons ? window.LyteFooterIcons.icon("check") : "";
+    return ["en", "fr"]
+      .map(function (code) {
+        var selected = code === locale;
+        return (
+          '<button type="button" class="site-footer__lang-option" role="option"' +
+          ' data-locale="' +
+          code +
+          '" aria-selected="' +
+          (selected ? "true" : "false") +
+          '">' +
+          "<span>" +
+          (window.LyteLandingI18n ? window.LyteLandingI18n.LOCALES[code] : code) +
+          "</span>" +
+          (selected ? '<span class="site-footer__lang-check">' + checkIcon + "</span>" : "") +
+          "</button>"
+        );
+      })
+      .join("");
+  }
 
-  var columns = [
-    column(
-      "Produit",
-      link(appHref, "Ouvrir Lyte") +
-        link("tarifs.html", "Tarifs") +
-        link("/downloads/Lyte-mac.dmg", "Télécharger macOS") +
-        link("/downloads/Lyte-windows.exe", "Télécharger Windows"),
-    ),
-    column(
-      "Ressources",
-      link("ressources.html", "Ressources") +
-        link("auth.html", "Se connecter") +
-        link("ressources.html", "Guides &amp; légal"),
-    ),
-    column("Entreprise", link("careers.html", "Careers")),
-    column(
-      "Légal",
-      link("privacy.html", "Confidentialité") +
-        link("terms.html", "Conditions") +
-        link("subprocessors.html", "Sous-traitants"),
-    ),
-    column(
-      "Réseaux",
-      link("https://x.com/", "X", true) +
-        link("https://www.linkedin.com/", "LinkedIn", true),
-    ),
-  ].join("");
+  function themeBtn(mode, labelKey) {
+    var iconName = mode === "light" ? "sun" : mode === "dark" ? "moon" : "monitor";
+    var iconHtml = window.LyteFooterIcons ? window.LyteFooterIcons.icon(iconName) : "";
+    return (
+      '<button type="button" class="site-footer__theme-btn" data-theme-mode="' +
+      mode +
+      '" aria-label="' +
+      t(labelKey) +
+      '">' +
+      iconHtml +
+      "</button>"
+    );
+  }
 
-  mount.outerHTML =
-    '<footer id="site-footer" class="site-footer">' +
-    '<div class="site-footer__nav-wrap">' +
-    '<nav class="site-footer__nav" aria-label="Pied de page">' +
-    '<div class="site-footer__columns">' +
-    columns +
-    "</div>" +
-    "</nav>" +
-    "</div>" +
-    '<div class="site-footer__bar">' +
-    '<small class="site-footer__copy">© ' +
-    year +
-    " Lyte. Tous droits réservés.</small>" +
-    "</div>" +
-    "</footer>";
+  function controlsHtml() {
+    var locale = window.LyteSitePrefs ? window.LyteSitePrefs.getLocale() : "en";
+    var langTrigger = window.LyteFooterIcons
+      ? window.LyteFooterIcons.langTriggerHtml(locale)
+      : window.LyteLandingI18n
+        ? window.LyteLandingI18n.languageLabel(locale)
+        : "English";
+    return (
+      '<div class="site-footer__controls">' +
+      '<div class="site-footer__theme-switch" role="group" aria-label="' +
+      t("footer.theme.system") +
+      '">' +
+      themeBtn("system", "footer.theme.system") +
+      themeBtn("light", "footer.theme.light") +
+      themeBtn("dark", "footer.theme.dark") +
+      "</div>" +
+      '<div class="site-footer__lang">' +
+      '<button type="button" class="site-footer__lang-trigger" id="footer-lang-trigger"' +
+      ' aria-expanded="false" aria-controls="footer-lang-menu" aria-haspopup="listbox"' +
+      ' aria-label="' +
+      t("footer.lang.label") +
+      '">' +
+      langTrigger +
+      "</button>" +
+      '<div class="site-footer__lang-menu" id="footer-lang-menu" role="listbox" hidden>' +
+      languageMenuHtml() +
+      "</div>" +
+      "</div>" +
+      "</div>"
+    );
+  }
+
+  function buildFooterHtml() {
+    var appHref = resolveAppHref();
+    var year = String(new Date().getFullYear());
+    var columns = [
+      column(
+        "footer.product",
+        link(appHref, "footer.openApp") +
+          link("tarifs.html", "footer.pricing") +
+          link("/downloads/Lyte-mac.dmg", "footer.downloadMac") +
+          link("/downloads/Lyte-windows.exe", "footer.downloadWin"),
+      ),
+      column(
+        "footer.resources",
+        link("ressources.html", "footer.resources") +
+          link("auth.html", "footer.signIn") +
+          link("ressources.html", "footer.guides"),
+      ),
+      column("footer.company", link("careers.html", "nav.careers")),
+      column(
+        "footer.legal",
+        link("privacy.html", "footer.privacy") +
+          link("terms.html", "footer.terms") +
+          link("subprocessors.html", "footer.subprocessors"),
+      ),
+      column(
+        "footer.connect",
+        socialLink("https://x.com/", "X") +
+          socialLink("https://www.linkedin.com/", "LinkedIn"),
+      ),
+    ].join("");
+
+    return (
+      '<footer id="site-footer" class="site-footer">' +
+      '<div class="site-footer__nav-wrap">' +
+      '<nav class="site-footer__nav" aria-label="Footer">' +
+      '<div class="site-footer__columns">' +
+      columns +
+      "</div>" +
+      "</nav>" +
+      "</div>" +
+      '<div class="site-footer__bar">' +
+      '<small class="site-footer__copy">' +
+      t("footer.copyright", { year: year }) +
+      "</small>" +
+      controlsHtml() +
+      "</div>" +
+      "</footer>"
+    );
+  }
+
+  function mountFooter() {
+    var mount = document.getElementById("site-footer");
+    if (!mount) return;
+    mount.outerHTML = buildFooterHtml();
+    if (window.LyteSitePrefs) {
+      window.LyteSitePrefs.wireFooterControls();
+    }
+  }
+
+  mountFooter();
+  document.addEventListener("lyte-landing:locale", mountFooter);
 })();

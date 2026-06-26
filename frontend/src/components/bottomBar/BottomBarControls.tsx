@@ -57,6 +57,7 @@ export function BottomBarButton({
   badge,
   segment,
   signetAlign = "center",
+  className,
   children,
 }: {
   label: string;
@@ -69,6 +70,7 @@ export function BottomBarButton({
   segment?: SegmentRole;
   /** Décale le signet vers le centre de l'écran pour éviter le clipping aux bords. */
   signetAlign?: SignetAlign;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -82,6 +84,7 @@ export function BottomBarButton({
         danger && "is-danger",
         recording && "is-recording",
         disabled && "is-disabled",
+        className,
       )}
       onClick={onClick}
       disabled={disabled}
