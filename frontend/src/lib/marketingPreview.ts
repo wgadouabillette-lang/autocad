@@ -16,6 +16,19 @@ export function isMarketingPreview(): boolean {
   return window.__LYTE_MARKETING_PREVIEW__ === true;
 }
 
+export type MarketingPreviewScene = "dashboard" | "connectors" | "recording";
+
+export function readMarketingPreviewSceneParam(): MarketingPreviewScene {
+  const raw = new URLSearchParams(window.location.search).get("scene");
+  if (raw === "connectors") return "connectors";
+  if (raw === "recording") return "recording";
+  return "dashboard";
+}
+
+export function isMarketingRecordingPreviewScene(): boolean {
+  return isMarketingPreview() && readMarketingPreviewSceneParam() === "recording";
+}
+
 export function readMarketingPreviewThemeParam(): "light" | "dark" {
   const raw = new URLSearchParams(window.location.search).get("theme");
   return raw === "light" ? "light" : "dark";

@@ -22,16 +22,21 @@
         "Voice channels, AI chat, calendar, screen recording, and connectors — Lyte brings everything your team needs day to day.",
       "hero.cta.start": "Get started",
       "hero.cta.pricing": "View pricing",
+      "hero.shots.trio.title": "From conversation to action",
       "hero.shot.main.alt":
         "Lyte preview — main view with voice channels and AI chat",
       "hero.shot.voice.alt": "Lyte preview — voice channels and team calls",
       "hero.shot.voice.title": "Voice channels",
       "hero.shot.voice.desc":
         "Join teammates in one click — camera, screen share, and live presence.",
-      "hero.shot.ai.alt": "Lyte preview — AI chat and agent",
-      "hero.shot.ai.title": "AI assistant",
-      "hero.shot.ai.desc":
-        "Agent, live notes, and skills (/manage, /handoff) built into your workspace.",
+      "hero.shot.skills.alt": "Lyte preview — AI Skills slash commands in chat",
+      "hero.shot.skills.title": "AI Skills",
+      "hero.shot.skills.desc":
+        "Type / for in-app skills — schedule tasks with /manage or share context with /handoff.",
+      "hero.shot.recording.alt": "Lyte preview — demo recording with active record button",
+      "hero.shot.recording.title": "Demo Recording",
+      "hero.shot.recording.desc":
+        "Capture your screen and voice from the bottom bar — one click to record.",
       "hero.shot.calendar.alt": "Lyte preview — calendar and connectors",
       "hero.shot.calendar.title": "Calendar & connectors",
       "hero.shot.calendar.desc":
@@ -97,6 +102,53 @@
       "footer.theme.light": "Light theme",
       "footer.theme.dark": "Dark theme",
       "footer.lang.label": "Language",
+      "careers.meta.title": "Lyte — Careers",
+      "careers.meta.description":
+        "Join Lyte — help build the collaborative workspace teams actually want.",
+      "careers.intro.title": "Help us build the workspace teams actually want",
+      "careers.intro.p1":
+        "Lyte is a collaborative workspace — voice channels, AI chat, calendar, connectors, and post-call follow-up in one desktop app. We're building the tool we wished we had when juggling calls, chat, and a dozen tabs.",
+      "careers.intro.p2":
+        "We're early but shipping fast: real-time voice with AI notes, an agent with skills, and integrations teams use every day. We're a small, focused team with big ambitions for how teams work together.",
+      "careers.intro.p3":
+        "As an early team member, you'll shape the product, stack, and culture from the ground up — from core infrastructure to pixel-perfect design.",
+      "careers.intro.p4":
+        "If that sounds exciting, browse the roles below or write us at <a class=\"careers-intro__link\" href=\"mailto:careers@lyte.app\">careers@lyte.app</a>.",
+      "careers.board.heading": "Open Positions",
+      "careers.board.empty": "No roles match your filters. Try adjusting or reset filters.",
+      "careers.filters.label": "Filters:",
+      "careers.filters.reset": "Reset filters",
+      "careers.filters.noneApplied": "No filters applied",
+      "careers.filters.applied": "{count} roles match your filters",
+      "careers.filters.department": "Department",
+      "careers.filters.allDepartments": "All Departments",
+      "careers.filters.design": "Design",
+      "careers.filters.engineering": "Engineering",
+      "careers.filters.product": "Product",
+      "careers.filters.employment": "Employment Type",
+      "careers.filters.allEmployment": "All Employment Types",
+      "careers.filters.fulltime": "Full time",
+      "careers.filters.location": "Location",
+      "careers.filters.allLocations": "All Locations",
+      "careers.filters.parisRemote": "Paris or Remote (Europe, North America)",
+      "careers.filters.workplace": "Location Type",
+      "careers.filters.allWorkplaces": "All Location Types",
+      "careers.filters.remote": "Remote",
+      "careers.dept.design": "Design",
+      "careers.dept.engineering": "Engineering",
+      "careers.dept.product": "Product",
+      "careers.job.designer.title": "Product Designer",
+      "careers.job.designer.meta":
+        "Design • Paris or Remote (Europe, North America) • Full time • Remote",
+      "careers.job.backend.title": "Software Engineer, Backend",
+      "careers.job.backend.meta":
+        "Engineering • Paris or Remote (Europe, North America) • Full time • Remote",
+      "careers.job.productEng.title": "Software Engineer, Product",
+      "careers.job.productEng.meta":
+        "Engineering • Paris or Remote (Europe, North America) • Full time • Remote",
+      "careers.job.tpm.title": "Technical Product Manager",
+      "careers.job.tpm.meta":
+        "Product • Paris or Remote (Europe, North America) • Full time • Remote",
     },
     fr: {
       "meta.title": "Lyte — Espace de travail collaboratif",
@@ -115,20 +167,25 @@
         "Salons vocaux, chat IA, calendrier, enregistrement d'écran et connecteurs — Lyte regroupe tout ce dont votre équipe a besoin au quotidien.",
       "hero.cta.start": "Commencer",
       "hero.cta.pricing": "Voir les tarifs",
+      "hero.shots.trio.title": "From conversation to action",
       "hero.shot.main.alt":
         "Aperçu de Lyte — vue principale avec salons vocaux et chat IA",
       "hero.shot.voice.alt": "Aperçu Lyte — salons vocaux et appels d'équipe",
       "hero.shot.voice.title": "Salons vocaux",
       "hero.shot.voice.desc":
         "Rejoignez vos collègues en un clic — caméra, partage d'écran et présence en direct.",
-      "hero.shot.ai.alt": "Aperçu Lyte — chat IA et agent",
-      "hero.shot.ai.title": "Assistant IA",
-      "hero.shot.ai.desc":
-        "Agent, notes live et skills (/manage, /handoff) intégrés à votre workspace.",
-      "hero.shot.calendar.alt": "Aperçu Lyte — calendrier et connecteurs",
-      "hero.shot.calendar.title": "Calendrier & connecteurs",
+      "hero.shot.skills.alt": "Lyte preview — AI Skills slash commands in chat",
+      "hero.shot.skills.title": "AI Skills",
+      "hero.shot.skills.desc":
+        "Type / for in-app skills — schedule tasks with /manage or share context with /handoff.",
+      "hero.shot.recording.alt": "Lyte preview — demo recording with active record button",
+      "hero.shot.recording.title": "Demo Recording",
+      "hero.shot.recording.desc":
+        "Capture your screen and voice from the bottom bar — one click to record.",
+      "hero.shot.calendar.alt": "Lyte preview — calendar and connectors",
+      "hero.shot.calendar.title": "Calendar & connectors",
       "hero.shot.calendar.desc":
-        "Planifiez vos réunions et branchez Gmail, Calendar, Spotify et plus encore.",
+        "Schedule meetings and connect Gmail, Calendar, Spotify, and more.",
       "hero.shot.notes.alt": "Aperçu Lyte — AI Notes et enregistrement en appel vocal",
       "hero.shot.notes.title": "AI Notes",
       "hero.shot.notes.desc":
@@ -197,6 +254,54 @@
       "footer.theme.light": "Thème clair",
       "footer.theme.dark": "Thème sombre",
       "footer.lang.label": "Langue",
+      "careers.meta.title": "Lyte — Careers",
+      "careers.meta.description":
+        "Rejoignez Lyte — construisez l'espace de travail collaboratif dont les équipes ont besoin.",
+      "careers.intro.title": "Construisons l'espace de travail dont les équipes ont vraiment besoin",
+      "careers.intro.p1":
+        "Lyte est un espace de travail collaboratif — salons vocaux, chat IA, calendrier, connecteurs et follow-up post-appel dans une seule app desktop. On construit l'outil qu'on aurait aimé avoir entre appels, chat et douzaines d'onglets.",
+      "careers.intro.p2":
+        "On est encore early stage mais on ship vite : voix temps réel avec AI Notes, un agent avec skills, et des intégrations utilisées au quotidien. Petite équipe, grandes ambitions sur la façon dont les équipes travaillent ensemble.",
+      "careers.intro.p3":
+        "En tant que membre fondateur, tu façonneras le produit, la stack et la culture — de l'infra core au design pixel-perfect.",
+      "careers.intro.p4":
+        "Si ça te parle, parcours les postes ci-dessous ou écris-nous à <a class=\"careers-intro__link\" href=\"mailto:careers@lyte.app\">careers@lyte.app</a>.",
+      "careers.board.heading": "Postes ouverts",
+      "careers.board.empty":
+        "Aucun poste ne correspond à vos filtres. Ajustez-les ou réinitialisez.",
+      "careers.filters.label": "Filtres :",
+      "careers.filters.reset": "Réinitialiser",
+      "careers.filters.noneApplied": "Aucun filtre appliqué",
+      "careers.filters.applied": "{count} postes correspondent à vos filtres",
+      "careers.filters.department": "Département",
+      "careers.filters.allDepartments": "Tous les départements",
+      "careers.filters.design": "Design",
+      "careers.filters.engineering": "Ingénierie",
+      "careers.filters.product": "Produit",
+      "careers.filters.employment": "Type d'emploi",
+      "careers.filters.allEmployment": "Tous les types",
+      "careers.filters.fulltime": "Temps plein",
+      "careers.filters.location": "Lieu",
+      "careers.filters.allLocations": "Tous les lieux",
+      "careers.filters.parisRemote": "Paris ou remote (Europe, Amérique du Nord)",
+      "careers.filters.workplace": "Mode de travail",
+      "careers.filters.allWorkplaces": "Tous les modes",
+      "careers.filters.remote": "Remote",
+      "careers.dept.design": "Design",
+      "careers.dept.engineering": "Ingénierie",
+      "careers.dept.product": "Produit",
+      "careers.job.designer.title": "Product Designer",
+      "careers.job.designer.meta":
+        "Design • Paris ou remote (Europe, Amérique du Nord) • Temps plein • Remote",
+      "careers.job.backend.title": "Software Engineer, Backend",
+      "careers.job.backend.meta":
+        "Ingénierie • Paris ou remote (Europe, Amérique du Nord) • Temps plein • Remote",
+      "careers.job.productEng.title": "Software Engineer, Product",
+      "careers.job.productEng.meta":
+        "Ingénierie • Paris ou remote (Europe, Amérique du Nord) • Temps plein • Remote",
+      "careers.job.tpm.title": "Technical Product Manager",
+      "careers.job.tpm.meta":
+        "Produit • Paris ou remote (Europe, Amérique du Nord) • Temps plein • Remote",
     },
   };
 

@@ -630,3 +630,19 @@ export function seedMarketingPreview(): void {
   seedPeopleThreads();
   seedFollowUp();
 }
+
+export function seedMarketingRecordingPreview(): void {
+  seedMarketingPreview();
+
+  useStore.setState({
+    chatPanelOpen: false,
+    chatPanelMode: "agent",
+    chatPanelExpanded: false,
+  });
+
+  useCallsStore.setState({
+    recording: false,
+    recordingBusy: false,
+    mediaError: null,
+  });
+}

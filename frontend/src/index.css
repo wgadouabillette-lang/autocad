@@ -744,6 +744,58 @@ body {
     pointer-events: auto;
     cursor: pointer;
   }
+  .marketing-preview-shell--connectors-section {
+    height: 100%;
+    min-height: 0;
+  }
+  .marketing-preview-shell--connectors-section .marketing-preview-connectors-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+    border: none;
+    border-radius: 0;
+    min-height: 0;
+    height: 100%;
+  }
+  .marketing-preview-shell--connectors-section .chat-panel {
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    width: 100%;
+    max-width: none;
+    min-height: 0;
+    border-left: 0;
+  }
+  .marketing-preview-shell--connectors-section .chat-apps-capsule,
+  .marketing-preview-shell--connectors-section .chat-apps-capsule * {
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .marketing-preview-shell--recording .app-recording-frame {
+    animation: none;
+    border-color: rgb(250 204 21 / 0.88);
+    box-shadow:
+      inset 0 0 0 1px rgb(250 204 21 / 0.35),
+      inset 0 0 28px rgb(250 204 21 / 0.07);
+  }
+  .marketing-preview-shell--recording .app-recording-frame--idle {
+    border-color: #404040;
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.08),
+      inset 0 0 28px rgb(0 0 0 / 0);
+  }
+  .marketing-preview-shell--recording .app-bottom-header .bottom-bar-btn {
+    pointer-events: none;
+    cursor: default;
+  }
+  .marketing-preview-shell--recording .app-bottom-header .bottom-bar-btn.is-recording,
+  .marketing-preview-shell--recording
+    .app-bottom-header
+    .bottom-bar-btn[aria-label="Record"],
+  .marketing-preview-shell--recording
+    .app-bottom-header
+    .bottom-bar-btn[aria-label="Stop recording"] {
+    pointer-events: auto;
+    cursor: pointer;
+  }
   .app-layout {
     position: relative;
     display: grid;

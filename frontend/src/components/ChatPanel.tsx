@@ -32,6 +32,7 @@ import ChatShortcutsHint from "./chat/ChatShortcutsHint";
 import ChatTabsBar from "./chat/ChatTabsBar";
 import HighlightedPromptInput from "./chat/HighlightedPromptInput";
 import { useConnectors } from "../hooks/useConnectors";
+import { isMarketingPreview, readMarketingPreviewSceneParam } from "../lib/marketingPreview";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { activeStepLabel } from "../lib/aiRun";
 import StructuredAssistantMessage, {
@@ -469,6 +470,7 @@ export default function ChatPanel() {
   const [scrollPadBottom] = useState(12);
   const [revealIdx, setRevealIdx] = useState<number | null>(null);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
+  const chatPanelMode = useStore((s) => s.chatPanelMode);
   const pollComposerOpen = useVoicePollStore(
     (s) => s.composerOpenByWorkspace[activeRoomId] ?? false,
   );
@@ -718,6 +720,37 @@ export default function ChatPanel() {
   }, [connectorsOpen]);
 
   useEffect(() => {
+    if (!isMarketingPreview()) return;
+    if (readMarketingPreviewSceneParam() !== "connectors") return;
+
+    let open = true;
+    setConnectorsOpen(true);
+
+    const intervalId = window.setInterval(() => {
+      open = !open;
+      setConnectorsOpen(open);
+    }, 4500);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isMarketingPreview()) return;
+    if (readMarketingPreviewSceneParam() !== "connectors") return;
+    if (chatPanelMode === "agent") {
+      setConnectorsOpen(true);
+    }
+  }, [chatPanelMode]);
+
+  useEffect(() => {
+    if (
+      isMarketingPreview() &&
+      readMarketingPreviewSceneParam() === "connectors"
+    ) {
+      return;
+    }
     setConnectorsOpen(false);
   }, [chat.length]);
 

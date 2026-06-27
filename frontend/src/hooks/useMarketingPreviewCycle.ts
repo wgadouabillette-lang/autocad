@@ -7,8 +7,8 @@ import {
 import type { ChatPanelMode } from "../lib/voiceAssistPanel";
 import { useStore } from "../store/useStore";
 
-const TAB_CYCLE_MS = 4000;
-const IDLE_BEFORE_RESUME_MS = 4000;
+const TAB_CYCLE_MS = 12000;
+const IDLE_BEFORE_RESUME_MS = 12000;
 
 function applyPreviewPanelMode(mode: ChatPanelMode): void {
   if (mode === "ai-notes") {

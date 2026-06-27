@@ -1771,6 +1771,16 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   toggleRecording: async () => {
     if (get().recordingBusy) return;
 
+    const { isMarketingRecordingPreviewScene } = await import("../lib/marketingPreview");
+    if (isMarketingRecordingPreviewScene()) {
+      set({
+        recording: !get().recording,
+        recordingBusy: false,
+        mediaError: null,
+      });
+      return;
+    }
+
     const resetRecordingState = (mediaError: string | null = null) => {
       set({ recording: false, recordingBusy: false, mediaError });
     };

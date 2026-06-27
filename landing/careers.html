@@ -3,8 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Lyte — Careers" />
-    <title>Lyte — Careers</title>
+    <meta
+      name="description"
+      data-i18n-content="careers.meta.description"
+      content="Join Lyte — help build the collaborative workspace teams actually want."
+    />
+    <title data-i18n-title="careers.meta.title">Lyte — Careers</title>
     <link rel="icon" type="image/png" href="icon.png" />
     <link rel="stylesheet" href="styles.css" />
     <script src="sitePrefs.js"></script>
@@ -12,13 +16,58 @@
   <body>
     <div id="site-nav" data-active="careers"></div>
 
-    <main class="hero">
-      <div class="hero__text">
-        <h1 class="hero__title">Careers.</h1>
-        <p class="hero__lead">
-          On construit l'outil de collaboration qu'on aurait aimé avoir. Si ça t'intéresse, écris-nous.
-        </p>
-      </div>
+    <main class="careers-page">
+      <section class="careers-section" aria-labelledby="careers-open-positions">
+        <aside class="careers-section__sidebar" aria-label="About careers at Lyte">
+          <header class="careers-intro">
+            <h1 class="careers-intro__title" data-i18n="careers.intro.title">
+              Help us build the workspace teams actually want
+            </h1>
+            <div class="careers-intro__body">
+              <p data-i18n="careers.intro.p1">
+                Lyte is a collaborative workspace — voice channels, AI chat, calendar, connectors,
+                and post-call follow-up in one desktop app. We're building the tool we wished we
+                had when juggling calls, chat, and a dozen tabs.
+              </p>
+              <p data-i18n="careers.intro.p2">
+                We're early but shipping fast: real-time voice with AI notes, an agent with skills,
+                and integrations teams use every day. We're a small, focused team with big
+                ambitions for how teams work together.
+              </p>
+              <p data-i18n="careers.intro.p3">
+                As an early team member, you'll shape the product, stack, and culture from the
+                ground up — from core infrastructure to pixel-perfect design.
+              </p>
+              <p data-i18n-html="careers.intro.p4">
+                If that sounds exciting, browse the roles below or write us at
+                <a class="careers-intro__link" href="mailto:careers@lyte.app">careers@lyte.app</a>.
+              </p>
+            </div>
+          </header>
+
+          <h2
+            class="careers-board__heading"
+            id="careers-open-positions"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <span data-i18n="careers.board.heading">Open Positions</span>
+            <span class="careers-board__count" id="careers-job-count">(4)</span>
+          </h2>
+        </aside>
+
+        <div class="careers-section__main">
+          <div class="careers-filters" id="careers-filters" aria-label="Job filters"></div>
+
+          <div class="careers-board">
+            <div class="careers-departments" id="careers-departments"></div>
+            <p class="careers-empty" id="careers-empty" hidden data-i18n="careers.board.empty">
+              No roles match your filters. Try adjusting or reset filters.
+            </p>
+          </div>
+        </div>
+      </section>
     </main>
 
     <div id="site-footer"></div>
@@ -27,5 +76,6 @@
     <script src="i18n.js"></script>
     <script src="nav.js"></script>
     <script src="footer.js"></script>
+    <script src="careers.js"></script>
   </body>
 </html>
