@@ -234,7 +234,7 @@ export default function TheaterChatPanel() {
     <div className="chat-panel-layout relative overflow-hidden">
       <div
         ref={messagesScrollRef}
-        className="chat-messages-scroll relative min-h-0 overflow-y-auto overflow-x-hidden px-3 pb-0"
+        className="chat-messages-scroll relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-0"
       >
         <ul className="theater-chat-thread">
           <li className="theater-chat-thread__spacer" aria-hidden />

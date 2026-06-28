@@ -1911,7 +1911,7 @@ export default function ChatPanel() {
 
       <div
         ref={messagesScrollRef}
-        className="chat-messages-scroll relative min-h-0 overflow-y-auto overflow-x-hidden px-3 pb-0"
+        className="chat-messages-scroll relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-0"
       >
         {handoffPreview ? (
           <div className="flex flex-col gap-3 pt-3">

@@ -3958,8 +3958,8 @@ body {
     background-color: var(--forma-chat-composer-bg);
   }
   .chat-panel-layout {
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
+    display: flex;
+    flex-direction: column;
     height: 100%;
     min-height: 0;
     min-width: 0;
