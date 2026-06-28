@@ -26,8 +26,8 @@
   }
 
   function t(key) {
-    var locale = window.LyteSitePrefs ? window.LyteSitePrefs.getLocale() : "en";
-    if (window.LyteLandingI18n) return window.LyteLandingI18n.t(key, locale);
+    var locale = window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en";
+    if (window.HallLandingI18n) return window.HallLandingI18n.t(key, locale);
     return key;
   }
 
@@ -94,9 +94,9 @@
       '<nav class="nav" id="site-nav" data-active="' +
       active +
       '">' +
-      '<a class="nav__logo" href="index.html" aria-label="Lyte">' +
+      '<a class="nav__logo" href="index.html" aria-label="Hall">' +
       '<img src="icon.png" alt="" class="nav__logo-icon" width="26" height="26" />' +
-      "<span>Lyte</span></a>" +
+      "<span>Hall</span></a>" +
       '<ul class="nav__tabs" role="list">' +
       tabsHtml +
       "</ul>" +

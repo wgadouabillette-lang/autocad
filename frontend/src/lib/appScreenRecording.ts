@@ -78,7 +78,7 @@ async function acquireViaElectronDesktop(): Promise<MediaStream> {
   const sourceId = await window.formaDesktop!.getAppWindowSourceId();
   if (!sourceId) {
     throw new Error(
-      "Lyte window not found. Allow Lyte (or Electron) in screen recording settings.",
+      "Hall window not found. Allow Hall (or Electron) in screen recording settings.",
     );
   }
 

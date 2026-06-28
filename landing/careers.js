@@ -93,8 +93,8 @@
     "</svg>";
 
   function t(key, vars) {
-    var locale = window.LyteSitePrefs ? window.LyteSitePrefs.getLocale() : "en";
-    return window.LyteLandingI18n ? window.LyteLandingI18n.t(key, locale, vars) : key;
+    var locale = window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en";
+    return window.HallLandingI18n ? window.HallLandingI18n.t(key, locale, vars) : key;
   }
 
   function stripCount(label) {
@@ -111,7 +111,7 @@
   }
 
   function mailtoHref(subject) {
-    return "mailto:careers@lyte.app?subject=" + encodeURIComponent(subject);
+    return "mailto:careers@hall.app?subject=" + encodeURIComponent(subject);
   }
 
   function getFilters() {
@@ -379,7 +379,7 @@
 
   document.addEventListener("lyte-landing:locale", refreshBoard);
 
-  window.LyteCareersPage = {
+  window.HallCareersPage = {
     applyFilters: applyFilters,
     resetFilters: resetFilters,
     refreshBoard: refreshBoard,

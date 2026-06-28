@@ -19,7 +19,7 @@ const {
   handleTriggerMockUpdate,
 } = require("./updater.cjs");
 
-app.setName("Lyte");
+app.setName("Hall");
 
 const BACKEND_HOST = "127.0.0.1";
 const BACKEND_PORT = Number(process.env.FORMA_PORT || 47831);
@@ -124,7 +124,7 @@ function spawnBackend() {
     backendProc = null;
     if (code && code !== 0 && mainWindow) {
       mainWindow.loadURL(
-        `data:text/html,<body style="font-family:system-ui;background:#121212;color:#e0e0e0;padding:2rem"><h1>Lyte</h1><p>The backend engine stopped (code ${code}).</p><p>Restart the application.</p></body>`,
+        `data:text/html,<body style="font-family:system-ui;background:#121212;color:#e0e0e0;padding:2rem"><h1>Hall</h1><p>The backend engine stopped (code ${code}).</p><p>Restart the application.</p></body>`,
       );
     }
   });
@@ -168,7 +168,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 640,
-    title: "Lyte",
+    title: "Hall",
     backgroundColor: "#121212",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -220,7 +220,7 @@ async function listWindowSources() {
   });
 }
 
-async function resolveLyteWindowSource() {
+async function resolveHallWindowSource() {
   const win = mainWindow || BrowserWindow.getFocusedWindow();
   if (!win) return null;
 
@@ -232,15 +232,15 @@ async function resolveLyteWindowSource() {
     if (byId) return byId;
   }
 
-  const title = win.getTitle() || "Lyte";
-  const names = [title, "Lyte", "Electron"];
+  const title = win.getTitle() || "Hall";
+  const names = [title, "Hall", "Electron"];
   for (const name of names) {
     const match = sources.find((source) => source.name === name);
     if (match) return match;
   }
 
   return (
-    sources.find((source) => source.name.includes("Lyte")) ??
+    sources.find((source) => source.name.includes("Hall")) ??
     sources.find((source) => source.name.includes("Electron")) ??
     null
   );
@@ -303,7 +303,7 @@ ipcMain.handle("forma:open-external", async (_event, url) => {
 });
 
 ipcMain.handle("forma:get-app-window-source-id", async () => {
-  const source = await resolveLyteWindowSource();
+  const source = await resolveHallWindowSource();
   return source?.id ?? null;
 });
 
@@ -323,7 +323,7 @@ app.whenReady().then(async () => {
   session.defaultSession.setDisplayMediaRequestHandler(
     async (_request, callback) => {
       try {
-        const source = await resolveLyteWindowSource();
+        const source = await resolveHallWindowSource();
         callback(source ? { video: source } : {});
       } catch (err) {
         console.error("forma display-media handler:", err);
@@ -356,19 +356,19 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error(err);
     const message =
-      err instanceof Error ? err.message : "Le backend Lyte n'a pas répondu.";
+      err instanceof Error ? err.message : "Le backend Hall n'a pas répondu.";
     const devHint = DEV_URL
       ? "Vérifiez que le backend tourne sur le port 8000 (./scripts/desktop-dev.sh)."
       : "Relancez depuis le dossier du projet : ./scripts/desktop-dev.sh — ou reconstruisez l'app : ./scripts/build-desktop-mac.sh";
     const win = new BrowserWindow({
       width: 720,
       height: 420,
-      title: "Lyte",
+      title: "Hall",
       backgroundColor: "#121212",
     });
     win.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(
-        `<body style="font-family:system-ui;background:#121212;color:#e0e0e0;padding:2rem;line-height:1.5"><h1 style="margin:0 0 1rem">Lyte ne peut pas démarrer</h1><p>${message}</p><p>${devHint}</p></body>`,
+        `<body style="font-family:system-ui;background:#121212;color:#e0e0e0;padding:2rem;line-height:1.5"><h1 style="margin:0 0 1rem">Hall ne peut pas démarrer</h1><p>${message}</p><p>${devHint}</p></body>`,
       )}`,
     );
   }

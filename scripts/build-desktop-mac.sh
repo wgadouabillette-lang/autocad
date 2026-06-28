@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Construit Lyte.dmg pour macOS (sur une machine Mac)
+# Construit Hall.dmg pour macOS (sur une machine Mac)
 set -e
 cd "$(dirname "$0")/.."
 
@@ -42,5 +42,5 @@ chmod +x scripts/fix-mac-app-sign.sh
 ./scripts/fix-mac-app-sign.sh
 
 echo ""
-echo "Terminé : desktop/release/Lyte-*.dmg"
-echo "Glissez Lyte dans Applications, puis lancez depuis le Launchpad."
+echo "Terminé : desktop/release/Hall-*.dmg"
+echo "Glissez Hall dans Applications, puis lancez depuis le Launchpad."

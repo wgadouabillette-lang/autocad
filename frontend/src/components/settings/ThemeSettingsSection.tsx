@@ -36,7 +36,7 @@ export default function ThemeSettingsSection() {
     <section className="settings-section">
       <h3 className="settings-section__label">Theme</h3>
       <p className="settings-section__hint">
-        Choose how Lyte looks across the app. Light mode mirrors the dark palette with inverted
+        Choose how Hall looks across the app. Light mode mirrors the dark palette with inverted
         contrast.
       </p>
 

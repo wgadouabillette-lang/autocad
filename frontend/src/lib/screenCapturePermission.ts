@@ -61,10 +61,10 @@ export function isScreenCapturePermissionError(error: unknown): boolean {
 
 export function screenCaptureSettingsHint(platform: DesktopPlatform | string): string {
   if (platform === "darwin") {
-    return "Ouvrez Réglages système → Confidentialité et sécurité → Enregistrement de l'écran, puis activez Lyte. En développement, autorisez aussi Electron si Lyte n'apparaît pas.";
+    return "Ouvrez Réglages système → Confidentialité et sécurité → Enregistrement de l'écran, puis activez Hall. En développement, autorisez aussi Electron si Hall n'apparaît pas.";
   }
   if (platform === "win32") {
-    return "Ouvrez Paramètres → Confidentialité → Enregistrement d'écran, puis autorisez Lyte ou Electron.";
+    return "Ouvrez Paramètres → Confidentialité → Enregistrement d'écran, puis autorisez Hall ou Electron.";
   }
-  return "Autorisez l'enregistrement d'écran pour Lyte dans les réglages de confidentialité de votre système.";
+  return "Autorisez l'enregistrement d'écran pour Hall dans les réglages de confidentialité de votre système.";
 }

@@ -1,6 +1,6 @@
 # Google Calendar — configuration
 
-La connexion Google Calendar est **distincte** de la connexion Google utilisée pour se connecter à Lyte (Firebase Auth). L'utilisateur doit lier son compte Calendar explicitement via **Settings → Plugins** ou le bandeau du panneau Calendar.
+La connexion Google Calendar est **distincte** de la connexion Google utilisée pour se connecter à Hall (Firebase Auth). L'utilisateur doit lier son compte Calendar explicitement via **Settings → Plugins** ou le bandeau du panneau Calendar.
 
 ## Prérequis
 
@@ -132,7 +132,7 @@ vercel --prod
 
 ### 4. Firebase Auth
 
-Domaine autorisé pour la connexion Lyte :
+Domaine autorisé pour la connexion Hall :
 
 ```bash
 ./scripts/configure-firebase-auth-domains.sh
@@ -149,7 +149,7 @@ Domaine autorisé pour la connexion Lyte :
 
 ### Domaine personnalisé (plus tard)
 
-Si vous ajoutez un domaine (ex. `lyte.app`) :
+Si vous ajoutez un domaine (ex. `hall.app`) :
 
 1. Ajouter `https://VOTRE-DOMAINE/api/connectors/oauth/callback` dans Google Cloud
 2. Mettre à jour `FORMA_OAUTH_REDIRECT_BASE` et `FORMA_FRONTEND_ORIGIN` sur Vercel
@@ -157,16 +157,16 @@ Si vous ajoutez un domaine (ex. `lyte.app`) :
 
 ### Mauvais branding OAuth (autre projet Google)
 
-La popup « Choisir un compte » affiche le **nom, logo et écran de consentement** du projet Google Cloud qui possède le `GOOGLE_CLIENT_ID` configuré dans le backend — **pas** le projet Firebase de connexion Lyte, sauf si c’est le même client.
+La popup « Choisir un compte » affiche le **nom, logo et écran de consentement** du projet Google Cloud qui possède le `GOOGLE_CLIENT_ID` configuré dans le backend — **pas** le projet Firebase de connexion Hall, sauf si c’est le même client.
 
 **Cause fréquente :** `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` copiés depuis un autre projet (ou le mauvais client OAuth dans la liste).
 
 **Correction :**
 
 1. Ouvrir [Google Cloud Console](https://console.cloud.google.com/) et sélectionner le projet **`forma-cad-dev`** (menu en haut — pas un autre projet)
-2. **APIs & Services → OAuth consent screen** → configurer le branding **Lyte** (nom de l’app, logo, e-mail support, domaine `autocad-blue.vercel.app`)
+2. **APIs & Services → OAuth consent screen** → configurer le branding **Hall** (nom de l’app, logo, e-mail support, domaine `autocad-blue.vercel.app`)
 3. **Credentials → Create credentials → OAuth client ID → Web application**
-   - Nom suggéré : `Lyte Connectors (Calendar/Gmail)`
+   - Nom suggéré : `Hall Connectors (Calendar/Gmail)`
    - Redirect URI : `https://autocad-blue.vercel.app/api/connectors/oauth/callback`
    - *(+ `http://127.0.0.1:8000/api/connectors/oauth/callback` si vous testez en local)*
 4. Copier le **nouveau** Client ID et Secret dans :

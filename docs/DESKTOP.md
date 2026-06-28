@@ -1,6 +1,6 @@
-# Lyte — application bureau (.dmg / Windows)
+# Hall — application bureau (.dmg / Windows)
 
-Lyte peut tourner comme une **vraie application** (fenêtre native), sans ouvrir le terminal ni `localhost:5173`.
+Hall peut tourner comme une **vraie application** (fenêtre native), sans ouvrir le terminal ni `localhost:5173`.
 
 ## Prérequis
 
@@ -20,7 +20,7 @@ chmod +x scripts/desktop-dev.sh
 ./scripts/desktop-dev.sh
 ```
 
-Une fenêtre **Lyte** s’ouvre (Electron). Le backend tourne en arrière-plan sur le port `47831`.
+Une fenêtre **Hall** s’ouvre (Electron). Le backend tourne en arrière-plan sur le port `47831`.
 
 ---
 
@@ -33,10 +33,10 @@ chmod +x scripts/build-desktop-mac.sh
 ./scripts/build-desktop-mac.sh
 ```
 
-Fichier produit : `desktop/release/Lyte-0.1.0.dmg`
+Fichier produit : `desktop/release/Hall-0.1.0.dmg`
 
 1. Double-cliquez le `.dmg`
-2. Glissez **Lyte** dans **Applications**
+2. Glissez **Hall** dans **Applications**
 3. Lancez depuis le Launchpad (comme n’importe quelle app Mac)
 
 > Au premier lancement, macOS peut afficher « développeur non identifié » :  
@@ -97,9 +97,9 @@ Pour que le **backend embarqué** lise les clés utilisateur depuis Firestore (r
 scripts\build-desktop-win.bat
 ```
 
-Fichier produit : `desktop/release/Lyte Setup 0.1.0.exe`
+Fichier produit : `desktop/release/Hall Setup 0.1.0.exe`
 
-Double-cliquez pour installer (assistant NSIS), puis lancez **Lyte** depuis le menu Démarrer.
+Double-cliquez pour installer (assistant NSIS), puis lancez **Hall** depuis le menu Démarrer.
 
 Config utilisateur : `%APPDATA%\forma-desktop\forma-data\.env`
 

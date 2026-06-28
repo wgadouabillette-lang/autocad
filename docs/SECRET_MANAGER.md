@@ -1,4 +1,4 @@
-# Google Secret Manager — configuration Lyte
+# Google Secret Manager — configuration Hall
 
 Toutes les variables sensibles (ex-`backend/.env`, `functions/.env`, `frontend/.env`) sont stockées dans **Google Secret Manager** sous forme de bundles dotenv.
 

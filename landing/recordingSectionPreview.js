@@ -23,7 +23,7 @@
 
   function showFallback(mount) {
     mount.innerHTML =
-      '<img class="hero__shot-img" src="app-preview.png" alt="Lyte demo recording preview" loading="eager" decoding="async" />';
+      '<img class="hero__shot-img" src="app-preview.png" alt="Hall demo recording preview" loading="eager" decoding="async" />';
   }
 
   function postRecordingDemoStart() {
@@ -99,7 +99,7 @@
 
     var iframe = document.createElement("iframe");
     iframe.className = "hero__recording-preview-frame";
-    iframe.title = "Lyte demo recording preview";
+    iframe.title = "Hall demo recording preview";
     iframe.loading = "eager";
     iframe.tabIndex = -1;
     iframe.setAttribute("aria-hidden", "true");

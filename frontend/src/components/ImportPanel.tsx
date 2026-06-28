@@ -33,7 +33,7 @@ export default function ImportPanel() {
   return (
     <div className="flex h-full flex-col overflow-y-auto p-3 gap-3">
       <div className="text-xs text-muted-400">
-        Drop a <b>PDF, image, or scan</b>. Lyte detects outlines, holes, and
+        Drop a <b>PDF, image, or scan</b>. Hall detects outlines, holes, and
         displays the annotated 2D drawing.
       </div>
 

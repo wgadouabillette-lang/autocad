@@ -6,52 +6,52 @@
 
   var MESSAGES = {
     en: {
-      "meta.title": "Lyte — Collaborative workspace",
+      "meta.title": "Hall — Collaborative workspace",
       "meta.description":
-        "Lyte — collaborative workspace with voice channels, AI chat, and screen recording.",
+        "Hall — collaborative workspace with voice channels, AI chat, and screen recording.",
       "nav.pricing": "Pricing",
       "nav.careers": "Careers",
       "nav.skills": "Skills",
       "nav.connectors": "Connectors",
       "nav.workspaces": "Workspaces",
       "nav.resources": "Resources",
-      "nav.openApp": "Open Lyte",
-      "nav.openAppDesktopOnly": "Lyte is available on desktop only",
+      "nav.openApp": "Open Hall",
+      "nav.openAppDesktopOnly": "Hall is available on desktop only",
       "hero.title": "Your workspace,<br />in one app.",
       "hero.lead":
-        "Voice channels, AI chat, calendar, screen recording, and connectors — Lyte brings everything your team needs day to day.",
+        "Voice channels, AI chat, calendar, screen recording, and connectors — Hall brings everything your team needs day to day.",
       "hero.cta.start": "Get started",
       "hero.cta.pricing": "View pricing",
       "hero.shots.trio.title": "From conversation to action",
       "hero.shot.main.alt":
-        "Lyte preview — main view with voice channels and AI chat",
-      "hero.shot.voice.alt": "Lyte preview — voice channels and team calls",
+        "Hall preview — main view with voice channels and AI chat",
+      "hero.shot.voice.alt": "Hall preview — voice channels and team calls",
       "hero.shot.voice.title": "Voice channels",
       "hero.shot.voice.desc":
         "Join teammates in one click — camera, screen share, and live presence.",
-      "hero.shot.skills.alt": "Lyte preview — AI Skills slash commands in chat",
+      "hero.shot.skills.alt": "Hall preview — AI Skills slash commands in chat",
       "hero.shot.skills.title": "AI Skills",
       "hero.shot.skills.desc":
         "Type / for in-app skills — schedule tasks with /manage or share context with /handoff.",
-      "hero.shot.recording.alt": "Lyte preview — demo recording with active record button",
+      "hero.shot.recording.alt": "Hall preview — demo recording with active record button",
       "hero.shot.recording.title": "Demo Recording",
       "hero.shot.recording.desc":
         "Capture your screen and voice from the bottom bar — one click to record.",
-      "hero.shot.calendar.alt": "Lyte preview — calendar and connectors",
+      "hero.shot.calendar.alt": "Hall preview — calendar and connectors",
       "hero.shot.calendar.title": "Calendar & connectors",
       "hero.shot.calendar.desc":
         "Schedule meetings and connect Gmail, Calendar, Spotify, and more.",
-      "hero.shot.notes.alt": "Lyte preview — AI Notes and call recording",
+      "hero.shot.notes.alt": "Hall preview — AI Notes and call recording",
       "hero.shot.notes.title": "AI Notes",
       "hero.shot.notes.desc":
-        "Live transcription and structured notes during voice calls — without leaving Lyte.",
+        "Live transcription and structured notes during voice calls — without leaving Hall.",
       "hero.shot.notes.cta": "Explore AI Notes",
-      "hero.shot.workspace.alt": "Lyte preview — collaborative workspace and messaging",
+      "hero.shot.workspace.alt": "Hall preview — collaborative workspace and messaging",
       "hero.shot.workspace.title": "Team messaging",
       "hero.shot.workspace.desc":
         "Direct messages and group chats alongside voice — presence and history in one place.",
       "hero.shot.workspace.cta": "Explore messaging",
-      "hero.shot.followup.alt": "Lyte preview — post-call follow-up and recap",
+      "hero.shot.followup.alt": "Hall preview — post-call follow-up and recap",
       "hero.shot.followup.title": "Post-call follow-up",
       "hero.shot.followup.desc":
         "Structured recap, action items, and draft emails — generated right after your meeting.",
@@ -65,7 +65,7 @@
       "highlights.card2.desc": "Share a conversation excerpt with a teammate or group.",
       "highlights.card3.tag": "Calls",
       "highlights.card3.title": "AI Notes",
-      "highlights.card3.desc": "Live transcription during voice calls, right inside Lyte.",
+      "highlights.card3.desc": "Live transcription during voice calls, right inside Hall.",
       "highlights.card4.tag": "Connectors",
       "highlights.card4.title": "Spotify in chat",
       "highlights.card4.desc": "Play a track or queue it from the composer.",
@@ -77,14 +77,14 @@
       "highlights.card6.desc": "Structured summary, calendar, and emails after your meeting.",
       "highlights.more": "View more product upgrades",
       "highlights.less": "View less product upgrades",
-      "try.title": "Try Lyte Now.",
+      "try.title": "Try Hall Now.",
       "try.downloadMac": "Download for macOS",
       "try.downloadWin": "Download for Windows",
-      "try.downloadMacAria": "Download Lyte for macOS",
-      "try.downloadWinAria": "Download Lyte for Windows",
+      "try.downloadMacAria": "Download Hall for macOS",
+      "try.downloadWinAria": "Download Hall for Windows",
       "try.mobileStart": "Get started",
       "footer.product": "Product",
-      "footer.openApp": "Open Lyte",
+      "footer.openApp": "Open Hall",
       "footer.pricing": "Pricing",
       "footer.downloadMac": "Download macOS",
       "footer.downloadWin": "Download Windows",
@@ -97,23 +97,23 @@
       "footer.terms": "Terms",
       "footer.subprocessors": "Subprocessors",
       "footer.connect": "Connect",
-      "footer.copyright": "© {year} Lyte. All rights reserved.",
+      "footer.copyright": "© {year} Hall. All rights reserved.",
       "footer.theme.system": "System theme",
       "footer.theme.light": "Light theme",
       "footer.theme.dark": "Dark theme",
       "footer.lang.label": "Language",
-      "careers.meta.title": "Lyte — Careers",
+      "careers.meta.title": "Hall — Careers",
       "careers.meta.description":
-        "Join Lyte — help build the collaborative workspace teams actually want.",
+        "Join Hall — help build the collaborative workspace teams actually want.",
       "careers.intro.title": "Help us build the workspace teams actually want",
       "careers.intro.p1":
-        "Lyte is a collaborative workspace — voice channels, AI chat, calendar, connectors, and post-call follow-up in one desktop app. We're building the tool we wished we had when juggling calls, chat, and a dozen tabs.",
+        "Hall is a collaborative workspace — voice channels, AI chat, calendar, connectors, and post-call follow-up in one desktop app. We're building the tool we wished we had when juggling calls, chat, and a dozen tabs.",
       "careers.intro.p2":
         "We're early but shipping fast: real-time voice with AI notes, an agent with skills, and integrations teams use every day. We're a small, focused team with big ambitions for how teams work together.",
       "careers.intro.p3":
         "As an early team member, you'll shape the product, stack, and culture from the ground up — from core infrastructure to pixel-perfect design.",
       "careers.intro.p4":
-        "If that sounds exciting, browse the roles below or write us at <a class=\"careers-intro__link\" href=\"mailto:careers@lyte.app\">careers@lyte.app</a>.",
+        "If that sounds exciting, browse the roles below or write us at <a class=\"careers-intro__link\" href=\"mailto:careers@hall.app\">careers@hall.app</a>.",
       "careers.board.heading": "Open Positions",
       "careers.board.empty": "No roles match your filters. Try adjusting or reset filters.",
       "careers.filters.label": "Filters:",
@@ -151,53 +151,53 @@
         "Product • Paris or Remote (Europe, North America) • Full time • Remote",
     },
     fr: {
-      "meta.title": "Lyte — Espace de travail collaboratif",
+      "meta.title": "Hall — Espace de travail collaboratif",
       "meta.description":
-        "Lyte — espace de travail collaboratif avec salons vocaux, chat IA et enregistrement d'écran.",
+        "Hall — espace de travail collaboratif avec salons vocaux, chat IA et enregistrement d'écran.",
       "nav.pricing": "Tarifs",
       "nav.careers": "Careers",
       "nav.skills": "Skills",
       "nav.connectors": "Connecteurs",
       "nav.workspaces": "Workspaces",
       "nav.resources": "Ressources",
-      "nav.openApp": "Ouvrir Lyte",
-      "nav.openAppDesktopOnly": "Lyte est disponible sur ordinateur uniquement",
+      "nav.openApp": "Ouvrir Hall",
+      "nav.openAppDesktopOnly": "Hall est disponible sur ordinateur uniquement",
       "hero.title": "Votre espace de travail,<br />en une seule app.",
       "hero.lead":
-        "Salons vocaux, chat IA, calendrier, enregistrement d'écran et connecteurs — Lyte regroupe tout ce dont votre équipe a besoin au quotidien.",
+        "Salons vocaux, chat IA, calendrier, enregistrement d'écran et connecteurs — Hall regroupe tout ce dont votre équipe a besoin au quotidien.",
       "hero.cta.start": "Commencer",
       "hero.cta.pricing": "Voir les tarifs",
       "hero.shots.trio.title": "From conversation to action",
       "hero.shot.main.alt":
-        "Aperçu de Lyte — vue principale avec salons vocaux et chat IA",
-      "hero.shot.voice.alt": "Aperçu Lyte — salons vocaux et appels d'équipe",
+        "Aperçu de Hall — vue principale avec salons vocaux et chat IA",
+      "hero.shot.voice.alt": "Aperçu Hall — salons vocaux et appels d'équipe",
       "hero.shot.voice.title": "Salons vocaux",
       "hero.shot.voice.desc":
         "Rejoignez vos collègues en un clic — caméra, partage d'écran et présence en direct.",
-      "hero.shot.skills.alt": "Lyte preview — AI Skills slash commands in chat",
+      "hero.shot.skills.alt": "Hall preview — AI Skills slash commands in chat",
       "hero.shot.skills.title": "AI Skills",
       "hero.shot.skills.desc":
         "Type / for in-app skills — schedule tasks with /manage or share context with /handoff.",
-      "hero.shot.recording.alt": "Lyte preview — demo recording with active record button",
+      "hero.shot.recording.alt": "Hall preview — demo recording with active record button",
       "hero.shot.recording.title": "Demo Recording",
       "hero.shot.recording.desc":
         "Capture your screen and voice from the bottom bar — one click to record.",
-      "hero.shot.calendar.alt": "Lyte preview — calendar and connectors",
+      "hero.shot.calendar.alt": "Hall preview — calendar and connectors",
       "hero.shot.calendar.title": "Calendar & connectors",
       "hero.shot.calendar.desc":
         "Schedule meetings and connect Gmail, Calendar, Spotify, and more.",
-      "hero.shot.notes.alt": "Aperçu Lyte — AI Notes et enregistrement en appel vocal",
+      "hero.shot.notes.alt": "Aperçu Hall — AI Notes et enregistrement en appel vocal",
       "hero.shot.notes.title": "AI Notes",
       "hero.shot.notes.desc":
-        "Transcription live et notes structurées pendant vos appels — sans quitter Lyte.",
+        "Transcription live et notes structurées pendant vos appels — sans quitter Hall.",
       "hero.shot.notes.cta": "Découvrir AI Notes",
       "hero.shot.workspace.alt":
-        "Aperçu Lyte — workspace collaboratif et messagerie d'équipe",
+        "Aperçu Hall — workspace collaboratif et messagerie d'équipe",
       "hero.shot.workspace.title": "Messagerie d'équipe",
       "hero.shot.workspace.desc":
         "Messages privés et groupes aux côtés de la voix — présence et historique au même endroit.",
       "hero.shot.workspace.cta": "Découvrir la messagerie",
-      "hero.shot.followup.alt": "Aperçu Lyte — follow-up et récap post-appel",
+      "hero.shot.followup.alt": "Aperçu Hall — follow-up et récap post-appel",
       "hero.shot.followup.title": "Follow-up post-appel",
       "hero.shot.followup.desc":
         "Récap structuré, actions et brouillons d'emails — générés juste après votre réunion.",
@@ -214,7 +214,7 @@
       "highlights.card3.tag": "Calls",
       "highlights.card3.title": "AI Notes",
       "highlights.card3.desc":
-        "Transcription live pendant vos appels vocaux, directement dans Lyte.",
+        "Transcription live pendant vos appels vocaux, directement dans Hall.",
       "highlights.card4.tag": "Connectors",
       "highlights.card4.title": "Spotify dans le chat",
       "highlights.card4.desc":
@@ -229,14 +229,14 @@
         "Synthèse structurée, calendrier et e-mails après votre réunion.",
       "highlights.more": "View more product upgrades",
       "highlights.less": "View less product upgrades",
-      "try.title": "Try Lyte Now.",
+      "try.title": "Try Hall Now.",
       "try.downloadMac": "Download for macOS",
       "try.downloadWin": "Download for Windows",
-      "try.downloadMacAria": "Télécharger Lyte pour macOS",
-      "try.downloadWinAria": "Télécharger Lyte pour Windows",
+      "try.downloadMacAria": "Télécharger Hall pour macOS",
+      "try.downloadWinAria": "Télécharger Hall pour Windows",
       "try.mobileStart": "Commencer",
       "footer.product": "Produit",
-      "footer.openApp": "Ouvrir Lyte",
+      "footer.openApp": "Ouvrir Hall",
       "footer.pricing": "Tarifs",
       "footer.downloadMac": "Télécharger macOS",
       "footer.downloadWin": "Télécharger Windows",
@@ -249,23 +249,23 @@
       "footer.terms": "Conditions",
       "footer.subprocessors": "Sous-traitants",
       "footer.connect": "Réseaux",
-      "footer.copyright": "© {year} Lyte. Tous droits réservés.",
+      "footer.copyright": "© {year} Hall. Tous droits réservés.",
       "footer.theme.system": "Thème système",
       "footer.theme.light": "Thème clair",
       "footer.theme.dark": "Thème sombre",
       "footer.lang.label": "Langue",
-      "careers.meta.title": "Lyte — Careers",
+      "careers.meta.title": "Hall — Careers",
       "careers.meta.description":
-        "Rejoignez Lyte — construisez l'espace de travail collaboratif dont les équipes ont besoin.",
+        "Rejoignez Hall — construisez l'espace de travail collaboratif dont les équipes ont besoin.",
       "careers.intro.title": "Construisons l'espace de travail dont les équipes ont vraiment besoin",
       "careers.intro.p1":
-        "Lyte est un espace de travail collaboratif — salons vocaux, chat IA, calendrier, connecteurs et follow-up post-appel dans une seule app desktop. On construit l'outil qu'on aurait aimé avoir entre appels, chat et douzaines d'onglets.",
+        "Hall est un espace de travail collaboratif — salons vocaux, chat IA, calendrier, connecteurs et follow-up post-appel dans une seule app desktop. On construit l'outil qu'on aurait aimé avoir entre appels, chat et douzaines d'onglets.",
       "careers.intro.p2":
         "On est encore early stage mais on ship vite : voix temps réel avec AI Notes, un agent avec skills, et des intégrations utilisées au quotidien. Petite équipe, grandes ambitions sur la façon dont les équipes travaillent ensemble.",
       "careers.intro.p3":
         "En tant que membre fondateur, tu façonneras le produit, la stack et la culture — de l'infra core au design pixel-perfect.",
       "careers.intro.p4":
-        "Si ça te parle, parcours les postes ci-dessous ou écris-nous à <a class=\"careers-intro__link\" href=\"mailto:careers@lyte.app\">careers@lyte.app</a>.",
+        "Si ça te parle, parcours les postes ci-dessous ou écris-nous à <a class=\"careers-intro__link\" href=\"mailto:careers@hall.app\">careers@hall.app</a>.",
       "careers.board.heading": "Postes ouverts",
       "careers.board.empty":
         "Aucun poste ne correspond à vos filtres. Ajustez-les ou réinitialisez.",
@@ -355,25 +355,25 @@
       moreLabel.textContent = t(expanded ? "highlights.less" : "highlights.more", lang);
     }
 
-    if (window.LyteHomePage) {
-      window.LyteHomePage.refreshDownloadLabel(lang);
+    if (window.HallHomePage) {
+      window.HallHomePage.refreshDownloadLabel(lang);
     }
   }
 
   function languageLabel(locale) {
-    if (window.LyteFooterIcons) {
-      return window.LyteFooterIcons.langTriggerHtml(locale);
+    if (window.HallFooterIcons) {
+      return window.HallFooterIcons.langTriggerHtml(locale);
     }
     var locales = LOCALES;
     return locales[locale === "fr" ? "fr" : "en"] || locales.en;
   }
 
-  window.LyteLandingI18n = {
+  window.HallLandingI18n = {
     LOCALES: LOCALES,
     t: t,
     apply: apply,
     languageLabel: languageLabel,
   };
 
-  apply(window.LyteSitePrefs ? window.LyteSitePrefs.getLocale() : "en");
+  apply(window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en");
 })();

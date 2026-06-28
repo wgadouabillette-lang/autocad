@@ -42,8 +42,8 @@
     var next = locale === "fr" ? "fr" : DEFAULT_LANG;
     localStorage.setItem(LANG_KEY, next);
     document.documentElement.lang = next;
-    if (window.LyteLandingI18n) {
-      window.LyteLandingI18n.apply(next);
+    if (window.HallLandingI18n) {
+      window.HallLandingI18n.apply(next);
     }
     syncLangTrigger(next);
     document.dispatchEvent(
@@ -64,8 +64,8 @@
 
   function syncLangTrigger(locale) {
     var trigger = document.getElementById("footer-lang-trigger");
-    if (!trigger || !window.LyteLandingI18n) return;
-    trigger.innerHTML = window.LyteLandingI18n.languageLabel(locale);
+    if (!trigger || !window.HallLandingI18n) return;
+    trigger.innerHTML = window.HallLandingI18n.languageLabel(locale);
   }
 
   function closeLangMenu() {
@@ -123,7 +123,7 @@
     if (getThemeMode() === "system") applyTheme("system");
   });
 
-  window.LyteSitePrefs = {
+  window.HallSitePrefs = {
     THEME_KEY: THEME_KEY,
     LANG_KEY: LANG_KEY,
     getThemeMode: getThemeMode,

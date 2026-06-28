@@ -90,7 +90,7 @@ _load_env()
 
 @dataclass
 class Settings:
-    app_name: str = "Lyte"
+    app_name: str = "Hall"
     version: str = "0.1.0"
 
     # Serveur

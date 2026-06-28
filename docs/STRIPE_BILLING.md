@@ -1,4 +1,4 @@
-# Facturation Stripe — Lyte
+# Facturation Stripe — Hall
 
 Guide pour configurer l'abonnement **Pro** et l'add-on **usage à la demande**, en local et en production.
 
@@ -21,7 +21,7 @@ Routes API : `backend/app/api/billing.py`
 
 - Compte [Stripe](https://dashboard.stripe.com)
 - [Stripe CLI](https://stripe.com/docs/stripe-cli) (tests locaux)
-- Backend Lyte avec Firebase Admin configuré
+- Backend Hall avec Firebase Admin configuré
 - Variable `FORMA_FRONTEND_ORIGIN` pointant vers le frontend (ex. `http://127.0.0.1:5173`)
 
 ```bash
@@ -60,8 +60,8 @@ Options utiles :
 
 Le script crée (ou réutilise) :
 
-- **Lyte Pro** — prix récurrent mensuel (**30 $/mois** par défaut, USD)
-- **Lyte — Usage à la demande** — prix metered (`usage_type: metered`)
+- **Hall Pro** — prix récurrent mensuel (**30 $/mois** par défaut, USD)
+- **Hall — Usage à la demande** — prix metered (`usage_type: metered`)
 
 Il écrit `STRIPE_PRO_PRICE_ID` et `STRIPE_ON_DEMAND_PRICE_ID` dans `backend/.env`.
 

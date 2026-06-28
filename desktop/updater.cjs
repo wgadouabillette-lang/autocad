@@ -71,7 +71,7 @@ async function runInstallNow(info) {
     if (win && !win.isDestroyed()) {
       await dialog.showMessageBox(win, {
         type: "info",
-        title: "Lyte — test mise à jour",
+        title: "Hall — test mise à jour",
         message: `Mise à jour ${info.version} simulée (mode dev).`,
         detail: "En production, l'app redémarrerait maintenant.",
         buttons: ["OK"],

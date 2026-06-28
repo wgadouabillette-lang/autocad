@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-app = FastAPI(title="Lyte API")
+app = FastAPI(title="Hall API")
 
 
 @app.get("/api/health")

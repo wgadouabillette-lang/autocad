@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import type { AuthProvider } from "../../store/useAuthStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { getLandingUrl } from "../../lib/appAccess";
+import { APP_DISPLAY_NAME } from "../../lib/appBrand";
 import { hasFormaDesktop } from "../../lib/formaDesktop";
 import { FacebookIcon, GoogleIcon, MicrosoftIcon } from "./AuthProviderIcons";
 
@@ -15,7 +16,7 @@ const PROVIDERS: {
   { id: "facebook", label: "Continue with Facebook", Icon: FacebookIcon },
 ];
 
-const LYTE_SITE_URL = "https://lyte.app";
+const HALL_SITE_URL = "https://hall.app";
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -59,23 +60,23 @@ export default function AuthPage() {
       <header className="auth-page__brand">
         {isDesktop ? (
           <span className="auth-page__brand-mark" aria-hidden>
-            Lyte
+            {APP_DISPLAY_NAME}
           </span>
         ) : (
           <a
             className="auth-page__brand-mark auth-page__brand-mark--link"
             href={getLandingUrl()}
-            aria-label="Retour à la page d'accueil Lyte"
+            aria-label={`Retour à la page d'accueil ${APP_DISPLAY_NAME}`}
           >
-            Lyte
+            {APP_DISPLAY_NAME}
           </a>
         )}
-        <span className="sr-only">Lyte</span>
+        <span className="sr-only">{APP_DISPLAY_NAME}</span>
       </header>
 
       <main className="auth-page__main">
         <div className="auth-page__card">
-          <h1 className="auth-page__title">Welcome to Lyte</h1>
+          <h1 className="auth-page__title">Welcome to {APP_DISPLAY_NAME}</h1>
           <p className="auth-page__subtitle">Connectez-vous pour synchroniser vos projets et clés API.</p>
 
           {authError && <p className="auth-page__error">{authError}</p>}
@@ -131,7 +132,7 @@ export default function AuthPage() {
 
       <footer className="auth-page__footer">
         <a
-          href={`${LYTE_SITE_URL}/terms`}
+          href={`${HALL_SITE_URL}/terms`}
           className="auth-page__legal-link"
           target="_blank"
           rel="noopener noreferrer"
@@ -140,7 +141,7 @@ export default function AuthPage() {
         </a>
         <span aria-hidden> and </span>
         <a
-          href={`${LYTE_SITE_URL}/privacy`}
+          href={`${HALL_SITE_URL}/privacy`}
           className="auth-page__legal-link"
           target="_blank"
           rel="noopener noreferrer"

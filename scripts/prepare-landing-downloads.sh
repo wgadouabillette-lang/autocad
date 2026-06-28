@@ -5,8 +5,8 @@ cd "$(dirname "$0")/.."
 
 RELEASE_DIR="desktop/release"
 OUT_DIRS=("landing/downloads" "landing/public/downloads")
-MAC_NAME="Lyte-mac.dmg"
-WIN_NAME="Lyte-windows.exe"
+MAC_NAME="Hall-mac.dmg"
+WIN_NAME="Hall-windows.exe"
 
 if [[ ! -d "$RELEASE_DIR" ]]; then
   echo "Dossier $RELEASE_DIR introuvable."
@@ -51,5 +51,5 @@ done
 echo ""
 echo "Déployez le dossier landing/ sur votre hébergeur (Netlify, Vercel, S3, nginx…)."
 echo "URL de téléchargement :"
-echo "  https://votre-domaine.com/downloads/Lyte-mac.dmg"
-echo "  https://votre-domaine.com/downloads/Lyte-windows.exe"
+echo "  https://votre-domaine.com/downloads/Hall-mac.dmg"
+echo "  https://votre-domaine.com/downloads/Hall-windows.exe"

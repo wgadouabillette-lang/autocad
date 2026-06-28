@@ -1,7 +1,7 @@
 (function () {
   function t(key) {
-    var locale = window.LyteSitePrefs ? window.LyteSitePrefs.getLocale() : "en";
-    if (window.LyteLandingI18n) return window.LyteLandingI18n.t(key, locale);
+    var locale = window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en";
+    if (window.HallLandingI18n) return window.HallLandingI18n.t(key, locale);
     return key;
   }
 
@@ -16,31 +16,31 @@
     var lang = locale === "fr" ? "fr" : "en";
 
     if (isWindows) {
-      downloadLink.href = "/downloads/Lyte-windows.exe";
-      downloadLabel.textContent = window.LyteLandingI18n
-        ? window.LyteLandingI18n.t("try.downloadWin", lang)
+      downloadLink.href = "/downloads/Hall-windows.exe";
+      downloadLabel.textContent = window.HallLandingI18n
+        ? window.HallLandingI18n.t("try.downloadWin", lang)
         : "Download for Windows";
       downloadLink.setAttribute(
         "aria-label",
-        window.LyteLandingI18n
-          ? window.LyteLandingI18n.t("try.downloadWinAria", lang)
-          : "Download Lyte for Windows",
+        window.HallLandingI18n
+          ? window.HallLandingI18n.t("try.downloadWinAria", lang)
+          : "Download Hall for Windows",
       );
     } else {
-      downloadLink.href = "/downloads/Lyte-mac.dmg";
-      downloadLabel.textContent = window.LyteLandingI18n
-        ? window.LyteLandingI18n.t("try.downloadMac", lang)
+      downloadLink.href = "/downloads/Hall-mac.dmg";
+      downloadLabel.textContent = window.HallLandingI18n
+        ? window.HallLandingI18n.t("try.downloadMac", lang)
         : "Download for macOS";
       downloadLink.setAttribute(
         "aria-label",
-        window.LyteLandingI18n
-          ? window.LyteLandingI18n.t("try.downloadMacAria", lang)
-          : "Download Lyte for macOS",
+        window.HallLandingI18n
+          ? window.HallLandingI18n.t("try.downloadMacAria", lang)
+          : "Download Hall for macOS",
       );
     }
   }
 
-  window.LyteHomePage = {
+  window.HallHomePage = {
     refreshDownloadLabel: refreshDownloadLabel,
   };
 
@@ -57,7 +57,7 @@
     });
   }
 
-  refreshDownloadLabel(window.LyteSitePrefs ? window.LyteSitePrefs.getLocale() : "en");
+  refreshDownloadLabel(window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en");
   document.addEventListener("lyte-landing:locale", function (event) {
     refreshDownloadLabel(event.detail && event.detail.locale ? event.detail.locale : "en");
   });

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ajoute les domaines OAuth requis pour Lyte (auth bureau + web).
+# Ajoute les domaines OAuth requis pour Hall (auth bureau + web).
 set -euo pipefail
 
 PROJECT_ID="${FIREBASE_PROJECT_ID:-forma-cad-dev}"

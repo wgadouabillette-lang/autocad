@@ -12,7 +12,7 @@
 
   function showFallback(mount) {
     mount.innerHTML =
-      '<img class="hero__shot-img" src="app-preview.png" alt="Lyte workspace preview" loading="eager" decoding="async" />';
+      '<img class="hero__shot-img" src="app-preview.png" alt="Hall workspace preview" loading="eager" decoding="async" />';
   }
 
   function scalePreview(mount, wrapper, iframe) {
@@ -44,7 +44,7 @@
 
     var iframe = document.createElement("iframe");
     iframe.className = "hero__dashboard-preview-frame";
-    iframe.title = "Lyte workspace preview";
+    iframe.title = "Hall workspace preview";
     iframe.loading = "eager";
     iframe.tabIndex = -1;
     iframe.setAttribute("aria-hidden", "true");

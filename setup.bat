@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM  Lyte - Installation (Windows)
+REM  Hall - Installation (Windows)
 REM  Prerequis : Python 3.11+  et  Node.js 18+
 REM ============================================================
 setlocal
@@ -27,6 +27,6 @@ cd ..
 echo.
 echo ============================================================
 echo  Installation terminee.
-echo  Lancez   start.bat   pour demarrer Lyte.
+echo  Lancez   start.bat   pour demarrer Hall.
 echo ============================================================
 pause

@@ -16,4 +16,4 @@ if [[ "${SKIP_LANDING_PREVIEW_SYNC:-}" != "1" ]]; then
 fi
 
 echo "Déploiement Firebase Hosting (landing/)…"
-firebase deploy --only hosting --message "Lyte landing $(date +%Y-%m-%d)"
+firebase deploy --only hosting --message "Hall landing $(date +%Y-%m-%d)"

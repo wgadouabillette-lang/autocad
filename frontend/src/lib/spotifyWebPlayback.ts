@@ -218,7 +218,7 @@ export async function ensureSpotifyWebPlayer(options?: { premiumHint?: boolean |
       }
 
       player = new window.Spotify.Player({
-        name: "Lyte Web Player",
+        name: "Hall Web Player",
         getOAuthToken: (callback) => {
           void fetchSpotifyPlayerToken()
             .then((token) => callback(token))

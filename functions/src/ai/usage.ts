@@ -162,7 +162,7 @@ export function usageLimitMessage(err: UsageLimitError): string {
   if (err.scope === "enterprise") {
     return (
       `Le quota IA Entreprise de ce workspace est épuisé (${used} $ / ${allowance} $ ` +
-      "au tarif Lyte, partagé entre tous les membres). " +
+      "au tarif Hall, partagé entre tous les membres). " +
       "Contactez le propriétaire du workspace pour augmenter les sièges ou attendre le renouvellement."
     );
   }
@@ -176,12 +176,12 @@ export function usageLimitMessage(err: UsageLimitError): string {
       );
     }
     return (
-      `Votre quota IA Pro est épuisé (${used} $ / ${allowance} $ au tarif Lyte). ` +
+      `Votre quota IA Pro est épuisé (${used} $ / ${allowance} $ au tarif Hall). ` +
       "Activez l'**usage à la demande** dans Paramètres → Plan & Usage pour continuer."
     );
   }
   return (
-    `Votre quota IA Pro est épuisé (${used} $ / ${allowance} $ au tarif Lyte). ` +
+    `Votre quota IA Pro est épuisé (${used} $ / ${allowance} $ au tarif Hall). ` +
     "Renouvellement au prochain cycle de facturation."
   );
 }

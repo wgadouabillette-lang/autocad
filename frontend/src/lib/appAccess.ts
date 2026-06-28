@@ -6,7 +6,7 @@ export function isDesktopViewport(): boolean {
   return typeof window !== "undefined" && window.matchMedia(DESKTOP_VIEWPORT_QUERY).matches;
 }
 
-/** Web app and auth are desktop-only unless running inside the native Lyte app. */
+/** Web app and auth are desktop-only unless running inside the native Hall app. */
 export function canAccessApp(): boolean {
   return hasFormaDesktop() || isDesktopViewport();
 }

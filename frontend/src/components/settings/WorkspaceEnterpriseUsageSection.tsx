@@ -24,7 +24,7 @@ export default function WorkspaceEnterpriseUsageSection() {
       <h3 className="settings-section__label">Consommation IA — workspace</h3>
       <p className="settings-section__hint">
         Pool partagé pour <strong>{workspace?.name ?? activeRoomId}</strong> — visible par tous
-        les membres. Facturé au tarif Lyte, modèle par modèle.
+        les membres. Facturé au tarif Hall, modèle par modèle.
       </p>
       {loading && !usage && (
         <p className="settings-section__hint">Chargement de l&apos;usage…</p>

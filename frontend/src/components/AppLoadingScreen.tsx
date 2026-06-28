@@ -1,3 +1,5 @@
+import { APP_DISPLAY_NAME } from "../lib/appBrand";
+
 type AppLoadingScreenProps = {
   connectionError?: boolean;
   label?: string;
@@ -14,9 +16,9 @@ export default function AppLoadingScreen({
       <div className="app-loading-screen__center">
         <div className="app-loading-screen__brand">
           <span className="app-loading-screen__brand-mark" aria-hidden>
-            Lyte
+            {APP_DISPLAY_NAME}
           </span>
-          <span className="sr-only">Lyte</span>
+          <span className="sr-only">{APP_DISPLAY_NAME}</span>
         </div>
         {!connectionError ? (
           <div

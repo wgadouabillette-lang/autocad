@@ -3,9 +3,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP="$(find desktop/release -maxdepth 2 -name 'Lyte.app' -type d | head -1)"
+APP="$(find desktop/release -maxdepth 2 -name 'Hall.app' -type d | head -1)"
 if [[ -z "$APP" ]]; then
-  echo "Lyte.app introuvable dans desktop/release/"
+  echo "Hall.app introuvable dans desktop/release/"
   exit 1
 fi
 
@@ -24,7 +24,7 @@ while IFS= read -r -d '' bin; do
   sign_if_macho "$bin"
 done < <(find "$APP/Contents/MacOS" "$APP/Contents/Frameworks" -type f -print0 2>/dev/null)
 
-sign_if_macho "$APP/Contents/MacOS/Lyte"
+sign_if_macho "$APP/Contents/MacOS/Hall"
 codesign --force --sign - --timestamp=none "$APP"
 
 echo "→ Vérification…"

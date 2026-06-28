@@ -11,8 +11,8 @@
   }
 
   function t(key, vars) {
-    var locale = window.LyteSitePrefs ? window.LyteSitePrefs.getLocale() : "en";
-    if (window.LyteLandingI18n) return window.LyteLandingI18n.t(key, locale, vars);
+    var locale = window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en";
+    if (window.HallLandingI18n) return window.HallLandingI18n.t(key, locale, vars);
     return key;
   }
 
@@ -58,8 +58,8 @@
   }
 
   function languageMenuHtml() {
-    var locale = window.LyteSitePrefs ? window.LyteSitePrefs.getLocale() : "en";
-    var checkIcon = window.LyteFooterIcons ? window.LyteFooterIcons.icon("check") : "";
+    var locale = window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en";
+    var checkIcon = window.HallFooterIcons ? window.HallFooterIcons.icon("check") : "";
     return ["en", "fr"]
       .map(function (code) {
         var selected = code === locale;
@@ -71,7 +71,7 @@
           (selected ? "true" : "false") +
           '">' +
           "<span>" +
-          (window.LyteLandingI18n ? window.LyteLandingI18n.LOCALES[code] : code) +
+          (window.HallLandingI18n ? window.HallLandingI18n.LOCALES[code] : code) +
           "</span>" +
           (selected ? '<span class="site-footer__lang-check">' + checkIcon + "</span>" : "") +
           "</button>"
@@ -82,7 +82,7 @@
 
   function themeBtn(mode, labelKey) {
     var iconName = mode === "light" ? "sun" : mode === "dark" ? "moon" : "monitor";
-    var iconHtml = window.LyteFooterIcons ? window.LyteFooterIcons.icon(iconName) : "";
+    var iconHtml = window.HallFooterIcons ? window.HallFooterIcons.icon(iconName) : "";
     return (
       '<button type="button" class="site-footer__theme-btn" data-theme-mode="' +
       mode +
@@ -95,11 +95,11 @@
   }
 
   function controlsHtml() {
-    var locale = window.LyteSitePrefs ? window.LyteSitePrefs.getLocale() : "en";
-    var langTrigger = window.LyteFooterIcons
-      ? window.LyteFooterIcons.langTriggerHtml(locale)
-      : window.LyteLandingI18n
-        ? window.LyteLandingI18n.languageLabel(locale)
+    var locale = window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en";
+    var langTrigger = window.HallFooterIcons
+      ? window.HallFooterIcons.langTriggerHtml(locale)
+      : window.HallLandingI18n
+        ? window.HallLandingI18n.languageLabel(locale)
         : "English";
     return (
       '<div class="site-footer__controls">' +
@@ -134,8 +134,8 @@
         "footer.product",
         link(appHref, "footer.openApp") +
           link("tarifs.html", "footer.pricing") +
-          link("/downloads/Lyte-mac.dmg", "footer.downloadMac") +
-          link("/downloads/Lyte-windows.exe", "footer.downloadWin"),
+          link("/downloads/Hall-mac.dmg", "footer.downloadMac") +
+          link("/downloads/Hall-windows.exe", "footer.downloadWin"),
       ),
       column(
         "footer.resources",
@@ -180,8 +180,8 @@
     var mount = document.getElementById("site-footer");
     if (!mount) return;
     mount.outerHTML = buildFooterHtml();
-    if (window.LyteSitePrefs) {
-      window.LyteSitePrefs.wireFooterControls();
+    if (window.HallSitePrefs) {
+      window.HallSitePrefs.wireFooterControls();
     }
   }
 

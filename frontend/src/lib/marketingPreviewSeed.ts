@@ -211,7 +211,7 @@ function buildAgentChatTabs(): {
         { role: "user", text: "Write a one-liner for the settings page." },
         {
           role: "assistant",
-          text: "Connect your tools once — play music, schedule meetings, and draft emails without leaving Lyte.",
+          text: "Connect your tools once — play music, schedule meetings, and draft emails without leaving Hall.",
         },
       ],
       2 * 3600_000,
@@ -397,7 +397,7 @@ function buildFollowUpDraft(): FollowUpDraft {
     emails: [
       {
         id: "preview-fu-e1",
-        to: "jordan@demo.lyte.app",
+        to: "jordan@demo.hall.app",
         subject: "Follow-up — Design review",
         body:
           "Hi Jordan,\n\nThanks for the review today. Can you confirm Gmail OAuth by tomorrow morning?\n\n— Alex",
@@ -405,7 +405,7 @@ function buildFollowUpDraft(): FollowUpDraft {
       },
       {
         id: "preview-fu-e2",
-        to: "sam@demo.lyte.app",
+        to: "sam@demo.hall.app",
         subject: "Voice lounge UX checklist",
         body:
           "Hi Sam,\n\nPlease validate open-channel join flow and spotlight layout before we record the landing demo.\n\n— Alex",
@@ -567,7 +567,7 @@ export function seedMarketingPreview(): void {
     ready: true,
     isAuthenticated: true,
     firebaseUid: MARKETING_PREVIEW_USER_ID,
-    authEmail: "alex@demo.lyte.app",
+    authEmail: "alex@demo.hall.app",
     authError: null,
     emailLinkSent: false,
   });

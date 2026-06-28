@@ -602,7 +602,7 @@ def usage_limit_message(err: UsageLimitError) -> str:
     if err.scope == "enterprise":
         return (
             f"Le quota IA Entreprise de ce workspace est épuisé ({used} $ / {allowance} $ "
-            "au tarif Lyte, partagé entre tous les membres). "
+            "au tarif Hall, partagé entre tous les membres). "
             "Contactez le propriétaire du workspace pour augmenter les sièges ou attendre le renouvellement."
         )
     if err.on_demand_available:
@@ -614,11 +614,11 @@ def usage_limit_message(err: UsageLimitError) -> str:
                 "au-delà du forfait Pro). Augmentez la limite dans Paramètres → Plan & Usage."
             )
         return (
-            f"Votre quota IA Pro est épuisé ({used} $ / {allowance} $ au tarif Lyte). "
+            f"Votre quota IA Pro est épuisé ({used} $ / {allowance} $ au tarif Hall). "
             "Activez l'**usage à la demande** dans Paramètres → Plan & Usage pour continuer."
         )
     return (
-        f"Votre quota IA Pro est épuisé ({used} $ / {allowance} $ au tarif Lyte). "
+        f"Votre quota IA Pro est épuisé ({used} $ / {allowance} $ au tarif Hall). "
         "Renouvellement au prochain cycle de facturation."
     )
 

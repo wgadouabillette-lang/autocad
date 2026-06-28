@@ -1,4 +1,4 @@
-# Lyte
+# Hall
 
 > Atelier d'analyse de dessins techniques 2D : import PDF/image/scan, détection des contours
 > et perçages, visualisation annotée. Le mode 3D est désactivé pour l'instant.

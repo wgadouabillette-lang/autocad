@@ -41,8 +41,8 @@
   }
 
   function localeName(locale) {
-    if (!window.LyteLandingI18n) return locale === "fr" ? "Français" : "English";
-    var locales = window.LyteLandingI18n.LOCALES;
+    if (!window.HallLandingI18n) return locale === "fr" ? "Français" : "English";
+    var locales = window.HallLandingI18n.LOCALES;
     return locales[locale === "fr" ? "fr" : "en"] || locales.en;
   }
 
@@ -58,7 +58,7 @@
     );
   }
 
-  window.LyteFooterIcons = {
+  window.HallFooterIcons = {
     icon: icon,
     langTriggerHtml: langTriggerHtml,
   };

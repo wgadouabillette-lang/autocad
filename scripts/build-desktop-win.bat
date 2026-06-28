@@ -29,5 +29,5 @@ call npx electron-builder --win nsis
 cd ..
 
 echo.
-echo Termine : desktop\release\Lyte Setup *.exe
+echo Termine : desktop\release\Hall Setup *.exe
 endlocal

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lyte - Installation (macOS / Linux). Prerequis : Python 3.11+, Node 18+
+# Hall - Installation (macOS / Linux). Prerequis : Python 3.11+, Node 18+
 set -e
 cd "$(dirname "$0")"
 

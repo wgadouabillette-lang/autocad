@@ -25,7 +25,7 @@
     "providers": {
       "emailPassword": true,
       "googleSignIn": {
-        "oAuthBrandDisplayName": "Lyte",
+        "oAuthBrandDisplayName": "Hall",
         "supportEmail": "wgadouabillette@gmail.com",
         "authorizedRedirectUris": [
           "https://forma.app",

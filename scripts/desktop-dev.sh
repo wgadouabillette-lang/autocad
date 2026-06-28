@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lance Lyte en fenêtre bureau avec hot-reload (backend + Vite localhost)
+# Lance Hall en fenêtre bureau avec hot-reload (backend + Vite localhost)
 set -e
 cd "$(dirname "$0")/.."
 
@@ -67,7 +67,7 @@ if ! curl -sf "http://localhost:${VITE_PORT}/" >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Ouverture de Lyte (fenêtre bureau)…"
+echo "Ouverture de Hall (fenêtre bureau)…"
 # Ferme une ancienne fenêtre Electron (process principal non rechargé par Vite).
 pkill -f "Electron.*forma-desktop" 2>/dev/null || true
 pkill -f "electron.*desktop" 2>/dev/null || true

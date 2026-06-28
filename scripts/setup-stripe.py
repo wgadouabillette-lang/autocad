@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Crée les produits/prix Stripe Lyte (Pro + usage à la demande) et met à jour backend/.env."""
+"""Crée les produits/prix Stripe Hall (Pro + usage à la demande) et met à jour backend/.env."""
 from __future__ import annotations
 
 import argparse
@@ -174,7 +174,7 @@ def _upsert_env(updates: Dict[str, str], dry_run: bool) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Configure les produits/prix Stripe pour Lyte.")
+    parser = argparse.ArgumentParser(description="Configure les produits/prix Stripe pour Hall.")
     parser.add_argument("--dry-run", action="store_true", help="Affiche les actions sans appeler Stripe.")
     parser.add_argument("--no-env", action="store_true", help="Ne modifie pas backend/.env.")
     parser.add_argument("--currency", default=os.getenv("STRIPE_CURRENCY", "usd"))
@@ -197,14 +197,14 @@ def main() -> int:
 
     pro_product = _ensure_product(
         stripe,
-        name="Lyte Pro",
+        name="Hall Pro",
         description="Abonnement mensuel — assistant IA, connecteurs, AI Notes et Follow-up.",
         meta_value=PRO_META_VALUE,
         dry_run=args.dry_run,
     )
     on_demand_product = _ensure_product(
         stripe,
-        name="Lyte — Usage à la demande",
+        name="Hall — Usage à la demande",
         description="Add-on metered — crédits IA facturés au fil des requêtes (Pro requis).",
         meta_value=ON_DEMAND_META_VALUE,
         dry_run=args.dry_run,

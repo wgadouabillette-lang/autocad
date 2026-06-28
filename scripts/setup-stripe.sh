@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Crée les produits/prix Stripe (Pro + usage à la demande) pour Lyte.
+# Crée les produits/prix Stripe (Pro + usage à la demande) pour Hall.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lyte - Demarrage (macOS / Linux)
+# Hall - Demarrage (macOS / Linux)
 set -e
 cd "$(dirname "$0")"
 

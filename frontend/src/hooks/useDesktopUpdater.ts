@@ -20,7 +20,7 @@ export function useDesktopUpdater() {
       push({
         kind: "app_update",
         category: "Mise à jour",
-        title: `Lyte ${info.version} est disponible`,
+        title: `Hall ${info.version} est disponible`,
         body:
           info.releaseNotes?.trim() ||
           "Une nouvelle version de l'application est prête à être installée.",
@@ -41,7 +41,7 @@ export function useDesktopUpdater() {
         kind: "new_feature",
         category: "Mise à jour",
         title: "Mise à jour prévue cette nuit",
-        body: `Lyte ${info.version} s'installera entre ${info.window}.`,
+        body: `Hall ${info.version} s'installera entre ${info.window}.`,
       });
     });
 

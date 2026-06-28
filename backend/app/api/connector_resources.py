@@ -157,7 +157,7 @@ def _spotify_api_error_message(status_code: int, body: str) -> str:
         return (
             "Spotify bloque l'API : le compte qui possède l'application sur "
             "developer.spotify.com doit avoir Spotify Premium actif "
-            "(compte propriétaire de SPOTIFY_CLIENT_ID, pas votre forfait Lyte). "
+            "(compte propriétaire de SPOTIFY_CLIENT_ID, pas votre forfait Hall). "
             "Après activation, la propagation peut prendre quelques heures."
         )
     return text or "Erreur API Spotify."

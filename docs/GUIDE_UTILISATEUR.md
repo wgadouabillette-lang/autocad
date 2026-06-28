@@ -1,4 +1,4 @@
-# Guide utilisateur Lyte v1
+# Guide utilisateur Hall v1
 
 ## Démarrer
 
@@ -38,13 +38,13 @@ Exemples : « Crée une bride Ø120 avec 6 trous M8 », « Passe l'épaisseur à
 
 1. Panneau gauche → onglet **Éléments**.
 2. **Importer une pièce 3D** et choisir un fichier mesh.
-3. Lytets acceptés : **STL, OBJ, PLY, OFF, GLB, GLTF, 3MF** (unités supposées en mm).
+3. Hallts acceptés : **STL, OBJ, PLY, OFF, GLB, GLTF, 3MF** (unités supposées en mm).
 
 C’est le format le plus courant quand une pièce vient d’un autre logiciel (SolidWorks, Fusion 360, FreeCAD, Onshape, imprimante 3D, etc.) : on **exporte en STL ou OBJ**, puis on l’ouvre ici.
 
 **STEP / IGES** (fichiers « CAO pro » natifs) : pas encore en import direct — exportez d’abord en STL depuis votre logiciel source.
 
-**Projet Lyte** : fichier `.forma.json` (historique paramétrique + chat) via enregistrement / ouverture projet.
+**Projet Hall** : fichier `.forma.json` (historique paramétrique + chat) via enregistrement / ouverture projet.
 
 ## Importer un dessin 2D
 

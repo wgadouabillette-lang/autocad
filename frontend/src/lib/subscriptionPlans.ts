@@ -33,10 +33,10 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
     id: "pro",
     label: "Pro",
     price: "$30 / mois",
-    description: "Assistant IA personnel — 30 $/mois de crédits IA au tarif Lyte (marge incluse).",
+    description: "Assistant IA personnel — 30 $/mois de crédits IA au tarif Hall (marge incluse).",
     features: [
       "Serveurs personnels illimités",
-      "30 $ de crédits IA / mois (facturés au tarif Lyte, pas au coût fournisseur)",
+      "30 $ de crédits IA / mois (facturés au tarif Hall, pas au coût fournisseur)",
       "Assistant IA (Agent & Render) partout",
       "AI Notes — transcription live en appel vocal",
       "Follow-up — récap structuré, calendrier et e-mails après l'appel",
@@ -51,7 +51,7 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
     description:
       "IA pour tout le workspace — minimum 10 membres, tarif compétitif par personne (style Discord Nitro).",
     features: [
-      "Pool IA partagé pour tous les membres du workspace (25 $ × sièges / mois au tarif Lyte)",
+      "Pool IA partagé pour tous les membres du workspace (25 $ × sièges / mois au tarif Hall)",
       "IA activée pour tous les membres du workspace choisi",
       "AI Notes et Follow-up dans ce workspace uniquement",
       "Facturation centralisée par le propriétaire du workspace",

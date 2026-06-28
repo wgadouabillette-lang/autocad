@@ -93,13 +93,13 @@ Dans le chat, utilisez le skill **`/play`** (menu `/`) ou la commande **`/play t
 |----------|--------|
 | `OAuth credentials missing` | Clés absentes du `backend/.env` |
 | `redirect_uri_mismatch` | URI non enregistrée chez le provider |
-| `401 Authentication required` | Non connecté à Lyte ou Firebase Admin absent |
+| `401 Authentication required` | Non connecté à Hall ou Firebase Admin absent |
 | Popup se ferme sans succès | `FORMA_FRONTEND_ORIGIN` ≠ port Vite |
 | Google « non validé » | App en Testing — ajoutez-vous en test user ou soumettez à la validation |
 | Outlook `AADSTS` | Mauvais tenant ou permissions API manquantes |
 | Spotify sans lecture | Ouvrir Spotify sur un appareil actif (Premium requis pour contrôle à distance) |
 | Safari « ne peut pas ouvrir le serveur » | Redirect URI OAuth pointe vers `127.0.0.1:8000` en prod — ajoutez l’URL Vercel dans Spotify Dashboard **et** définissez `FORMA_OAUTH_REDIRECT_BASE=https://autocad-blue.vercel.app` sur Vercel |
-| Spotify `Active premium subscription required for the owner of the app` | Le **compte propriétaire** de l'app sur [developer.spotify.com](https://developer.spotify.com/dashboard) doit avoir **Spotify Premium** (règle Spotify Dev Mode, fév. 2026). Ce n'est pas le forfait Lyte ni forcément le compte utilisateur connecté dans Lyte. Propagation : quelques heures après activation. |
+| Spotify `Active premium subscription required for the owner of the app` | Le **compte propriétaire** de l'app sur [developer.spotify.com](https://developer.spotify.com/dashboard) doit avoir **Spotify Premium** (règle Spotify Dev Mode, fév. 2026). Ce n'est pas le forfait Hall ni forcément le compte utilisateur connecté dans Hall. Propagation : quelques heures après activation. |
 
 ---
 

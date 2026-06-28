@@ -2,7 +2,7 @@
   "name": "forma-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Lyte — application bureau (macOS / Windows)",
+  "description": "Hall — application bureau (macOS / Windows)",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
@@ -13,7 +13,7 @@
   },
   "build": {
     "appId": "com.forma.cad",
-    "productName": "Lyte",
+    "productName": "Hall",
     "directories": {
       "output": "release"
     },
@@ -54,7 +54,7 @@
       "allowToChangeInstallationDirectory": true
     },
     "dmg": {
-      "title": "Lyte"
+      "title": "Hall"
     }
   },
   "devDependencies": {
