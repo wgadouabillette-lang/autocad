@@ -66,7 +66,6 @@ import MailPromptLine from "./chat/MailPromptLine";
 import PlayPromptLine from "./chat/PlayPromptLine";
 import SpotifyTrackBubble from "./chat/SpotifyTrackBubble";
 import SpotifyTrackList from "./chat/SpotifyTrackList";
-import SpotifyComposerActions from "./chat/SpotifyComposerActions";
 import {
   filterSlashSkillMenu,
   slashQueryAt,
@@ -123,8 +122,6 @@ import {
   type MailPromptDraft,
 } from "../lib/mailSkill";
 import { fetchGmailStatus } from "../lib/connectorsApi";
-import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
-
 const CHAT_COMPOSER_SURFACE_STYLE: CSSProperties = {
   backgroundColor: "var(--forma-chat-composer-bg)",
   border: "1px solid var(--forma-chat-composer-stroke)",
@@ -453,9 +450,6 @@ export default function ChatPanel() {
   const setHandoffTarget = useHandoffStore((s) => s.setTarget);
   const submitSegmentHandoff = useHandoffStore((s) => s.submitSegmentHandoff);
   const closeHandoffPreview = useHandoffStore((s) => s.closePreview);
-  const spotifySessionTrack = useSpotifyPlayerStore(
-    (s) => s.currentTrack ?? s.lastPlayedTrack,
-  );
   const modelRef = useRef<HTMLDivElement>(null);
   const mentionRef = useRef<HTMLDivElement>(null);
   const skillsRef = useRef<HTMLDivElement>(null);
@@ -486,9 +480,6 @@ export default function ChatPanel() {
     connectingId,
     error: connectorError,
   } = useConnectors();
-  const spotifyConnected = connectedConnectors.has("spotify");
-  const showSpotifyComposerActions =
-    (!!spotifySessionTrack || spotifyConnected) && !handoffSelectionMode;
   const prevChatTabIdRef = useRef<string | null>(null);
   const prevChatLenRef = useRef(chat.length);
 
@@ -2079,11 +2070,6 @@ export default function ChatPanel() {
                   />
                 </div>
               )}
-              {showSpotifyComposerActions ? (
-                <div className="chat-spotify-actions-wrap">
-                  <SpotifyComposerActions />
-                </div>
-              ) : null}
               {composerBlock}
             </>
           )}

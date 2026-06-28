@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Mic,
   Sparkles,
+  ListMusic,
   ListTodo,
   MicOff,
   MonitorUp,
@@ -37,7 +38,7 @@ import { useMobileLayout } from "../hooks/useMobileLayout";
 import { useConnectors } from "../hooks/useConnectors";
 import { useSpotifyAudioPulse } from "../hooks/useSpotifyAudioPulse";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
-import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
+import { ADD_QUEUE_SKILL_TEMPLATE, PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
 import { isMarketingPreview } from "../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
@@ -251,6 +252,15 @@ export default function BottomHeader() {
     </BottomBarButton>
   );
 
+  const spotifyAddQueueButton = spotifyPlaybackActive ? (
+    <BottomBarButton
+      label="Ajouter à la file"
+      onClick={() => openSpotifyPanel(ADD_QUEUE_SKILL_TEMPLATE)}
+    >
+      <ListMusic size={ICON_SIZE} aria-hidden />
+    </BottomBarButton>
+  ) : null;
+
   const callControls = (
     <>
       {showHandRaiseControl && (
@@ -408,6 +418,7 @@ export default function BottomHeader() {
           <BottomBarCapsule>
             {notificationButton}
             {spotifyButton}
+            {spotifyAddQueueButton}
             {callControls}
             {utilityControls}
           </BottomBarCapsule>
@@ -426,6 +437,7 @@ export default function BottomHeader() {
         <BottomBarCapsule>
           {notificationButton}
           {spotifyButton}
+          {spotifyAddQueueButton}
         </BottomBarCapsule>
       </div>
 

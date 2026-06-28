@@ -4283,29 +4283,6 @@ body {
   .chat-connectors-row__connect:disabled {
     @apply cursor-wait;
   }
-  .chat-spotify-actions-wrap {
-    @apply flex justify-center pb-2;
-  }
-  .chat-spotify-actions {
-    @apply inline-flex items-center justify-center gap-1.5;
-  }
-  .chat-spotify-actions__btn {
-    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-muted-300
-      transition-colors hover:text-muted-100;
-    background-color: var(--forma-tint-04);
-    border-color: var(--forma-chat-composer-stroke);
-  }
-  .chat-spotify-actions__btn:hover {
-    border-color: var(--forma-border-strong);
-    background-color: var(--forma-tint-06);
-  }
-  .chat-spotify-actions__btn--disabled {
-    @apply cursor-not-allowed opacity-35;
-  }
-  .chat-spotify-actions__btn--disabled:hover {
-    border-color: var(--forma-chat-composer-stroke);
-    background-color: var(--forma-tint-04);
-  }
   .chat-connectors-row__slash {
     @apply inline-flex shrink-0 items-center gap-1 bg-transparent px-0 py-0 text-[11px] font-medium
       text-muted-400 transition-colors hover:text-muted-200;
