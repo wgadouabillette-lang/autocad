@@ -29,7 +29,6 @@ import ChatAppIntegrations from "./chat/ChatAppIntegrations";
 import ChatConnectorsList from "./chat/ChatConnectorsList";
 import ChatSkillsList from "./chat/ChatSkillsList";
 import ChatShortcutsHint from "./chat/ChatShortcutsHint";
-import ChatTabsBar from "./chat/ChatTabsBar";
 import HighlightedPromptInput from "./chat/HighlightedPromptInput";
 import { useConnectors } from "../hooks/useConnectors";
 import { isMarketingPreview, readMarketingPreviewSceneParam } from "../lib/marketingPreview";
@@ -1902,7 +1901,6 @@ export default function ChatPanel() {
 
   return (
     <div className="chat-panel-layout relative overflow-hidden">
-      <ChatTabsBar />
       {chatIsEmpty && !isMobileLayout && (
         <div className="chat-shortcuts-hint-anchor">
           <ChatShortcutsHint />
