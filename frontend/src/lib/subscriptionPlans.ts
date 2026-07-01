@@ -13,7 +13,7 @@ export interface PlanDefinition {
 
 const CONNECTOR_LABELS = CHAT_CONNECTORS.map((c) => c.label);
 
-export const ENTERPRISE_MIN_MEMBERS = 10;
+export const ENTERPRISE_MIN_MEMBERS = 2;
 
 export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
   {
@@ -49,7 +49,7 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
     label: "Entreprise",
     price: "Tarif par siège",
     description:
-      "IA pour tout le workspace — minimum 10 membres, tarif compétitif par personne (style Discord Nitro).",
+      "IA pour tout le workspace — dès que vous n'êtes plus seul sur le serveur, tarif compétitif par personne (style Discord Nitro).",
     features: [
       "Pool IA partagé pour tous les membres du workspace (25 $ × sièges / mois au tarif Hall)",
       "IA activée pour tous les membres du workspace choisi",

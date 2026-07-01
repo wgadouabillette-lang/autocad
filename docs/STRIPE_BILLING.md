@@ -6,10 +6,11 @@ Guide pour configurer l'abonnement **Pro** et l'add-on **usage à la demande**, 
 
 | Composant | Rôle |
 |-----------|------|
-| **Pro** | Abonnement mensuel récurrent — débloque l'IA, connecteurs, AI Notes, Follow-up |
+| **Pro** | Abonnement mensuel récurrent — débloque l'IA personnelle |
+| **Entreprise** | Abonnement par siège pour un workspace — pool IA partagé pour tous les membres |
 | **Usage à la demande** | Add-on metered — facturation au fil des requêtes IA, **uniquement si Pro actif** |
-| **Webhooks** | Synchronisent `subscriptionPlan` et `onDemandUsageEnabled` dans Firestore |
-| **Checkout** | Paiement initial Pro via Stripe Checkout |
+| **Webhooks** | Synchronisent `subscriptionPlan` / `enterpriseSubscriptionPlan` dans Firestore |
+| **Checkout** | Paiement initial Pro ou Entreprise via Stripe Checkout |
 | **Portail client** | Gestion carte, factures, résiliation |
 
 Flux côté serveur : `backend/app/billing/stripe_service.py`  
@@ -62,8 +63,9 @@ Le script crée (ou réutilise) :
 
 - **Hall Pro** — prix récurrent mensuel (**30 $/mois** par défaut, USD)
 - **Hall — Usage à la demande** — prix metered (`usage_type: metered`)
+- **Hall Entreprise** — prix récurrent mensuel **par siège** (**18 $/siège/mois** par défaut)
 
-Il écrit `STRIPE_PRO_PRICE_ID` et `STRIPE_ON_DEMAND_PRICE_ID` dans `backend/.env`.
+Il écrit `STRIPE_PRO_PRICE_ID`, `STRIPE_ON_DEMAND_PRICE_ID` et `STRIPE_ENTERPRISE_SEAT_PRICE_ID` dans `backend/.env`.
 
 ### Création manuelle (Dashboard)
 
@@ -136,6 +138,8 @@ STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...        # rempli après création de l'endpoint Stripe
 STRIPE_PRO_PRICE_ID=price_...
 STRIPE_ON_DEMAND_PRICE_ID=price_...
+STRIPE_ENTERPRISE_SEAT_PRICE_ID=price_...
+STRIPE_ENTERPRISE_MIN_MEMBERS=2
 ```
 
 2. Définissez les secrets (recommandé pour les clés sensibles) :
@@ -193,8 +197,21 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_PRO_PRICE_ID=price_...
 STRIPE_ON_DEMAND_PRICE_ID=price_...
+STRIPE_ENTERPRISE_SEAT_PRICE_ID=price_...
+STRIPE_ENTERPRISE_MIN_MEMBERS=2
 FORMA_FRONTEND_ORIGIN=https://forma.app
 ```
+
+> **Important** : configurez **un seul** endpoint webhook en production (Cloud Function **ou** backend FastAPI, pas les deux) pour éviter le double traitement — l'idempotence Firestore protège quand même contre les replays Stripe.
+
+### Sécurité webhook
+
+- **Signature HMAC** : vérification via `stripe.Webhook.construct_event` (refus 400 si signature invalide)
+- **Idempotence** : collection Firestore `stripeWebhookEvents/{eventId}` — un événement n'est traité qu'une fois
+- **Validation checkout** : `mode=subscription` et `payment_status` ∈ `{paid, no_payment_required}`
+- **Métadonnées** : `firebase_uid` / `workspace_id` / `intent` sur Checkout et Subscription
+- **Plan effectif** : le frontend n'active Pro/Entreprise que si `billingManaged: true` (confirmé par webhook)
+- **Retry Stripe** : erreur handler → HTTP 500 (Stripe réessaie) ; signature invalide → HTTP 400 (pas de retry)
 
 ### Checklist production
 
@@ -231,6 +248,8 @@ Le bouton **Gérer l'abonnement** ouvre le portail Stripe.
 | `STRIPE_WEBHOOK_SECRET` | Oui | Secret de signature webhook (`whsec_...`) |
 | `STRIPE_PRO_PRICE_ID` | Oui | ID du prix mensuel Pro |
 | `STRIPE_ON_DEMAND_PRICE_ID` | Recommandé | ID du prix metered on-demand |
+| `STRIPE_ENTERPRISE_SEAT_PRICE_ID` | Entreprise | ID du prix mensuel par siège |
+| `STRIPE_ENTERPRISE_MIN_MEMBERS` | Entreprise | Membres minimum (défaut : 2) |
 | `FORMA_FRONTEND_ORIGIN` | Oui | Origine frontend pour Checkout / portail |
 
 Sans ces variables, l'app retombe sur le mode local (toggle plan dans les réglages, sans paiement).
@@ -246,6 +265,15 @@ Sans ces variables, l'app retombe sur le mode local (toggle plan dans les régla
 3. Firestore `users/{uid}` :
    - `subscriptionPlan: "pro"`
    - `billingManaged: true`
+
+### Abonnement Entreprise (workspace)
+
+1. Propriétaire du workspace → **Entreprise** → Stripe Checkout (quantité = nombre de membres)
+2. Webhook `checkout.session.completed` avec `metadata.intent=enterprise` et `metadata.workspace_id`
+3. Firestore `workspacesShared/{wid}` :
+   - `enterpriseSubscriptionPlan: "enterprise"`
+   - `enterpriseBillingManaged: true`
+4. Données privées : `workspacesShared/{wid}/private/billing`
 
 ### Usage à la demande
 
@@ -269,6 +297,18 @@ Via le portail client → webhook `customer.subscription.deleted` :
 - `stripeSubscriptionId`
 - `stripeOnDemandItemId`
 - `stripeSubscriptionStatus`
+
+`workspacesShared/{wid}/private/billing` :
+
+- `stripeCustomerId`
+- `stripeSubscriptionId`
+- `paidByUid`
+- `seatCount`
+
+`stripeWebhookEvents/{eventId}` (idempotence) :
+
+- `status` : `processing` | `processed`
+- `eventType`, `processedAt`
 
 ---
 

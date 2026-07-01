@@ -20,7 +20,7 @@ export function aiStrokeVariantFromPresence(
 ): AiStrokeVariant | null {
   if (activity === "claude") return "claude";
   if (activity === "grok") return "grok";
-  if (activity === "auto") return "auto";
+  if (activity === "openai" || activity === "auto") return "auto";
   return null;
 }
 

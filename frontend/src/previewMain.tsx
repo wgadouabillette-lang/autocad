@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import MarketingConnectorsPreviewApp from "./MarketingConnectorsPreviewApp";
 import MarketingPreviewApp from "./MarketingPreviewApp";
 import MarketingRecordingPreviewApp from "./MarketingRecordingPreviewApp";
+import MarketingTheaterPreviewApp from "./MarketingTheaterPreviewApp";
 import {
   applyMarketingPreviewThemeFromUrl,
   markMarketingPreview,
@@ -11,6 +12,7 @@ import {
 import {
   seedMarketingPreview,
   seedMarketingRecordingPreview,
+  seedMarketingTheaterPreview,
 } from "./lib/marketingPreviewSeed";
 import { applyDocumentTheme, bootstrapDocumentTheme, resolveEffectiveTheme } from "./lib/theme";
 import { useStore } from "./store/useStore";
@@ -23,6 +25,8 @@ bootstrapDocumentTheme();
 const scene = readMarketingPreviewSceneParam();
 if (scene === "recording") {
   seedMarketingRecordingPreview();
+} else if (scene === "theater") {
+  seedMarketingTheaterPreview();
 } else {
   seedMarketingPreview();
 }
@@ -34,7 +38,9 @@ const PreviewRoot =
     ? MarketingConnectorsPreviewApp
     : scene === "recording"
       ? MarketingRecordingPreviewApp
-      : MarketingPreviewApp;
+      : scene === "theater"
+        ? MarketingTheaterPreviewApp
+        : MarketingPreviewApp;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

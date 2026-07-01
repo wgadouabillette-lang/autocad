@@ -44,6 +44,7 @@ import { usePeopleStore } from "./store/usePeopleStore";
 import { useWorkspacePresenceStore } from "./store/useWorkspacePresenceStore";
 import { LOCAL_USER_ID } from "./lib/workspaces";
 import { debugLog } from "./lib/debugLog";
+import { billingApi } from "./lib/billingApi";
 
 let appRenderCount = 0;
 
@@ -244,6 +245,12 @@ export default function App() {
     if (checkout !== "success" && checkout !== "cancel" && !tab) return;
 
     useStore.getState().openSettingsTab(normalizeSettingsTab(tab ?? "usage"));
+
+    if (checkout === "success") {
+      void billingApi.sync().catch((err) => {
+        debugLog("[billing] post-checkout sync failed", err);
+      });
+    }
 
     params.delete("checkout");
     params.delete("tab");

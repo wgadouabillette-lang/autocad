@@ -8,6 +8,7 @@
     var path = window.location.pathname.split("/").pop() || "index.html";
     if (path === "tarifs.html") return "tarifs";
     if (path === "careers.html") return "careers";
+    if (path === "privacy.html") return "privacy";
     return "";
   }
 
@@ -35,6 +36,65 @@
     var path = window.location.pathname.split("/").pop() || "index.html";
     if (path === "" || path === "index.html") return "#" + sectionId;
     return "index.html#" + sectionId;
+  }
+
+  function navScrollOffset() {
+    var root = document.documentElement;
+    var navHeight = parseFloat(getComputedStyle(root).getPropertyValue("--nav-height")) || 64;
+    return navHeight + 16;
+  }
+
+  function scrollToLandingSection(sectionId, behavior) {
+    var el = document.getElementById(sectionId);
+    if (!el) return false;
+    var top =
+      window.scrollY + el.getBoundingClientRect().top - navScrollOffset();
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: behavior || "smooth",
+    });
+    if (window.history && window.history.replaceState) {
+      var path = window.location.pathname + window.location.search;
+      window.history.replaceState(null, "", path + "#" + sectionId);
+    } else {
+      window.location.hash = sectionId;
+    }
+    return true;
+  }
+
+  function bindNavSectionLinks() {
+    var nav = document.getElementById("site-nav");
+    if (!nav || nav.dataset.sectionLinksBound === "1") return;
+    nav.dataset.sectionLinksBound = "1";
+
+    nav.addEventListener("click", function (event) {
+      var link = event.target.closest("a.nav__tab");
+      if (!link) return;
+      var href = link.getAttribute("href") || "";
+      var hashIndex = href.indexOf("#");
+      if (hashIndex === -1) return;
+
+      var sectionId = href.slice(hashIndex + 1);
+      var pathPart = href.slice(0, hashIndex);
+      var page = window.location.pathname.split("/").pop() || "index.html";
+      var onHome = page === "" || page === "index.html";
+
+      if (pathPart && pathPart !== "index.html") return;
+      if (!onHome) return;
+
+      event.preventDefault();
+      scrollToLandingSection(sectionId);
+    });
+  }
+
+  function scrollToInitialHash() {
+    var sectionId = (window.location.hash || "").replace(/^#/, "");
+    if (!sectionId) return;
+    var page = window.location.pathname.split("/").pop() || "index.html";
+    if (page !== "" && page !== "index.html") return;
+    window.requestAnimationFrame(function () {
+      scrollToLandingSection(sectionId, "auto");
+    });
   }
 
   function mountNav() {
@@ -66,15 +126,29 @@
         "</a>";
 
     var tabs = [
+      { id: "workspaces", labelKey: "nav.workspaces", href: homeSectionHref("workspaces") },
       { id: "skills", labelKey: "nav.skills", href: homeSectionHref("skills") },
       { id: "connectors", labelKey: "nav.connectors", href: homeSectionHref("connectors") },
-      { id: "workspaces", labelKey: "nav.workspaces", href: homeSectionHref("workspaces") },
-      { id: "tarifs", labelKey: "nav.pricing", href: "tarifs.html" },
-      { id: "careers", labelKey: "nav.careers", href: "careers.html" },
+      { id: "privacy", labelKey: "nav.privacy", href: "privacy.html" },
+      {
+        id: "affiliate",
+        labelKey: "nav.affiliate",
+        disabled: true,
+        titleKey: "nav.affiliateSoon",
+      },
     ];
 
     var tabsHtml = tabs
       .map(function (tab) {
+        if (tab.disabled) {
+          return (
+            '<li><span class="nav__tab nav__tab--disabled" aria-disabled="true" title="' +
+            t(tab.titleKey || "nav.affiliateSoon") +
+            '">' +
+            t(tab.labelKey) +
+            "</span></li>"
+          );
+        }
         var isActive = tab.id === active;
         return (
           '<li><a class="nav__tab' +
@@ -103,8 +177,11 @@
       '<div class="nav__actions">' +
       ctaHtml +
       "</div></nav>";
+
+    bindNavSectionLinks();
   }
 
   mountNav();
+  scrollToInitialHash();
   document.addEventListener("lyte-landing:locale", mountNav);
 })();

@@ -8,6 +8,7 @@ export type PresenceActivityId =
   | "gmail"
   | "grok"
   | "claude"
+  | "openai"
   | "auto"
   | "recording"
   | "spotify";
@@ -25,6 +26,7 @@ export const PRESENCE_ACTIVITY_OPTIONS: PresenceActivityOption[] = [
   { id: "gmail", label: "Gmail", imageSrc: connectorIconPath(CONNECTOR_ICON_FILES.gmail) },
   { id: "grok", label: "Grok 4.1 / xAI", imageSrc: `${import.meta.env.BASE_URL}icons/ai/xai.svg` },
   { id: "claude", label: "Claude", imageSrc: `${import.meta.env.BASE_URL}icons/ai/claude.svg` },
+  { id: "openai", label: "ChatGPT", imageSrc: `${import.meta.env.BASE_URL}icons/ai/openai.svg` },
   { id: "auto", label: "Auto", icon: Bot },
   { id: "recording", label: "Enregistrement", icon: Sparkles },
   { id: "spotify", label: "Spotify", imageSrc: connectorIconPath(CONNECTOR_ICON_FILES.spotify) },

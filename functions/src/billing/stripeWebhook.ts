@@ -3,6 +3,12 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import Stripe from "stripe";
 import { ensureFunctionsSecretsLoaded } from "../loadSecrets";
+import {
+  WebhookAlreadyProcessed,
+  claimStripeWebhookEvent,
+  markStripeWebhookProcessed,
+  releaseStripeWebhookClaim,
+} from "./webhookEvents";
 
 if (!getApps().length) {
   initializeApp();
@@ -243,7 +249,18 @@ async function syncEnterpriseSubscriptionForWorkspace(
   }
 }
 
+function validateCheckoutSession(session: Stripe.Checkout.Session): void {
+  if (session.mode !== "subscription") {
+    throw new Error(`Unexpected checkout mode: ${session.mode ?? ""}`);
+  }
+  const paymentStatus = session.payment_status ?? "";
+  if (paymentStatus !== "paid" && paymentStatus !== "no_payment_required") {
+    throw new Error(`Checkout session not paid: ${paymentStatus}`);
+  }
+}
+
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
+  validateCheckoutSession(session);
   const metadata = session.metadata ?? {};
   const workspaceId = resolveWorkspaceId(metadata);
   const customerId =
@@ -354,21 +371,40 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
 }
 
 async function dispatchStripeEvent(event: Stripe.Event): Promise<void> {
+  const eventId = event.id;
+  const eventType = event.type;
+
+  try {
+    await claimStripeWebhookEvent(eventId, eventType);
+  } catch (err) {
+    if (err instanceof WebhookAlreadyProcessed) {
+      console.info("Skipping duplicate Stripe webhook event", eventId);
+      return;
+    }
+    throw err;
+  }
+
   const dataObject = event.data.object;
 
-  switch (event.type) {
-    case "checkout.session.completed":
-      await handleCheckoutCompleted(dataObject as Stripe.Checkout.Session);
-      break;
-    case "customer.subscription.created":
-    case "customer.subscription.updated":
-      await handleSubscriptionEvent(dataObject as Stripe.Subscription);
-      break;
-    case "customer.subscription.deleted":
-      await handleSubscriptionDeleted(dataObject as Stripe.Subscription);
-      break;
-    default:
-      break;
+  try {
+    switch (eventType) {
+      case "checkout.session.completed":
+        await handleCheckoutCompleted(dataObject as Stripe.Checkout.Session);
+        break;
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+        await handleSubscriptionEvent(dataObject as Stripe.Subscription);
+        break;
+      case "customer.subscription.deleted":
+        await handleSubscriptionDeleted(dataObject as Stripe.Subscription);
+        break;
+      default:
+        break;
+    }
+    await markStripeWebhookProcessed(eventId);
+  } catch (err) {
+    await releaseStripeWebhookClaim(eventId);
+    throw err;
   }
 }
 

@@ -20,7 +20,7 @@
       <section class="hero">
         <div class="hero__text">
           <h1 class="hero__title" data-i18n-html="hero.title">
-            Your workspace,<br />in one app.
+            Your team workspace,<br />in one app.
           </h1>
           <p class="hero__lead" data-i18n="hero.lead">
             Voice channels, AI chat, calendar, screen recording, and connectors — Hall brings
@@ -30,6 +30,7 @@
             <a class="btn btn--primary" href="auth.html">
               <span data-i18n="hero.cta.start">Get started</span>
               <svg
+                class="hero__cta-icon"
                 aria-hidden="true"
                 viewBox="0 0 24 24"
                 width="14"
@@ -44,18 +45,17 @@
                 <polyline points="12 5 19 12 12 19" />
               </svg>
             </a>
-            <a class="btn btn--ghost" href="tarifs.html">
-              <span data-i18n="hero.cta.pricing">View pricing</span>
-            </a>
           </div>
         </div>
 
         <div class="hero__shots">
-          <div
-            class="hero__shot hero__shot--dashboard"
-            id="workspaces"
-            aria-hidden="true"
-          ></div>
+          <section id="workspaces" class="hero__workspaces-section" aria-label="Workspaces">
+            <div
+              class="hero__shot hero__shot--dashboard"
+              id="workspaces-preview"
+              aria-hidden="true"
+            ></div>
+          </section>
 
           <div class="hero__shot-trio">
             <h2 class="hero__shot-trio-title" data-i18n="hero.shots.trio.title">
@@ -609,13 +609,13 @@
           <div class="hero__shot-feature-stack">
             <article class="hero__feature-card hero__feature-card--media-right">
               <div class="hero__feature-copy">
-                <h3 class="hero__feature-title" data-i18n="hero.shot.notes.title">AI Notes</h3>
+                <h3 class="hero__feature-title" data-i18n="hero.shot.notes.title">Theater mode</h3>
                 <p class="hero__feature-desc" data-i18n="hero.shot.notes.desc">
-                  Live transcription and structured notes during voice calls — without leaving
-                  Hall.
+                  Run all-hands and presentations with a stage, audience seating, and a
+                  hand-raise queue — built into your workspace.
                 </p>
                 <a class="hero__feature-link" href="auth.html">
-                  <span data-i18n="hero.shot.notes.cta">Explore AI Notes</span>
+                  <span data-i18n="hero.shot.notes.cta">Explore Theater</span>
                   <svg
                     class="hero__feature-link-icon"
                     aria-hidden="true"
@@ -634,37 +634,38 @@
                 </a>
               </div>
               <figure class="hero__feature-media">
-                <img
-                  class="hero__feature-img"
-                  src="app-preview.png"
-                  data-i18n-alt="hero.shot.notes.alt"
-                  alt="Hall preview — AI Notes and call recording"
-                  loading="lazy"
-                  decoding="async"
-                />
+                <div
+                  class="hero__feature-media-frame hero__feature-media-frame--theater"
+                  id="theater-feature-preview"
+                  role="img"
+                  aria-label="Hall preview — Theater mode with stage and audience"
+                  data-i18n-aria-label="hero.shot.notes.alt"
+                ></div>
               </figure>
             </article>
             <article class="hero__feature-card hero__feature-card--media-left">
               <figure class="hero__feature-media">
-                <img
-                  class="hero__feature-img"
-                  src="app-preview.png"
-                  data-i18n-alt="hero.shot.workspace.alt"
-                  alt="Hall preview — collaborative workspace and messaging"
-                  loading="lazy"
-                  decoding="async"
-                />
+                <div class="hero__feature-media-frame">
+                  <img
+                    class="hero__feature-img"
+                    src="app-preview.png"
+                    data-i18n-alt="hero.shot.workspace.alt"
+                    alt="Hall preview — /handoff skill sharing chat context"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
               </figure>
               <div class="hero__feature-copy">
                 <h3 class="hero__feature-title" data-i18n="hero.shot.workspace.title">
-                  Team messaging
+                  AI handoff
                 </h3>
                 <p class="hero__feature-desc" data-i18n="hero.shot.workspace.desc">
-                  Direct messages and group chats alongside voice — presence and history in one
-                  place.
+                  Select messages from any thread and send them to a teammate or group with
+                  /handoff — full context, zero copy-paste.
                 </p>
                 <a class="hero__feature-link" href="auth.html">
-                  <span data-i18n="hero.shot.workspace.cta">Explore messaging</span>
+                  <span data-i18n="hero.shot.workspace.cta">Explore handoff</span>
                   <svg
                     class="hero__feature-link-icon"
                     aria-hidden="true"
@@ -712,14 +713,16 @@
                 </a>
               </div>
               <figure class="hero__feature-media">
-                <img
-                  class="hero__feature-img"
-                  src="app-preview.png"
-                  data-i18n-alt="hero.shot.followup.alt"
-                  alt="Hall preview — post-call follow-up and recap"
-                  loading="lazy"
-                  decoding="async"
-                />
+                <div class="hero__feature-media-frame">
+                  <img
+                    class="hero__feature-img"
+                    src="app-preview.png"
+                    data-i18n-alt="hero.shot.followup.alt"
+                    alt="Hall preview — post-call follow-up and recap"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
               </figure>
             </article>
           </div>
@@ -866,6 +869,7 @@
     <script src="footer.js"></script>
     <script src="dashboardPreview.js"></script>
     <script src="recordingSectionPreview.js"></script>
+    <script src="theaterFeaturePreview.js"></script>
     <script src="connectorsSectionPreview.js"></script>
     <script src="skillsSectionPreview.js"></script>
     <script src="home.js"></script>

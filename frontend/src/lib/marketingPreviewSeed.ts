@@ -15,13 +15,18 @@ import { useCallsStore } from "../store/useCallsStore";
 import { useConnectorsStore } from "../store/useConnectorsStore";
 import { useFollowUpsStore } from "../store/useFollowUpsStore";
 import { useStore } from "../store/useStore";
-import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
+import {
+  PRESENCE_OFFLINE_AFTER_MS,
+  useWorkspacePresenceStore,
+} from "../store/useWorkspacePresenceStore";
 import { useWorkspacesStore } from "../store/useWorkspacesStore";
 import { useCalendarOverlayStore } from "../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../store/useCalendarStore";
 import { usePeopleStore } from "../store/usePeopleStore";
+import { usePresenceActivityStore } from "../store/usePresenceActivityStore";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { CHAT_CONNECTORS } from "../components/chat/chatConnectors";
+import { presenceActivityKey, type PresenceActivityId } from "./presenceActivity";
 import { toDateKey } from "./daySchedule";
 import { pickWorkspaceAccent } from "./workspaces";
 
@@ -36,7 +41,30 @@ const DEMO_MEMBERS = [
   { id: "taylor", name: "Taylor" },
   { id: "quinn", name: "Quinn" },
   { id: "avery", name: "Avery" },
+  { id: "elena", name: "Elena" },
+  { id: "noah", name: "Noah" },
+  { id: "zoe", name: "Zoe" },
+  { id: "chris", name: "Chris" },
+  { id: "lena", name: "Lena" },
+  { id: "omar", name: "Omar" },
+  { id: "nadia", name: "Nadia" },
+  { id: "felix", name: "Felix" },
 ];
+
+const OFFLINE_MEMBER_IDS = new Set(["quinn", "avery"]);
+
+const PREVIEW_PRESENCE_ACTIVITIES: Record<string, PresenceActivityId> = {
+  jordan: "claude",
+  sam: "claude",
+  riley: "claude",
+  morgan: "claude",
+  casey: "openai",
+  taylor: "openai",
+  elena: "spotify",
+  noah: "spotify",
+  zoe: "spotify",
+  chris: "spotify",
+};
 
 const THEATER_AUDIENCE_EXTRA = [
   { id: "jamie", name: "Jamie" },
@@ -54,10 +82,37 @@ const THEATER_AUDIENCE_EXTRA = [
   { id: "hana", name: "Hana" },
   { id: "devon", name: "Devon" },
   { id: "sky", name: "Sky" },
+  { id: "priya", name: "Priya" },
+  { id: "marc", name: "Marc" },
+  { id: "julia", name: "Julia" },
+  { id: "ethan", name: "Ethan" },
+  { id: "sophie", name: "Sophie" },
+  { id: "lucas", name: "Lucas" },
+  { id: "mia", name: "Mia" },
+  { id: "alex-k", name: "Alex K." },
+  { id: "nina", name: "Nina" },
+  { id: "theo", name: "Theo" },
+  { id: "vera", name: "Vera" },
+  { id: "oscar", name: "Oscar" },
+  { id: "ines", name: "Ines" },
+  { id: "paul", name: "Paul" },
+  { id: "clara", name: "Clara" },
+  { id: "hugo", name: "Hugo" },
+  { id: "sara", name: "Sara" },
+  { id: "yuki", name: "Yuki" },
+  { id: "amir", name: "Amir" },
+  { id: "luna", name: "Luna" },
+  { id: "iris", name: "Iris" },
+  { id: "marco", name: "Marco" },
+  { id: "anna", name: "Anna" },
+  { id: "ben", name: "Ben" },
+  { id: "coco", name: "Coco" },
+  { id: "diego", name: "Diego" },
 ];
 
 const THEATER_SPEAKER_COUNT = 2;
 const THEATER_AUDIENCE_SIZE = 21;
+const THEATER_PREVIEW_AUDIENCE_SIZE = 48;
 
 const PREVIEW_NOTE_BODY_HTML = [
   "<h1>Design review — key decisions</h1>",
@@ -110,7 +165,7 @@ function buildRoomCallsState(): RoomCallsState {
   };
 }
 
-function buildTheaterState(): TheaterState {
+function buildTheaterState(audienceSize = THEATER_AUDIENCE_SIZE): TheaterState {
   const speakers = DEMO_MEMBERS.slice(0, THEATER_SPEAKER_COUNT).map((member) => ({
     id: member.id,
     name: member.name,
@@ -127,7 +182,7 @@ function buildTheaterState(): TheaterState {
       name: member.name,
       role: "audience" as const,
     })),
-  ].slice(0, THEATER_AUDIENCE_SIZE);
+  ].slice(0, audienceSize);
 
   return {
     workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
@@ -428,9 +483,10 @@ function seedPresence(): void {
   > = {};
 
   for (const member of DEMO_MEMBERS) {
+    const isOffline = OFFLINE_MEMBER_IDS.has(member.id);
     members[member.id] = {
       displayName: member.name,
-      lastSeenMs: now,
+      lastSeenMs: isOffline ? now - PRESENCE_OFFLINE_AFTER_MS - 60_000 : now,
       voice: {
         inPrivateCall: member.id === "jordan" || member.id === "sam",
         openChannelId:
@@ -445,6 +501,14 @@ function seedPresence(): void {
     loadedByWorkspace: { [MARKETING_PREVIEW_WORKSPACE_ID]: true },
     membersByWorkspace: { [MARKETING_PREVIEW_WORKSPACE_ID]: members },
   });
+}
+
+function seedPresenceActivities(): void {
+  const byKey: Record<string, PresenceActivityId> = {};
+  for (const [userId, activity] of Object.entries(PREVIEW_PRESENCE_ACTIVITIES)) {
+    byKey[presenceActivityKey(MARKETING_PREVIEW_WORKSPACE_ID, userId)] = activity;
+  }
+  usePresenceActivityStore.setState({ byKey });
 }
 
 function seedConnectors(): void {
@@ -624,6 +688,7 @@ export function seedMarketingPreview(): void {
   });
 
   seedPresence();
+  seedPresenceActivities();
   seedConnectors();
   seedSpotifyPlayback();
   seedCalendar();
@@ -644,5 +709,57 @@ export function seedMarketingRecordingPreview(): void {
     recording: false,
     recordingBusy: false,
     mediaError: null,
+  });
+}
+
+export function seedMarketingTheaterPreview(): void {
+  seedMarketingPreview();
+
+  const theater = buildTheaterState(THEATER_PREVIEW_AUDIENCE_SIZE);
+
+  useStore.setState({
+    chatPanelOpen: false,
+    chatPanelMode: "agent",
+    chatPanelExpanded: false,
+  });
+
+  useCallsStore.setState({
+    callsViewModeByWorkspace: {
+      ...useCallsStore.getState().callsViewModeByWorkspace,
+      [MARKETING_PREVIEW_WORKSPACE_ID]: "theater",
+    },
+    theaterByWorkspace: {
+      ...useCallsStore.getState().theaterByWorkspace,
+      [MARKETING_PREVIEW_WORKSPACE_ID]: {
+        ...theater,
+        handRaises: [
+          {
+            id: "preview-theater-hr-1",
+            workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
+            userId: "riley",
+            userName: "Riley",
+            status: "pending",
+          },
+          {
+            id: "preview-theater-hr-2",
+            workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
+            userId: "casey",
+            userName: "Casey",
+            status: "pending",
+          },
+          {
+            id: "preview-theater-hr-3",
+            workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
+            userId: "taylor",
+            userName: "Taylor",
+            status: "pending",
+          },
+        ],
+      },
+    },
+    speakingByParticipant: {
+      jordan: true,
+      sam: false,
+    },
   });
 }

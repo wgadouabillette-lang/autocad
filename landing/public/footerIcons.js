@@ -1,4 +1,4 @@
-// SVG icons for the shared marketing footer (theme + language controls).
+// SVG icons for the shared marketing footer (language control).
 (function () {
   var SVG_ATTRS =
     ' xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"' +

@@ -15,6 +15,7 @@ ENV_FILE = BACKEND_DIR / ".env"
 PRODUCT_META_KEY = "forma_billing"
 PRO_META_VALUE = "pro"
 ON_DEMAND_META_VALUE = "on_demand"
+ENTERPRISE_META_VALUE = "enterprise"
 
 
 def _load_dotenv() -> None:
@@ -173,6 +174,38 @@ def _upsert_env(updates: Dict[str, str], dry_run: bool) -> None:
     print(f"Mis à jour : {ENV_FILE}")
 
 
+def _ensure_enterprise_seat_price(
+    stripe,
+    product_id: str,
+    amount_cents: int,
+    currency: str,
+    dry_run: bool,
+):
+    existing = None if dry_run else _find_price(stripe, product_id, metered=False)
+    if existing:
+        print(
+            f"Prix Entreprise existant : {existing['id']} "
+            f"({existing['unit_amount']} {existing['currency']}/siège/mois)"
+        )
+        return existing
+    if dry_run:
+        print(f"[dry-run] Créerait le prix Entreprise {amount_cents} {currency}/siège/mois")
+        return {"id": "price_dry_enterprise"}
+
+    price = stripe.Price.create(
+        product=product_id,
+        currency=currency,
+        unit_amount=amount_cents,
+        recurring={"interval": "month"},
+        metadata={"forma_billing": ENTERPRISE_META_VALUE},
+    )
+    print(
+        f"Prix Entreprise créé : {price['id']} "
+        f"({amount_cents / 100:.2f} {currency.upper()}/siège/mois)"
+    )
+    return price
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Configure les produits/prix Stripe pour Hall.")
     parser.add_argument("--dry-run", action="store_true", help="Affiche les actions sans appeler Stripe.")
@@ -189,6 +222,12 @@ def main() -> int:
         type=int,
         default=int(os.getenv("STRIPE_ON_DEMAND_UNIT_CENTS", "1")),
         help="Prix unitaire on-demand en centimes (défaut : 1 = 0,01 $/unité, aligné sur l'usage IA retail).",
+    )
+    parser.add_argument(
+        "--enterprise-seat-amount",
+        type=int,
+        default=int(os.getenv("STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS", "1800")),
+        help="Montant Entreprise par siège en centimes (défaut : 1800 = 18,00 $).",
     )
     args = parser.parse_args()
 
@@ -209,6 +248,13 @@ def main() -> int:
         meta_value=ON_DEMAND_META_VALUE,
         dry_run=args.dry_run,
     )
+    enterprise_product = _ensure_product(
+        stripe,
+        name="Hall Entreprise",
+        description="Abonnement mensuel par siège — pool IA partagé pour un workspace.",
+        meta_value=ENTERPRISE_META_VALUE,
+        dry_run=args.dry_run,
+    )
 
     pro_price = _ensure_pro_price(
         stripe,
@@ -224,11 +270,19 @@ def main() -> int:
         args.currency,
         args.dry_run,
     )
+    enterprise_price = _ensure_enterprise_seat_price(
+        stripe,
+        enterprise_product["id"],
+        args.enterprise_seat_amount,
+        args.currency,
+        args.dry_run,
+    )
 
     print("")
     print("IDs à utiliser :")
     print(f"  STRIPE_PRO_PRICE_ID={pro_price['id']}")
     print(f"  STRIPE_ON_DEMAND_PRICE_ID={on_demand_price['id']}")
+    print(f"  STRIPE_ENTERPRISE_SEAT_PRICE_ID={enterprise_price['id']}")
     print("")
     print("Étape suivante — webhook local :")
     print("  stripe listen --forward-to http://127.0.0.1:8000/api/billing/webhook")
@@ -241,6 +295,7 @@ def main() -> int:
             {
                 "STRIPE_PRO_PRICE_ID": str(pro_price["id"]),
                 "STRIPE_ON_DEMAND_PRICE_ID": str(on_demand_price["id"]),
+                "STRIPE_ENTERPRISE_SEAT_PRICE_ID": str(enterprise_price["id"]),
             },
             dry_run=False,
         )

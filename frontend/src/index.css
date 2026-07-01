@@ -796,6 +796,50 @@ body {
     pointer-events: auto;
     cursor: pointer;
   }
+  .marketing-preview-shell--theater-feature {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100%;
+    background-color: var(--forma-content-bg);
+    --forma-calls-lift: 0px;
+  }
+  .marketing-preview-shell--theater-feature .calls-view {
+    flex: 1;
+    min-height: 0;
+    justify-content: center;
+    overflow-x: clip;
+  }
+  .marketing-preview-shell--theater-feature .calls-view--theater {
+    min-height: 0;
+  }
+  .marketing-preview-shell--theater-feature .calls-view__stage--theater {
+    flex: 1;
+    min-height: 0;
+    padding: 0.5rem 0.75rem 0.65rem;
+  }
+  .marketing-preview-shell--theater-feature .theater-view {
+    max-width: none;
+    --forma-call-media-max-width: min(22rem, calc(50% - 0.25rem));
+  }
+  .marketing-preview-shell--theater-feature .theater-view__stage {
+    min-height: 0;
+  }
+  .marketing-preview-shell--theater-feature .theater-view__stage-grid {
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 0.5rem;
+    max-width: 100%;
+  }
+  .marketing-preview-shell--theater-feature .theater-speaker-card {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    max-width: calc(50% - 0.25rem);
+  }
+  .marketing-preview-shell--theater-feature .theater-view__controls {
+    display: none;
+  }
   .app-layout {
     position: relative;
     display: grid;

@@ -70,6 +70,7 @@ import { useWorkspacesStore } from "./useWorkspacesStore";
 import { useAuthStore } from "./useAuthStore";
 import { useWorkspacePresenceStore } from "./useWorkspacePresenceStore";
 import { debugLog } from "../lib/debugLog";
+import { isMarketingTheaterPreviewScene } from "../lib/marketingPreview";
 import { useAiNotesStore } from "./useAiNotesStore";
 import { useFollowUpCaptureStore } from "./useFollowUpCaptureStore";
 import { useStore } from "./useStore";
@@ -448,10 +449,17 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         },
         theaterByWorkspace: {
           ...s.theaterByWorkspace,
-          [workspaceId]: syncTheaterWithMembers(
-            workspaceId,
-            s.theaterByWorkspace[workspaceId],
-          ),
+          [workspaceId]: (() => {
+            const existing = s.theaterByWorkspace[workspaceId];
+            if (
+              isMarketingTheaterPreviewScene() &&
+              existing &&
+              (existing.speakers.length > 0 || existing.audience.length > 0)
+            ) {
+              return existing;
+            }
+            return syncTheaterWithMembers(workspaceId, existing);
+          })(),
         },
       };
     });

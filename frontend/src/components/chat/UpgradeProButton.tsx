@@ -1,25 +1,31 @@
 import { ArrowUpRight } from "lucide-react";
+import { useBilling } from "../../hooks/useBilling";
 import { useStore } from "../../store/useStore";
 
 interface UpgradeProButtonProps {
   label: string;
 }
 
-/**
- * Bouton qui basculerait l'utilisateur vers Pro.
- * Stripe est temporairement désactivé — on flippe `subscriptionPlan` localement.
- */
 export default function UpgradeProButton({ label }: UpgradeProButtonProps) {
-  const setSubscriptionPlan = useStore((s) => s.setSubscriptionPlan);
+  const subscriptionPlan = useStore((s) => s.subscriptionPlan);
+  const billingManaged = useStore((s) => s.billingManaged);
+  const { stripeEnabled, checkoutPro, openPortal, loading } = useBilling();
+  const isPro = subscriptionPlan === "pro" && billingManaged;
 
   const handleClick = () => {
-    setSubscriptionPlan("pro");
+    if (!stripeEnabled) return;
+    if (isPro) {
+      void openPortal();
+      return;
+    }
+    void checkoutPro();
   };
 
   return (
     <button
       type="button"
       onClick={handleClick}
+      disabled={!stripeEnabled || loading}
       className="assistant-markdown__upgrade-button"
     >
       <span>{label}</span>

@@ -1,22 +1,19 @@
 (function () {
-  var PREVIEW_WIDTH = 1680;
-  var PREVIEW_HEIGHT = 940;
+  var PREVIEW_WIDTH = 1280;
+  var PREVIEW_HEIGHT = 800;
   var LOAD_TIMEOUT_MS = 8000;
 
   function resolvePreviewHref() {
     var params = new URLSearchParams();
     var theme = document.documentElement.dataset.theme || "dark";
     params.set("theme", theme);
+    params.set("scene", "theater");
     return "/app/preview.html?" + params.toString();
   }
 
   function showFallback(mount) {
     mount.innerHTML =
-      '<img class="hero__shot-img" src="app-preview.png" alt="Hall workspace preview" loading="eager" decoding="async" />';
-  }
-
-  function isMobilePreview() {
-    return window.matchMedia("(max-width: 767px)").matches;
+      '<img class="hero__feature-img" src="app-preview.png" alt="Hall Theater preview" loading="eager" decoding="async" />';
   }
 
   function scalePreview(mount, wrapper, scaleLayer) {
@@ -24,57 +21,37 @@
     var height = mount.clientHeight;
     if (width <= 0 || height <= 0) return;
 
-    if (isMobilePreview()) {
-      var scale = Math.max(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT);
-      var scaledW = PREVIEW_WIDTH * scale;
-      var scaledH = PREVIEW_HEIGHT * scale;
-      var offsetX = 0;
-      var offsetY = (height - scaledH) / 2;
-
-      wrapper.style.width = width + "px";
-      wrapper.style.height = height + "px";
-      wrapper.style.left = "0";
-      wrapper.style.top = "0";
-      wrapper.style.transform = "none";
-
-      scaleLayer.style.width = PREVIEW_WIDTH + "px";
-      scaleLayer.style.height = PREVIEW_HEIGHT + "px";
-      scaleLayer.style.transform =
-        "translate(" + offsetX + "px, " + offsetY + "px) scale(" + scale + ")";
-      return;
-    }
-
-    var scale = Math.min(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT);
+    var scale = Math.max(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT);
     var scaledW = PREVIEW_WIDTH * scale;
     var scaledH = PREVIEW_HEIGHT * scale;
+    var offsetX = Math.min(0, (width - scaledW) / 2);
+    var offsetY = Math.min(0, (height - scaledH) / 2);
 
-    wrapper.style.width = scaledW + "px";
-    wrapper.style.height = scaledH + "px";
-    wrapper.style.left = "50%";
-    wrapper.style.top = "50%";
-    wrapper.style.transform = "translate(-50%, -50%)";
+    wrapper.style.width = width + "px";
+    wrapper.style.height = height + "px";
 
     scaleLayer.style.width = PREVIEW_WIDTH + "px";
     scaleLayer.style.height = PREVIEW_HEIGHT + "px";
-    scaleLayer.style.transform = "scale(" + scale + ")";
+    scaleLayer.style.transform =
+      "translate(" + offsetX + "px, " + offsetY + "px) scale(" + scale + ")";
   }
 
   function mountPreview() {
-    var mount = document.getElementById("workspaces-preview");
+    var mount = document.getElementById("theater-feature-preview");
     if (!mount) return;
 
     var href = resolvePreviewHref();
     mount.innerHTML = "";
 
     var wrapper = document.createElement("div");
-    wrapper.className = "hero__dashboard-preview-scaler";
+    wrapper.className = "hero__theater-feature-scaler";
 
     var scaleLayer = document.createElement("div");
-    scaleLayer.className = "hero__dashboard-preview-scale-layer";
+    scaleLayer.className = "hero__theater-feature-scale-layer";
 
     var iframe = document.createElement("iframe");
-    iframe.className = "hero__dashboard-preview-frame";
-    iframe.title = "Hall workspace preview";
+    iframe.className = "hero__theater-feature-frame";
+    iframe.title = "Hall Theater preview";
     iframe.loading = "eager";
     iframe.tabIndex = -1;
     iframe.setAttribute("aria-hidden", "true");

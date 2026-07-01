@@ -14,10 +14,13 @@
       "nav.skills": "Skills",
       "nav.connectors": "Connectors",
       "nav.workspaces": "Workspaces",
+      "nav.privacy": "Privacy",
+      "nav.affiliate": "Affiliate",
+      "nav.affiliateSoon": "Coming soon",
       "nav.resources": "Resources",
       "nav.openApp": "Open Hall",
       "nav.openAppDesktopOnly": "Hall is available on desktop only",
-      "hero.title": "Your workspace,<br />in one app.",
+      "hero.title": "Your team workspace,<br />in one app.",
       "hero.lead":
         "Voice channels, AI chat, calendar, screen recording, and connectors — Hall brings everything your team needs day to day.",
       "hero.cta.start": "Get started",
@@ -41,16 +44,16 @@
       "hero.shot.calendar.title": "Calendar & connectors",
       "hero.shot.calendar.desc":
         "Schedule meetings and connect Gmail, Calendar, Spotify, and more.",
-      "hero.shot.notes.alt": "Hall preview — AI Notes and call recording",
-      "hero.shot.notes.title": "AI Notes",
+      "hero.shot.notes.alt": "Hall preview — Theater mode with stage and audience",
+      "hero.shot.notes.title": "Theater mode",
       "hero.shot.notes.desc":
-        "Live transcription and structured notes during voice calls — without leaving Hall.",
-      "hero.shot.notes.cta": "Explore AI Notes",
-      "hero.shot.workspace.alt": "Hall preview — collaborative workspace and messaging",
-      "hero.shot.workspace.title": "Team messaging",
+        "Run all-hands and presentations with a stage, audience seating, and a hand-raise queue — built into your workspace.",
+      "hero.shot.notes.cta": "Explore Theater",
+      "hero.shot.workspace.alt": "Hall preview — /handoff skill sharing chat context",
+      "hero.shot.workspace.title": "AI handoff",
       "hero.shot.workspace.desc":
-        "Direct messages and group chats alongside voice — presence and history in one place.",
-      "hero.shot.workspace.cta": "Explore messaging",
+        "Select messages from any thread and send them to a teammate or group with /handoff — full context, zero copy-paste.",
+      "hero.shot.workspace.cta": "Explore handoff",
       "hero.shot.followup.alt": "Hall preview — post-call follow-up and recap",
       "hero.shot.followup.title": "Post-call follow-up",
       "hero.shot.followup.desc":
@@ -113,9 +116,9 @@
       "careers.intro.p3":
         "As an early team member, you'll shape the product, stack, and culture from the ground up — from core infrastructure to pixel-perfect design.",
       "careers.intro.p4":
-        "If that sounds exciting, browse the roles below or write us at <a class=\"careers-intro__link\" href=\"mailto:careers@hall.app\">careers@hall.app</a>.",
-      "careers.board.heading": "Open Positions",
-      "careers.board.empty": "No roles match your filters. Try adjusting or reset filters.",
+        "If that sounds exciting, write us at <a class=\"careers-intro__link\" href=\"mailto:careers@hall.app\">careers@hall.app</a>.",
+      "careers.board.heading": "Open roles",
+      "careers.board.empty": "No roles available at the moment.",
       "careers.filters.label": "Filters:",
       "careers.filters.reset": "Reset filters",
       "careers.filters.noneApplied": "No filters applied",
@@ -159,10 +162,13 @@
       "nav.skills": "Skills",
       "nav.connectors": "Connecteurs",
       "nav.workspaces": "Workspaces",
+      "nav.privacy": "Confidentialité",
+      "nav.affiliate": "Affiliation",
+      "nav.affiliateSoon": "Bientôt disponible",
       "nav.resources": "Ressources",
       "nav.openApp": "Ouvrir Hall",
       "nav.openAppDesktopOnly": "Hall est disponible sur ordinateur uniquement",
-      "hero.title": "Votre espace de travail,<br />en une seule app.",
+      "hero.title": "L'espace de travail de votre équipe,<br />en une seule app.",
       "hero.lead":
         "Salons vocaux, chat IA, calendrier, enregistrement d'écran et connecteurs — Hall regroupe tout ce dont votre équipe a besoin au quotidien.",
       "hero.cta.start": "Commencer",
@@ -186,17 +192,16 @@
       "hero.shot.calendar.title": "Calendar & connectors",
       "hero.shot.calendar.desc":
         "Schedule meetings and connect Gmail, Calendar, Spotify, and more.",
-      "hero.shot.notes.alt": "Aperçu Hall — AI Notes et enregistrement en appel vocal",
-      "hero.shot.notes.title": "AI Notes",
+      "hero.shot.notes.alt": "Aperçu Hall — mode Theater avec scène et audience",
+      "hero.shot.notes.title": "Mode Theater",
       "hero.shot.notes.desc":
-        "Transcription live et notes structurées pendant vos appels — sans quitter Hall.",
-      "hero.shot.notes.cta": "Découvrir AI Notes",
-      "hero.shot.workspace.alt":
-        "Aperçu Hall — workspace collaboratif et messagerie d'équipe",
-      "hero.shot.workspace.title": "Messagerie d'équipe",
+        "All-hands et présentations avec scène, audience et file de mains levées — intégré à votre workspace.",
+      "hero.shot.notes.cta": "Découvrir Theater",
+      "hero.shot.workspace.alt": "Aperçu Hall — skill /handoff pour partager le contexte d'un chat",
+      "hero.shot.workspace.title": "Handoff IA",
       "hero.shot.workspace.desc":
-        "Messages privés et groupes aux côtés de la voix — présence et historique au même endroit.",
-      "hero.shot.workspace.cta": "Découvrir la messagerie",
+        "Sélectionnez des messages dans n'importe quel fil et envoyez-les à un collègue ou un groupe avec /handoff — le contexte, sans copier-coller.",
+      "hero.shot.workspace.cta": "Découvrir handoff",
       "hero.shot.followup.alt": "Aperçu Hall — follow-up et récap post-appel",
       "hero.shot.followup.title": "Follow-up post-appel",
       "hero.shot.followup.desc":
@@ -265,10 +270,9 @@
       "careers.intro.p3":
         "En tant que membre fondateur, tu façonneras le produit, la stack et la culture — de l'infra core au design pixel-perfect.",
       "careers.intro.p4":
-        "Si ça te parle, parcours les postes ci-dessous ou écris-nous à <a class=\"careers-intro__link\" href=\"mailto:careers@hall.app\">careers@hall.app</a>.",
-      "careers.board.heading": "Postes ouverts",
-      "careers.board.empty":
-        "Aucun poste ne correspond à vos filtres. Ajustez-les ou réinitialisez.",
+        "Si ça te parle, écris-nous à <a class=\"careers-intro__link\" href=\"mailto:careers@hall.app\">careers@hall.app</a>.",
+      "careers.board.heading": "Nos offres",
+      "careers.board.empty": "Aucune offre disponible pour le moment.",
       "careers.filters.label": "Filtres :",
       "careers.filters.reset": "Réinitialiser",
       "careers.filters.noneApplied": "Aucun filtre appliqué",
@@ -348,9 +352,9 @@
       meta.setAttribute("content", t(meta.getAttribute("data-i18n-content"), lang));
     }
 
-    var moreLabel = document.querySelector(".home-highlights__more-label");
-    var moreBtn = document.getElementById("highlights-more");
-    if (moreLabel && moreBtn) {
+    if (window.HallHomePage && window.HallHomePage.refreshHighlightsMoreLabel) {
+      window.HallHomePage.refreshHighlightsMoreLabel();
+    } else if (moreLabel && moreBtn) {
       var expanded = moreBtn.getAttribute("aria-expanded") === "true";
       moreLabel.textContent = t(expanded ? "highlights.less" : "highlights.more", lang);
     }

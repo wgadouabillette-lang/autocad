@@ -8,6 +8,12 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, Optional, Tuple
 
 from app.billing.checkout_timing import checkout_step, timing_enabled
+from app.billing.webhook_events import (
+    WebhookAlreadyProcessed,
+    claim_stripe_webhook_event,
+    mark_stripe_webhook_processed,
+    release_stripe_webhook_claim,
+)
 from app.connectors.registry import frontend_origin
 from app.core.config import settings
 from app.core.firebase import (
@@ -209,7 +215,17 @@ def sync_enterprise_subscription_for_workspace(
     )
 
 
+def _validate_checkout_session(session: Dict[str, Any]) -> None:
+    mode = str(session.get("mode") or "")
+    if mode != "subscription":
+        raise ValueError(f"Unexpected checkout mode: {mode}")
+    payment_status = str(session.get("payment_status") or "")
+    if payment_status not in {"paid", "no_payment_required"}:
+        raise ValueError(f"Checkout session not paid: {payment_status}")
+
+
 def handle_checkout_completed(session: Dict[str, Any]) -> None:
+    _validate_checkout_session(session)
     metadata = session.get("metadata") or {}
     workspace_id = _resolve_workspace_id(metadata)
     uid = _resolve_uid(
@@ -927,16 +943,11 @@ def cancel_enterprise_subscription_at_period_end(uid: str, workspace_id: str) ->
     stripe.Subscription.modify(subscription_id, cancel_at_period_end=True)
 
 
-def verify_and_dispatch_webhook(payload: bytes, signature: str) -> None:
-    stripe = _stripe()
-    event = stripe.Webhook.construct_event(
-        payload,
-        signature,
-        settings.stripe_webhook_secret,
-    )
-    event_type = str(event.get("type") or "")
-    data_object = (event.get("data") or {}).get("object") or {}
+class WebhookSignatureError(ValueError):
+    """Signature Stripe invalide ou payload rejeté avant traitement."""
 
+
+def _dispatch_stripe_event(event_type: str, data_object: Dict[str, Any]) -> None:
     if event_type == "checkout.session.completed":
         handle_checkout_completed(data_object)
     elif event_type in {
@@ -946,3 +957,39 @@ def verify_and_dispatch_webhook(payload: bytes, signature: str) -> None:
         handle_subscription_event(data_object)
     elif event_type == "customer.subscription.deleted":
         handle_subscription_deleted(data_object)
+    else:
+        logger.debug("Ignored Stripe webhook event type: %s", event_type)
+
+
+def verify_and_dispatch_webhook(payload: bytes, signature: str) -> None:
+    if not payload:
+        raise WebhookSignatureError("Missing request body.")
+    if not signature.strip():
+        raise WebhookSignatureError("Missing Stripe signature.")
+
+    stripe = _stripe()
+    try:
+        event = stripe.Webhook.construct_event(
+            payload,
+            signature,
+            settings.stripe_webhook_secret,
+        )
+    except stripe.error.SignatureVerificationError as exc:
+        raise WebhookSignatureError("Invalid Stripe webhook signature.") from exc
+
+    event_id = str(event.get("id") or "").strip()
+    event_type = str(event.get("type") or "")
+    data_object = (event.get("data") or {}).get("object") or {}
+
+    try:
+        claim_stripe_webhook_event(event_id, event_type)
+    except WebhookAlreadyProcessed:
+        logger.info("Skipping duplicate Stripe webhook event %s", event_id)
+        return
+
+    try:
+        _dispatch_stripe_event(event_type, data_object)
+        mark_stripe_webhook_processed(event_id)
+    except Exception:
+        release_stripe_webhook_claim(event_id)
+        raise

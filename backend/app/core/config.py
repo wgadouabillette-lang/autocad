@@ -164,7 +164,7 @@ class Settings:
         default_factory=lambda: os.getenv("STRIPE_ENTERPRISE_SEAT_PRICE_ID", "")
     )
     stripe_enterprise_min_members: int = field(
-        default_factory=lambda: int(os.getenv("STRIPE_ENTERPRISE_MIN_MEMBERS", "10"))
+        default_factory=lambda: int(os.getenv("STRIPE_ENTERPRISE_MIN_MEMBERS", "2"))
     )
 
     @property

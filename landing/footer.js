@@ -34,6 +34,16 @@
     );
   }
 
+  function disabledLink(labelKey, titleKey) {
+    return (
+      '<li><span class="footer-link footer-link--disabled" aria-disabled="true" title="' +
+      t(titleKey || "nav.affiliateSoon") +
+      '">' +
+      t(labelKey) +
+      "</span></li>"
+    );
+  }
+
   function socialLink(href, label) {
     return (
       '<li><a class="footer-link" href="' +
@@ -80,20 +90,6 @@
       .join("");
   }
 
-  function themeBtn(mode, labelKey) {
-    var iconName = mode === "light" ? "sun" : mode === "dark" ? "moon" : "monitor";
-    var iconHtml = window.HallFooterIcons ? window.HallFooterIcons.icon(iconName) : "";
-    return (
-      '<button type="button" class="site-footer__theme-btn" data-theme-mode="' +
-      mode +
-      '" aria-label="' +
-      t(labelKey) +
-      '">' +
-      iconHtml +
-      "</button>"
-    );
-  }
-
   function controlsHtml() {
     var locale = window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en";
     var langTrigger = window.HallFooterIcons
@@ -103,13 +99,6 @@
         : "English";
     return (
       '<div class="site-footer__controls">' +
-      '<div class="site-footer__theme-switch" role="group" aria-label="' +
-      t("footer.theme.system") +
-      '">' +
-      themeBtn("system", "footer.theme.system") +
-      themeBtn("light", "footer.theme.light") +
-      themeBtn("dark", "footer.theme.dark") +
-      "</div>" +
       '<div class="site-footer__lang">' +
       '<button type="button" class="site-footer__lang-trigger" id="footer-lang-trigger"' +
       ' aria-expanded="false" aria-controls="footer-lang-menu" aria-haspopup="listbox"' +
@@ -141,12 +130,12 @@
         "footer.resources",
         link("ressources.html", "footer.resources") +
           link("auth.html", "footer.signIn") +
-          link("ressources.html", "footer.guides"),
+          link("ressources.html", "footer.guides") +
+          disabledLink("nav.affiliate", "nav.affiliateSoon"),
       ),
-      column("footer.company", link("careers.html", "nav.careers")),
       column(
         "footer.legal",
-        link("privacy.html", "footer.privacy") +
+        link("privacy.html", "nav.privacy") +
           link("terms.html", "footer.terms") +
           link("subprocessors.html", "footer.subprocessors"),
       ),

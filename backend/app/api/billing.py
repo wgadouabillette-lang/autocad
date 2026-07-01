@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.billing import stripe_service
+from app.billing.stripe_service import WebhookSignatureError
 from app.billing.checkout_timing import timing_enabled
 from app.core.auth_deps import optional_firebase_user, require_firebase_user
 from app.core.config import settings
@@ -34,7 +35,7 @@ class BillingConfigResponse(BaseModel):
     billingManaged: bool
     proPriceLabel: str = "$30 / month"
     enterpriseEnabled: bool = False
-    enterpriseMinMembers: int = 10
+    enterpriseMinMembers: int = 2
     enterpriseSeatPriceLabel: str = "$18 / seat / month"
 
 
@@ -568,10 +569,10 @@ async def stripe_webhook(request: Request):
 
     try:
         stripe_service.verify_and_dispatch_webhook(payload, signature)
-    except ValueError as exc:
+    except WebhookSignatureError as exc:
         raise HTTPException(400, str(exc)) from exc
     except Exception as exc:
         logger.exception("Stripe webhook processing failed")
-        raise HTTPException(400, "Invalid Stripe webhook payload.") from exc
+        raise HTTPException(500, "Webhook handler failed.") from exc
 
     return JSONResponse({"received": True})
