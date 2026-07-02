@@ -4,6 +4,7 @@ import {
   GoogleAuthProvider,
   FacebookAuthProvider,
   OAuthProvider,
+  onAuthStateChanged,
   signInWithPopup,
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
@@ -86,7 +87,31 @@ function clearError() {
   errorEl.textContent = "";
 }
 
-function showSuccess() {
+function resolveAppHref() {
+  const hostname = window.location.hostname;
+  const port = window.location.port;
+  const isLocal = hostname === "127.0.0.1" || hostname === "localhost";
+  if (isLocal && (port === "5190" || port === "5191" || port === "5192" || port === "5193")) {
+    return "http://localhost:5173/app/";
+  }
+  return "/app/";
+}
+
+function redirectToApp() {
+  window.location.assign(resolveAppHref());
+}
+
+function configureAuthCopy() {
+  if (hasDesktopSession) {
+    titleEl.textContent = "Sign in to Hall";
+    leadEl.textContent = `Sign in to connect the Hall app on ${appHint()}.`;
+    return;
+  }
+  titleEl.textContent = "Sign in to Hall";
+  leadEl.textContent = "Connect to open Hall in your browser.";
+}
+
+function showDesktopSuccess() {
   titleEl.textContent = "Success!";
   leadEl.innerHTML = `You can reopen your app on ${appHint()}.<br /><br />Your account is synced.`;
   providersEl.innerHTML = "";
@@ -168,14 +193,24 @@ async function signIn(providerId) {
   try {
     const result = await signInWithPopup(auth, providerForId(providerId));
     await completeSession(providerId, result);
-    showSuccess();
+    if (hasDesktopSession) {
+      showDesktopSuccess();
+      return;
+    }
+    redirectToApp();
   } catch (err) {
     const message = err instanceof Error ? err.message : "Sign-in failed.";
     showError(message);
   }
 }
 
+configureAuthCopy();
 renderProviders((id) => void signIn(id));
+
+onAuthStateChanged(auth, (user) => {
+  if (!user || hasDesktopSession) return;
+  redirectToApp();
+});
 
 emailFormEl.addEventListener("submit", (event) => {
   event.preventDefault();
