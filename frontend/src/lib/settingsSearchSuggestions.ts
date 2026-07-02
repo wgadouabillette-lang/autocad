@@ -108,6 +108,13 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     keywords: "theme thème dark light clair sombre system système appearance apparence couleur color mode",
   },
   {
+    id: "accent-color",
+    tab: "general",
+    label: "Accent color",
+    hint: "Header buttons, chat bubbles, and primary controls",
+    keywords: "accent couleur color bouton button chat bubble emerald amber cyan bleu blue vert orange",
+  },
+  {
     id: "audio-devices",
     tab: "audio",
     label: "Audio",

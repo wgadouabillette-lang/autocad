@@ -2,6 +2,66 @@
   publish = "."
 
 [[redirects]]
+  from = "/index.html"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/auth.html"
+  to = "/auth"
+  status = 301
+
+[[redirects]]
+  from = "/tarifs.html"
+  to = "/tarifs"
+  status = 301
+
+[[redirects]]
+  from = "/careers.html"
+  to = "/careers"
+  status = 301
+
+[[redirects]]
+  from = "/ressources.html"
+  to = "/ressources"
+  status = 301
+
+[[redirects]]
+  from = "/terms.html"
+  to = "/terms"
+  status = 301
+
+[[redirects]]
+  from = "/privacy.html"
+  to = "/privacy"
+  status = 301
+
+[[redirects]]
+  from = "/subprocessors.html"
+  to = "/subprocessors"
+  status = 301
+
+[[redirects]]
+  from = "/auth"
+  to = "/auth.html"
+  status = 200
+
+[[redirects]]
+  from = "/tarifs"
+  to = "/tarifs.html"
+  status = 200
+
+[[redirects]]
+  from = "/careers"
+  to = "/careers.html"
+  status = 200
+
+[[redirects]]
+  from = "/ressources"
+  to = "/ressources.html"
+  status = 200
+
+[[redirects]]
   from = "/terms"
   to = "/terms.html"
   status = 200
@@ -16,10 +76,10 @@
   to = "/subprocessors.html"
   status = 200
 
-[[redirects]]
-  from = "/auth"
-  to = "/auth.html"
-  status = 200
+[[headers]]
+  for = "/auth"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
 
 [[headers]]
   for = "/downloads/*"

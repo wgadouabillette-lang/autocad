@@ -135,6 +135,7 @@ interface CallsState extends CallControls {
     workspaceId: string,
     remoteChannels: OpenVoiceChannelDoc[],
   ) => void;
+  clearWorkspaceResources: (workspaceId: string) => void;
   completeRemoteKnockJoin: (workspaceId: string, partnerUid: string, requestId?: string) => Promise<void>;
   clearJoinRequest: (workspaceId: string, requestId: string) => void;
   syncLocalParticipantProfile: (profile: {
@@ -638,6 +639,35 @@ export const useCallsStore = create<CallsState>((set, get) => ({
           ...s.callsByRoom,
           [workspaceId]: { ...current, openChannels },
         },
+      };
+    });
+  },
+
+  clearWorkspaceResources: (workspaceId) => {
+    const normalized = workspaceId.trim().toLowerCase();
+    if (!normalized) return;
+
+    if (get().isLocalInCall(normalized) || get().isLocalInTheaterCall(normalized)) {
+      get().leaveCall(normalized);
+    }
+
+    set((state) => {
+      const callsByRoom = { ...state.callsByRoom };
+      const localInCallByRoom = { ...state.localInCallByRoom };
+      const localOpenChannelByRoom = { ...state.localOpenChannelByRoom };
+      const theaterByWorkspace = { ...state.theaterByWorkspace };
+      const callsViewModeByWorkspace = { ...state.callsViewModeByWorkspace };
+      delete callsByRoom[normalized];
+      delete localInCallByRoom[normalized];
+      delete localOpenChannelByRoom[normalized];
+      delete theaterByWorkspace[normalized];
+      delete callsViewModeByWorkspace[normalized];
+      return {
+        callsByRoom,
+        localInCallByRoom,
+        localOpenChannelByRoom,
+        theaterByWorkspace,
+        callsViewModeByWorkspace,
       };
     });
   },

@@ -4,6 +4,7 @@ import type { PeopleMessage } from "../../lib/peopleChat";
 import { parseManageComposerText } from "../../lib/manageSchedulePrompt";
 import HandoffInboxCard from "./HandoffInboxCard";
 import ManageSchedulePromptLine from "./ManageSchedulePromptLine";
+import UserAvatar from "../UserAvatar";
 import { useHandoffStore } from "../../store/useHandoffStore";
 import {
   buildPeopleChatTimeline,
@@ -19,10 +20,44 @@ interface PeopleChatThreadMessagesProps {
   className?: string;
   compact?: boolean;
   showAuthors?: boolean;
+  showAvatars?: boolean;
+  getAuthorPhotoURL?: (authorUid: string, authorName: string) => string | undefined;
   handoffSelectionMode?: boolean;
   handoffSelectedIndices?: Set<number>;
   onToggleHandoffIndex?: (index: number) => void;
   tailContent?: ReactNode;
+}
+
+function PeopleChatBubbleAvatar({
+  showAvatars,
+  mine,
+  isFirstInGroup,
+  authorUid,
+  authorName,
+  getAuthorPhotoURL,
+}: {
+  showAvatars?: boolean;
+  mine: boolean;
+  isFirstInGroup: boolean;
+  authorUid?: string;
+  authorName: string;
+  getAuthorPhotoURL?: (authorUid: string, authorName: string) => string | undefined;
+}) {
+  if (!showAvatars || mine) return null;
+
+  if (isFirstInGroup) {
+    const userId = authorUid?.trim() || authorName;
+    return (
+      <UserAvatar
+        userId={userId}
+        name={authorName}
+        photoURL={getAuthorPhotoURL?.(userId, authorName)}
+        className="people-chat-bubble-wrap__avatar"
+      />
+    );
+  }
+
+  return <span className="people-chat-bubble-wrap__avatar-spacer" aria-hidden />;
 }
 
 function PeopleChatBubble({
@@ -30,6 +65,8 @@ function PeopleChatBubble({
   mine,
   compact,
   showAuthors,
+  showAvatars,
+  getAuthorPhotoURL,
   messageIndex,
   handoffSelectionMode,
   handoffSelected,
@@ -39,6 +76,8 @@ function PeopleChatBubble({
   mine: boolean;
   compact?: boolean;
   showAuthors?: boolean;
+  showAvatars?: boolean;
+  getAuthorPhotoURL?: (authorUid: string, authorName: string) => string | undefined;
   messageIndex: number;
   handoffSelectionMode?: boolean;
   handoffSelected?: boolean;
@@ -57,6 +96,14 @@ function PeopleChatBubble({
           isLastInGroup && "people-chat-bubble-wrap--last",
         )}
       >
+        <PeopleChatBubbleAvatar
+          showAvatars={showAvatars}
+          mine={mine}
+          isFirstInGroup={isFirstInGroup}
+          authorUid={message.authorUid}
+          authorName={message.author}
+          getAuthorPhotoURL={getAuthorPhotoURL}
+        />
         <HandoffInboxCard
           senderName={message.author}
           title={message.handoffTitle}
@@ -79,6 +126,14 @@ function PeopleChatBubble({
           isLastInGroup && "people-chat-bubble-wrap--last",
         )}
       >
+        <PeopleChatBubbleAvatar
+          showAvatars={showAvatars}
+          mine={mine}
+          isFirstInGroup={isFirstInGroup}
+          authorUid={message.authorUid}
+          authorName={message.author}
+          getAuthorPhotoURL={getAuthorPhotoURL}
+        />
         <div className="people-chat-bubble-stack">
           {!mine && isFirstInGroup && showAuthors && (
             <span className="people-chat-bubble-stack__author">{message.author}</span>
@@ -112,6 +167,14 @@ function PeopleChatBubble({
         isLastInGroup && "people-chat-bubble-wrap--last",
       )}
     >
+      <PeopleChatBubbleAvatar
+        showAvatars={showAvatars}
+        mine={mine}
+        isFirstInGroup={isFirstInGroup}
+        authorUid={message.authorUid}
+        authorName={message.author}
+        getAuthorPhotoURL={getAuthorPhotoURL}
+      />
       <div className="people-chat-bubble-stack">
         {!mine && isFirstInGroup && showAuthors && (
           <span className="people-chat-bubble-stack__author">{message.author}</span>
@@ -161,6 +224,8 @@ export default function PeopleChatThreadMessages({
   className,
   compact,
   showAuthors = false,
+  showAvatars = false,
+  getAuthorPhotoURL,
   handoffSelectionMode = false,
   handoffSelectedIndices,
   onToggleHandoffIndex,
@@ -214,6 +279,8 @@ export default function PeopleChatThreadMessages({
                 mine={entry.mine}
                 compact={compact}
                 showAuthors={showAuthors}
+                showAvatars={showAvatars}
+                getAuthorPhotoURL={getAuthorPhotoURL}
                 messageIndex={messageIndex}
                 handoffSelectionMode={handoffSelectionMode}
                 handoffSelected={

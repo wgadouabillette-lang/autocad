@@ -4,7 +4,7 @@
     var hostname = window.location.hostname;
     var port = window.location.port;
     var isLocal = hostname === "127.0.0.1" || hostname === "localhost";
-    if (isLocal && (port === "5190" || port === "5191")) {
+    if (isLocal && (port === "5190" || port === "5191" || port === "5192" || port === "5193")) {
       return "http://localhost:5173/app/";
     }
     return "/app/";
@@ -122,22 +122,22 @@
       column(
         "footer.product",
         link(appHref, "footer.openApp") +
-          link("tarifs.html", "footer.pricing") +
+          link("/tarifs", "footer.pricing") +
           link("/downloads/Hall-mac.dmg", "footer.downloadMac") +
           link("/downloads/Hall-windows.exe", "footer.downloadWin"),
       ),
       column(
         "footer.resources",
-        link("ressources.html", "footer.resources") +
-          link("auth.html", "footer.signIn") +
-          link("ressources.html", "footer.guides") +
+        link("/ressources", "footer.resources") +
+          link("/auth", "footer.signIn") +
+          link("/ressources", "footer.guides") +
           disabledLink("nav.affiliate", "nav.affiliateSoon"),
       ),
       column(
         "footer.legal",
-        link("privacy.html", "nav.privacy") +
-          link("terms.html", "footer.terms") +
-          link("subprocessors.html", "footer.subprocessors"),
+        link("/privacy", "nav.privacy") +
+          link("/terms", "footer.terms") +
+          link("/subprocessors", "footer.subprocessors"),
       ),
       column(
         "footer.connect",

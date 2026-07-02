@@ -56,9 +56,22 @@
     ],
     "rewrites": [
       { "source": "/auth", "destination": "/auth.html" },
+      { "source": "/tarifs", "destination": "/tarifs.html" },
+      { "source": "/careers", "destination": "/careers.html" },
+      { "source": "/ressources", "destination": "/ressources.html" },
       { "source": "/terms", "destination": "/terms.html" },
       { "source": "/privacy", "destination": "/privacy.html" },
       { "source": "/subprocessors", "destination": "/subprocessors.html" }
+    ],
+    "redirects": [
+      { "source": "/index.html", "destination": "/", "type": 301 },
+      { "source": "/auth.html", "destination": "/auth", "type": 301 },
+      { "source": "/tarifs.html", "destination": "/tarifs", "type": 301 },
+      { "source": "/careers.html", "destination": "/careers", "type": 301 },
+      { "source": "/ressources.html", "destination": "/ressources", "type": 301 },
+      { "source": "/terms.html", "destination": "/terms", "type": 301 },
+      { "source": "/privacy.html", "destination": "/privacy", "type": 301 },
+      { "source": "/subprocessors.html", "destination": "/subprocessors", "type": 301 }
     ],
     "headers": [
       {

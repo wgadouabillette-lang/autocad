@@ -1,11 +1,13 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
+import { cleanUrlsPlugin } from "./vite-plugin-clean-urls.js";
 
 const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   root: ".",
+  plugins: [cleanUrlsPlugin()],
   build: {
     outDir: "dist",
     rollupOptions: {

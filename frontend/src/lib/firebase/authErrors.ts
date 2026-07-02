@@ -38,9 +38,18 @@ export function formatAuthError(error: unknown, provider?: FirebaseAuthProvider 
     const label = PROVIDER_LABELS[provider];
     const message = error instanceof Error ? error.message : "";
     if (message.includes("invalid_client") || message.includes("client secret is invalid")) {
-      return `Connexion ${label} impossible : le client OAuth Firebase est mal configuré (secret invalide). Dans la console Firebase → Authentication → Google, désactivez puis réactivez le fournisseur, ou exécutez « firebase deploy --only auth ».`;
+      if (provider === "facebook") {
+        return `Connexion ${label} impossible : App ID ou App Secret Meta invalides dans Firebase. Voir docs/FACEBOOK_AUTH.md puis ./scripts/setup-facebook-login.sh`;
+      }
+      if (provider === "microsoft") {
+        return `Connexion ${label} impossible : client Azure AD mal configuré dans Firebase. Vérifiez MICROSOFT_OAUTH_* puis ./scripts/configure-firebase-oauth-providers.sh`;
+      }
+      return `Connexion ${label} impossible : client OAuth Firebase mal configuré. Exécutez « firebase deploy --only auth » ou reconfigurez le fournisseur.`;
     }
     return `Connexion ${label} refusée (session expirée ou configuration OAuth). Réessayez ou utilisez un autre mode de connexion.`;
+  }
+  if (code === "auth/operation-not-allowed" && provider === "facebook") {
+    return "Connexion Facebook non activée dans Firebase. Créez l'app Meta et exécutez ./scripts/setup-facebook-login.sh (voir docs/FACEBOOK_AUTH.md).";
   }
   if (code && AUTH_ERROR_MESSAGES[code]) {
     return AUTH_ERROR_MESSAGES[code];

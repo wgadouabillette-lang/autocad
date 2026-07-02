@@ -32,6 +32,7 @@ import {
   type SidePanelSide,
   type UserPreferences,
 } from "../lib/userPreferences";
+import { applyDocumentAccentColor, normalizeAccentColorPreference } from "../lib/accentColor";
 import type { AiModel } from "../lib/aiModels";
 import { isValidAiModel } from "../lib/aiModels";
 import { isLegacyPublicWorkspaceId } from "../lib/workspaces";
@@ -147,6 +148,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
     colorTheme: profile.colorTheme === "light" || profile.colorTheme === "system" ? profile.colorTheme : "dark",
+    accentColor: normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
     agentChatInstructions: profile.agentChatInstructions ?? "",
     agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
@@ -154,6 +156,9 @@ function applyLocalProfile(profile: UserProfileDoc) {
     calendarWorkEndMinutes: calendarHours.endMinutes,
     aiModel: isAiModel(profile.aiModel) ? profile.aiModel : useStore.getState().aiModel,
   });
+  applyDocumentAccentColor(
+    normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
+  );
   writeUserPreferences({
     chatWorkMode: profile.chatWorkMode,
     autoWorkModeSwitch: profile.autoWorkModeSwitch,
@@ -169,6 +174,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
     colorTheme: profile.colorTheme === "light" || profile.colorTheme === "system" ? profile.colorTheme : "dark",
+    accentColor: normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
     subscriptionPlan,
     billingManaged,
     onDemandUsageEnabled,
@@ -204,6 +210,7 @@ function profileFromStore(user: User): UserProfileDoc {
     chatPanelOpen: state.chatPanelOpen,
     sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
     colorTheme: state.colorTheme,
+    accentColor: state.accentColor,
     agentChatInstructions: state.agentChatInstructions,
     agentFollowUpInstructions: state.agentFollowUpInstructions,
     agentAiNotesInstructions: state.agentAiNotesInstructions,
@@ -234,6 +241,7 @@ function profileSyncKey(profile: UserProfileDoc): string {
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide: profile.sidePanelSide,
     colorTheme: profile.colorTheme,
+    accentColor: profile.accentColor ?? null,
     agentChatInstructions: profile.agentChatInstructions ?? "",
     agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
@@ -284,6 +292,7 @@ function startProfileAutosync(
       state.chatPanelOpen === previousState.chatPanelOpen &&
       state.sidePanelSide === previousState.sidePanelSide &&
       state.colorTheme === previousState.colorTheme &&
+      state.accentColor === previousState.accentColor &&
       state.aiModel === previousState.aiModel
     ) {
       return;
@@ -787,6 +796,7 @@ export function currentUserPreferencesSnapshot(): UserPreferences {
     chatPanelOpen: state.chatPanelOpen,
     sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
     colorTheme: state.colorTheme,
+    accentColor: state.accentColor,
     subscriptionPlan: state.subscriptionPlan,
     billingManaged: state.billingManaged,
     onDemandUsageEnabled: state.onDemandUsageEnabled,

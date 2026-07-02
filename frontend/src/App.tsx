@@ -19,11 +19,13 @@ import { useWorkspaceJoinRequests } from "./hooks/useWorkspaceJoinRequests";
 import { useWorkspaceVoiceKnocks } from "./hooks/useWorkspaceVoiceKnocks";
 import { useWorkspaceVoiceRtc } from "./hooks/useWorkspaceVoiceRtc";
 import { useWorkspacePolls } from "./hooks/useWorkspacePolls";
+import { useWorkspaceTextChannels } from "./hooks/useWorkspaceTextChannels";
 import { useWorkspaceOpenVoiceChannels } from "./hooks/useWorkspaceOpenVoiceChannels";
 import JoinKnockOverlay from "./components/calls/JoinKnockOverlay";
 import WorkspaceOverlay from "./components/workspace/WorkspaceOverlay";
 import WorkspaceQuickMenu from "./components/workspace/WorkspaceQuickMenu";
 import { useColorTheme } from "./hooks/useColorTheme";
+import { useAccentColor } from "./hooks/useAccentColor";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useDesktopUpdater } from "./hooks/useDesktopUpdater";
 import { useMeetingReminders } from "./hooks/useMeetingReminders";
@@ -112,6 +114,7 @@ export default function App() {
 
   useAppKeyboardShortcuts();
   useColorTheme();
+  useAccentColor();
   useDesktopUpdater();
   useMeetingReminders();
   useCallVoiceActivity(inVoiceCall);
@@ -123,6 +126,7 @@ export default function App() {
   useWorkspaceVoiceRtc();
   useWorkspacePolls();
   useWorkspaceOpenVoiceChannels();
+  useWorkspaceTextChannels();
 
   useEffect(() => {
     if (!workspaceSwitching) return;
@@ -248,7 +252,12 @@ export default function App() {
 
     if (checkout === "success") {
       void billingApi.sync().catch((err) => {
-        debugLog("[billing] post-checkout sync failed", err);
+        debugLog(
+          "App.tsx:checkout-sync",
+          "post-checkout billing sync failed",
+          { error: err instanceof Error ? err.message : String(err) },
+          "billing",
+        );
       });
     }
 

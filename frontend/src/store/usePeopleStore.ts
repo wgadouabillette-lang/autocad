@@ -2,8 +2,11 @@ import { create } from "zustand";
 import {
   createThreadForPerson,
   createGroupThread,
+  createWorkspaceTextChannelThread,
   threadIdForGroup,
+  threadIdForWorkspaceTextChannel,
   groupIdFromThreadId,
+  workspaceTextChannelFromThreadId,
   buildEligibleGroupChatMembers,
   canAddPersonToGroupChat,
   collectAllWorkspaceMembers,
@@ -40,6 +43,11 @@ import {
   watchGroupChats,
   type CloudGroupChat,
 } from "../lib/firebase/groupChats";
+import {
+  sendWorkspaceTextChannelMessage,
+  watchWorkspaceTextChannelMessages,
+  type WorkspaceTextChannelDoc,
+} from "../lib/firebase/workspaceTextChannels";
 import { deleteFriendChat, deleteGroupChat } from "../lib/firebase/deletePeopleChats";
 import type { Unsubscribe } from "firebase/firestore";
 import { auth } from "../lib/firebase/client";
@@ -268,6 +276,7 @@ interface PeopleState {
   friendThreads: PeopleThread[];
   groupThreads: PeopleThread[];
   colleagueThreadsByWorkspace: Record<string, PeopleThread[]>;
+  workspaceChannelThreadsByWorkspace: Record<string, PeopleThread[]>;
   activeFriendThreadId: string | null;
   personPhotoByUserId: Record<string, string>;
   friendsTabSeenAt: number;
@@ -275,6 +284,18 @@ interface PeopleState {
 
   friendThreadsList: () => PeopleThread[];
   colleagueThreadsForWorkspace: (workspaceId: string) => PeopleThread[];
+  workspaceChannelThreadsForWorkspace: (workspaceId: string) => PeopleThread[];
+  syncWorkspaceTextChannelsMetadata: (
+    workspaceId: string,
+    channels: WorkspaceTextChannelDoc[],
+  ) => void;
+  ensureWorkspaceTextChannelThread: (
+    workspaceId: string,
+    channelId: string,
+    name: string,
+  ) => string;
+  removeWorkspaceTextChannelThread: (workspaceId: string, channelId: string) => void;
+  clearWorkspaceResources: (workspaceId: string) => void;
   eligibleGroupChatMembers: (workspaceId: string) => Person[];
   unreadCount: (workspaceId: string) => number;
   peopleMessagesUnreadCount: () => number;
@@ -487,6 +508,9 @@ function peopleMessagesUnreadTotal(state: PeopleState): number {
 
   for (const thread of state.friendThreads) track(thread);
   for (const thread of state.groupThreads) track(thread);
+  for (const threads of Object.values(state.workspaceChannelThreadsByWorkspace)) {
+    for (const thread of threads) track(thread);
+  }
   for (const threads of Object.values(state.colleagueThreadsByWorkspace)) {
     for (const thread of threads) track(thread);
   }
@@ -670,6 +694,127 @@ type PeopleStoreApi = {
   get: () => PeopleState;
 };
 
+function syncWorkspaceTextChannelMessages(
+  set: (fn: (state: PeopleState) => Partial<PeopleState>) => void,
+  get: () => PeopleState,
+  uid: string,
+  workspaceId: string,
+  channel: WorkspaceTextChannelDoc,
+  cloudMessages: CloudFriendMessage[],
+) {
+  const threadId = threadIdForWorkspaceTextChannel(workspaceId, channel.id);
+  const mappedMessages = cloudMessages.map((m) => mapCloudPeopleMessage(m, uid));
+  syncPeopleManageEventsFromMessages(mappedMessages);
+
+  const last = mappedMessages[mappedMessages.length - 1];
+  const preview = previewForLastPeopleMessage(last);
+  const updatedAt = last?.at ?? firestoreUpdatedAtMillis(channel.updatedAt as { seconds: number; nanoseconds: number } | null) ?? Date.now();
+  const viewing = get().activeFriendThreadId === threadId;
+  const existing =
+    get().workspaceChannelThreadsByWorkspace[workspaceId]?.find((thread) => thread.id === threadId);
+  const newIncoming = cloudMessages.filter((m) => m.authorUid !== uid).length;
+  const unreadDelta = viewing ? 0 : Math.max(0, newIncoming - (existing?.messages.length ?? 0));
+
+  set((state) => {
+    const current = state.workspaceChannelThreadsByWorkspace[workspaceId] ?? [];
+    const found = current.find((thread) => thread.id === threadId);
+    const thread = found
+      ? {
+          ...found,
+          personName: channel.name?.trim() || found.personName,
+          messages: mappedMessages,
+          preview: preview || channel.lastPreview?.trim() || found.preview,
+          updatedAt,
+          unread: viewing ? 0 : found.unread + unreadDelta,
+        }
+      : {
+          ...createWorkspaceTextChannelThread(
+            workspaceId,
+            channel.id,
+            channel.name?.trim() || "general",
+          ),
+          messages: mappedMessages,
+          preview: preview || channel.lastPreview?.trim() || "",
+          updatedAt,
+          unread: viewing ? 0 : unreadDelta,
+        };
+
+    const workspaceChannelThreadsByWorkspace = {
+      ...state.workspaceChannelThreadsByWorkspace,
+      [workspaceId]: found
+        ? current.map((item) => (item.id === threadId ? thread : item))
+        : [...current, thread],
+    };
+
+    return { workspaceChannelThreadsByWorkspace };
+  });
+}
+
+function syncWorkspaceTextChannelsMetadata(
+  set: (fn: (state: PeopleState) => Partial<PeopleState>) => void,
+  get: () => PeopleState,
+  workspaceId: string,
+  channels: WorkspaceTextChannelDoc[],
+) {
+  set((state) => {
+    const current = state.workspaceChannelThreadsByWorkspace[workspaceId] ?? EMPTY_PEOPLE_THREADS;
+    const byId = new Map(current.map((thread) => [thread.personId, thread]));
+    const nextThreads = channels.map((channel) => {
+      const threadId = threadIdForWorkspaceTextChannel(workspaceId, channel.id);
+      const existing = byId.get(channel.id);
+      const updatedAt =
+        firestoreUpdatedAtMillis(channel.updatedAt as { seconds: number; nanoseconds: number } | null) ||
+        existing?.updatedAt ||
+        0;
+      const preview = channel.lastPreview?.trim() || existing?.preview || "";
+      const isViewing = state.activeFriendThreadId === threadId;
+      const base = existing
+        ? {
+            ...existing,
+            personName: channel.name?.trim() || existing.personName,
+            preview,
+            updatedAt,
+          }
+        : createWorkspaceTextChannelThread(
+            workspaceId,
+            channel.id,
+            channel.name?.trim() || "general",
+          );
+      return {
+        ...base,
+        preview,
+        updatedAt,
+        unread: isViewing ? 0 : base.unread,
+        messages: existing?.messages ?? [],
+      };
+    });
+
+    if (
+      current.length === nextThreads.length &&
+      current.every((thread, index) => {
+        const next = nextThreads[index];
+        return (
+          thread.id === next.id &&
+          thread.personName === next.personName &&
+          thread.preview === next.preview &&
+          thread.updatedAt === next.updatedAt &&
+          thread.unread === next.unread &&
+          thread.messages === next.messages
+        );
+      })
+    ) {
+      return state;
+    }
+
+    return {
+      workspaceChannelThreadsByWorkspace: {
+        ...state.workspaceChannelThreadsByWorkspace,
+        [workspaceId]: nextThreads,
+      },
+    };
+  });
+}
+
 function ensureThreadMessageSubscription(store: PeopleStoreApi, threadId: string) {
   const uid = inboxState.uid;
   if (!uid || !inboxState.panelActive) return;
@@ -702,6 +847,41 @@ function ensureThreadMessageSubscription(store: PeopleStoreApi, threadId: string
       },
       (error) => {
         console.error(`Group chat ${groupId} unavailable`, error);
+      },
+    );
+    return;
+  }
+
+  const workspaceChannel = workspaceTextChannelFromThreadId(threadId);
+  if (workspaceChannel) {
+    inboxState.threadMessageUnsub = watchWorkspaceTextChannelMessages(
+      workspaceChannel.workspaceId,
+      workspaceChannel.channelId,
+      (messages) => {
+        const thread =
+          store
+            .get()
+            .workspaceChannelThreadsByWorkspace[workspaceChannel.workspaceId]?.find(
+              (item) => item.id === threadId,
+            );
+        syncWorkspaceTextChannelMessages(
+          store.set,
+          store.get,
+          uid,
+          workspaceChannel.workspaceId,
+          {
+            id: workspaceChannel.channelId,
+            workspaceId: workspaceChannel.workspaceId,
+            name: thread?.personName ?? "general",
+          },
+          messages,
+        );
+      },
+      (error) => {
+        console.error(
+          `Workspace text channel ${workspaceChannel.workspaceId}/${workspaceChannel.channelId} unavailable`,
+          error,
+        );
       },
     );
     return;
@@ -1052,6 +1232,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
   friendThreads: [],
   groupThreads: [],
   colleagueThreadsByWorkspace: {},
+  workspaceChannelThreadsByWorkspace: {},
   activeFriendThreadId: null,
   personPhotoByUserId: {},
   friendsTabSeenAt: 0,
@@ -1069,6 +1250,70 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
   colleagueThreadsForWorkspace: (workspaceId) =>
     get().colleagueThreadsByWorkspace[workspaceId] ?? EMPTY_PEOPLE_THREADS,
 
+  workspaceChannelThreadsForWorkspace: (workspaceId) =>
+    get().workspaceChannelThreadsByWorkspace[workspaceId] ?? EMPTY_PEOPLE_THREADS,
+
+  syncWorkspaceTextChannelsMetadata: (workspaceId, channels) => {
+    syncWorkspaceTextChannelsMetadata(set, get, workspaceId, channels);
+  },
+
+  ensureWorkspaceTextChannelThread: (workspaceId, channelId, name) => {
+    const threadId = threadIdForWorkspaceTextChannel(workspaceId, channelId);
+    const current = get().workspaceChannelThreadsByWorkspace[workspaceId] ?? [];
+    if (current.some((thread) => thread.id === threadId)) {
+      return threadId;
+    }
+    const thread = createWorkspaceTextChannelThread(workspaceId, channelId, name);
+    set((state) => ({
+      workspaceChannelThreadsByWorkspace: {
+        ...state.workspaceChannelThreadsByWorkspace,
+        [workspaceId]: [...current, thread],
+      },
+    }));
+    return threadId;
+  },
+
+  removeWorkspaceTextChannelThread: (workspaceId, channelId) => {
+    const threadId = threadIdForWorkspaceTextChannel(workspaceId, channelId);
+    const state = get();
+    if (state.activeFriendThreadId === threadId) {
+      get().setActiveFriendThread(null);
+    }
+    set((current) => ({
+      workspaceChannelThreadsByWorkspace: {
+        ...current.workspaceChannelThreadsByWorkspace,
+        [workspaceId]: (current.workspaceChannelThreadsByWorkspace[workspaceId] ?? EMPTY_PEOPLE_THREADS).filter(
+          (thread) => thread.id !== threadId,
+        ),
+      },
+    }));
+  },
+
+  clearWorkspaceResources: (workspaceId) => {
+    const normalized = workspaceId.trim().toLowerCase();
+    if (!normalized) return;
+
+    const activeThreadId = inboxState.activeThreadId ?? get().activeFriendThreadId;
+    if (activeThreadId) {
+      const channelRef = workspaceTextChannelFromThreadId(activeThreadId);
+      const colleagueThread = get().colleagueThreadsByWorkspace[normalized]?.find(
+        (thread) => thread.id === activeThreadId,
+      );
+      if (channelRef?.workspaceId === normalized || colleagueThread) {
+        releaseThreadMessageSubscription();
+        get().setActiveFriendThread(null);
+      }
+    }
+
+    set((state) => {
+      const colleagueThreadsByWorkspace = { ...state.colleagueThreadsByWorkspace };
+      const workspaceChannelThreadsByWorkspace = { ...state.workspaceChannelThreadsByWorkspace };
+      delete colleagueThreadsByWorkspace[normalized];
+      delete workspaceChannelThreadsByWorkspace[normalized];
+      return { colleagueThreadsByWorkspace, workspaceChannelThreadsByWorkspace };
+    });
+  },
+
   eligibleGroupChatMembers: (workspaceId) =>
     buildEligibleGroupChatMembers({
       friends: get().friends,
@@ -1082,7 +1327,10 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     const colleagues = (
       get().colleagueThreadsByWorkspace[workspaceId] ?? EMPTY_PEOPLE_THREADS
     ).reduce((s, t) => s + t.unread, 0);
-    return friends + groups + colleagues;
+    const workspaceChannels = (
+      get().workspaceChannelThreadsByWorkspace[workspaceId] ?? EMPTY_PEOPLE_THREADS
+    ).reduce((s, t) => s + t.unread, 0);
+    return friends + groups + colleagues + workspaceChannels;
   },
 
   peopleMessagesUnreadCount: () => peopleMessagesUnreadTotal(get()),
@@ -1092,6 +1340,10 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     if (group) return group;
     const friend = get().friendThreads.find((t) => t.id === id);
     if (friend) return friend;
+    for (const threads of Object.values(get().workspaceChannelThreadsByWorkspace)) {
+      const found = threads.find((t) => t.id === id);
+      if (found) return found;
+    }
     for (const threads of Object.values(get().colleagueThreadsByWorkspace)) {
       const found = threads.find((t) => t.id === id);
       if (found) return found;
@@ -1289,6 +1541,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
       const msg: PeopleMessage = {
         id: optimisticId,
         author: "Vous",
+        authorUid: myUid,
         text: trimmed,
         at: Date.now(),
         mine: true,
@@ -1327,6 +1580,83 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
         trimmed,
       ).catch((error) => {
         set({ groupThreads: get().groupThreads.map(rollbackGroup) });
+        useNotificationsStore.getState().push({
+          kind: "message",
+          title: "Message non envoyé",
+          body: error instanceof Error ? error.message : "Erreur d'envoi.",
+        });
+      });
+      return;
+    }
+
+    if (thread?.section === "workspace-channels") {
+      const channelRef = workspaceTextChannelFromThreadId(threadId);
+      if (!myUid || !channelRef) {
+        useNotificationsStore.getState().push({
+          kind: "message",
+          title: "Message non envoyé",
+          body: "Connectez-vous pour envoyer un message dans ce salon.",
+        });
+        return;
+      }
+
+      const optimisticId = `msg-${Date.now()}`;
+      const msg: PeopleMessage = {
+        id: optimisticId,
+        author: "Vous",
+        authorUid: myUid,
+        text: trimmed,
+        at: Date.now(),
+        mine: true,
+      };
+
+      const patchWorkspaceChannel = (t: PeopleThread) =>
+        t.id === threadId
+          ? {
+              ...t,
+              messages: [...t.messages, msg],
+              preview: trimmed,
+              updatedAt: Date.now(),
+              unread: 0,
+            }
+          : t;
+
+      const rollbackWorkspaceChannel = (t: PeopleThread) => {
+        if (t.id !== threadId) return t;
+        const messages = t.messages.filter((m) => m.id !== optimisticId);
+        const last = messages[messages.length - 1];
+        return {
+          ...t,
+          messages,
+          preview: last?.text ?? "",
+          updatedAt: last?.at ?? t.updatedAt,
+        };
+      };
+
+      set((state) => ({
+        workspaceChannelThreadsByWorkspace: Object.fromEntries(
+          Object.entries(state.workspaceChannelThreadsByWorkspace).map(([workspaceId, threads]) => [
+            workspaceId,
+            threads.map(patchWorkspaceChannel),
+          ]),
+        ),
+      }));
+
+      void sendWorkspaceTextChannelMessage(
+        channelRef.workspaceId,
+        channelRef.channelId,
+        myUid,
+        myName,
+        trimmed,
+      ).catch((error) => {
+        set((state) => ({
+          workspaceChannelThreadsByWorkspace: Object.fromEntries(
+            Object.entries(state.workspaceChannelThreadsByWorkspace).map(([workspaceId, threads]) => [
+              workspaceId,
+              threads.map(rollbackWorkspaceChannel),
+            ]),
+          ),
+        }));
         useNotificationsStore.getState().push({
           kind: "message",
           title: "Message non envoyé",
@@ -1913,6 +2243,12 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
         next.groupThreads = state.groupThreads.map((t) =>
           t.id === threadId ? { ...t, unread: 0 } : t,
         );
+        next.workspaceChannelThreadsByWorkspace = Object.fromEntries(
+          Object.entries(state.workspaceChannelThreadsByWorkspace).map(([workspaceId, threads]) => [
+            workspaceId,
+            threads.map((t) => (t.id === threadId ? { ...t, unread: 0 } : t)),
+          ]),
+        );
       }
       return next as PeopleState;
     });
@@ -1935,6 +2271,12 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     set({
       friendThreads: get().friendThreads.map(patch),
       groupThreads: get().groupThreads.map(patch),
+      workspaceChannelThreadsByWorkspace: Object.fromEntries(
+        Object.entries(get().workspaceChannelThreadsByWorkspace).map(([workspaceId, threads]) => [
+          workspaceId,
+          threads.map(patch),
+        ]),
+      ),
       colleagueThreadsByWorkspace: Object.fromEntries(
         Object.entries(get().colleagueThreadsByWorkspace).map(([ws, threads]) => [
           ws,

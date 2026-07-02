@@ -2,6 +2,8 @@ import type { SelectableWorkMode } from "./workModes";
 import type { SubscriptionPlan } from "./subscriptionPlans";
 
 import type { ColorThemePreference } from "./theme";
+import type { AccentColorPreference } from "./accentColor";
+import { normalizeAccentColorPreference } from "./accentColor";
 
 const KEY = "forma-user-preferences";
 
@@ -24,6 +26,7 @@ export interface CalendarWorkingHours {
 
 export interface UserPreferences {
   colorTheme: ColorThemePreference;
+  accentColor: AccentColorPreference;
   chatWorkMode: SelectableWorkMode;
   autoWorkModeSwitch: boolean;
   userDisplayName: string;
@@ -55,6 +58,7 @@ export interface UserPreferences {
 
 const DEFAULTS: UserPreferences = {
   colorTheme: "dark",
+  accentColor: "blue",
   chatWorkMode: "agent",
   autoWorkModeSwitch: false,
   userDisplayName: "William",
@@ -139,6 +143,7 @@ export function readUserPreferences(): UserPreferences {
         data.colorTheme === "light" || data.colorTheme === "system"
           ? data.colorTheme
           : "dark",
+      accentColor: normalizeAccentColorPreference(data.accentColor),
       chatWorkMode,
       autoWorkModeSwitch: Boolean(data.autoWorkModeSwitch),
       userDisplayName:

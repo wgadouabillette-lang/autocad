@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { AGENT_PANEL_TITLE } from "../../lib/appBrand";
 import { useMemo, useState } from "react";
-import { ArrowLeft, Calendar, History, Maximize2, Minimize2, Plus, Users, UsersRound } from "lucide-react";
+import { ArrowLeft, Calendar, Hash, History, Maximize2, Minimize2, Plus, Users, UsersRound } from "lucide-react";
 import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { isVoiceAssistPanelMode } from "../../lib/voiceAssistPanel";
 import { resolvePersonPhotoURL } from "../../lib/peopleChat";
@@ -27,6 +27,9 @@ export default function ChatPanelHeader() {
   const friendThreads = usePeopleStore((s) => s.friendThreads);
   const groupThreads = usePeopleStore((s) => s.groupThreads);
   const colleagueThreadsByWorkspace = usePeopleStore((s) => s.colleagueThreadsByWorkspace);
+  const workspaceChannelThreadsByWorkspace = usePeopleStore(
+    (s) => s.workspaceChannelThreadsByWorkspace,
+  );
   const personPhotoByUserId = usePeopleStore((s) => s.personPhotoByUserId);
   const setActiveFriendThread = usePeopleStore((s) => s.setActiveFriendThread);
   const activeRoomId = useStore((s) => s.activeRoomId);
@@ -41,11 +44,23 @@ export default function ChatPanelHeader() {
       const found = threads.find((thread) => thread.id === activeFriendThreadId);
       if (found) return found;
     }
+    for (const threads of Object.values(workspaceChannelThreadsByWorkspace)) {
+      const found = threads.find((thread) => thread.id === activeFriendThreadId);
+      if (found) return found;
+    }
     return undefined;
-  }, [activeFriendThreadId, friendThreads, groupThreads, colleagueThreadsByWorkspace]);
+  }, [
+    activeFriendThreadId,
+    friendThreads,
+    groupThreads,
+    colleagueThreadsByWorkspace,
+    workspaceChannelThreadsByWorkspace,
+  ]);
   const friendsMode = chatPanelMode === "friends";
   const inFriendThread = friendsMode && !!activeFriendThread;
   const inGroupThread = inFriendThread && activeFriendThread?.section === "groups";
+  const inWorkspaceChannelThread =
+    inFriendThread && activeFriendThread?.section === "workspace-channels";
   const theaterMode = chatPanelMode === "theater";
   const calendarMode = chatPanelMode === "calendar";
   const voiceAssistMode = isVoiceAssistPanelMode(chatPanelMode);
@@ -146,6 +161,10 @@ export default function ChatPanelHeader() {
               <span className="chat-panel-header__thread-avatar chat-panel-header__thread-avatar--group">
                 <UsersRound size={12} aria-hidden />
               </span>
+            ) : inWorkspaceChannelThread ? (
+              <span className="chat-panel-header__thread-avatar chat-panel-header__thread-avatar--group">
+                <Hash size={12} aria-hidden />
+              </span>
             ) : (
               <UserAvatar
                 userId={activeFriendThread.personId}
@@ -159,7 +178,9 @@ export default function ChatPanelHeader() {
               />
             )}
             <span className="chat-panel-header__thread-name">
-              {activeFriendThread.groupName ?? activeFriendThread.personName}
+              {inWorkspaceChannelThread
+                ? activeFriendThread.personName
+                : (activeFriendThread.groupName ?? activeFriendThread.personName)}
             </span>
           </span>
         ) : friendsMode ? (

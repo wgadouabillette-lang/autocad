@@ -8,8 +8,9 @@ if [[ -d desktop/release ]]; then
   ./scripts/prepare-landing-downloads.sh || true
 fi
 
-# nav.js lives in public/ for Vite; copy for hosts that serve landing/ directly.
-cp landing/public/nav.js landing/nav.js
+# nav.js / footer.js live in landing/; public/ copies stay aligned for Vite.
+cp landing/nav.js landing/public/nav.js
+cp landing/footer.js landing/public/footer.js
 
 if [[ "${SKIP_LANDING_PREVIEW_SYNC:-}" != "1" ]]; then
   ./scripts/sync-landing-dashboard-preview.sh

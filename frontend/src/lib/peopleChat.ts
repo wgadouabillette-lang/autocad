@@ -1,4 +1,4 @@
-export type PeopleChatSection = "friends" | "colleagues" | "groups";
+export type PeopleChatSection = "friends" | "colleagues" | "groups" | "workspace-channels";
 
 export interface Person {
   id: string;
@@ -92,24 +92,29 @@ function sortMessagePanelThreads(threads: PeopleThread[]): PeopleThread[] {
   });
 }
 
-/** Liste complète Messages : amis (tous workspaces) + collègues du workspace actif. */
-export function buildMessagePanelThreads(opts: {
-  workspaceId: string;
-  friends: Person[];
-  friendThreads: PeopleThread[];
-  colleagueThreads: PeopleThread[];
-  workspaceMembers: Person[];
-  localUserId?: string | null;
-}): PeopleThread[] {
-  const { workspaceId, friends, friendThreads, colleagueThreads, workspaceMembers, localUserId } =
-    opts;
-  const friendIds = new Set(friends.map((friend) => friend.id));
-  const entries: PeopleThread[] = [];
+export type MessagePanelCategoryId = "friends" | "colleague" | "workspace";
 
+function buildFriendEntries(
+  friends: Person[],
+  friendThreads: PeopleThread[],
+): PeopleThread[] {
+  const entries: PeopleThread[] = [];
   for (const friend of friends) {
     const existing = friendThreads.find((thread) => thread.personId === friend.id);
     entries.push(existing ?? createThreadForPerson(friend, "friends"));
   }
+  return sortMessagePanelThreads(entries);
+}
+
+function buildColleagueEntries(
+  workspaceId: string,
+  friends: Person[],
+  colleagueThreads: PeopleThread[],
+  workspaceMembers: Person[],
+  localUserId?: string | null,
+): PeopleThread[] {
+  const friendIds = new Set(friends.map((friend) => friend.id));
+  const entries: PeopleThread[] = [];
 
   for (const member of workspaceMembers) {
     if (!member.id || member.id === "local") continue;
@@ -121,6 +126,55 @@ export function buildMessagePanelThreads(opts: {
   }
 
   return sortMessagePanelThreads(entries);
+}
+
+/** Liste complète Messages : amis (tous workspaces) + collègues du workspace actif. */
+export function buildMessagePanelThreads(opts: {
+  workspaceId: string;
+  friends: Person[];
+  friendThreads: PeopleThread[];
+  colleagueThreads: PeopleThread[];
+  workspaceMembers: Person[];
+  localUserId?: string | null;
+}): PeopleThread[] {
+  const { workspaceId, friends, friendThreads, colleagueThreads, workspaceMembers, localUserId } =
+    opts;
+  return [
+    ...buildFriendEntries(friends, friendThreads),
+    ...buildColleagueEntries(
+      workspaceId,
+      friends,
+      colleagueThreads,
+      workspaceMembers,
+      localUserId,
+    ),
+  ];
+}
+
+export function buildMessagePanelCategoryThreads(
+  category: MessagePanelCategoryId,
+  opts: {
+    workspaceId: string;
+    friends: Person[];
+    friendThreads: PeopleThread[];
+    colleagueThreads: PeopleThread[];
+    workspaceMembers: Person[];
+    localUserId?: string | null;
+  },
+): PeopleThread[] {
+  if (category === "friends") {
+    return buildFriendEntries(opts.friends, opts.friendThreads);
+  }
+  if (category === "colleague") {
+    return buildColleagueEntries(
+      opts.workspaceId,
+      opts.friends,
+      opts.colleagueThreads,
+      opts.workspaceMembers,
+      opts.localUserId,
+    );
+  }
+  return [];
 }
 
 export function resolvePersonPhotoURL(
@@ -150,6 +204,42 @@ export function threadIdForGroup(groupId: string): string {
 export function groupIdFromThreadId(threadId: string): string | null {
   if (!threadId.startsWith("group-")) return null;
   return threadId.slice("group-".length);
+}
+
+export function threadIdForWorkspaceTextChannel(workspaceId: string, channelId: string): string {
+  return `wstext:${encodeURIComponent(workspaceId)}:${channelId}`;
+}
+
+export function workspaceTextChannelFromThreadId(
+  threadId: string,
+): { workspaceId: string; channelId: string } | null {
+  if (!threadId.startsWith("wstext:")) return null;
+  const payload = threadId.slice("wstext:".length);
+  const separator = payload.indexOf(":");
+  if (separator <= 0) return null;
+  const workspaceId = decodeURIComponent(payload.slice(0, separator));
+  const channelId = payload.slice(separator + 1);
+  if (!workspaceId || !channelId) return null;
+  return { workspaceId, channelId };
+}
+
+export function createWorkspaceTextChannelThread(
+  workspaceId: string,
+  channelId: string,
+  name: string,
+): PeopleThread {
+  const trimmedName = name.trim() || "general";
+  return {
+    id: threadIdForWorkspaceTextChannel(workspaceId, channelId),
+    personId: channelId,
+    personName: trimmedName,
+    section: "workspace-channels",
+    workspaceId,
+    preview: "",
+    updatedAt: 0,
+    unread: 0,
+    messages: [],
+  };
 }
 
 export function createGroupThread(

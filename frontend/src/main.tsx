@@ -4,9 +4,11 @@ import App from "./App";
 import AppErrorBoundary from "./components/AppErrorBoundary";
 import { redirectToLandingIfNeeded } from "./lib/appAccess";
 import { bootstrapDocumentTheme } from "./lib/theme";
+import { bootstrapDocumentAccentColor } from "./lib/accentColor";
 import "./index.css";
 
 bootstrapDocumentTheme();
+bootstrapDocumentAccentColor();
 
 if (
   window.location.pathname === "/auth/desktop" ||

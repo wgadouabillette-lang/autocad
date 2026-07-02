@@ -23,6 +23,10 @@ import {
 } from "../lib/firebase/workspaceRegistry";
 import { parseWorkspaceInviteInput } from "../lib/workspaceInvite";
 import {
+  releaseWorkspaceClientResources,
+  waitForFirestoreListenerRelease,
+} from "../lib/releaseWorkspaceClientResources";
+import {
   canCreateOwnedWorkspace,
   FREE_OWNED_WORKSPACE_LIMIT,
 } from "../lib/subscriptionPlans";
@@ -465,12 +469,6 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       return;
     }
 
-    if (memberUid !== LOCAL_USER_ID) {
-      await deleteSharedWorkspace(normalized);
-      const { removeWorkspaceIcon } = await import("../lib/firebase/workspaceIcon");
-      void removeWorkspaceIcon(normalized).catch(() => {});
-    }
-
     set((state) => {
       const customServers = state.customServers.filter((server) => server.id !== normalized);
       const memberships = state.memberships.filter((entry) => entry.workspaceId !== normalized);
@@ -479,6 +477,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     });
 
     get().removePendingJoinRequest(normalized);
+    releaseWorkspaceClientResources(normalized);
 
     const joined = get().joinedWorkspaces(memberUid);
     if (joined.length === 0) {
@@ -486,6 +485,19 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       get().createPersonalWorkspace(ownerName, memberUid);
     }
     syncActiveWorkspace(get().joinedWorkspaces(memberUid), memberUid);
+
+    if (memberUid !== LOCAL_USER_ID) {
+      await waitForFirestoreListenerRelease();
+      try {
+        await deleteSharedWorkspace(normalized);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Impossible de supprimer le workspace.";
+        throw new Error(message);
+      }
+      const { removeWorkspaceIcon } = await import("../lib/firebase/workspaceIcon");
+      void removeWorkspaceIcon(normalized).catch(() => {});
+    }
   },
 
   resetLocalMemberships: () => {

@@ -15,12 +15,14 @@ import {
   seedMarketingTheaterPreview,
 } from "./lib/marketingPreviewSeed";
 import { applyDocumentTheme, bootstrapDocumentTheme, resolveEffectiveTheme } from "./lib/theme";
+import { bootstrapDocumentAccentColor } from "./lib/accentColor";
 import { useStore } from "./store/useStore";
 import "./index.css";
 
 markMarketingPreview();
 applyMarketingPreviewThemeFromUrl();
 bootstrapDocumentTheme();
+bootstrapDocumentAccentColor();
 
 const scene = readMarketingPreviewSceneParam();
 if (scene === "recording") {

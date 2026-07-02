@@ -209,6 +209,28 @@ service cloud.firestore {
         && data.name.size() <= 120;
     }
 
+    function isValidTextChannelWrite(workspaceId, channelId) {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'workspaceId', 'name'])
+        && data.id == channelId
+        && data.workspaceId == workspaceId
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 120;
+    }
+
+    function isValidTextChannelMessageCreate() {
+      let data = request.resource.data;
+      return data.authorUid == request.auth.uid
+        && data.authorName is string
+        && data.authorName.size() >= 1
+        && data.authorName.size() <= 120
+        && data.text is string
+        && data.text.size() >= 1
+        && data.text.size() <= 4000
+        && data.clientCreatedAt is number;
+    }
+
     function isValidVoicePollWrite() {
       let data = request.resource.data;
       return data.keys().hasAll(['id', 'workspaceId', 'question', 'options', 'status', 'createdAt', 'expiresAt', 'createdByUserId', 'createdByName'])
@@ -554,6 +576,20 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow create, update: if isSignedIn() && isValidOpenVoiceChannelWrite(workspaceId, channelId);
         allow delete: if isSignedIn();
+      }
+
+      match /textChannels/{channelId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && isValidTextChannelWrite(workspaceId, channelId);
+        allow update: if isSignedIn() && isValidTextChannelWrite(workspaceId, channelId);
+        allow delete: if isSharedWorkspaceOwner(workspaceId);
+
+        match /messages/{messageId} {
+          allow read: if isSignedIn();
+          allow create: if isSignedIn() && isValidTextChannelMessageCreate();
+          allow update: if false;
+          allow delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
+        }
       }
 
       match /voicePoll/{pollId} {

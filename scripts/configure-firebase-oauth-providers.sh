@@ -3,6 +3,15 @@
 # Google + email/password restent gérés via firebase.json → firebase deploy --only auth
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+OAUTH_ENV="${ROOT}/oauth.env"
+if [[ -f "$OAUTH_ENV" ]]; then
+  # shellcheck disable=SC1090
+  set -a
+  source "$OAUTH_ENV"
+  set +a
+fi
+
 PROJECT_ID="${FIREBASE_PROJECT_ID:-forma-cad-dev}"
 API_BASE="https://identitytoolkit.googleapis.com/admin/v2"
 TOKEN_FILE="${HOME}/.config/configstore/firebase-tools.json"
@@ -68,9 +77,9 @@ if [[ -z "$FACEBOOK_APP_ID" || -z "$FACEBOOK_APP_SECRET" ]]; then
   echo "  2. Facebook Login → Settings → Valid OAuth Redirect URIs :"
   echo "     https://${PROJECT_ID}.firebaseapp.com/__/auth/handler"
   echo "  3. Puis :"
-  echo "     export FACEBOOK_OAUTH_APP_ID='…'"
-  echo "     export FACEBOOK_OAUTH_APP_SECRET='…'"
-  echo "     ./scripts/configure-firebase-oauth-providers.sh"
+  echo "     cp oauth.env.example oauth.env   # remplir App ID + Secret"
+  echo "     ./scripts/setup-facebook-login.sh"
+  echo "  Doc : docs/FACEBOOK_AUTH.md"
 else
   FB_BODY="$(python3 - <<PY
 import json, os

@@ -2,13 +2,22 @@
 (function () {
   var DESKTOP_VIEWPORT_QUERY = "(min-width: 768px)";
 
+  function currentPageSlug() {
+    var segment = window.location.pathname.replace(/\/+$/, "").split("/").pop() || "";
+    if (!segment || segment === "index.html") return "home";
+    if (segment.endsWith(".html")) return segment.slice(0, -5);
+    return segment;
+  }
+
+  function isHomePage() {
+    return currentPageSlug() === "home";
+  }
+
   function detectActiveTab() {
     var mount = document.getElementById("site-nav");
     if (mount) return mount.getAttribute("data-active") || "";
-    var path = window.location.pathname.split("/").pop() || "index.html";
-    if (path === "tarifs.html") return "tarifs";
-    if (path === "careers.html") return "careers";
-    if (path === "privacy.html") return "privacy";
+    var slug = currentPageSlug();
+    if (slug === "tarifs" || slug === "careers" || slug === "privacy") return slug;
     return "";
   }
 
@@ -20,7 +29,7 @@
     var hostname = window.location.hostname;
     var port = window.location.port;
     var isLocal = hostname === "127.0.0.1" || hostname === "localhost";
-    if (isLocal && (port === "5190" || port === "5191")) {
+    if (isLocal && (port === "5190" || port === "5191" || port === "5192" || port === "5193")) {
       return "http://localhost:5173/app/";
     }
     return "/app/";
@@ -33,9 +42,8 @@
   }
 
   function homeSectionHref(sectionId) {
-    var path = window.location.pathname.split("/").pop() || "index.html";
-    if (path === "" || path === "index.html") return "#" + sectionId;
-    return "index.html#" + sectionId;
+    if (isHomePage()) return "#" + sectionId;
+    return "/#" + sectionId;
   }
 
   function navScrollOffset() {
@@ -74,24 +82,19 @@
       var hashIndex = href.indexOf("#");
       if (hashIndex === -1) return;
 
-      var sectionId = href.slice(hashIndex + 1);
       var pathPart = href.slice(0, hashIndex);
-      var page = window.location.pathname.split("/").pop() || "index.html";
-      var onHome = page === "" || page === "index.html";
-
-      if (pathPart && pathPart !== "index.html") return;
-      if (!onHome) return;
+      if (pathPart && pathPart !== "/" && pathPart !== "index.html") return;
+      if (!isHomePage()) return;
 
       event.preventDefault();
-      scrollToLandingSection(sectionId);
+      scrollToLandingSection(href.slice(hashIndex + 1));
     });
   }
 
   function scrollToInitialHash() {
     var sectionId = (window.location.hash || "").replace(/^#/, "");
     if (!sectionId) return;
-    var page = window.location.pathname.split("/").pop() || "index.html";
-    if (page !== "" && page !== "index.html") return;
+    if (!isHomePage()) return;
     window.requestAnimationFrame(function () {
       scrollToLandingSection(sectionId, "auto");
     });
@@ -129,7 +132,7 @@
       { id: "workspaces", labelKey: "nav.workspaces", href: homeSectionHref("workspaces") },
       { id: "skills", labelKey: "nav.skills", href: homeSectionHref("skills") },
       { id: "connectors", labelKey: "nav.connectors", href: homeSectionHref("connectors") },
-      { id: "privacy", labelKey: "nav.privacy", href: "privacy.html" },
+      { id: "privacy", labelKey: "nav.privacy", href: "/privacy" },
       {
         id: "affiliate",
         labelKey: "nav.affiliate",
@@ -168,7 +171,7 @@
       '<nav class="nav" id="site-nav" data-active="' +
       active +
       '">' +
-      '<a class="nav__logo" href="index.html" aria-label="Hall">' +
+      '<a class="nav__logo" href="/" aria-label="Hall">' +
       '<img src="icon.png" alt="" class="nav__logo-icon" width="26" height="26" />' +
       "<span>Hall</span></a>" +
       '<ul class="nav__tabs" role="list">' +

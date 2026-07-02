@@ -13,6 +13,7 @@ frontend/.env.local
 functions/.env
 functions/.env.*
 !functions/.env.example
+oauth.env
 functions/node_modules/
 functions/lib/
 

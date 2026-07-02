@@ -37,6 +37,8 @@ import { normalizeSettingsTab } from "../lib/settingsSearchSuggestions";
 import { sameFaceReference, type FaceReference } from "../lib/faceReference";
 import { sortOpenPages, type MainPageId } from "../lib/mainPages";
 import type { ColorThemePreference } from "../lib/theme";
+import type { AccentColorPreference } from "../lib/accentColor";
+import { applyDocumentAccentColor, normalizeAccentColorPreference } from "../lib/accentColor";
 import { applyDocumentTheme, resolveEffectiveTheme } from "../lib/theme";
 import { writeLastActiveWorkspace } from "../lib/lastActiveWorkspace";
 import { normalizeWorkspaceId } from "../lib/workspaces";
@@ -296,6 +298,7 @@ interface State {
   audioNoiseSuppression: boolean;
   sidePanelSide: SidePanelSide;
   colorTheme: ColorThemePreference;
+  accentColor: AccentColorPreference;
   subscriptionPlan: SubscriptionPlan;
   onDemandUsageEnabled: boolean;
   billingManaged: boolean;
@@ -325,6 +328,7 @@ interface State {
   setAudioNoiseSuppression: (enabled: boolean) => void;
   setSidePanelSide: (side: SidePanelSide) => void;
   setColorTheme: (theme: ColorThemePreference) => void;
+  setAccentColor: (accent: AccentColorPreference) => void;
   setUserDisplayName: (name: string) => void;
   setUserEmail: (email: string) => void;
   setPhotoURL: (url: string | null) => void;
@@ -495,6 +499,7 @@ function userPreferencesSnapshot(state: {
   chatPanelOpen: boolean;
   sidePanelSide: SidePanelSide;
   colorTheme: ColorThemePreference;
+  accentColor: AccentColorPreference;
   subscriptionPlan: SubscriptionPlan;
   billingManaged: boolean;
   onDemandUsageEnabled: boolean;
@@ -523,6 +528,7 @@ function userPreferencesSnapshot(state: {
     chatPanelOpen: state.chatPanelOpen,
     sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
     colorTheme: state.colorTheme,
+    accentColor: state.accentColor,
     subscriptionPlan: state.subscriptionPlan,
     billingManaged: state.billingManaged,
     onDemandUsageEnabled:
@@ -668,6 +674,13 @@ export const useStore = create<State>((set, get) => ({
     set({ colorTheme: normalized });
     writeUserPreferences(userPreferencesSnapshot({ ...get(), colorTheme: normalized }));
     applyDocumentTheme(resolveEffectiveTheme(normalized));
+  },
+
+  setAccentColor: (accent) => {
+    const normalized = normalizeAccentColorPreference(accent);
+    set({ accentColor: normalized });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), accentColor: normalized }));
+    applyDocumentAccentColor(normalized);
   },
 
   setUserDisplayName: (name) => {
