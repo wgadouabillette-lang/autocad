@@ -149,9 +149,16 @@ export async function sendWorkspaceTextChannelMessage(
   authorUid: string,
   authorName: string,
   text: string,
+  mentions?: {
+    mentionedUids?: string[];
+    mentionBroadcast?: "here" | "everyone";
+  },
 ): Promise<void> {
   const trimmed = text.trim();
   if (!trimmed || !workspaceId || !channelId || !authorUid) return;
+
+  const mentionedUids = [...new Set(mentions?.mentionedUids ?? [])].filter(Boolean);
+  const mentionBroadcast = mentions?.mentionBroadcast;
 
   await addDoc(messagesCol(workspaceId, channelId), {
     authorUid,
@@ -159,6 +166,8 @@ export async function sendWorkspaceTextChannelMessage(
     text: trimmed,
     clientCreatedAt: Date.now(),
     createdAt: serverTimestamp(),
+    ...(mentionedUids.length > 0 ? { mentionedUids } : {}),
+    ...(mentionBroadcast ? { mentionBroadcast } : {}),
   });
 
   await setDoc(

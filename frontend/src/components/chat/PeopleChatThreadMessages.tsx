@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } 
 import clsx from "clsx";
 import type { PeopleMessage } from "../../lib/peopleChat";
 import { parseManageComposerText } from "../../lib/manageSchedulePrompt";
+import { parsePromptDisplaySegments } from "../../lib/promptMentions";
 import HandoffInboxCard from "./HandoffInboxCard";
 import ManageSchedulePromptLine from "./ManageSchedulePromptLine";
 import UserAvatar from "../UserAvatar";
@@ -26,6 +27,7 @@ interface PeopleChatThreadMessagesProps {
   handoffSelectedIndices?: Set<number>;
   onToggleHandoffIndex?: (index: number) => void;
   tailContent?: ReactNode;
+  mentionHighlightHandles?: string[];
 }
 
 function PeopleChatBubbleAvatar({
@@ -60,6 +62,22 @@ function PeopleChatBubbleAvatar({
   return <span className="people-chat-bubble-wrap__avatar-spacer" aria-hidden />;
 }
 
+function renderMessageText(text: string, mentionHighlightHandles?: string[]) {
+  if (!mentionHighlightHandles?.length) {
+    return text;
+  }
+  const segments = parsePromptDisplaySegments(text, mentionHighlightHandles);
+  return segments.map((segment, index) =>
+    segment.mention ? (
+      <span key={index} className="prompt-mention">
+        {segment.text}
+      </span>
+    ) : (
+      segment.text
+    ),
+  );
+}
+
 function PeopleChatBubble({
   item,
   mine,
@@ -71,6 +89,7 @@ function PeopleChatBubble({
   handoffSelectionMode,
   handoffSelected,
   onToggleHandoffIndex,
+  mentionHighlightHandles,
 }: {
   item: PeopleChatRenderItem;
   mine: boolean;
@@ -82,6 +101,7 @@ function PeopleChatBubble({
   handoffSelectionMode?: boolean;
   handoffSelected?: boolean;
   onToggleHandoffIndex?: (index: number) => void;
+  mentionHighlightHandles?: string[];
 }) {
   const { message, isFirstInGroup, isLastInGroup } = item;
   const openHandoffPreview = useHandoffStore((s) => s.openPreview);
@@ -189,7 +209,9 @@ function PeopleChatBubble({
             compact && "people-chat-bubble--compact",
           )}
         >
-          <p className="people-chat-bubble__text">{message.text}</p>
+          <p className="people-chat-bubble__text">
+            {renderMessageText(message.text, mentionHighlightHandles)}
+          </p>
         </div>
       </div>
     </div>
@@ -230,6 +252,7 @@ export default function PeopleChatThreadMessages({
   handoffSelectedIndices,
   onToggleHandoffIndex,
   tailContent,
+  mentionHighlightHandles,
 }: PeopleChatThreadMessagesProps) {
   const timeline = useMemo(() => buildPeopleChatTimeline(messages), [messages]);
   const messageIndexById = useMemo(
@@ -287,6 +310,7 @@ export default function PeopleChatThreadMessages({
                   messageIndex >= 0 && (handoffSelectedIndices?.has(messageIndex) ?? false)
                 }
                 onToggleHandoffIndex={onToggleHandoffIndex}
+                mentionHighlightHandles={mentionHighlightHandles}
               />
               );
             })}

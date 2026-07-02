@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { ExternalLink, Pause, Play, Plus } from "lucide-react";
+import { Check, ExternalLink, Pause, Play, Plus } from "lucide-react";
 import { useEffect } from "react";
 import type { SpotifyTrackCard } from "../../lib/connectorsApi";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../../lib/connectorIcons";
@@ -41,6 +41,7 @@ export default function SpotifyTrackList({
         const canPlayFull = !!track.id && premiumAvailable;
         const queued = isTrackQueued(track.id);
         const isCurrent = isActive;
+        const addedToQueue = mode === "queue-add" && (queued || isCurrent);
 
         return (
           <li key={track.id ?? `${track.name}-${track.artists}`}>
@@ -76,26 +77,30 @@ export default function SpotifyTrackList({
                     type="button"
                     className={clsx(
                       "spotify-track-list__play",
-                      (queued || isCurrent) && "spotify-track-list__play--queued",
+                      addedToQueue && "spotify-track-list__play--added",
                     )}
                     onClick={() => addToQueue(track)}
-                    disabled={queued || isCurrent}
+                    disabled={addedToQueue}
                     aria-label={
                       isCurrent
-                        ? "Déjà en lecture"
+                        ? "En lecture"
                         : queued
-                          ? "Déjà dans la file"
+                          ? "Ajouté à la file"
                           : "Ajouter à la file"
                     }
                     title={
                       isCurrent
-                        ? "Déjà en lecture"
+                        ? "En lecture"
                         : queued
-                          ? "Déjà dans la file"
+                          ? "Ajouté à la file"
                           : "Ajouter à la file"
                     }
                   >
-                    <Plus size={14} strokeWidth={2.5} aria-hidden />
+                    {addedToQueue ? (
+                      <Check size={14} strokeWidth={2.75} aria-hidden />
+                    ) : (
+                      <Plus size={14} strokeWidth={2.5} aria-hidden />
+                    )}
                   </button>
                 ) : canPlayFull || hasPreview ? (
                   <button

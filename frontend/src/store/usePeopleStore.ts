@@ -78,6 +78,11 @@ import { closePanelsOnSide } from "../lib/bottomPanelCoordination";
 import { useAuthStore } from "./useAuthStore";
 import { useStore } from "./useStore";
 import { useWorkspacePresenceStore } from "./useWorkspacePresenceStore";
+import {
+  parseWorkspaceChannelMentions,
+  userShouldNotifyForWorkspaceMention,
+  workspaceMembersForMentions,
+} from "../lib/workspaceChannelMentions";
 
 function threadIdForFriend(personId: string) {
   return `friend-${personId}`;
@@ -132,6 +137,8 @@ function mapCloudPeopleMessage(message: CloudFriendMessage, uid: string): People
     meetingStartTime: message.meetingStartTime,
     meetingEndTime: message.meetingEndTime,
     meetingOrganizerName: message.meetingOrganizerName,
+    mentionedUids: message.mentionedUids,
+    mentionBroadcast: message.mentionBroadcast,
   };
 }
 
@@ -712,8 +719,56 @@ function syncWorkspaceTextChannelMessages(
   const viewing = get().activeFriendThreadId === threadId;
   const existing =
     get().workspaceChannelThreadsByWorkspace[workspaceId]?.find((thread) => thread.id === threadId);
-  const newIncoming = cloudMessages.filter((m) => m.authorUid !== uid).length;
-  const unreadDelta = viewing ? 0 : Math.max(0, newIncoming - (existing?.messages.length ?? 0));
+  const existingIds = new Set((existing?.messages ?? []).map((message) => message.id));
+  const newIncomingMessages = cloudMessages.filter(
+    (message) => message.authorUid !== uid && !existingIds.has(message.id),
+  );
+  const newIncoming = newIncomingMessages.length;
+  const unreadDelta = viewing ? 0 : newIncoming;
+
+  if (!viewing && newIncomingMessages.length > 0) {
+    const mentionMembers = workspaceMembersForMentions(
+      useWorkspacePresenceStore.getState().membersByWorkspace,
+      workspaceId,
+      uid,
+    );
+    const isOnline = useWorkspacePresenceStore.getState().isOnline;
+
+    for (const message of newIncomingMessages) {
+      const parsed =
+        message.mentionedUids?.length || message.mentionBroadcast
+          ? {
+              mentionedUids: message.mentionedUids ?? [],
+              broadcast: message.mentionBroadcast ?? null,
+            }
+          : parseWorkspaceChannelMentions(message.text, mentionMembers);
+
+      if (
+        !userShouldNotifyForWorkspaceMention({
+          uid,
+          authorUid: message.authorUid,
+          mentionedUids: parsed.mentionedUids,
+          broadcast: parsed.broadcast,
+          workspaceId,
+          isOnline,
+        })
+      ) {
+        continue;
+      }
+
+      const channelName = channel.name?.trim() || "salon";
+      useNotificationsStore.getState().push({
+        kind: "message",
+        title:
+          parsed.broadcast === "everyone"
+            ? `@everyone dans #${channelName}`
+            : parsed.broadcast === "here"
+              ? `@here dans #${channelName}`
+              : `${message.authorName} vous a mentionné`,
+        body: message.text.slice(0, 160),
+      });
+    }
+  }
 
   set((state) => {
     const current = state.workspaceChannelThreadsByWorkspace[workspaceId] ?? [];
@@ -1642,12 +1697,23 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
         ),
       }));
 
+      const mentionMembers = workspaceMembersForMentions(
+        useWorkspacePresenceStore.getState().membersByWorkspace,
+        channelRef.workspaceId,
+        myUid,
+      );
+      const { mentionedUids, broadcast } = parseWorkspaceChannelMentions(trimmed, mentionMembers);
+
       void sendWorkspaceTextChannelMessage(
         channelRef.workspaceId,
         channelRef.channelId,
         myUid,
         myName,
         trimmed,
+        {
+          mentionedUids,
+          mentionBroadcast: broadcast ?? undefined,
+        },
       ).catch((error) => {
         set((state) => ({
           workspaceChannelThreadsByWorkspace: Object.fromEntries(

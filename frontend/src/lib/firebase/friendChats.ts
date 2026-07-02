@@ -36,6 +36,8 @@ export interface CloudFriendMessage {
   meetingStartTime?: string;
   meetingEndTime?: string;
   meetingOrganizerName?: string;
+  mentionedUids?: string[];
+  mentionBroadcast?: "here" | "everyone";
 }
 
 export interface CloudFriendChat {

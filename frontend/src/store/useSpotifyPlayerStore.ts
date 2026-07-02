@@ -78,6 +78,8 @@ interface SpotifyPlayerState {
   playbackMode: PlaybackMode;
   premiumAvailable: boolean | null;
   playerNotice: string | null;
+  /** Timestamp du dernier ajout réussi à la file (feedback UI bottom bar). */
+  queueAddFlashAt: number;
   openPanel: (query?: string) => void;
   openPanelAndPlay: (query: string) => Promise<void>;
   closePanel: () => void;
@@ -226,6 +228,7 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
   playbackMode: null,
   premiumAvailable: null,
   playerNotice: null,
+  queueAddFlashAt: 0,
 
   openPanel: (query) => {
     const trimmed = query?.trim() ?? "";
@@ -342,10 +345,11 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
     const idleAfterEnd = !playing && playbackMode === null && queue.length === 0;
     if (idleAfterEnd) {
       void get().playTrack(track, { skipHistory: true });
+      set({ queueAddFlashAt: Date.now() });
       return true;
     }
 
-    set({ queue: [...queue, track] });
+    set({ queue: [...queue, track], queueAddFlashAt: Date.now() });
     return true;
   },
 

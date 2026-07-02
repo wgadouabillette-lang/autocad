@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Bell,
   Calendar,
@@ -146,6 +146,8 @@ export default function BottomHeader() {
   const stopSpotify = useSpotifyPlayerStore((s) => s.stop);
   const spotifyCurrentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
   const spotifyPlaying = useSpotifyPlayerStore((s) => s.playing);
+  const queueAddFlashAt = useSpotifyPlayerStore((s) => s.queueAddFlashAt);
+  const [queueShimmer, setQueueShimmer] = useState(false);
   const { connectedIds, connect, connectingId, statuses } = useConnectors();
   const spotifyStatus = statuses.find((s) => s.id === "spotify");
   const spotifyConnected = connectedIds.has("spotify");
@@ -154,6 +156,13 @@ export default function BottomHeader() {
   useEffect(() => {
     ensureRoom(activeRoomId);
   }, [activeRoomId, ensureRoom]);
+
+  useEffect(() => {
+    if (!queueAddFlashAt) return;
+    setQueueShimmer(true);
+    const timer = window.setTimeout(() => setQueueShimmer(false), 1400);
+    return () => window.clearTimeout(timer);
+  }, [queueAddFlashAt]);
 
   useEffect(() => {
     for (const item of notificationItems) {
@@ -197,6 +206,7 @@ export default function BottomHeader() {
 
   const spotifyPlaybackActive = spotifyCurrentTrack != null;
   const spotifyStopLocked = isMarketingPreview() && spotifyPlaybackActive;
+  const spotifyQueueShimmerClass = queueShimmer ? "bottom-bar-btn--queue-shimmer" : undefined;
   const spotifyPulseLevel = useSpotifyAudioPulse();
   const spotifyPulseActive = spotifyPlaybackActive && spotifyPlaying;
   const footerPulseStyle = spotifyPulseActive
@@ -221,7 +231,10 @@ export default function BottomHeader() {
   const spotifyButton = (
     <BottomBarButton
       label={spotifyLabel}
-      className={spotifyStopLocked ? "marketing-preview-locked" : undefined}
+      className={clsx(
+        spotifyStopLocked ? "marketing-preview-locked" : undefined,
+        queueShimmer && !spotifyPlaybackActive && spotifyQueueShimmerClass,
+      )}
       onClick={() => {
         if (spotifyStopLocked) return;
         if (spotifyPlaybackActive) {
@@ -255,6 +268,7 @@ export default function BottomHeader() {
   const spotifyAddQueueButton = spotifyPlaybackActive ? (
     <BottomBarButton
       label="Ajouter à la file"
+      className={queueShimmer ? spotifyQueueShimmerClass : undefined}
       onClick={() => openSpotifyPanel(ADD_QUEUE_SKILL_TEMPLATE)}
     >
       <ListMusic size={ICON_SIZE} aria-hidden />

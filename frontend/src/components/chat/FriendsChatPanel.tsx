@@ -4,9 +4,11 @@ import {
   ArrowUp,
   ChevronDown,
   FileImage,
+  Megaphone,
   Paperclip,
   Smile,
   Trash2,
+  User,
   UsersRound,
   X,
 } from "lucide-react";
@@ -45,6 +47,13 @@ import {
   seedMembersForPeopleThread,
 } from "../../lib/peopleChatSkillActions";
 import { filterPeopleSlashSkillMenu, slashQueryAt } from "../../lib/promptSlashSkills";
+import {
+  filterWorkspaceChannelMentionMenu,
+  mentionHandlesForWorkspaceChannel,
+  mentionQueryAt,
+  workspaceMembersForMentions,
+  type WorkspaceChannelMentionMenuItem,
+} from "../../lib/workspaceChannelMentions";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useHandoffStore } from "../../store/useHandoffStore";
@@ -333,6 +342,9 @@ export default function FriendsChatPanel() {
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState("");
   const [slashIndex, setSlashIndex] = useState(0);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState("");
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<
     Partial<Record<MessagePanelCategoryId, boolean>>
@@ -340,13 +352,42 @@ export default function FriendsChatPanel() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLUListElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const slashOptions = filterPeopleSlashSkillMenu(slashFilter);
   const skillComposerOpen = activeComposerSkill !== null;
+  const workspaceChannelComposer = thread?.section === "workspace-channels";
+  const workspaceMentionMembers = useMemo(
+    () =>
+      workspaceChannelComposer && thread?.workspaceId
+        ? workspaceMembersForMentions(membersByWorkspace, thread.workspaceId, firebaseUid)
+        : [],
+    [workspaceChannelComposer, thread?.workspaceId, membersByWorkspace, firebaseUid],
+  );
+  const mentionOptions = useMemo(
+    () =>
+      workspaceChannelComposer
+        ? filterWorkspaceChannelMentionMenu(mentionFilter, workspaceMentionMembers)
+        : [],
+    [workspaceChannelComposer, mentionFilter, workspaceMentionMembers],
+  );
+  const mentionHighlightHandles = useMemo(
+    () =>
+      workspaceChannelComposer
+        ? mentionHandlesForWorkspaceChannel(workspaceMentionMembers)
+        : [],
+    [workspaceChannelComposer, workspaceMentionMembers],
+  );
   const showSlashMenu =
     slashOpen && slashOptions.length > 0 && !handoffSelectionMode && !skillComposerOpen;
+  const showMentionMenu =
+    workspaceChannelComposer &&
+    mentionOpen &&
+    mentionOptions.length > 0 &&
+    !handoffSelectionMode &&
+    !skillComposerOpen;
 
   const seedMembers = useMemo(
     () => (thread ? seedMembersForPeopleThread(thread, firebaseUid) : []),
@@ -683,11 +724,51 @@ export default function FriendsChatPanel() {
     if (sq) {
       setSlashFilter(sq.query);
       setSlashOpen(filterPeopleSlashSkillMenu(sq.query).length > 0);
+      setMentionOpen(false);
+      setMentionFilter("");
       return;
     }
     setSlashFilter("");
     setSlashOpen(false);
-  }, []);
+
+    if (thread?.section === "workspace-channels") {
+      const mq = mentionQueryAt(value, caret);
+      if (mq) {
+        setMentionFilter(mq.query);
+        const options = filterWorkspaceChannelMentionMenu(mq.query, workspaceMentionMembers);
+        setMentionOpen(options.length > 0);
+        setMentionIndex(0);
+        return;
+      }
+    }
+    setMentionFilter("");
+    setMentionOpen(false);
+  }, [thread?.section, workspaceMentionMembers]);
+
+  const insertWorkspaceMention = useCallback(
+    (item: WorkspaceChannelMentionMenuItem) => {
+      const el = textareaRef.current;
+      const value = el?.value ?? draft;
+      const caret = el?.selectionStart ?? value.length;
+      const mq = mentionQueryAt(value, caret);
+      const start = mq?.start ?? caret;
+      const token =
+        item.kind === "person"
+          ? `@${item.target.mention} `
+          : `@${item.broadcast.mention} `;
+      const next = value.slice(0, start) + token + value.slice(caret);
+      setDraft(next);
+      setMentionOpen(false);
+      setMentionFilter("");
+      requestAnimationFrame(() => {
+        const pos = start + token.length;
+        el?.focus();
+        el?.setSelectionRange(pos, pos);
+        syncComposerMenu(next, pos);
+      });
+    },
+    [draft, syncComposerMenu],
+  );
 
   const dismissComposerSkill = useCallback(() => {
     setActiveComposerSkill(null);
@@ -961,6 +1042,9 @@ export default function FriendsChatPanel() {
             showAuthors={isMultiPartyChat}
             showAvatars={isMultiPartyChat}
             getAuthorPhotoURL={resolveAuthorPhotoURL}
+            mentionHighlightHandles={
+              thread.section === "workspace-channels" ? mentionHighlightHandles : undefined
+            }
             handoffSelectionMode={handoffSelectionMode}
             handoffSelectedIndices={handoffSelectedIndices}
             onToggleHandoffIndex={toggleHandoffIndex}
@@ -1048,6 +1132,70 @@ export default function FriendsChatPanel() {
                 />
               ) : (
                 <>
+              {showMentionMenu ? (
+                <div
+                  ref={mentionRef}
+                  className="absolute bottom-full left-0 z-20 mb-1 w-full min-w-[14rem] rounded-lg border border-ink-700 bg-ink-850 py-1 shadow-xl"
+                  role="listbox"
+                  aria-label="Mentions"
+                >
+                  {mentionOptions.map((item, i) => {
+                    if (item.kind === "person") {
+                      const { target } = item;
+                      return (
+                        <button
+                          key={`person-${target.person.id}`}
+                          type="button"
+                          role="option"
+                          aria-selected={i === mentionIndex}
+                          onMouseEnter={() => setMentionIndex(i)}
+                          onClick={() => insertWorkspaceMention(item)}
+                          className={clsx(
+                            "flex w-full gap-2 px-3 py-2 text-left transition-colors",
+                            i === mentionIndex ? "bg-ink-750" : "hover:bg-ink-750/80",
+                          )}
+                        >
+                          <User size={14} className="mt-0.5 shrink-0 text-muted-300" />
+                          <span className="min-w-0">
+                            <span className="block text-xs font-medium text-muted-100">
+                              {target.person.name}
+                            </span>
+                            <span className="mt-0.5 block text-[10px] leading-snug text-muted-500">
+                              @{target.mention} · Workspace
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    }
+
+                    const Icon = item.broadcast.id === "here" ? UsersRound : Megaphone;
+                    return (
+                      <button
+                        key={`broadcast-${item.broadcast.id}`}
+                        type="button"
+                        role="option"
+                        aria-selected={i === mentionIndex}
+                        onMouseEnter={() => setMentionIndex(i)}
+                        onClick={() => insertWorkspaceMention(item)}
+                        className={clsx(
+                          "flex w-full gap-2 px-3 py-2 text-left transition-colors",
+                          i === mentionIndex ? "bg-ink-750" : "hover:bg-ink-750/80",
+                        )}
+                      >
+                        <Icon size={14} className="mt-0.5 shrink-0 text-muted-300" />
+                        <span className="min-w-0">
+                          <span className="block text-xs font-medium text-muted-100">
+                            {item.broadcast.label}
+                          </span>
+                          <span className="mt-0.5 block text-[10px] leading-snug text-muted-500">
+                            {item.broadcast.description}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
               {attachments.length > 0 && (
                 <div className="flex h-8 items-center gap-1 overflow-hidden">
                   {attachments.map((att, i) => (
@@ -1096,6 +1244,7 @@ export default function FriendsChatPanel() {
                 value={draft}
                 placeholder={composerPlaceholder}
                 composerSkill={null}
+                peopleHandles={workspaceChannelComposer ? mentionHighlightHandles : []}
                 onChange={(value) => {
                   const trimmed = value.trim().toLowerCase();
                   if (trimmed === PEOPLE_MANAGE_SKILL_TEMPLATE) {
@@ -1139,6 +1288,29 @@ export default function FriendsChatPanel() {
                   syncComposerMenu(draft, caret);
                 }}
                 onKeyDown={(e) => {
+                  if (showMentionMenu && mentionOptions.length > 0) {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setMentionIndex((i) => (i + 1) % mentionOptions.length);
+                      return;
+                    }
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setMentionIndex((i) => (i - 1 + mentionOptions.length) % mentionOptions.length);
+                      return;
+                    }
+                    if (e.key === "Enter" || e.key === "Tab") {
+                      e.preventDefault();
+                      insertWorkspaceMention(mentionOptions[mentionIndex]!);
+                      return;
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setMentionOpen(false);
+                      return;
+                    }
+                  }
+
                   if (showSlashMenu && slashOptions.length > 0) {
                     if (e.key === "ArrowDown") {
                       e.preventDefault();

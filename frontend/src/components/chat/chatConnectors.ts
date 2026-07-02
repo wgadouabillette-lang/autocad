@@ -24,12 +24,18 @@ export const CHAT_CONNECTORS = [
     label: "Outlook",
     slash: "/outlook",
     Logo: CHAT_APP_LOGOS.outlook,
+    comingSoon: true,
   },
 ] as const;
 
 export type ChatConnectorId = (typeof CHAT_CONNECTORS)[number]["id"];
 
 export type ChatConnector = (typeof CHAT_CONNECTORS)[number];
+
+export function isConnectorComingSoon(id: ChatConnectorId): boolean {
+  const connector = CHAT_CONNECTORS.find((entry) => entry.id === id);
+  return Boolean(connector && "comingSoon" in connector && connector.comingSoon);
+}
 
 export const CHAT_CONNECTOR_PREVIEW_COUNT = 3;
 

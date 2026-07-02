@@ -1,5 +1,5 @@
 import { ArrowUpRight } from "lucide-react";
-import { CHAT_CONNECTORS, type ChatConnectorId } from "./chatConnectors";
+import { CHAT_CONNECTORS, isConnectorComingSoon, type ChatConnectorId } from "./chatConnectors";
 import type { ConnectorStatus } from "../../lib/connectorsApi";
 
 export default function ChatConnectorsList({
@@ -47,6 +47,7 @@ export default function ChatConnectorsList({
         const connected = connectedIds.has(id);
         const configured = status?.configured ?? false;
         const connecting = connectingId === id;
+        const comingSoon = isConnectorComingSoon(id);
         const accountLabel = status?.accountLabel;
         return (
           <div
@@ -66,7 +67,12 @@ export default function ChatConnectorsList({
                 {connected && accountLabel && (
                   <span className="chat-connectors-row__meta">{accountLabel}</span>
                 )}
-                {!configured && isSettings && (
+                {comingSoon && (
+                  <span className="chat-connectors-row__meta">
+                    {isSettings ? "Bientôt disponible" : "Coming soon"}
+                  </span>
+                )}
+                {!comingSoon && !configured && isSettings && (
                   <span className="chat-connectors-row__meta">Non configuré sur le serveur</span>
                 )}
               </span>
@@ -88,18 +94,22 @@ export default function ChatConnectorsList({
                 </button>
               </div>
             ) : isSettings ? (
-              <button
-                type="button"
-                className="chat-connectors-row__connect"
-                onClick={() => onConnect(id)}
-                disabled={connecting || !configured}
-                title={!configured ? "Ajoutez les clés OAuth dans backend/.env" : undefined}
-              >
-                {connecting ? "Connexion…" : configured ? "Connecter" : "Indisponible"}
-                {!connecting && configured && (
-                  <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
-                )}
-              </button>
+              comingSoon ? (
+                <span className="text-[11px] text-muted-500">Pas encore disponible</span>
+              ) : (
+                <button
+                  type="button"
+                  className="chat-connectors-row__connect"
+                  onClick={() => onConnect(id)}
+                  disabled={connecting || !configured}
+                  title={!configured ? "Ajoutez les clés OAuth dans backend/.env" : undefined}
+                >
+                  {connecting ? "Connexion…" : configured ? "Connecter" : "Indisponible"}
+                  {!connecting && configured && (
+                    <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
+                  )}
+                </button>
+              )
             ) : connected ? (
               <button
                 type="button"
@@ -109,6 +119,8 @@ export default function ChatConnectorsList({
               >
                 use <span className="chat-connectors-row__slash-cmd">{slash}</span>
               </button>
+            ) : comingSoon ? (
+              <span className="text-[11px] text-muted-500">Coming soon</span>
             ) : (
               <button
                 type="button"

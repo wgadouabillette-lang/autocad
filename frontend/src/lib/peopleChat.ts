@@ -33,6 +33,8 @@ export interface PeopleMessage {
   meetingStartTime?: string;
   meetingEndTime?: string;
   meetingOrganizerName?: string;
+  mentionedUids?: string[];
+  mentionBroadcast?: "here" | "everyone";
 }
 
 export interface PeopleThread {

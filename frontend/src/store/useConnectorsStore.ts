@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { ChatConnectorId } from "../components/chat/chatConnectors";
-import { CHAT_CONNECTORS } from "../components/chat/chatConnectors";
+import { CHAT_CONNECTORS, isConnectorComingSoon } from "../components/chat/chatConnectors";
 import {
   disconnectConnector as apiDisconnectConnector,
   fetchConnectorStatuses,
@@ -75,6 +75,12 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
   },
 
   connect: async (id) => {
+    if (isConnectorComingSoon(id)) {
+      set({
+        error: "Ce connecteur n'est pas encore disponible.",
+      });
+      return;
+    }
     set({ connectingId: id, error: null });
     try {
       const url = await startConnectorOAuth(id);
