@@ -15,7 +15,7 @@ type SpotifyWebPlayer = {
   addListener(event: "not_ready", callback: (data: { device_id: string }) => void): void;
   addListener(
     event: "player_state_changed",
-    callback: (state: { paused: boolean; position: number } | null) => void,
+    callback: (state: SpotifyPlayerSnapshot) => void,
   ): void;
   addListener(event: "authentication_error", callback: (data: { message: string }) => void): void;
   addListener(event: "account_error", callback: (data: { message: string }) => void): void;
@@ -66,22 +66,51 @@ function schedulePlaybackEnded() {
   playbackEndedTimer = setTimeout(() => {
     playbackEndedTimer = null;
     onPlaybackEnded?.();
-  }, 900);
+  }, 350);
 }
 
-function syncPlaybackPosition(state: { paused: boolean; position: number } | null) {
+type SpotifyPlayerSnapshot = {
+  paused: boolean;
+  position: number;
+  duration?: number;
+  track_window?: {
+    current_track?: { uri?: string } | null;
+  };
+} | null;
+
+function isTrackFinished(state: SpotifyPlayerSnapshot): boolean {
+  if (!state) return true;
+  const duration = typeof state.duration === "number" ? state.duration : 0;
+  if (duration > 0 && state.position >= Math.max(0, duration - 900)) return true;
+  return !state.track_window?.current_track;
+}
+
+function syncPlaybackPosition(state: SpotifyPlayerSnapshot) {
+  const wasPlaying = cachedPlaying;
+
   if (!state) {
-    const wasPlaying = cachedPlaying;
     cachedPlaying = false;
     onPlayingChange?.(false);
     if (wasPlaying) schedulePlaybackEnded();
     return;
   }
-  cancelSpotifyPlaybackEnded();
+
+  const playing = !state.paused;
   cachedPositionMs = state.position;
   cachedPositionAt = performance.now();
-  cachedPlaying = !state.paused;
-  onPlayingChange?.(cachedPlaying);
+
+  if (playing) {
+    cancelSpotifyPlaybackEnded();
+    cachedPlaying = true;
+    onPlayingChange?.(true);
+    return;
+  }
+
+  cachedPlaying = false;
+  onPlayingChange?.(false);
+  if (wasPlaying && isTrackFinished(state)) {
+    schedulePlaybackEnded();
+  }
 }
 
 export function setSpotifyWebPlaybackListener(listener: PlayerStateListener | null) {

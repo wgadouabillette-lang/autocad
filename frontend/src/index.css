@@ -347,29 +347,8 @@ body {
   .bottom-bar-btn > img.bottom-bar-btn__connector-icon {
     @apply relative z-0 h-[19px] w-[19px] object-contain;
   }
-  .bottom-bar-btn--queue-shimmer {
-    @apply relative overflow-hidden;
-  }
-  .bottom-bar-btn--queue-shimmer::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    border-radius: inherit;
-    pointer-events: none;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgb(29 185 84 / 0.08) 35%,
-      rgb(29 185 84 / 0.55) 50%,
-      rgb(29 185 84 / 0.08) 65%,
-      transparent 100%
-    );
-    background-size: 200% 100%;
-    animation: forma-shimmer 1.2s ease-in-out 1 forwards;
-  }
-  .bottom-bar-btn--queue-shimmer > svg,
-  .bottom-bar-btn--queue-shimmer > img.bottom-bar-btn__connector-icon {
+  .bottom-bar-btn__icon-shimmer {
+    @apply inline-flex;
     animation: bottom-bar-queue-icon-shimmer 1.2s ease-in-out 1;
   }
   .header-chrome-control {

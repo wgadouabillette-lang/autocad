@@ -206,7 +206,7 @@ export default function BottomHeader() {
 
   const spotifyPlaybackActive = spotifyCurrentTrack != null;
   const spotifyStopLocked = isMarketingPreview() && spotifyPlaybackActive;
-  const spotifyQueueShimmerClass = queueShimmer ? "bottom-bar-btn--queue-shimmer" : undefined;
+  const spotifyIconShimmerClass = queueShimmer ? "bottom-bar-btn__icon-shimmer" : undefined;
   const spotifyPulseLevel = useSpotifyAudioPulse();
   const spotifyPulseActive = spotifyPlaybackActive && spotifyPlaying;
   const footerPulseStyle = spotifyPulseActive
@@ -233,7 +233,6 @@ export default function BottomHeader() {
       label={spotifyLabel}
       className={clsx(
         spotifyStopLocked ? "marketing-preview-locked" : undefined,
-        queueShimmer && !spotifyPlaybackActive && spotifyQueueShimmerClass,
       )}
       onClick={() => {
         if (spotifyStopLocked) return;
@@ -251,12 +250,17 @@ export default function BottomHeader() {
       disabled={!spotifyConfigured || connectingId === "spotify"}
     >
       {spotifyPlaybackActive ? (
-        <Square size={ICON_SIZE} fill="currentColor" aria-hidden />
+        <Square
+          size={ICON_SIZE}
+          fill="currentColor"
+          aria-hidden
+          className={queueShimmer ? spotifyIconShimmerClass : undefined}
+        />
       ) : (
         <img
           src={connectorIconPath(CONNECTOR_ICON_FILES.spotify)}
           alt=""
-          className="bottom-bar-btn__connector-icon"
+          className={clsx("bottom-bar-btn__connector-icon", spotifyIconShimmerClass)}
           width={ICON_SIZE}
           height={ICON_SIZE}
           draggable={false}
@@ -268,10 +272,9 @@ export default function BottomHeader() {
   const spotifyAddQueueButton = spotifyPlaybackActive ? (
     <BottomBarButton
       label="Ajouter à la file"
-      className={queueShimmer ? spotifyQueueShimmerClass : undefined}
       onClick={() => openSpotifyPanel(ADD_QUEUE_SKILL_TEMPLATE)}
     >
-      <ListMusic size={ICON_SIZE} aria-hidden />
+      <ListMusic size={ICON_SIZE} aria-hidden className={spotifyIconShimmerClass} />
     </BottomBarButton>
   ) : null;
 

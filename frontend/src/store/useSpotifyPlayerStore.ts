@@ -429,6 +429,8 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
 
   handleTrackEnded: () => {
     if (suppressTrackEnded) return;
+    cancelSpotifyPlaybackEnded();
+
     const { queue, currentTrack } = get();
     if (currentTrack) {
       set((s) => ({
@@ -445,7 +447,7 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
 
     const [next, ...rest] = queue;
     set({ queue: rest });
-    void get().playTrack(next, { skipHistory: true });
+    void get().playTrack(next, { skipHistory: true, restart: true });
   },
 
   stop: () => {
