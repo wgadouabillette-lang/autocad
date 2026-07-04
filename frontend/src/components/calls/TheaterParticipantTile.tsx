@@ -85,6 +85,14 @@ export default function TheaterParticipantTile({
     />
   );
 
+  const avatarExtras = handRaised ? (
+    <span className="theater-tile__hand" title="Main levée" aria-hidden>
+      ✋
+    </span>
+  ) : null;
+
+  const showSignet = seat || canMessage;
+
   return (
     <article
       className={clsx(
@@ -97,23 +105,19 @@ export default function TheaterParticipantTile({
         promoteDisabled && "theater-tile--promotable-locked",
       )}
     >
-      {canMessage ? (
-        <ParticipantAvatarSignetHost name={participant.name} className="theater-tile__avatar-wrap">
+      {showSignet ? (
+        <ParticipantAvatarSignetHost
+          name={participant.name}
+          className="theater-tile__avatar-wrap"
+          placement={seat ? "above" : "below-avatar"}
+        >
           {avatar}
-          {handRaised && (
-            <span className="theater-tile__hand" title="Main levée" aria-hidden>
-              ✋
-            </span>
-          )}
+          {avatarExtras}
         </ParticipantAvatarSignetHost>
       ) : (
         <span className="theater-tile__avatar-wrap">
           {avatar}
-          {handRaised && (
-            <span className="theater-tile__hand" title="Main levée" aria-hidden>
-              ✋
-            </span>
-          )}
+          {avatarExtras}
         </span>
       )}
       <div className="theater-tile__meta">

@@ -3,34 +3,10 @@ import { hasAnyLlmKey, loadLlmKeys, pickProvider } from "./keys";
 import { completeChatText, type ChatMessage } from "./llm";
 import { resolveChatModel, resolveProviderForModel } from "./models";
 import { checkUsageGate, hasEnterpriseWorkspaceAccess, getUserSubscriptionState, trackLlmResult } from "./usage";
-
-const CHAT_SYSTEM = `You are a helpful assistant in a team workspace.
-Reply naturally and conversationally in the same language as the user.
-Keep answers concise and friendly.
-Do not mention CAD, 3D modeling, or generating models unless the user explicitly asks about them.
-Do not return JSON — plain text only.
-
-Structure every reply with clear Markdown hierarchy:
-- Use ## for main sections and ### for subsections (short, descriptive titles).
-- Use bullet lists (- item) or numbered lists (1. item) for steps and options.
-- Use **bold** for key terms; keep body text in normal paragraphs.
-- Separate major sections with a blank line. Never dump a single wall of text.
-
-When the user @mentions people to message them in parallel, acknowledge the request in your visible reply,
-then append a dispatch block on its own lines:
-
-[DISPATCH]
-@handle: personalized message for that person
-[/DISPATCH]
-
-Use one @handle: line per recipient. Handles are lowercase (e.g. @marie.dupont).
-The dispatch block is stripped from the chat UI — only the lines inside are sent as direct messages.`;
-
-function buildChatSystem(customInstructions?: string): string {
-  const extra = customInstructions?.trim();
-  if (!extra) return CHAT_SYSTEM;
-  return `${CHAT_SYSTEM}\n\nAdditional instructions from the user:\n${extra}`;
-}
+import {
+  buildChatSystem,
+  CHAT_USER_FORMAT_REMINDER,
+} from "./chatSystemPrompt";
 
 export interface AiChatRequest {
   prompt?: string;
@@ -109,6 +85,7 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
     typeof data.chat_instructions === "string" ? data.chat_instructions : "";
   const chatSystem = buildChatSystem(chatInstructions);
   const history = parseHistory(data.messages);
+  const userPrompt = `${prompt}${CHAT_USER_FORMAT_REMINDER}`;
 
   const workspaceId =
     typeof data.workspace_id === "string" ? data.workspace_id.trim().toLowerCase() : "";
@@ -169,7 +146,7 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
     model: modelId,
     system: chatSystem,
     history,
-    userPrompt: prompt,
+    userPrompt,
   }).catch((err: unknown) => {
     console.error("completeChatText failed", err);
     return { message: null, error: String(err), rateLimited: false, inputTokens: 0, outputTokens: 0, modelId: modelId };
@@ -179,7 +156,7 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
     await trackLlmResult(uid, modelId, result, workspaceId || undefined, {
       system: chatSystem,
       history,
-      userPrompt: prompt,
+      userPrompt,
     });
     return {
       message: result.message,
@@ -200,7 +177,7 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
         model: fallbackModel,
         system: chatSystem,
         history,
-        userPrompt: prompt,
+        userPrompt,
       }).catch((err: unknown) => {
         console.error("completeChatText retry failed", err);
         return { message: null, error: String(err), rateLimited: false, inputTokens: 0, outputTokens: 0, modelId: modelId };
@@ -209,7 +186,7 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
         await trackLlmResult(uid, fallbackModel, retry, workspaceId || undefined, {
           system: chatSystem,
           history,
-          userPrompt: prompt,
+          userPrompt,
         });
         return {
           message: `*(Modèle Auto — limite atteinte sur le modèle choisi.)*\n\n${retry.message}`,

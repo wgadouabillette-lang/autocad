@@ -46,7 +46,6 @@ import { usePeopleStore } from "./store/usePeopleStore";
 import { useWorkspacePresenceStore } from "./store/useWorkspacePresenceStore";
 import { LOCAL_USER_ID } from "./lib/workspaces";
 import { debugLog } from "./lib/debugLog";
-import { billingApi } from "./lib/billingApi";
 
 let appRenderCount = 0;
 
@@ -244,24 +243,11 @@ export default function App() {
   useEffect(() => {
     if (bootStatus !== "ready" || !isAuthenticated) return;
     const params = new URLSearchParams(window.location.search);
-    const checkout = params.get("checkout");
     const tab = params.get("tab");
-    if (checkout !== "success" && checkout !== "cancel" && !tab) return;
+    if (!tab) return;
 
-    useStore.getState().openSettingsTab(normalizeSettingsTab(tab ?? "usage"));
+    useStore.getState().openSettingsTab(normalizeSettingsTab(tab));
 
-    if (checkout === "success") {
-      void billingApi.sync().catch((err) => {
-        debugLog(
-          "App.tsx:checkout-sync",
-          "post-checkout billing sync failed",
-          { error: err instanceof Error ? err.message : String(err) },
-          "billing",
-        );
-      });
-    }
-
-    params.delete("checkout");
     params.delete("tab");
     const next = params.toString();
     const url = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;

@@ -20,6 +20,16 @@ function platformKeys(): LlmKeySet {
   };
 }
 
+/** Clés LLM configurées au niveau plateforme (secrets Functions / Secret Manager). */
+export function platformKeyStatus(): Record<LlmProvider, boolean> {
+  const keys = platformKeys();
+  return {
+    xai: Boolean(keys.xai),
+    openai: Boolean(keys.openai),
+    anthropic: Boolean(keys.anthropic),
+  };
+}
+
 /** User keys override platform keys per provider (same rule as the Python backend). */
 export async function loadLlmKeys(uid: string): Promise<LlmKeySet> {
   const merged = platformKeys();

@@ -1,6 +1,7 @@
 """Sync in-app calendar events with Google Calendar."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
@@ -11,9 +12,11 @@ from starlette.concurrency import run_in_threadpool
 
 from app.connectors.registry import connector_configured
 from app.connectors.tokens import connection_account_label, get_valid_access_token
-from app.connectors.user_store import is_connected_from_items, load_all_connections
+from app.connectors.user_store import is_connected_from_items, load_all_connections, remove_connection
 from app.core.auth_deps import require_firebase_user
 from app.core.firebase import FirebaseUser
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/connectors", tags=["connectors"])
 
@@ -47,21 +50,38 @@ class CalendarStatusOut(BaseModel):
     connected: bool
     configured: bool
     account_email: Optional[str] = Field(default=None, alias="accountEmail")
+    auth_expired: bool = Field(default=False, alias="authExpired")
 
     model_config = ConfigDict(populate_by_name=True, populate_by_alias=True)
 
 
-def _event_datetimes(item: CalendarEventInput) -> tuple[str, str, str]:
+def _local_iana_timezone() -> str | None:
+    """IANA zone name when available (e.g. America/Toronto)."""
+    tzinfo = datetime.now().astimezone().tzinfo
+    if tzinfo is None:
+        return None
+    key = getattr(tzinfo, "key", None)
+    return str(key) if isinstance(key, str) and key else None
+
+
+def _event_datetimes(item: CalendarEventInput) -> tuple[str, str, str | None]:
     year, month, day = (int(x) for x in item.date_key.split("-"))
     start_h, start_m = divmod(item.start_minutes, 60)
     end_h, end_m = divmod(item.end_minutes, 60)
     tz = datetime.now().astimezone().tzinfo
-    tz_name = datetime.now().astimezone().tzname() or "UTC"
     start = datetime(year, month, day, start_h, start_m, tzinfo=tz)
     end = datetime(year, month, day, end_h, end_m, tzinfo=tz)
     if end <= start:
         end = start + timedelta(minutes=30)
-    return start.isoformat(), end.isoformat(), tz_name
+    return start.isoformat(), end.isoformat(), _local_iana_timezone()
+
+
+def _google_event_datetime(iso: str, tz_name: str | None) -> dict[str, str]:
+    """Google expects IANA timeZone names; abbreviations like EDT are rejected."""
+    payload: dict[str, str] = {"dateTime": iso}
+    if tz_name:
+        payload["timeZone"] = tz_name
+    return payload
 
 
 def _minutes_from_google_datetime(value: dict[str, Any]) -> tuple[str, int, int] | None:
@@ -111,13 +131,13 @@ def _parse_google_event(item: dict[str, Any]) -> GoogleCalendarEventOut | None:
     )
 
 
-async def _create_google_event(token: str, item: CalendarEventInput) -> str | None:
+async def _create_google_event(token: str, item: CalendarEventInput) -> tuple[str | None, int]:
     start, end, tz_name = _event_datetimes(item)
     body: dict[str, Any] = {
         "summary": item.title,
         "description": item.detail or "",
-        "start": {"dateTime": start, "timeZone": tz_name},
-        "end": {"dateTime": end, "timeZone": tz_name},
+        "start": _google_event_datetime(start, tz_name),
+        "end": _google_event_datetime(end, tz_name),
     }
     async with httpx.AsyncClient(timeout=20.0) as client:
         r = await client.post(
@@ -126,10 +146,21 @@ async def _create_google_event(token: str, item: CalendarEventInput) -> str | No
             json=body,
         )
     if r.status_code not in {200, 201}:
-        return None
+        logger.warning(
+            "Google Calendar create failed (%s) for %r: %s",
+            r.status_code,
+            item.title,
+            (r.text or "")[:500],
+        )
+        return None, r.status_code
     data = r.json()
     event_id = str(data.get("id") or "").strip()
-    return event_id or None
+    return (event_id or None), r.status_code
+
+
+async def _invalidate_google_auth(uid: str, status_code: int) -> None:
+    if status_code in {401, 403}:
+        await run_in_threadpool(remove_connection, uid, "calendar")
 
 
 async def _fetch_google_account_email(token: str) -> str | None:
@@ -150,18 +181,25 @@ async def calendar_status(user: FirebaseUser = Depends(require_firebase_user)):
     configured = connector_configured("calendar")
     connections = await run_in_threadpool(load_all_connections, user.uid)
     entry = connections.get("calendar")
-    connected = configured and is_connected_from_items(connections, "calendar")
+    had_connection = is_connected_from_items(connections, "calendar")
+    connected = configured and had_connection
+    auth_expired = False
     account_email = connection_account_label(
         dict(entry) if isinstance(entry, dict) else None
     )
-    if connected and not account_email:
+    token = None
+    if connected:
         token = await get_valid_access_token(user.uid, "calendar")
-        if token:
+        if not token:
+            connected = False
+            auth_expired = had_connection
+        elif not account_email:
             account_email = await _fetch_google_account_email(token)
     return CalendarStatusOut(
         connected=connected,
         configured=configured,
         accountEmail=account_email,
+        authExpired=auth_expired,
     )
 
 
@@ -195,6 +233,9 @@ async def list_calendar_events(
             params=params,
         )
     if r.status_code != 200:
+        if r.status_code in {401, 403}:
+            await _invalidate_google_auth(user.uid, r.status_code)
+            return {"events": [], "reason": "auth_expired"}
         raise HTTPException(r.status_code, r.text or "Google Calendar API error.")
 
     items = r.json().get("items") or []
@@ -225,8 +266,12 @@ async def sync_calendar_events(
     created = 0
     for item in body.events:
         try:
-            if await _create_google_event(token, item):
+            event_id, status = await _create_google_event(token, item)
+            if event_id:
                 created += 1
+            elif status in {401, 403}:
+                await _invalidate_google_auth(user.uid, status)
+                break
         except Exception:  # noqa: BLE001 — continue syncing remaining events
             continue
 

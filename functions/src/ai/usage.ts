@@ -8,7 +8,6 @@ import {
   usageCostUsd,
   usageMarkupMultiplier,
 } from "./usagePricing";
-import { reportOnDemandStripeUsage, resetOnDemandStripeReporting } from "../billing/onDemandUsage";
 import { resolveTokenCounts } from "./usageTokens";
 import type { ChatMessage } from "./llm";
 
@@ -320,14 +319,6 @@ export async function recordLlmUsage(
     },
     { merge: true },
   );
-
-  if (userState.onDemand) {
-    try {
-      await reportOnDemandStripeUsage(target.key, newOnDemand);
-    } catch {
-      /* ignore Stripe reporting errors */
-    }
-  }
 }
 
 export async function maybeSyncUsagePeriod(
@@ -356,7 +347,6 @@ export async function maybeSyncUsagePeriod(
     },
     { merge: true },
   );
-  await resetOnDemandStripeReporting(uid);
 }
 
 export async function maybeSyncWorkspaceUsagePeriod(

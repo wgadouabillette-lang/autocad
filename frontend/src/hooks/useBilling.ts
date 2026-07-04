@@ -3,14 +3,7 @@ import {
   effectiveOnDemandUsage,
   effectiveSubscriptionPlan,
 } from "../lib/subscriptionPlans";
-import {
-  billingApi,
-  warmCheckoutAuth,
-  type BillingConfig,
-  type BillingStatus,
-  type EnterpriseWorkspaceOption,
-} from "../lib/billingApi";
-import { hasFormaDesktop } from "../lib/formaDesktop";
+import { billingApi, type BillingConfig } from "../lib/billingApi";
 import { loadUserProfile, watchUserProfile } from "../lib/firebase/userData";
 import { useAuthStore } from "../store/useAuthStore";
 import { useStore } from "../store/useStore";
@@ -25,42 +18,13 @@ const DEFAULT_CONFIG: BillingConfig = {
   enterpriseSeatPriceLabel: "$18 / seat / month",
 };
 
-function isStripeCheckoutUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "https:" && parsed.hostname.endsWith(".stripe.com");
-  } catch {
-    return false;
-  }
-}
-
-function openStripeUrl(url: string): "external" | "tab" | "blocked" {
-  if (!isStripeCheckoutUrl(url)) {
-    throw new Error("URL Stripe invalide renvoyée par le serveur.");
-  }
-
-  if (hasFormaDesktop() && window.formaDesktop?.openExternal) {
-    void window.formaDesktop.openExternal(url);
-    return "external";
-  }
-
-  const tab = window.open(url, "_blank", "noopener,noreferrer");
-  if (!tab) {
-    return "blocked";
-  }
-  tab.focus?.();
-  return "tab";
-}
-
 export function useBilling() {
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const billingManaged = useStore((s) => s.billingManaged);
   const [config, setConfig] = useState<BillingConfig | null>(null);
-  const [enterpriseWorkspaces, setEnterpriseWorkspaces] = useState<EnterpriseWorkspaceOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [externalCheckoutOpen, setExternalCheckoutOpen] = useState(false);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -73,28 +37,9 @@ export function useBilling() {
     }
   }, []);
 
-  const loadEnterpriseWorkspaces = useCallback(async () => {
-    if (!isAuthenticated) {
-      setEnterpriseWorkspaces([]);
-      return [];
-    }
-    try {
-      const { workspaces } = await billingApi.enterpriseWorkspaces();
-      setEnterpriseWorkspaces(workspaces);
-      return workspaces;
-    } catch {
-      setEnterpriseWorkspaces([]);
-      return [];
-    }
-  }, [isAuthenticated]);
-
   useEffect(() => {
     void loadConfig();
-    void loadEnterpriseWorkspaces();
-    if (isAuthenticated) {
-      warmCheckoutAuth();
-    }
-  }, [firebaseUid, isAuthenticated, loadConfig, loadEnterpriseWorkspaces]);
+  }, [firebaseUid, loadConfig]);
 
   useEffect(() => {
     if (!firebaseUid) return;
@@ -124,7 +69,6 @@ export function useBilling() {
         }
         return Object.keys(patch).length > 0 ? patch : state;
       });
-      setExternalCheckoutOpen(false);
       setLoading(false);
     });
     return unsubscribe;
@@ -148,68 +92,6 @@ export function useBilling() {
     });
     await loadConfig();
   }, [firebaseUid, loadConfig]);
-
-  const syncFromStripe = useCallback(async (): Promise<BillingStatus | null> => {
-    if (!isAuthenticated) return null;
-    try {
-      const status = await billingApi.sync();
-      const subscriptionPlan = effectiveSubscriptionPlan(status.subscriptionPlan, status.billingManaged);
-      useStore.setState({
-        subscriptionPlan,
-        onDemandUsageEnabled: status.onDemandUsageEnabled,
-        billingManaged: status.billingManaged,
-      });
-      setExternalCheckoutOpen(false);
-      setLoading(false);
-      return status;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Synchronisation Stripe impossible.");
-      return null;
-    }
-  }, [isAuthenticated]);
-
-  const startStripeFlow = useCallback(
-    async (fetchUrl: () => Promise<{ url: string }>, options?: { waitForUpdate?: boolean }) => {
-      const waitForUpdate = options?.waitForUpdate !== false;
-      if (!isAuthenticated) {
-        setError("Connectez-vous pour gérer la facturation.");
-        return;
-      }
-
-      setError(null);
-      setLoading(true);
-
-      try {
-        const { url } = await fetchUrl();
-        const mode = openStripeUrl(url);
-        if (mode === "blocked") {
-          setError("Autorisez les pop-ups pour ouvrir Stripe, puis réessayez.");
-          setLoading(false);
-          return;
-        }
-        setExternalCheckoutOpen(true);
-        if (!waitForUpdate) {
-          setLoading(false);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Stripe indisponible.");
-        setLoading(false);
-      }
-    },
-    [isAuthenticated],
-  );
-
-  const checkoutPro = useCallback(async () => {
-    if (!config?.enabled) {
-      setError("Stripe Pro n'est pas configuré sur le serveur (backend/.env).");
-      return;
-    }
-    await startStripeFlow(() => billingApi.checkoutPro());
-  }, [config?.enabled, startStripeFlow]);
-
-  const openPortal = useCallback(async () => {
-    await startStripeFlow(() => billingApi.portal(), { waitForUpdate: false });
-  }, [startStripeFlow]);
 
   const setOnDemand = useCallback(
     async (enabled: boolean, limitUsd: number | null = 25) => {
@@ -256,58 +138,38 @@ export function useBilling() {
     [isAuthenticated, refreshProfile],
   );
 
-  const dismissExternalCheckoutNotice = useCallback(() => {
-    setExternalCheckoutOpen(false);
-    setLoading(false);
-  }, []);
-
-  const checkoutEnterprise = useCallback(
-    async (workspaceId: string) => {
-      if (!config?.enterpriseEnabled) {
-        setError("Stripe Entreprise n'est pas configuré sur le serveur (backend/.env).");
-        return;
-      }
-      await startStripeFlow(() => billingApi.checkoutEnterprise(workspaceId));
-    },
-    [config?.enterpriseEnabled, startStripeFlow],
-  );
-
-  const openEnterprisePortal = useCallback(
-    async (workspaceId: string) => {
-      await startStripeFlow(() => billingApi.enterprisePortal(workspaceId), { waitForUpdate: false });
-    },
-    [startStripeFlow],
-  );
-
-  const prefetchCheckout = useCallback(() => {
-    warmCheckoutAuth();
-  }, []);
-
   return {
     config,
     loading,
     error,
     setBillingError: setError,
-    externalCheckoutOpen,
-    dismissExternalCheckoutNotice,
-    checkoutPro,
-    checkoutEnterprise,
-    openPortal,
-    openEnterprisePortal,
-    prefetchCheckout,
     setOnDemand,
     setOnDemandLimit,
     refreshProfile,
-    syncFromStripe,
-    enterpriseWorkspaces,
-    loadEnterpriseWorkspaces,
-    stripeEnabled: Boolean(config?.enabled),
-    enterpriseEnabled: Boolean(config?.enterpriseEnabled),
-    enterpriseMinMembers: config?.enterpriseMinMembers ?? DEFAULT_CONFIG.enterpriseMinMembers,
-    enterpriseSeatPriceLabel:
-      config?.enterpriseSeatPriceLabel ?? DEFAULT_CONFIG.enterpriseSeatPriceLabel,
+    stripeEnabled: false,
+    enterpriseEnabled: false,
+    enterpriseWorkspaces: [],
+    loadEnterpriseWorkspaces: async () => [],
+    checkoutPro: async () => {
+      setError("La facturation en ligne n'est pas disponible pour le moment.");
+    },
+    checkoutEnterprise: async () => {
+      setError("La facturation en ligne n'est pas disponible pour le moment.");
+    },
+    openPortal: async () => {
+      setError("La facturation en ligne n'est pas disponible pour le moment.");
+    },
+    openEnterprisePortal: async () => {
+      setError("La facturation en ligne n'est pas disponible pour le moment.");
+    },
+    prefetchCheckout: () => {},
+    externalCheckoutOpen: false,
+    dismissExternalCheckoutNotice: () => {},
+    syncFromStripe: async () => null,
     billingManaged,
-    onDemandAvailable: Boolean(config?.onDemandAvailable),
+    onDemandAvailable: false,
     proPriceLabel: config?.proPriceLabel ?? DEFAULT_CONFIG.proPriceLabel,
+    enterpriseMinMembers: DEFAULT_CONFIG.enterpriseMinMembers,
+    enterpriseSeatPriceLabel: DEFAULT_CONFIG.enterpriseSeatPriceLabel,
   };
 }

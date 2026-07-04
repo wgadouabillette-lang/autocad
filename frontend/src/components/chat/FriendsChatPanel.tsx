@@ -62,12 +62,17 @@ import { useNotificationsStore } from "../../store/useNotificationsStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
 import { useWorkspaceTextChannelsStore, EMPTY_WORKSPACE_TEXT_CHANNELS } from "../../store/useWorkspaceTextChannelsStore";
+import { resolveChatTypingScopeFromThread } from "../../lib/chatTypingScope";
+import { clearChatTypingNow, useChatTyping } from "../../hooks/useChatTyping";
+import ChatTypingIndicator from "./ChatTypingIndicator";
 import UserAvatar from "../UserAvatar";
 import ChatSkillsList from "./ChatSkillsList";
 import CreateGroupPromptLine from "./CreateGroupPromptLine";
 import ManageSchedulePromptLine from "./ManageSchedulePromptLine";
 import HandoffComposerBar from "./HandoffComposerBar";
 import HighlightedPromptInput from "./HighlightedPromptInput";
+import MentionFloatingMenu from "./MentionFloatingMenu";
+import MentionMenuOption from "./MentionMenuOption";
 import PeopleChatEmojiPicker from "./PeopleChatEmojiPicker";
 import PeopleChatThreadMessages from "./PeopleChatThreadMessages";
 import DeletePeopleChatOverlay from "./DeletePeopleChatOverlay";
@@ -352,12 +357,20 @@ export default function FriendsChatPanel() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const mentionRef = useRef<HTMLDivElement>(null);
+  const mentionAnchorRef = useRef<HTMLDivElement>(null);
+  const mentionMenuRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLUListElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const slashOptions = filterPeopleSlashSkillMenu(slashFilter);
   const skillComposerOpen = activeComposerSkill !== null;
+  const chatTypingScope = useMemo(
+    () => resolveChatTypingScopeFromThread(thread?.id, firebaseUid),
+    [thread?.id, firebaseUid],
+  );
+  const typingIndicatorEnabled =
+    !!thread && !handoffSelectionMode && !skillComposerOpen && !emojiPickerOpen;
+  const typingUsers = useChatTyping(chatTypingScope, draft, typingIndicatorEnabled);
   const workspaceChannelComposer = thread?.section === "workspace-channels";
   const workspaceMentionMembers = useMemo(
     () =>
@@ -684,7 +697,17 @@ export default function FriendsChatPanel() {
   }, []);
 
   const submit = () => {
-    if (handoffSelectionMode) return;
+    if (handoffSelectionMode) {
+      if (
+        handoffSubmitting ||
+        handoffSelectedIndices.size === 0 ||
+        !handoffTarget
+      ) {
+        return;
+      }
+      submitPeopleHandoffSkill();
+      return;
+    }
     if (activeComposerSkill === "group") {
       if (!memberPromptReady) return;
       void submitPeopleGroupSkill();
@@ -703,6 +726,7 @@ export default function FriendsChatPanel() {
     const trimmed = draft.trim();
     if (!trimmed && attachments.length === 0) return;
     if (trimmed) sendMessage(thread.id, trimmed);
+    clearChatTypingNow(chatTypingScope, firebaseUid);
     setActiveSkillRun(null);
     setDraft("");
     setAttachments((prev) => {
@@ -1019,7 +1043,7 @@ export default function FriendsChatPanel() {
       resolvePersonPhotoURL(authorUid, membersByWorkspace, photoLookup);
     const canSubmit =
       handoffSelectionMode
-        ? false
+        ? handoffSelectedIndices.size > 0 && !!handoffTarget && !handoffSubmitting
         : activeComposerSkill === "group"
           ? memberPromptReady
           : activeComposerSkill === "manage"
@@ -1080,6 +1104,7 @@ export default function FriendsChatPanel() {
                 />
               </div>
             ) : null}
+            {typingIndicatorEnabled ? <ChatTypingIndicator typers={typingUsers} /> : null}
             <form
               className="w-full min-w-0 max-w-full"
               onSubmit={(e) => {
@@ -1088,6 +1113,7 @@ export default function FriendsChatPanel() {
               }}
             >
             <div
+              ref={mentionAnchorRef}
               className={clsx(
                 "relative",
                 (emojiPickerOpen || skillComposerOpen) &&
@@ -1107,11 +1133,9 @@ export default function FriendsChatPanel() {
                 <HandoffComposerBar
                   selectedCount={handoffSelectedIndices.size}
                   target={handoffTarget}
-                  submitting={handoffSubmitting}
                   error={handoffError}
                   onTargetChange={setHandoffTarget}
                   onCancel={exitHandoffSelection}
-                  onSubmit={submitPeopleHandoffSkill}
                 />
               ) : activeComposerSkill === "group" ? (
                 <CreateGroupPromptLine
@@ -1132,70 +1156,41 @@ export default function FriendsChatPanel() {
                 />
               ) : (
                 <>
-              {showMentionMenu ? (
-                <div
-                  ref={mentionRef}
-                  className="absolute bottom-full left-0 z-20 mb-1 w-full min-w-[14rem] rounded-lg border border-ink-700 bg-ink-850 py-1 shadow-xl"
-                  role="listbox"
-                  aria-label="Mentions"
-                >
+              <MentionFloatingMenu
+                open={showMentionMenu}
+                anchorRef={mentionAnchorRef}
+                menuRef={mentionMenuRef}
+              >
                   {mentionOptions.map((item, i) => {
                     if (item.kind === "person") {
                       const { target } = item;
                       return (
-                        <button
+                        <MentionMenuOption
                           key={`person-${target.person.id}`}
-                          type="button"
-                          role="option"
-                          aria-selected={i === mentionIndex}
+                          active={i === mentionIndex}
+                          icon={User}
+                          title={target.person.name}
+                          meta={`@${target.mention} · Workspace`}
                           onMouseEnter={() => setMentionIndex(i)}
                           onClick={() => insertWorkspaceMention(item)}
-                          className={clsx(
-                            "flex w-full gap-2 px-3 py-2 text-left transition-colors",
-                            i === mentionIndex ? "bg-ink-750" : "hover:bg-ink-750/80",
-                          )}
-                        >
-                          <User size={14} className="mt-0.5 shrink-0 text-muted-300" />
-                          <span className="min-w-0">
-                            <span className="block text-xs font-medium text-muted-100">
-                              {target.person.name}
-                            </span>
-                            <span className="mt-0.5 block text-[10px] leading-snug text-muted-500">
-                              @{target.mention} · Workspace
-                            </span>
-                          </span>
-                        </button>
+                        />
                       );
                     }
 
                     const Icon = item.broadcast.id === "here" ? UsersRound : Megaphone;
                     return (
-                      <button
+                      <MentionMenuOption
                         key={`broadcast-${item.broadcast.id}`}
-                        type="button"
-                        role="option"
-                        aria-selected={i === mentionIndex}
+                        active={i === mentionIndex}
+                        icon={Icon}
+                        title={item.broadcast.label}
+                        meta={item.broadcast.description}
                         onMouseEnter={() => setMentionIndex(i)}
                         onClick={() => insertWorkspaceMention(item)}
-                        className={clsx(
-                          "flex w-full gap-2 px-3 py-2 text-left transition-colors",
-                          i === mentionIndex ? "bg-ink-750" : "hover:bg-ink-750/80",
-                        )}
-                      >
-                        <Icon size={14} className="mt-0.5 shrink-0 text-muted-300" />
-                        <span className="min-w-0">
-                          <span className="block text-xs font-medium text-muted-100">
-                            {item.broadcast.label}
-                          </span>
-                          <span className="mt-0.5 block text-[10px] leading-snug text-muted-500">
-                            {item.broadcast.description}
-                          </span>
-                        </span>
-                      </button>
+                      />
                     );
                   })}
-                </div>
-              ) : null}
+              </MentionFloatingMenu>
               {attachments.length > 0 && (
                 <div className="flex h-8 items-center gap-1 overflow-hidden">
                   {attachments.map((att, i) => (
@@ -1365,8 +1360,8 @@ export default function FriendsChatPanel() {
                   <button
                     type="submit"
                     disabled={!canSubmit}
-                    title="Send"
-                    aria-label="Send"
+                    title={handoffSelectionMode ? "Send handoff" : "Send"}
+                    aria-label={handoffSelectionMode ? "Send handoff" : "Send"}
                     className={clsx(
                       "inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full border border-ink-600 bg-ink-750 text-muted-200 transition-colors hover:bg-ink-700 disabled:opacity-30",
                     )}

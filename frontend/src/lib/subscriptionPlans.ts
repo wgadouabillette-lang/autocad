@@ -55,7 +55,7 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
       "IA activée pour tous les membres du workspace choisi",
       "AI Notes et Follow-up dans ce workspace uniquement",
       "Facturation centralisée par le propriétaire du workspace",
-      "Tarif dégressif par siège (Stripe Checkout)",
+      "Tarif dégressif par siège",
       "Pro personnel reste valable partout si vous l'avez déjà",
     ],
   },
@@ -67,7 +67,7 @@ export function planLabel(plan: SubscriptionPlan): string {
   return plan === "pro" ? "Pro" : "Gratuit";
 }
 
-/** Pro uniquement si Stripe a confirmé le paiement (webhook → billingManaged). */
+/** Pro uniquement si billingManaged est actif (paiement confirmé ou toggle dev local). */
 export function effectiveSubscriptionPlan(
   subscriptionPlan: unknown,
   billingManaged: unknown,

@@ -18,7 +18,6 @@ function localBillingSummary(
       workspaceId: activeRoomId,
       nextBillingDate: null,
       cancelAtPeriodEnd: false,
-      stripeEnabled: false,
       transactions: [],
     };
   }
@@ -29,7 +28,6 @@ function localBillingSummary(
       billingManaged: true,
       nextBillingDate: null,
       cancelAtPeriodEnd: false,
-      stripeEnabled: false,
       transactions: [],
     };
   }
@@ -40,7 +38,6 @@ function localBillingSummary(
       billingManaged: false,
       nextBillingDate: null,
       cancelAtPeriodEnd: false,
-      stripeEnabled: false,
       transactions: [],
     };
   }
@@ -50,7 +47,6 @@ function localBillingSummary(
     billingManaged: false,
     nextBillingDate: null,
     cancelAtPeriodEnd: false,
-    stripeEnabled: false,
     transactions: [],
   };
 }
@@ -87,11 +83,7 @@ export function useBillingSummary() {
       const workspaceId =
         workspaceEnterpriseActive && activeRoomId ? activeRoomId : null;
       const next = await billingApi.summary(workspaceId);
-      if (
-        !next.stripeEnabled &&
-        next.currentPlan === "free" &&
-        subscriptionPlan === "pro"
-      ) {
+      if (next.currentPlan === "free" && subscriptionPlan === "pro") {
         setSummary(
           localBillingSummary(
             subscriptionPlan,

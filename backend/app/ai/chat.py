@@ -4,37 +4,8 @@ from __future__ import annotations
 from typing import List, Optional
 
 from app.ai import llm, models, quota, usage
+from app.ai.chat_system_prompt import build_chat_system, chat_user_format_reminder
 from app.models.schemas import ChatMessage, ChatResponse
-
-
-CHAT_SYSTEM = """You are a helpful assistant in a team workspace.
-Reply naturally and conversationally in the same language as the user.
-Keep answers concise and friendly.
-Do not mention CAD, 3D modeling, or generating models unless the user explicitly asks about them.
-Do not return JSON — plain text only.
-
-Structure every reply with clear Markdown hierarchy:
-- Use ## for main sections and ### for subsections (short, descriptive titles).
-- Use bullet lists (- item) or numbered lists (1. item) for steps and options.
-- Use **bold** for key terms; keep body text in normal paragraphs.
-- Separate major sections with a blank line. Never dump a single wall of text.
-
-When the user @mentions people to message them in parallel, acknowledge the request in your visible reply,
-then append a dispatch block on its own lines:
-
-[DISPATCH]
-@handle: personalized message for that person
-[/DISPATCH]
-
-Use one @handle: line per recipient. Handles are lowercase (e.g. @marie.dupont).
-The dispatch block is stripped from the chat UI — only the lines inside are sent as direct messages."""
-
-
-def _build_chat_system(custom_instructions: Optional[str] = None) -> str:
-    extra = (custom_instructions or "").strip()
-    if not extra:
-        return CHAT_SYSTEM
-    return f"{CHAT_SYSTEM}\n\nAdditional instructions from the user:\n{extra}"
 
 
 def _rules_reply(prompt: str) -> str:
@@ -79,11 +50,12 @@ def run(
         model_id = models.resolve_model(
             ai_model, prompt, has_images=False, work_mode="agent", chat_only=True
         )
-        chat_system = _build_chat_system(chat_instructions)
+        chat_system = build_chat_system(chat_instructions)
+        user_prompt = f"{prompt.strip()}{chat_user_format_reminder()}"
         result = llm.complete_text(
             system=chat_system,
             history=history,
-            user_prompt=prompt.strip(),
+            user_prompt=user_prompt,
             model_id=model_id,
         )
         result, fallback = quota.maybe_retry_auto_model(
@@ -92,7 +64,7 @@ def run(
             lambda: llm.complete_text(
                 system=chat_system,
                 history=history,
-                user_prompt=prompt.strip(),
+                user_prompt=user_prompt,
                 model_id=quota.resolve_auto_model_id(prompt, work_mode="agent", chat_only=True),
             ),
         )
@@ -108,7 +80,7 @@ def run(
             workspace_id,
             system=chat_system,
             history=history,
-            user_prompt=prompt.strip(),
+            user_prompt=user_prompt,
         )
         provider = llm.provider_for_model(model_id) or llm.active_provider() or "llm"
         if result.data and result.data.get("message"):

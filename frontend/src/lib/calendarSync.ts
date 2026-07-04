@@ -28,6 +28,7 @@ export interface GoogleCalendarStatus {
   connected: boolean;
   configured: boolean;
   accountEmail?: string | null;
+  authExpired?: boolean;
 }
 
 const BASE = "/api/connectors/calendar";
@@ -88,26 +89,42 @@ function rangeIso(fromDateKey: string, toDateKey: string): { timeMin: string; ti
   };
 }
 
-async function fetchGoogleCalendarEventsInRange(
+export async function fetchGoogleCalendarEventsInRange(
   timeMin: string,
   timeMax: string,
-): Promise<GoogleCalendarEvent[]> {
+): Promise<{ events: GoogleCalendarEvent[]; authExpired: boolean }> {
   const params = new URLSearchParams({ timeMin, timeMax });
   const r = await fetch(`${BASE}/events?${params.toString()}`, {
     headers: await authHeaders(),
   });
   if (!r.ok) {
+    if (r.status === 401 || r.status === 403) {
+      return { events: [], authExpired: true };
+    }
     const text = await r.text();
     throw new Error(text || `HTTP ${r.status}`);
   }
   const data = (await r.json()) as { events?: GoogleCalendarEvent[]; reason?: string };
-  if (data.reason === "not_connected" || data.reason === "not_configured") return [];
-  return data.events ?? [];
+  if (
+    data.reason === "not_connected" ||
+    data.reason === "not_configured" ||
+    data.reason === "auth_expired"
+  ) {
+    return { events: [], authExpired: data.reason === "auth_expired" };
+  }
+  return { events: data.events ?? [], authExpired: false };
+}
+
+export async function fetchGoogleCalendarEventsForDate(
+  dateKey: string,
+): Promise<{ events: GoogleCalendarEvent[]; authExpired: boolean }> {
+  const { timeMin, timeMax } = dayRangeIso(dateKey);
+  return fetchGoogleCalendarEventsInRange(timeMin, timeMax);
 }
 
 export async function fetchGoogleCalendarEvents(dateKey: string): Promise<GoogleCalendarEvent[]> {
-  const { timeMin, timeMax } = dayRangeIso(dateKey);
-  return fetchGoogleCalendarEventsInRange(timeMin, timeMax);
+  const result = await fetchGoogleCalendarEventsForDate(dateKey);
+  return result.events;
 }
 
 export async function fetchGoogleCalendarEventsForRange(
@@ -115,7 +132,8 @@ export async function fetchGoogleCalendarEventsForRange(
   toDateKey: string,
 ): Promise<GoogleCalendarEvent[]> {
   const { timeMin, timeMax } = rangeIso(fromDateKey, toDateKey);
-  return fetchGoogleCalendarEventsInRange(timeMin, timeMax);
+  const result = await fetchGoogleCalendarEventsInRange(timeMin, timeMax);
+  return result.events;
 }
 
 export async function syncEventsToGoogleCalendar(

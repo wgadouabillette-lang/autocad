@@ -3,7 +3,12 @@ import clsx from "clsx";
 import { X } from "lucide-react";
 import { avatarColor, userInitials } from "../../lib/calls";
 import { formatDayLabel, toDateKey } from "../../lib/daySchedule";
-import { createUserCalendarEvents, fetchUserCalendarEvents } from "../../lib/calendarEventsApi";
+import {
+  createUserCalendarEvents,
+  fetchUserCalendarEvents,
+  syncUserEventsToGoogle,
+} from "../../lib/calendarEventsApi";
+import { fetchGoogleCalendarStatus } from "../../lib/calendarSync";
 import { notifyCalendarEventsChanged } from "../../hooks/usePersistedCalendarEvents";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
@@ -114,27 +119,56 @@ export default function CalendarEventComposer() {
       ],
       "user",
     )
-      .then(async () => {
-        useCalendarStore.getState().setUserEvents(await fetchUserCalendarEvents());
+      .then(async (saved) => {
+        let events = saved;
+        let googleSynced = saved.some((event) => Boolean(event.googleEventId));
+        const googleStatus = await fetchGoogleCalendarStatus();
+
+        if (googleStatus.connected && !googleSynced) {
+          try {
+            const retro = await syncUserEventsToGoogle();
+            events = retro.events;
+            googleSynced = retro.synced > 0;
+          } catch {
+            /* retry sync unavailable */
+          }
+        }
+
+        useCalendarStore.getState().setUserEvents(
+          events.length > 0 ? events : await fetchUserCalendarEvents(),
+        );
         notifyCalendarEventsChanged();
         window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
+
+        if (googleStatus.configured && googleStatus.connected && !googleSynced) {
+          setError(
+            "Événement enregistré dans l'app, mais la synchronisation Google a échoué. Reconnectez Google Calendar.",
+          );
+          return;
+        }
+        if (googleStatus.configured && !googleStatus.connected && !googleSynced) {
+          setError(
+            "Événement enregistré dans l'app. Connectez Google Calendar pour synchroniser.",
+          );
+          return;
+        }
+
+        if (invitedIds.size > 0) {
+          const dayLabel = formatDayLabel(eventDate);
+          const timeLabel = `${startTime} – ${endTime}`;
+          const invitationText = `Invitation : ${trimmedTitle}\n${dayLabel} · ${timeLabel}${
+            detailTrimmed ? `\n${detailTrimmed}` : ""
+          }`;
+          for (const friendId of invitedIds) {
+            sendMessage(`friend-${friendId}`, invitationText);
+          }
+        }
+
+        closeComposer();
       })
       .catch(() => {
         setError("Impossible d'enregistrer l'événement.");
       });
-
-    if (invitedIds.size > 0) {
-      const dayLabel = formatDayLabel(eventDate);
-      const timeLabel = `${startTime} – ${endTime}`;
-      const invitationText = `Invitation : ${trimmedTitle}\n${dayLabel} · ${timeLabel}${
-        detailTrimmed ? `\n${detailTrimmed}` : ""
-      }`;
-      for (const friendId of invitedIds) {
-        sendMessage(`friend-${friendId}`, invitationText);
-      }
-    }
-
-    closeComposer();
   };
 
   return (

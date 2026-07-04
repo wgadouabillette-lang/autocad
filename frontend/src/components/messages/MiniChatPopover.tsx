@@ -1,13 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Send, X } from "lucide-react";
 import type { PeopleMessage } from "../../lib/peopleChat";
 import { resolvePersonPhotoURL } from "../../lib/peopleChat";
+import { resolveChatTypingScopeFromThread } from "../../lib/chatTypingScope";
+import { clearChatTypingNow, useChatTyping } from "../../hooks/useChatTyping";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
 import UserAvatar from "../UserAvatar";
 import PeopleChatThreadMessages from "../chat/PeopleChatThreadMessages";
+import ChatTypingIndicator from "../chat/ChatTypingIndicator";
 
 const EMPTY_MESSAGES: PeopleMessage[] = [];
 
@@ -32,7 +36,13 @@ export default function MiniChatPopover() {
   const membersByWorkspace = useWorkspacePresenceStore((s) => s.membersByWorkspace);
   const personPhotoByUserId = usePeopleStore((s) => s.personPhotoByUserId);
   const activeRoomId = useStore((s) => s.activeRoomId);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const [draft, setDraft] = useState("");
+  const chatTypingScope = useMemo(
+    () => resolveChatTypingScopeFromThread(threadId, firebaseUid),
+    [threadId, firebaseUid],
+  );
+  const typingUsers = useChatTyping(chatTypingScope, draft, open && !!threadId);
 
   if (!open || !threadId || !thread) return null;
 
@@ -81,12 +91,15 @@ export default function MiniChatPopover() {
           />
         )}
 
+        <ChatTypingIndicator typers={typingUsers} />
+
         <form
           className="mini-chat__compose"
           onSubmit={(e) => {
             e.preventDefault();
             if (!draft.trim()) return;
             sendMessage(thread.id, draft);
+            clearChatTypingNow(chatTypingScope, firebaseUid);
             setDraft("");
           }}
         >

@@ -86,3 +86,28 @@ export async function refreshPersistedCalendarEvents(): Promise<CalendarEvent[]>
   const events = await fetchUserCalendarEvents();
   return events;
 }
+
+export async function syncUserEventsToGoogle(): Promise<{
+  synced: number;
+  reason?: string | null;
+  events: CalendarEvent[];
+}> {
+  const r = await fetch(`${BASE}/sync-google`, {
+    method: "POST",
+    headers: await authHeaders(),
+  });
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(text || `HTTP ${r.status}`);
+  }
+  const data = (await r.json()) as {
+    synced?: number;
+    reason?: string | null;
+    events?: PersistedCalendarEventPayload[];
+  };
+  return {
+    synced: data.synced ?? 0,
+    reason: data.reason,
+    events: (data.events ?? []).map(toCalendarEvent),
+  };
+}

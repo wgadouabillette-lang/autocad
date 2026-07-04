@@ -1,7 +1,8 @@
 """Sync in-app calendar events with Outlook (Microsoft Graph)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import httpx
@@ -15,6 +16,8 @@ from app.connectors.tokens import connection_account_label, get_valid_access_tok
 from app.connectors.user_store import is_connected_from_items, load_all_connections
 from app.core.auth_deps import require_firebase_user
 from app.core.firebase import FirebaseUser
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/connectors", tags=["connectors"])
 
@@ -88,11 +91,25 @@ def _parse_outlook_event(item: dict[str, Any]) -> OutlookCalendarEventOut | None
 
 async def _create_outlook_event(token: str, item: CalendarEventInput) -> str | None:
     start, end, tz_name = _event_datetimes(item)
+    if tz_name:
+        start_body: dict[str, str] = {"dateTime": start, "timeZone": tz_name}
+        end_body: dict[str, str] = {"dateTime": end, "timeZone": tz_name}
+    else:
+        start_dt = datetime.fromisoformat(start)
+        end_dt = datetime.fromisoformat(end)
+        start_body = {
+            "dateTime": start_dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+            "timeZone": "UTC",
+        }
+        end_body = {
+            "dateTime": end_dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+            "timeZone": "UTC",
+        }
     body: dict[str, Any] = {
         "subject": item.title,
         "body": {"contentType": "text", "content": item.detail or ""},
-        "start": {"dateTime": start, "timeZone": tz_name},
-        "end": {"dateTime": end, "timeZone": tz_name},
+        "start": start_body,
+        "end": end_body,
     }
     async with httpx.AsyncClient(timeout=20.0) as client:
         r = await client.post(
@@ -101,6 +118,12 @@ async def _create_outlook_event(token: str, item: CalendarEventInput) -> str | N
             json=body,
         )
     if r.status_code not in {200, 201}:
+        logger.warning(
+            "Outlook Calendar create failed (%s) for %r: %s",
+            r.status_code,
+            item.title,
+            (r.text or "")[:500],
+        )
         return None
     data = r.json()
     event_id = str(data.get("id") or "").strip()

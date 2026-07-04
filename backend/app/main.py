@@ -126,18 +126,15 @@ _mount_frontend()
 
 @app.on_event("startup")
 def _warmup_services() -> None:
-    """Évite le cold-start (Firebase + Stripe) au premier clic checkout."""
+    """Évite le cold-start Firebase au premier appel authentifié."""
     import logging
 
     logger = logging.getLogger(__name__)
     try:
         from app.core.firebase import _ensure_app, _ensure_db
-        from app.billing.stripe_service import _stripe
 
         _ensure_app()
         _ensure_db()
-        if settings.stripe_secret_key.strip():
-            _stripe()
     except Exception as exc:
         logger.warning("Startup warmup skipped: %s", exc)
 

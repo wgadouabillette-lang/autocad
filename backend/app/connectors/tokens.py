@@ -9,9 +9,31 @@ from typing import Any
 import httpx
 
 from app.connectors.registry import CONNECTORS, microsoft_oauth_tenant
-from app.connectors.user_store import get_connection, set_connection
+from app.connectors.user_store import get_connection, remove_connection, set_connection
 
 logger = logging.getLogger(__name__)
+
+
+def _oauth_refresh_fatal(exc: Exception) -> bool:
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return False
+    if exc.response.status_code not in {400, 401, 403}:
+        return False
+    try:
+        payload = exc.response.json()
+        err = str(payload.get("error", "")).lower()
+        if err in {"invalid_grant", "invalid_client", "unauthorized_client"}:
+            return True
+    except Exception:
+        pass
+    return exc.response.status_code in {401, 403}
+
+
+def _access_token_still_valid(entry: dict[str, Any]) -> bool:
+    expires_at = entry.get("expires_at")
+    if not isinstance(expires_at, (int, float)):
+        return False
+    return time.time() < float(expires_at) - 60
 
 
 async def get_valid_access_token(uid: str, connector_id: str) -> str | None:
@@ -47,18 +69,25 @@ async def _get_valid_google_token(uid: str, connector_id: str) -> str | None:
         return None
 
     expires_at = entry.get("expires_at")
-    if isinstance(expires_at, (int, float)) and time.time() < float(expires_at) - 60:
+    if _access_token_still_valid(entry):
         return str(access_token)
 
     refresh_token = entry.get("refresh_token")
     if not refresh_token:
-        return str(access_token)
+        return None
 
     try:
         refreshed = await _refresh_google(refresh_token)
     except Exception as exc:
-        logger.warning("Google token refresh failed for %s/%s: %s", uid, connector_id, exc)
-        return str(access_token)
+        logger.warning(
+            "Google token refresh failed for %s/%s: %s",
+            uid,
+            connector_id,
+            _refresh_error_detail(exc),
+        )
+        if _oauth_refresh_fatal(exc):
+            remove_connection(uid, connector_id)
+        return None
 
     merged = _merge_token_entry(entry, refreshed, "google")
     set_connection(uid, connector_id, "google", merged)
@@ -76,18 +105,25 @@ async def _get_valid_microsoft_token(uid: str, connector_id: str) -> str | None:
         return None
 
     expires_at = entry.get("expires_at")
-    if isinstance(expires_at, (int, float)) and time.time() < float(expires_at) - 60:
+    if _access_token_still_valid(entry):
         return str(access_token)
 
     refresh_token = entry.get("refresh_token")
     if not refresh_token:
-        return str(access_token)
+        return None
 
     try:
         refreshed = await _refresh_microsoft(refresh_token)
     except Exception as exc:
-        logger.warning("Microsoft token refresh failed for %s/%s: %s", uid, connector_id, exc)
-        return str(access_token)
+        logger.warning(
+            "Microsoft token refresh failed for %s/%s: %s",
+            uid,
+            connector_id,
+            _refresh_error_detail(exc),
+        )
+        if _oauth_refresh_fatal(exc):
+            remove_connection(uid, connector_id)
+        return None
 
     merged = _merge_token_entry(entry, refreshed, "microsoft")
     set_connection(uid, connector_id, "microsoft", merged)
@@ -105,18 +141,25 @@ async def _get_valid_spotify_token(uid: str, connector_id: str) -> str | None:
         return None
 
     expires_at = entry.get("expires_at")
-    if isinstance(expires_at, (int, float)) and time.time() < float(expires_at) - 60:
+    if _access_token_still_valid(entry):
         return str(access_token)
 
     refresh_token = entry.get("refresh_token")
     if not refresh_token:
-        return str(access_token)
+        return None
 
     try:
         refreshed = await _refresh_spotify(refresh_token)
     except Exception as exc:
-        logger.warning("Spotify token refresh failed for %s/%s: %s", uid, connector_id, exc)
-        return str(access_token)
+        logger.warning(
+            "Spotify token refresh failed for %s/%s: %s",
+            uid,
+            connector_id,
+            _refresh_error_detail(exc),
+        )
+        if _oauth_refresh_fatal(exc):
+            remove_connection(uid, connector_id)
+        return None
 
     merged = _merge_token_entry(entry, refreshed, "spotify")
     set_connection(uid, connector_id, "spotify", merged)
@@ -137,6 +180,15 @@ def _merge_token_entry(entry: dict[str, Any], refreshed: dict[str, Any], provide
     if refreshed.get("refresh_token"):
         merged["refresh_token"] = refreshed["refresh_token"]
     return merged
+
+
+def _refresh_error_detail(exc: Exception) -> str:
+    if isinstance(exc, httpx.HTTPStatusError):
+        try:
+            return exc.response.text[:500]
+        except Exception:
+            return str(exc)
+    return str(exc)
 
 
 async def _refresh_google(refresh_token: str) -> dict[str, Any]:

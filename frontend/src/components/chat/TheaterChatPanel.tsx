@@ -7,6 +7,7 @@ import {
   type TheaterChatMessage,
 } from "../../store/useTheaterChatStore";
 import { useStore } from "../../store/useStore";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useVoicePollStore } from "../../store/useVoicePollStore";
 import { useActiveVoicePoll } from "../../hooks/useActiveVoicePoll";
 import ChatPollComposer from "./ChatPollComposer";
@@ -17,6 +18,9 @@ import {
   isTheaterHandRaiseNotice,
   theaterHandRaiseNoticeText,
 } from "../../lib/theaterChatMessages";
+import { resolveTheaterChatTypingScope } from "../../lib/chatTypingScope";
+import { clearChatTypingNow, useChatTyping } from "../../hooks/useChatTyping";
+import ChatTypingIndicator from "./ChatTypingIndicator";
 
 const EMPTY_MESSAGES: TheaterChatMessage[] = [];
 
@@ -144,6 +148,7 @@ function TheaterChatBubble({
 
 export default function TheaterChatPanel() {
   const activeRoomId = useStore((s) => s.activeRoomId);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const messages = useTheaterChatStore((s) => s.messagesByWorkspace[activeRoomId] ?? EMPTY_MESSAGES);
   const sendMessage = useTheaterChatStore((s) => s.sendMessage);
   const pollComposerOpen = useVoicePollStore(
@@ -155,7 +160,12 @@ export default function TheaterChatPanel() {
   const activePoll = useActiveVoicePoll(activeRoomId);
   const pollVoteOpen = pollVoteOpenRaw && !!activePoll;
   const groups = useMemo(() => buildTheaterChatGroups(messages), [messages]);
+  const theaterTypingScope = useMemo(
+    () => resolveTheaterChatTypingScope(activeRoomId),
+    [activeRoomId],
+  );
   const [draft, setDraft] = useState("");
+  const typingUsers = useChatTyping(theaterTypingScope, draft);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -224,18 +234,31 @@ export default function TheaterChatPanel() {
 
     attachments.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
     sendMessage(activeRoomId, trimmed, messageAttachments);
+    clearChatTypingNow(theaterTypingScope, firebaseUid);
     setDraft("");
     setAttachments([]);
   };
 
   const canSubmit = draft.trim().length > 0 || attachments.length > 0;
+  const isEmpty = messages.length === 0;
 
   return (
     <div className="chat-panel-layout relative overflow-hidden">
       <div
         ref={messagesScrollRef}
-        className="chat-messages-scroll relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-0"
+        className={clsx(
+          "chat-messages-scroll relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-0",
+          isEmpty && "theater-chat-messages--empty",
+        )}
       >
+        {isEmpty ? (
+          <div className="theater-chat-empty">
+            <p className="theater-chat-empty__title">Bienvenue dans le chat live</p>
+            <p className="theater-chat-empty__subtitle">
+              Tout le monde a accès à ce chat en direct
+            </p>
+          </div>
+        ) : (
         <ul className="theater-chat-thread">
           <li className="theater-chat-thread__spacer" aria-hidden />
           {groups.map((group) =>
@@ -291,10 +314,14 @@ export default function TheaterChatPanel() {
           )}
           <li ref={messagesEndRef} className="theater-chat-thread__tail" aria-hidden />
         </ul>
+        )}
       </div>
 
       <div className="chat-panel-footer pointer-events-none shrink-0 px-3 pb-3 pt-0">
         <div className="pointer-events-auto relative">
+          {!pollComposerOpen && !pollVoteOpen ? (
+            <ChatTypingIndicator typers={typingUsers} />
+          ) : null}
           {pollComposerOpen ? (
             <div
               className="chat-composer chat-composer-morph relative z-10 rounded-xl"

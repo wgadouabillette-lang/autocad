@@ -10,11 +10,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from starlette.concurrency import run_in_threadpool
 
-from app.api.calendar_sync import CalendarEventInput, _create_google_event
+from app.api.calendar_sync import CalendarEventInput, _create_google_event, _invalidate_google_auth
 from app.api.outlook_calendar_sync import _create_outlook_event
 from app.calendar.event_store import (
     delete_event,
     list_events,
+    patch_event,
     purge_expired,
     save_events,
 )
@@ -109,6 +110,48 @@ def _serialize(event: dict) -> dict:
     ).model_dump(by_alias=True)
 
 
+async def _sync_unsynced_to_google(uid: str) -> dict[str, object]:
+    connections = await run_in_threadpool(load_all_connections, uid)
+    if not is_connected_from_items(connections, "calendar"):
+        return {"synced": 0, "reason": "not_connected"}
+
+    token = await get_valid_access_token(uid, "calendar")
+    if not token:
+        return {"synced": 0, "reason": "not_connected"}
+
+    events = await run_in_threadpool(list_events, uid)
+    unsynced = [event for event in events if not event.get("googleEventId")]
+    synced = 0
+    for event in unsynced:
+        item = CalendarEventInput(
+            title=str(event["title"]),
+            detail=event.get("detail"),
+            dateKey=str(event["dateKey"]),
+            startMinutes=int(event["startMinutes"]),
+            endMinutes=int(event["endMinutes"]),
+        )
+        google_id, google_status = await _create_google_event(token, item)
+        if google_id:
+            await run_in_threadpool(
+                patch_event,
+                uid,
+                str(event["id"]),
+                {"googleEventId": google_id},
+            )
+            synced += 1
+            continue
+        if google_status in {401, 403}:
+            await _invalidate_google_auth(uid, google_status)
+            return {"synced": synced, "reason": "auth_expired"}
+        logger.warning(
+            "Google Calendar retro-sync failed for user %s event %r",
+            uid,
+            event.get("title"),
+        )
+
+    return {"synced": synced, "reason": None if synced else "nothing_to_sync"}
+
+
 @router.get("/user-events")
 async def get_user_calendar_events(user: FirebaseUser = Depends(require_firebase_user)):
     expired = await run_in_threadpool(purge_expired, user.uid)
@@ -126,7 +169,6 @@ async def create_user_calendar_events(
     if not body.events:
         return {"events": []}
 
-    connections = await run_in_threadpool(load_all_connections, user.uid)
     prepared: list[dict] = []
     for item in body.events:
         event: dict = {
@@ -138,13 +180,28 @@ async def create_user_calendar_events(
             "source": body.source,
         }
 
+        connections = await run_in_threadpool(load_all_connections, user.uid)
         if is_connected_from_items(connections, "calendar"):
             token = await get_valid_access_token(user.uid, "calendar")
             if token:
-                google_id = await _create_google_event(token, item)
+                google_id, google_status = await _create_google_event(token, item)
                 if google_id:
                     event["googleEventId"] = google_id
+                else:
+                    logger.warning(
+                        "Google Calendar sync failed for user %s event %r",
+                        user.uid,
+                        item.title,
+                    )
+                    if google_status in {401, 403}:
+                        await _invalidate_google_auth(user.uid, google_status)
+            else:
+                logger.warning(
+                    "Google Calendar connected but no token for user %s",
+                    user.uid,
+                )
 
+        connections = await run_in_threadpool(load_all_connections, user.uid)
         if is_connected_from_items(connections, "outlook"):
             token = await get_valid_access_token(user.uid, "outlook")
             if token:
@@ -156,6 +213,16 @@ async def create_user_calendar_events(
 
     saved = await run_in_threadpool(save_events, user.uid, prepared)
     return {"events": [_serialize(event) for event in saved]}
+
+
+@router.post("/user-events/sync-google")
+async def sync_user_events_to_google(user: FirebaseUser = Depends(require_firebase_user)):
+    result = await _sync_unsynced_to_google(user.uid)
+    events = await run_in_threadpool(list_events, user.uid)
+    return {
+        **result,
+        "events": [_serialize(event) for event in events],
+    }
 
 
 @router.delete("/user-events/{event_id}")

@@ -1048,6 +1048,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         [workspaceId]: "theater",
       },
     }));
+    useStore.getState().openTheaterChatPanel();
     if (!get().isLocalInTheaterCall(workspaceId)) {
       get().joinTheater(workspaceId);
     }
@@ -1842,7 +1843,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         isAppScreenRecording,
         abortAppScreenRecording,
       } = await import("../lib/appScreenRecording");
-      const { saveRecordingBlob } = await import("../lib/recordingsStorage");
+      const { persistRecordingBlob } = await import("../lib/recordingsStorage");
       const { stopRecordingCamera } = await import("../lib/recordingMedia");
 
       if (!isAppScreenRecording()) {
@@ -1862,7 +1863,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         }
 
         const recordingId = `rec-${Date.now()}`;
-        await saveRecordingBlob(recordingId, blob);
+        await persistRecordingBlob(recordingId, blob);
         const { useStore } = await import("./useStore");
         const { useNotificationsStore } = await import("./useNotificationsStore");
         useStore.getState().saveRecordingSession({ recordingId, durationMs });
@@ -1914,7 +1915,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const { stopAppScreenRecording, isRecordingTooShort, abortAppScreenRecording } = await import(
       "../lib/appScreenRecording"
     );
-    const { saveRecordingBlob } = await import("../lib/recordingsStorage");
+    const { persistRecordingBlob } = await import("../lib/recordingsStorage");
     const { stopRecordingCamera } = await import("../lib/recordingMedia");
 
     try {
@@ -1928,7 +1929,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       }
 
       const recordingId = `rec-${Date.now()}`;
-      await saveRecordingBlob(recordingId, blob);
+      await persistRecordingBlob(recordingId, blob);
       const { useStore } = await import("./useStore");
       const { useNotificationsStore } = await import("./useNotificationsStore");
       useStore.getState().saveRecordingSession({ recordingId, durationMs });

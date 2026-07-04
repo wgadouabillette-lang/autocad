@@ -7,15 +7,17 @@ import {
   type CSSProperties,
 } from "react";
 import clsx from "clsx";
-import { ArrowUp, ChevronDown, Plus, User, X, FileImage } from "lucide-react";
+import { ArrowUp, Plus, User, X, FileImage } from "lucide-react";
 import { presenceActivityFromModel } from "../lib/aiModelStroke";
 import { useAiComposerStore } from "../store/useAiComposerStore";
 import { usePresenceActivityStore } from "../store/usePresenceActivityStore";
 import { useStore, updateActiveTabInTabs, type ChatMessage } from "../store/useStore";
 import { useCallsStore } from "../store/useCallsStore";
 import { usePeopleStore } from "../store/usePeopleStore";
-import { AI_MODELS, MODEL_SELECTOR_CHEVRON_GAP_CLASS, composerModelDisplay, modelOptionDisplay, type AiModel } from "../lib/aiModels";
-import AiModelSelectorLabel from "./chat/AiModelSelectorLabel";
+import { isOpenAiChatModel } from "../lib/aiModels";
+import AiModelSelector from "./chat/AiModelSelector";
+import MentionFloatingMenu from "./chat/MentionFloatingMenu";
+import MentionMenuOption from "./chat/MentionMenuOption";
 import type { PromptActionDef } from "../lib/promptActions";
 import {
   filterMentionMenu,
@@ -27,6 +29,7 @@ import {
 import { selectedFacesStillInText, stripFaceReferenceFromText } from "../lib/faceReference";
 import ChatAppIntegrations from "./chat/ChatAppIntegrations";
 import ChatConnectorsList from "./chat/ChatConnectorsList";
+import ChatOpenAiApiKeyPrompt from "./chat/ChatOpenAiApiKeyPrompt";
 import ChatSkillsList from "./chat/ChatSkillsList";
 import ChatShortcutsHint from "./chat/ChatShortcutsHint";
 import HighlightedPromptInput from "./chat/HighlightedPromptInput";
@@ -89,6 +92,7 @@ import {
   workspaceMembersForRoom,
 } from "../lib/peopleChat";
 import { useAuthStore } from "../store/useAuthStore";
+import { fetchApiKeyStatus } from "../lib/firebase/apiKeys";
 import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
 import { debugLog } from "../lib/debugLog";
 import SkillTimeline, {
@@ -339,7 +343,6 @@ export default function ChatPanel() {
   const {
     submitAssistantPrompt,
     aiModel,
-    setAiModel,
     aiRun,
     busy,
     stopAiRequest,
@@ -396,11 +399,8 @@ export default function ChatPanel() {
     () => peopleHandlesForHighlight(mentionablePeople),
     [mentionablePeople],
   );
-  const modelDisplay = composerModelDisplay(aiModel);
-
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<PromptAttachment[]>([]);
-  const [modelOpen, setModelOpen] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionFilter, setMentionFilter] = useState("");
   const [mentionIndex, setMentionIndex] = useState(0);
@@ -450,8 +450,8 @@ export default function ChatPanel() {
   const setHandoffTarget = useHandoffStore((s) => s.setTarget);
   const submitSegmentHandoff = useHandoffStore((s) => s.submitSegmentHandoff);
   const closeHandoffPreview = useHandoffStore((s) => s.closePreview);
-  const modelRef = useRef<HTMLDivElement>(null);
   const mentionRef = useRef<HTMLDivElement>(null);
+  const mentionMenuRef = useRef<HTMLDivElement>(null);
   const skillsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recapFileInputRef = useRef<HTMLInputElement>(null);
@@ -463,6 +463,7 @@ export default function ChatPanel() {
   const [scrollPadBottom] = useState(12);
   const [revealIdx, setRevealIdx] = useState<number | null>(null);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
+  const [openaiKeyConfigured, setOpenaiKeyConfigured] = useState<boolean | null>(null);
   const chatPanelMode = useStore((s) => s.chatPanelMode);
   const pollComposerOpen = useVoicePollStore(
     (s) => s.composerOpenByWorkspace[activeRoomId] ?? false,
@@ -514,7 +515,6 @@ export default function ChatPanel() {
     setSlashOpen(false);
     setConnectorsOpen(false);
     setMentionOpen(false);
-    setModelOpen(false);
     setActiveSkillRun(null);
   }, [activeChatTabId, setRecapDraft]);
 
@@ -674,13 +674,13 @@ export default function ChatPanel() {
   const slashOptions = filterSlashSkillMenu(slashFilter);
 
   useEffect(() => {
-    if (!modelOpen && !mentionOpen && !slashOpen) return;
+    if (!mentionOpen && !slashOpen) return;
     const onClick = (e: MouseEvent) => {
-      if (modelOpen && modelRef.current && !modelRef.current.contains(e.target as Node)) {
-        setModelOpen(false);
-      }
-      if (mentionOpen && mentionRef.current && !mentionRef.current.contains(e.target as Node)) {
-        setMentionOpen(false);
+      const target = e.target as Node;
+      if (mentionOpen) {
+        const inAnchor = mentionRef.current?.contains(target);
+        const inMenu = mentionMenuRef.current?.contains(target);
+        if (!inAnchor && !inMenu) setMentionOpen(false);
       }
       if (slashOpen) {
         const inSkills = skillsRef.current?.contains(e.target as Node);
@@ -690,7 +690,7 @@ export default function ChatPanel() {
     };
     window.document.addEventListener("mousedown", onClick);
     return () => window.document.removeEventListener("mousedown", onClick);
-  }, [modelOpen, mentionOpen, slashOpen]);
+  }, [mentionOpen, slashOpen]);
 
   useEffect(() => {
     setMentionIndex(0);
@@ -708,6 +708,30 @@ export default function ChatPanel() {
     window.document.addEventListener("keydown", onKey);
     return () => window.document.removeEventListener("keydown", onKey);
   }, [connectorsOpen]);
+
+  useEffect(() => {
+    if (!firebaseUid || isMarketingPreview()) {
+      setOpenaiKeyConfigured(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchApiKeyStatus()
+      .then((status) => {
+        if (!cancelled) setOpenaiKeyConfigured(status.openai.configured);
+      })
+      .catch(() => {
+        if (!cancelled) setOpenaiKeyConfigured(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [firebaseUid, aiModel]);
+
+  const showOpenAiKeyPrompt =
+    isOpenAiChatModel(aiModel) &&
+    Boolean(firebaseUid) &&
+    !isMarketingPreview() &&
+    openaiKeyConfigured === false;
 
   useEffect(() => {
     if (!isMarketingPreview()) return;
@@ -1284,6 +1308,19 @@ export default function ChatPanel() {
   };
 
   const submit = () => {
+    if (handoffSelectionMode) {
+      if (
+        handoffSubmitting ||
+        handoffSelectedIndices.size === 0 ||
+        !handoffTarget
+      ) {
+        return;
+      }
+      handoffRunPendingRef.current = true;
+      setActiveSkillRun(buildSkillRun("handoff", HANDOFF_TIMELINE_STEPS));
+      void submitSegmentHandoff(chat, activeChatTabId);
+      return;
+    }
     if (activeComposerSkill === "recap") {
       if (!isRecapDraftReady(recapDraft)) return;
       setActiveComposerSkill(null);
@@ -1406,8 +1443,9 @@ export default function ChatPanel() {
     setText(prompt);
   };
 
-  const canSubmit =
-    activeComposerSkill === "recap"
+  const canSubmit = handoffSelectionMode
+    ? handoffSelectedIndices.size > 0 && !!handoffTarget && !handoffSubmitting
+    : activeComposerSkill === "recap"
       ? isRecapDraftReady(recapDraft)
       : activeComposerSkill === "group"
       ? isCreateGroupComposerReady(text, eligibleGroupMembers)
@@ -1422,6 +1460,7 @@ export default function ChatPanel() {
   const playQueryDraft = parsePlaySkillQuery(text);
   const addQueueQueryDraft = parseAddQueueSkillQuery(text);
   const canSubmitResolved =
+    (showOpenAiKeyPrompt) ||
     (isPlaySkillPrompt(text.trim()) && !playQueryDraft) ||
     (isAddQueueSkillPrompt(text.trim()) && !addQueueQueryDraft)
       ? false
@@ -1509,89 +1548,55 @@ export default function ChatPanel() {
           />
 
           <div className={clsx("relative", attachments.length > 0 && "mt-1.5")} ref={mentionRef}>
-            {mentionOpen && mentionOptions.length > 0 && (
-              <div
-                className="absolute bottom-full left-0 z-20 mb-1 w-full min-w-[14rem] rounded-lg border border-ink-700 bg-ink-850 py-1 shadow-xl"
-                role="listbox"
-                aria-label="Mentions"
-              >
+            <MentionFloatingMenu
+              open={mentionOpen && mentionOptions.length > 0}
+              anchorRef={mentionRef}
+              menuRef={mentionMenuRef}
+            >
                 {mentionOptions.map((item, i) => {
                   if (item.kind === "person") {
                     const { target } = item;
                     return (
-                      <button
+                      <MentionMenuOption
                         key={`person-${target.person.id}`}
-                        type="button"
-                        role="option"
-                        aria-selected={i === mentionIndex}
+                        active={i === mentionIndex}
+                        icon={User}
+                        title={target.person.name}
+                        meta={`@${target.mention}${
+                          target.section === "workspace"
+                            ? " · Workspace"
+                            : target.section === "friends"
+                              ? " · Friend"
+                              : " · Colleague"
+                        }`}
                         onMouseEnter={() => setMentionIndex(i)}
                         onClick={() => insertMentionItem(item)}
-                        className={clsx(
-                          "flex w-full gap-2 px-3 py-2 text-left transition-colors",
-                          i === mentionIndex ? "bg-ink-750" : "hover:bg-ink-750/80",
-                        )}
-                      >
-                        <User size={14} className="mt-0.5 shrink-0 text-muted-300" />
-                        <span className="min-w-0">
-                          <span className="block text-xs font-medium text-muted-100">
-                            {target.person.name}
-                          </span>
-                          <span className="mt-0.5 block text-[10px] leading-snug text-muted-500">
-                            @{target.mention}
-                            {target.section === "workspace"
-                              ? " · Workspace"
-                              : target.section === "friends"
-                                ? " · Friend"
-                                : " · Colleague"}
-                          </span>
-                        </span>
-                      </button>
+                      />
                     );
                   }
 
                   const action: PromptActionDef = item.action;
-                  const Icon = action.icon;
                   return (
-                    <button
+                    <MentionMenuOption
                       key={`action-${action.id}`}
-                      type="button"
-                      role="option"
-                      aria-selected={i === mentionIndex}
+                      active={i === mentionIndex}
+                      icon={action.icon}
+                      title={`@${action.mention}`}
+                      meta={action.description}
                       onMouseEnter={() => setMentionIndex(i)}
                       onClick={() => insertMentionItem(item)}
-                      className={clsx(
-                        "flex w-full gap-2 px-3 py-2 text-left transition-colors",
-                        i === mentionIndex ? "bg-ink-750" : "hover:bg-ink-750/80",
-                      )}
-                    >
-                      <Icon size={14} className="mt-0.5 shrink-0 text-muted-300" />
-                      <span className="min-w-0">
-                        <span className="block text-xs font-medium text-muted-100">
-                          @{action.mention}
-                        </span>
-                        <span className="mt-0.5 block text-[10px] leading-snug text-muted-500">
-                          {action.description}
-                        </span>
-                      </span>
-                    </button>
+                    />
                   );
                 })}
-              </div>
-            )}
+            </MentionFloatingMenu>
 
             {handoffSelectionMode ? (
               <HandoffComposerBar
                 selectedCount={handoffSelectedIndices.size}
                 target={handoffTarget}
-                submitting={handoffSubmitting}
                 error={handoffError}
                 onTargetChange={setHandoffTarget}
                 onCancel={exitHandoffSelection}
-                onSubmit={() => {
-                  handoffRunPendingRef.current = true;
-                  setActiveSkillRun(buildSkillRun("handoff", HANDOFF_TIMELINE_STEPS));
-                  void submitSegmentHandoff(chat, activeChatTabId);
-                }}
               />
             ) : activeComposerSkill === "recap" ? (
               <RecapComposerLine
@@ -1798,6 +1803,9 @@ export default function ChatPanel() {
             />
             )}
           </div>
+          {showOpenAiKeyPrompt && (
+            <ChatOpenAiApiKeyPrompt onConfigured={() => setOpenaiKeyConfigured(true)} />
+          )}
           <div className="flex h-[24px] items-center gap-2">
             <ChatAppIntegrations
               open={connectorsOpen}
@@ -1809,53 +1817,7 @@ export default function ChatPanel() {
               }}
             />
 
-            <div className="relative" ref={modelRef}>
-              <button
-                type="button"
-                onClick={() => setModelOpen((v) => !v)}
-                className={clsx(
-                  "inline-flex min-h-[24px] items-center justify-start bg-transparent px-0 py-0 text-[11px] font-medium leading-none hover:text-muted-200",
-                  aiModel === "auto" && "-translate-y-[3px]",
-                  MODEL_SELECTOR_CHEVRON_GAP_CLASS,
-                )}
-              >
-                <AiModelSelectorLabel
-                  {...modelDisplay}
-                  nameClassName={aiModel === "auto" ? "text-muted-100" : "text-muted-300"}
-                />
-                <ChevronDown
-                  size={12}
-                  className={aiModel === "auto" ? "text-muted-500" : "text-muted-400 opacity-70"}
-                />
-              </button>
-              {modelOpen && (
-                <div className="absolute bottom-full left-0 z-10 mb-1 min-w-[11.5rem] rounded-lg border border-ink-700 bg-ink-850 py-1 shadow-xl">
-                  {AI_MODELS.map((m) => {
-                    const option = modelOptionDisplay(m.id);
-                    return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => {
-                        setAiModel(m.id as AiModel);
-                        setModelOpen(false);
-                      }}
-                      className={clsx(
-                        "block w-full px-3 py-1.5 text-left text-xs hover:bg-ink-750",
-                        aiModel === m.id ? "text-muted-100" : "text-muted-400",
-                      )}
-                    >
-                      <AiModelSelectorLabel
-                        {...option}
-                        nameClassName={aiModel === m.id ? "text-muted-100" : "text-muted-300"}
-                        speedClassName="text-muted-500"
-                      />
-                    </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <AiModelSelector />
 
             <div className="ml-auto flex items-center gap-1.5">
               <button
@@ -1876,7 +1838,8 @@ export default function ChatPanel() {
                 type="button"
                 onClick={submit}
                 disabled={!canSubmitResolved}
-                title="Send"
+                title={handoffSelectionMode ? "Send handoff" : "Send"}
+                aria-label={handoffSelectionMode ? "Send handoff" : "Send"}
                 className={clsx(
                   "inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full border border-ink-600 bg-ink-750 text-muted-200 transition-colors hover:bg-ink-700 disabled:opacity-30",
                 )}

@@ -7,10 +7,8 @@
     return key;
   }
 
-  function refreshDownloadLabel(locale) {
-    var downloadLink = document.getElementById("home-download");
-    var downloadLabel = document.getElementById("home-download-label");
-    if (!downloadLink || !downloadLabel) return;
+  function configureDownloadLink(link, labelEl, locale) {
+    if (!link || !labelEl) return;
 
     var ua = navigator.userAgent.toLowerCase();
     var platform = (navigator.platform || "").toLowerCase();
@@ -18,28 +16,41 @@
     var lang = locale === "fr" ? "fr" : "en";
 
     if (isWindows) {
-      downloadLink.href = "/downloads/Hall-windows.exe";
-      downloadLabel.textContent = window.HallLandingI18n
+      link.href = "/downloads/Hall-windows.exe";
+      labelEl.textContent = window.HallLandingI18n
         ? window.HallLandingI18n.t("try.downloadWin", lang)
         : "Download for Windows";
-      downloadLink.setAttribute(
+      link.setAttribute(
         "aria-label",
         window.HallLandingI18n
           ? window.HallLandingI18n.t("try.downloadWinAria", lang)
           : "Download Hall for Windows",
       );
     } else {
-      downloadLink.href = "/downloads/Hall-mac.dmg";
-      downloadLabel.textContent = window.HallLandingI18n
+      link.href = "/downloads/Hall-mac.dmg";
+      labelEl.textContent = window.HallLandingI18n
         ? window.HallLandingI18n.t("try.downloadMac", lang)
         : "Download for macOS";
-      downloadLink.setAttribute(
+      link.setAttribute(
         "aria-label",
         window.HallLandingI18n
           ? window.HallLandingI18n.t("try.downloadMacAria", lang)
           : "Download Hall for macOS",
       );
     }
+  }
+
+  function refreshDownloadLabel(locale) {
+    configureDownloadLink(
+      document.getElementById("hero-download"),
+      document.getElementById("hero-download-label"),
+      locale,
+    );
+    configureDownloadLink(
+      document.getElementById("home-download"),
+      document.getElementById("home-download-label"),
+      locale,
+    );
   }
 
   var grid = document.getElementById("highlights-grid");

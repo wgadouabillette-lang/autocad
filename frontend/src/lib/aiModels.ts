@@ -109,6 +109,10 @@ export function isValidAiModel(value: unknown): value is AiModel {
   return typeof value === "string" && AI_MODEL_IDS.has(value as AiModel);
 }
 
+export function isOpenAiChatModel(model: AiModel): boolean {
+  return model === "gpt-4.1-nano" || model === "gpt-4o-mini";
+}
+
 export interface AiModelDisplay {
   name: string;
   speed: AiModelSpeed;

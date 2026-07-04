@@ -2223,6 +2223,14 @@ export const useStore = create<State>((set, get) => ({
   },
 
   startNewManualNote: () => {
+    const state = get();
+    const activeSession =
+      state.openChatTabs.find((t) => t.id === state.activeChatTabId) ??
+      state.chatSessions.find((s) => s.id === state.activeChatTabId);
+    if (isRecordingSession(activeSession)) {
+      get().startNewChat();
+      return;
+    }
     set((s) => ({
       manualNoteResetTick: s.manualNoteResetTick + 1,
       activeManualNoteId: null,
@@ -2531,6 +2539,7 @@ export const useStore = create<State>((set, get) => ({
     set({
       openChatTabs: [...synced, newTab],
       activeChatTabId: newTab.id,
+      activeManualNoteId: null,
       chat: [],
       chatNavStack: stack,
       chatNavPointer: stack.length - 1,

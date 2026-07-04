@@ -195,6 +195,17 @@ def save_events(uid: str, events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return saved
 
 
+def patch_event(uid: str, event_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
+    items = _load_items(uid)
+    entry = items.get(event_id)
+    if not isinstance(entry, dict):
+        return None
+    event = normalize_event({**entry, **fields, "id": event_id})
+    items[event_id] = event
+    _save_items(uid, items)
+    return event
+
+
 def delete_event(uid: str, event_id: str) -> dict[str, Any] | None:
     items = _load_items(uid)
     entry = items.pop(event_id, None)

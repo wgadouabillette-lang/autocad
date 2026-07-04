@@ -10,6 +10,14 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isValidChatTypingWrite() {
+      return request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorName is string
+        && request.resource.data.authorName.size() >= 1
+        && request.resource.data.authorName.size() <= 120
+        && request.resource.data.updatedAt is number;
+    }
+
     function sharedWorkspace(workspaceId) {
       return get(/databases/$(database)/documents/workspacesShared/$(workspaceId));
     }
@@ -461,6 +469,12 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if isSignedIn() && isFriendChatMember(chatId);
       }
+
+      match /typing/{uid} {
+        allow read: if isFriendChatMember(chatId);
+        allow create, update: if isOwner(uid) && isFriendChatMember(chatId) && isValidChatTypingWrite();
+        allow delete: if isOwner(uid);
+      }
     }
 
     match /groupChats/{groupId} {
@@ -505,6 +519,17 @@ service cloud.firestore {
         allow delete: if isSignedIn()
           && get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants is list
           && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants;
+      }
+
+      match /typing/{uid} {
+        allow read: if isSignedIn()
+          && get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants is list
+          && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants;
+        allow create, update: if isOwner(uid)
+          && get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants is list
+          && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants
+          && isValidChatTypingWrite();
+        allow delete: if isOwner(uid);
       }
     }
 
@@ -592,6 +617,12 @@ service cloud.firestore {
           allow update: if false;
           allow delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
         }
+
+        match /typing/{uid} {
+          allow read: if isSignedIn();
+          allow create, update: if isOwner(uid) && isValidChatTypingWrite();
+          allow delete: if isOwner(uid);
+        }
       }
 
       match /voicePoll/{pollId} {
@@ -616,6 +647,12 @@ service cloud.firestore {
         allow delete: if isSignedIn()
           && resource.data.authorUid == request.auth.uid
           && resource.data.kind == "hand_raise";
+      }
+
+      match /theaterTyping/{uid} {
+        allow read: if isSignedIn();
+        allow create, update: if isOwner(uid) && isValidChatTypingWrite();
+        allow delete: if isOwner(uid);
       }
 
       match /voiceRtc/{sessionId} {

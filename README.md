@@ -8,8 +8,7 @@ visée (Frontend CAD → Moteur 3D → Agent IA → Vision IA → LLM). Ce n'est
 encore un remplaçant de SolidWorks/Fusion — mais c'est un socle réel, testé et
 extensible, pas une maquette.
 
-**Guide utilisateur v1 :** [docs/GUIDE_UTILISATEUR.md](docs/GUIDE_UTILISATEUR.md)  
-**Facturation Stripe (Pro + usage à la demande) :** [docs/STRIPE_BILLING.md](docs/STRIPE_BILLING.md)
+**Guide utilisateur v1 :** [docs/GUIDE_UTILISATEUR.md](docs/GUIDE_UTILISATEUR.md)
 
 ---
 

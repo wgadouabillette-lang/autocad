@@ -48,7 +48,7 @@ const cardEl = document.getElementById("auth-card");
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const functions = getFunctions(app, "us-central1");
+const functions = getFunctions(app, "northamerica-northeast1");
 
 function providerForId(id) {
   if (id === "google") {

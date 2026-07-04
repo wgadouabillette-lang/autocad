@@ -500,14 +500,7 @@ def record_llm_usage(
         logger.warning("Failed to record AI usage for %s: %s", target, exc)
 
     if plan == "pro" and billing_managed and on_demand:
-        snap = get_usage_snapshot(target.key)
-        try:
-            from app.billing.stripe_service import report_on_demand_stripe_usage
-
-            report_on_demand_stripe_usage(target.key, snap.on_demand_used_usd)
-        except Exception as exc:
-            logger.warning("Failed to report on-demand Stripe usage for %s: %s", target.key, exc)
-        return snap
+        return get_usage_snapshot(target.key)
 
     return get_usage_snapshot(target.key)
 

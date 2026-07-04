@@ -31,7 +31,7 @@ export default function RecordingPlaybackView() {
   useEffect(() => {
     if (!recordingId) {
       setUrl(null);
-      setError("Recording not found.");
+      setError("Enregistrement introuvable.");
       return;
     }
 
@@ -42,7 +42,7 @@ export default function RecordingPlaybackView() {
       .then((blob) => {
         if (cancelled) return;
         if (!blob) {
-          setError("Recording file not found.");
+          setError("Fichier vidéo introuvable. Réenregistrez si l'enregistrement date d'avant la synchronisation cloud.");
           setUrl(null);
           return;
         }

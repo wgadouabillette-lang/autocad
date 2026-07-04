@@ -4,12 +4,15 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { runAiChat, assertAuthenticated } from "./ai/chat";
+import { platformKeyStatus } from "./ai/keys";
 import { syncDevSubscriptionPlan as applyDevSubscriptionPlan } from "./billing/syncDevSubscription";
+import { ensureFunctionsSecretsLoaded } from "./loadSecrets";
 import "./loadSecrets";
+import { FUNCTIONS_REGION } from "./region";
 
 initializeApp();
 
-setGlobalOptions({ region: "europe-west1" });
+setGlobalOptions({ region: FUNCTIONS_REGION });
 
 const db = getFirestore();
 
@@ -74,6 +77,7 @@ export const getUserApiKeyStatus = onCall({ cors: true }, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError("unauthenticated", "Authentication required.");
   }
+  await ensureFunctionsSecretsLoaded();
   const uid = request.auth.uid;
   const snap = await db.collection(`users/${uid}/private/apiKeys`).get();
   const status: Record<string, { configured: boolean; keyPreview?: string }> = {
@@ -90,12 +94,20 @@ export const getUserApiKeyStatus = onCall({ cors: true }, async (request) => {
     };
   }
 
+  const platform = platformKeyStatus();
+  for (const provider of ["xai", "openai", "anthropic"] as const) {
+    if (!status[provider].configured && platform[provider]) {
+      status[provider] = { configured: true, keyPreview: "Plateforme" };
+    }
+  }
+
   return { providers: status };
 });
 
 /** Chat IA — clés lues côté serveur uniquement (Firestore + secrets Functions). */
 export const aiChat = onCall({ cors: true, timeoutSeconds: 120 }, async (request) => {
   assertAuthenticated(request.auth?.uid);
+  await ensureFunctionsSecretsLoaded();
   return runAiChat(request.auth.uid, request.data ?? {});
 });
 
@@ -108,14 +120,14 @@ export const syncDevSubscriptionPlan = onCall({ cors: true }, async (request) =>
 /** Statut LLM côté Cloud Functions (sans exposer de clés). */
 export const aiHealth = onCall({ cors: true }, async (request) => {
   assertAuthenticated(request.auth?.uid);
+  await ensureFunctionsSecretsLoaded();
   const snap = await db.collection(`users/${request.auth.uid}/private/apiKeys`).get();
   const userConfigured = snap.docs.some((doc) => {
     const value = doc.data()?.apiKey;
     return typeof value === "string" && value.trim().length > 0;
   });
-  const platformConfigured = Boolean(
-    process.env.XAI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY,
-  );
+  const platform = platformKeyStatus();
+  const platformConfigured = platform.xai || platform.openai || platform.anthropic;
   return {
     llm: userConfigured || platformConfigured,
     user_keys: userConfigured,
@@ -176,4 +188,3 @@ export const claimDesktopAuthSession = onCall({ cors: true }, async (request) =>
   return { status: "ready" as const, customToken };
 });
 
-export { stripeWebhook } from "./billing/stripeWebhook";

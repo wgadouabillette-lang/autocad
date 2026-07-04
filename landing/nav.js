@@ -106,27 +106,19 @@
     if (!placeholder) return;
 
     var appHref = resolveAppHref();
-    var desktopOnly = !isDesktopViewport();
     var ctaIcon =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" width="11" height="11" aria-hidden="true">' +
       '<path d="M7 17 17 7M9 7h8v8" />' +
       "</svg>";
 
-    var ctaHtml = desktopOnly
-      ? '<span class="nav__cta" aria-disabled="true" title="' +
-        t("nav.openAppDesktopOnly") +
-        '"><span>' +
-        t("nav.openApp") +
-        "</span>" +
-        ctaIcon +
-        "</span>"
-      : '<a class="nav__cta" href="' +
-        appHref +
-        '"><span>' +
-        t("nav.openApp") +
-        "</span>" +
-        ctaIcon +
-        "</a>";
+    var ctaHtml =
+      '<a class="nav__cta" href="' +
+      appHref +
+      '"><span>' +
+      t("nav.openApp") +
+      "</span>" +
+      ctaIcon +
+      "</a>";
 
     var tabs = [
       { id: "workspaces", labelKey: "nav.workspaces", href: homeSectionHref("workspaces") },

@@ -17,7 +17,6 @@ export interface BillingStatus {
   onDemandUsageEnabled: boolean;
   onDemandLimitUsd?: number | null;
   billingManaged: boolean;
-  stripeSubscriptionStatus: string | null;
 }
 
 export interface ModelRateItem {
@@ -91,7 +90,6 @@ export interface BillingSummary {
   workspaceName?: string | null;
   nextBillingDate?: string | null;
   cancelAtPeriodEnd: boolean;
-  stripeEnabled: boolean;
   transactions: BillingTransaction[];
 }
 

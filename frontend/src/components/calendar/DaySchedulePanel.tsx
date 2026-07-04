@@ -10,6 +10,7 @@ import {
 import { useGoogleCalendarSync } from "../../hooks/useGoogleCalendarSync";
 import { useOutlookCalendarSync } from "../../hooks/useOutlookCalendarSync";
 import { usePersistedCalendarEvents } from "../../hooks/usePersistedCalendarEvents";
+import { useConnectorsStore } from "../../store/useConnectorsStore";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
 import { useStore } from "../../store/useStore";
@@ -41,7 +42,9 @@ export default function DaySchedulePanel() {
   const userEvents = useCalendarStore((s) => s.userEvents);
   const googleEvents = useCalendarStore((s) => s.googleEvents);
   const outlookEvents = useCalendarStore((s) => s.outlookEvents);
-  useGoogleCalendarSync(selectedDate);
+  const { needsReconnect: googleNeedsReconnect, error: googleSyncError } =
+    useGoogleCalendarSync(selectedDate);
+  const connectGoogleCalendar = useConnectorsStore((s) => s.connect);
   useOutlookCalendarSync(selectedDate);
   usePersistedCalendarEvents();
   const events = useMemo(
@@ -129,6 +132,22 @@ export default function DaySchedulePanel() {
           )}
         </div>
       </div>
+
+      {(googleNeedsReconnect || googleSyncError) && (
+        <div className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">
+          <span>
+            {googleSyncError ??
+              "Google Calendar déconnecté — reconnectez pour synchroniser vos événements."}
+          </span>
+          <button
+            type="button"
+            className="calendar-panel__sync-connect"
+            onClick={() => void connectGoogleCalendar("calendar")}
+          >
+            Reconnecter Google Calendar
+          </button>
+        </div>
+      )}
 
       <div className="calendar-panel__body">
         <div className="calendar-panel__timeline" ref={timelineRef}>
