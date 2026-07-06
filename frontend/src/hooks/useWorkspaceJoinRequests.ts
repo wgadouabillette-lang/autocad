@@ -1,5 +1,9 @@
 import { useEffect, useRef } from "react";
-import { watchJoinRequestForUser, watchPendingJoinRequests } from "../lib/firebase/workspaceRegistry";
+import {
+  watchJoinRequestForUser,
+  watchPendingJoinRequests,
+  watchSharedWorkspace,
+} from "../lib/firebase/workspaceRegistry";
 import { useAuthStore } from "../store/useAuthStore";
 import { useNotificationsStore } from "../store/useNotificationsStore";
 import { useStore } from "../store/useStore";
@@ -12,7 +16,8 @@ export function useWorkspaceJoinRequests() {
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const activeRoomId = useStore((s) => s.activeRoomId);
-  const isOwner = useWorkspacesStore((s) => s.isWorkspaceOwner(activeRoomId));
+  const canManageInvites = useWorkspacesStore((s) => s.canManageWorkspaceInvites(activeRoomId));
+  const applySharedWorkspaceSettings = useWorkspacesStore((s) => s.applySharedWorkspaceSettings);
   const pendingJoinRequests = useWorkspacesStore((s) => s.pendingJoinRequests);
   const removePendingJoinRequest = useWorkspacesStore((s) => s.removePendingJoinRequest);
   const reconcilePendingJoinRequests = useWorkspacesStore((s) => s.reconcilePendingJoinRequests);
@@ -25,7 +30,23 @@ export function useWorkspaceJoinRequests() {
   }, [firebaseUid, isAuthenticated, reconcilePendingJoinRequests]);
 
   useEffect(() => {
-    if (!isAuthenticated || !firebaseUid || !activeRoomId || !isOwner) return;
+    if (!isAuthenticated || !activeRoomId) return;
+    return watchSharedWorkspace(
+      activeRoomId,
+      (shared) => {
+        if (!shared) return;
+        applySharedWorkspaceSettings(activeRoomId, {
+          name: shared.name,
+          iconURL: shared.iconURL,
+          membersCanInvite: shared.membersCanInvite,
+        });
+      },
+      () => {},
+    );
+  }, [activeRoomId, applySharedWorkspaceSettings, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !firebaseUid || !activeRoomId || !canManageInvites) return;
 
     let previousCount = 0;
     return watchPendingJoinRequests(
@@ -46,7 +67,7 @@ export function useWorkspaceJoinRequests() {
         useWorkspacesStore.setState({ incomingJoinRequests: [] });
       },
     );
-  }, [activeRoomId, firebaseUid, isAuthenticated, isOwner, pushNotification]);
+  }, [activeRoomId, firebaseUid, isAuthenticated, canManageInvites, pushNotification]);
 
   useEffect(() => {
     if (!isAuthenticated || !firebaseUid || pendingJoinRequests.length === 0) return;
@@ -74,7 +95,7 @@ export function useWorkspaceJoinRequests() {
           pushNotification({
             kind: "workspace",
             title: "Demande refusée",
-            body: "Le propriétaire a refusé votre demande d'adhésion.",
+            body: "Votre demande d'adhésion a été refusée.",
           });
         }
       }),

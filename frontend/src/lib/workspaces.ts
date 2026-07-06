@@ -20,6 +20,8 @@ export interface Workspace {
   ownerId: string;
   ownerName: string;
   createdAt: number;
+  /** When false, only the owner can share invite links and approve join requests. */
+  membersCanInvite?: boolean;
 }
 
 export interface ServerMembership {
@@ -76,6 +78,12 @@ export function defaultPersonalWorkspaceName(ownerName: string): string {
 
 export function serverRoleLabel(role: ServerRole): string {
   return role === "owner" ? "Propriétaire" : "Membre";
+}
+
+export function workspaceMembersCanInvite(
+  workspace: Pick<Workspace, "membersCanInvite"> | null | undefined,
+): boolean {
+  return workspace?.membersCanInvite !== false;
 }
 
 export function canManageWorkspace(role: ServerRole | null): boolean {

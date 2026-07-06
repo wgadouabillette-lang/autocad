@@ -1,7 +1,6 @@
 import AccountSettingsSection from "./AccountSettingsSection";
 import AccentColorSettingsSection from "./AccentColorSettingsSection";
 import CalendarWorkingHoursSettingsSection from "./CalendarWorkingHoursSettingsSection";
-import ThemeSettingsSection from "./ThemeSettingsSection";
 
 export default function GeneralSettingsSection() {
   return (
@@ -9,7 +8,6 @@ export default function GeneralSettingsSection() {
       <AccountSettingsSection />
       <CalendarWorkingHoursSettingsSection />
       <AccentColorSettingsSection />
-      <ThemeSettingsSection />
     </>
   );
 }

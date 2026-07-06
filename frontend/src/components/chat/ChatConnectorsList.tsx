@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Settings2 } from "lucide-react";
 import { CHAT_CONNECTORS, isConnectorComingSoon, type ChatConnectorId } from "./chatConnectors";
 import type { ConnectorStatus } from "../../lib/connectorsApi";
 
@@ -12,6 +12,7 @@ export default function ChatConnectorsList({
   onConnect,
   onDisconnect,
   onInsertSlash,
+  onOpenConnectorSettings,
 }: {
   statuses?: ConnectorStatus[];
   connectedIds: ReadonlySet<ChatConnectorId>;
@@ -22,6 +23,7 @@ export default function ChatConnectorsList({
   onConnect: (id: ChatConnectorId) => void;
   onDisconnect?: (id: ChatConnectorId) => void;
   onInsertSlash: (slash: string) => void;
+  onOpenConnectorSettings?: (id: ChatConnectorId) => void;
 }) {
   const items = CHAT_CONNECTORS;
   const isSettings = variant === "settings";
@@ -84,6 +86,17 @@ export default function ChatConnectorsList({
               </span>
             ) : isSettings && connected ? (
               <div className="flex shrink-0 items-center gap-2">
+                {id === "spotify" && onOpenConnectorSettings ? (
+                  <button
+                    type="button"
+                    className="chat-connectors-row__connect"
+                    onClick={() => onOpenConnectorSettings(id)}
+                    title="Réglages Hall DJ"
+                    aria-label="Réglages Hall DJ"
+                  >
+                    <Settings2 size={12} strokeWidth={2.25} aria-hidden />
+                  </button>
+                ) : null}
                 <span className="text-[11px] text-muted-400">Connecté</span>
                 <button
                   type="button"

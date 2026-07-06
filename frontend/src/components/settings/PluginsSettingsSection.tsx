@@ -2,8 +2,10 @@ import ChatConnectorsList from "../chat/ChatConnectorsList";
 import ConnectorPluginPreview from "./ConnectorPluginPreview";
 import { CHAT_CONNECTORS } from "../chat/chatConnectors";
 import { useConnectors } from "../../hooks/useConnectors";
+import { useStore } from "../../store/useStore";
 
 export default function PluginsSettingsSection() {
+  const openSettingsTab = useStore((s) => s.openSettingsTab);
   const { connectedIds, statuses, loading, error, connectingId, connect, disconnect } =
     useConnectors();
 
@@ -21,6 +23,9 @@ export default function PluginsSettingsSection() {
         onConnect={connect}
         onDisconnect={disconnect}
         onInsertSlash={() => {}}
+        onOpenConnectorSettings={(id) => {
+          if (id === "spotify") openSettingsTab("audio", "settings-hall-dj");
+        }}
       />
 
       {CHAT_CONNECTORS.map(({ id, label }) =>

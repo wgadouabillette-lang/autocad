@@ -8,6 +8,7 @@ import {
   type MediaDeviceOption,
 } from "../../lib/audioDevices";
 import { useStore } from "../../store/useStore";
+import HallDjSettingsSection from "./HallDjSettingsSection";
 
 export default function AudioSettingsSection() {
   const audioInputDeviceId = useStore((s) => s.audioInputDeviceId);
@@ -169,6 +170,15 @@ export default function AudioSettingsSection() {
       <p className="settings-section__meta">
         Les changements s&apos;appliquent au prochain appel vocal ou à la prochaine activation du micro.
       </p>
+
+      <section className="settings-section settings-section--nested">
+        <h3 className="settings-section__label">Spotify</h3>
+        <p className="settings-section__hint">
+          Hall DJ remplace la file d&apos;attente : le bouton liste dans la barre du bas lance la
+          lecture automatique.
+        </p>
+        <HallDjSettingsSection />
+      </section>
     </section>
   );
 }

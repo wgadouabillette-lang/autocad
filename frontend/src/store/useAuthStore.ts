@@ -32,6 +32,7 @@ import {
   type SidePanelSide,
   type UserPreferences,
 } from "../lib/userPreferences";
+import { normalizeHallDjGenre } from "../lib/hallDjGenres";
 import { applyDocumentAccentColor, normalizeAccentColorPreference } from "../lib/accentColor";
 import type { AiModel } from "../lib/aiModels";
 import { isValidAiModel } from "../lib/aiModels";
@@ -147,13 +148,16 @@ function applyLocalProfile(profile: UserProfileDoc) {
     audioNoiseSuppression: profile.audioNoiseSuppression !== false,
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
-    colorTheme: profile.colorTheme === "light" || profile.colorTheme === "system" ? profile.colorTheme : "dark",
+    colorTheme: "dark",
     accentColor: normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
     agentChatInstructions: profile.agentChatInstructions ?? "",
     agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
     calendarWorkStartMinutes: calendarHours.startMinutes,
     calendarWorkEndMinutes: calendarHours.endMinutes,
+    hallDjPreferredGenre: normalizeHallDjGenre(
+      profile.hallDjPreferredGenre ?? currentState.hallDjPreferredGenre,
+    ),
     aiModel: isAiModel(profile.aiModel) ? profile.aiModel : useStore.getState().aiModel,
   });
   applyDocumentAccentColor(
@@ -173,7 +177,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
     audioNoiseSuppression: profile.audioNoiseSuppression !== false,
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
-    colorTheme: profile.colorTheme === "light" || profile.colorTheme === "system" ? profile.colorTheme : "dark",
+    colorTheme: "dark",
     accentColor: normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
     subscriptionPlan,
     billingManaged,
@@ -183,6 +187,9 @@ function applyLocalProfile(profile: UserProfileDoc) {
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
     calendarWorkStartMinutes: calendarHours.startMinutes,
     calendarWorkEndMinutes: calendarHours.endMinutes,
+    hallDjPreferredGenre: normalizeHallDjGenre(
+      profile.hallDjPreferredGenre ?? currentState.hallDjPreferredGenre,
+    ),
   });
   useCallsStore.getState().syncLocalParticipantProfile({
     photoURL: profile.photoURL ?? null,
@@ -216,6 +223,7 @@ function profileFromStore(user: User): UserProfileDoc {
     agentAiNotesInstructions: state.agentAiNotesInstructions,
     calendarWorkStartMinutes: state.calendarWorkStartMinutes,
     calendarWorkEndMinutes: state.calendarWorkEndMinutes,
+    hallDjPreferredGenre: state.hallDjPreferredGenre,
   };
   return profile;
 }
@@ -805,5 +813,6 @@ export function currentUserPreferencesSnapshot(): UserPreferences {
     agentAiNotesInstructions: state.agentAiNotesInstructions,
     calendarWorkStartMinutes: state.calendarWorkStartMinutes,
     calendarWorkEndMinutes: state.calendarWorkEndMinutes,
+    hallDjPreferredGenre: state.hallDjPreferredGenre,
   };
 }

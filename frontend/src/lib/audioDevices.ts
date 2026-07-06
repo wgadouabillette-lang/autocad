@@ -78,3 +78,18 @@ export function buildAudioInputConstraints(prefs: {
   }
   return constraints;
 }
+
+export async function applyAudioOutputToElement(
+  element: HTMLMediaElement,
+  deviceId: string,
+): Promise<void> {
+  if (!supportsAudioOutputSelection()) return;
+  const sinkId = deviceId.trim() || "default";
+  try {
+    await (
+      element as HTMLMediaElement & { setSinkId: (id: string) => Promise<void> }
+    ).setSinkId(sinkId);
+  } catch {
+    // Browser blocked or device unavailable — keep default routing.
+  }
+}

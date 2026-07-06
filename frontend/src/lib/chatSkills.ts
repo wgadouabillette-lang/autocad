@@ -2,7 +2,7 @@ import { ArrowRightLeft, CalendarDays, FileText, UsersRound, Video, type LucideI
 import { CHAT_APP_LOGOS, type ChatAppLogoComponent } from "../components/chat/chatAppLogos";
 import { CREATE_GROUP_COMPOSER_TEXT } from "./createGroupSkill";
 import { MANAGE_COMPOSER_TEMPLATE, type ManageSchedulePromptDraft, isNaturalLanguageManageRequest } from "./manageSchedulePrompt";
-import { PLAY_SKILL_TEMPLATE, ADD_QUEUE_SKILL_TEMPLATE } from "./playSkill";
+import { PLAY_SKILL_TEMPLATE } from "./playSkill";
 import { MEETING_SKILL_TEMPLATE } from "./meetingSkill";
 import { MAIL_SKILL_TEMPLATE } from "./mailSkill";
 
@@ -23,7 +23,7 @@ export const GROUP_SKILL_TEMPLATE = CREATE_GROUP_SKILL_TEMPLATE;
 export const RECAP_SKILL_TEMPLATE = `/recap`;
 export const HANDOFF_SKILL_TEMPLATE = `/handoff`;
 
-export { MANAGE_COMPOSER_TEMPLATE, CREATE_GROUP_COMPOSER_TEXT, PLAY_SKILL_TEMPLATE, ADD_QUEUE_SKILL_TEMPLATE, MEETING_SKILL_TEMPLATE, MAIL_SKILL_TEMPLATE };
+export { MANAGE_COMPOSER_TEMPLATE, CREATE_GROUP_COMPOSER_TEXT, PLAY_SKILL_TEMPLATE, MEETING_SKILL_TEMPLATE, MAIL_SKILL_TEMPLATE };
 
 export const CHAT_SKILLS: ChatSkillDef[] = [
   {
@@ -74,14 +74,6 @@ export const CHAT_SKILLS: ChatSkillDef[] = [
     description: "Play a song on Spotify",
     logo: CHAT_APP_LOGOS.spotify,
     template: PLAY_SKILL_TEMPLATE,
-  },
-  {
-    id: "add-queue",
-    slash: "add-queue",
-    label: "/add-queue",
-    description: "Search Spotify and add a song to the queue",
-    logo: CHAT_APP_LOGOS.spotify,
-    template: ADD_QUEUE_SKILL_TEMPLATE,
   },
   {
     id: "calendar",

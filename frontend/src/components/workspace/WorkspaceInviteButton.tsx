@@ -9,7 +9,7 @@ import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 export default function WorkspaceInviteButton() {
   const activeRoomId = useStore((s) => s.activeRoomId);
   const findWorkspace = useWorkspacesStore((s) => s.findWorkspace);
-  const isOwner = useWorkspacesStore((s) => s.isWorkspaceOwner(activeRoomId));
+  const canManageInvites = useWorkspacesStore((s) => s.canManageWorkspaceInvites(activeRoomId));
 
   const workspace = findWorkspace(activeRoomId);
   const workspaceId = workspace?.id ?? activeRoomId;
@@ -19,7 +19,7 @@ export default function WorkspaceInviteButton() {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
-    if (!isOwner) return;
+    if (!canManageInvites) return;
     try {
       await navigator.clipboard.writeText(inviteLink);
       setCopied(true);
@@ -27,9 +27,9 @@ export default function WorkspaceInviteButton() {
     } catch {
       setCopied(false);
     }
-  }, [inviteLink, isOwner]);
+  }, [canManageInvites, inviteLink]);
 
-  if (!isOwner) return null;
+  if (!canManageInvites) return null;
 
   return (
     <button

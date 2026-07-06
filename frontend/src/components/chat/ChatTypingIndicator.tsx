@@ -25,24 +25,26 @@ export default function ChatTypingIndicator({ typers }: ChatTypingIndicatorProps
   if (typers.length === 0) return null;
 
   if (typers.length > 1) {
-    const visibleTypers = typers.slice(0, 3);
+    const visibleTypers = typers.filter((typer) => !typer.isLocal).slice(0, 3);
 
     return (
       <div className="chat-typing-indicator" role="status" aria-live="polite">
         <div className="chat-typing-indicator__row">
-          <div className="chat-typing-indicator__avatars" aria-hidden>
-            {visibleTypers.map((typer, index) => (
-              <UserAvatar
-                key={typer.userId}
-                userId={typer.userId}
-                name={typer.name}
-                photoURL={typer.photoURL}
-                isLocal={typer.isLocal}
-                className="chat-typing-indicator__avatar"
-                style={{ zIndex: index + 1 }}
-              />
-            ))}
-          </div>
+          {visibleTypers.length > 0 ? (
+            <div className="chat-typing-indicator__avatars" aria-hidden>
+              {visibleTypers.map((typer, index) => (
+                <UserAvatar
+                  key={typer.userId}
+                  userId={typer.userId}
+                  name={typer.name}
+                  photoURL={typer.photoURL}
+                  isLocal={typer.isLocal}
+                  className="chat-typing-indicator__avatar"
+                  style={{ zIndex: index + 1 }}
+                />
+              ))}
+            </div>
+          ) : null}
           <p className="chat-typing-indicator__text">
             Plusieurs sont en train d&apos;écrire
             <TypingDots />
@@ -53,6 +55,21 @@ export default function ChatTypingIndicator({ typers }: ChatTypingIndicatorProps
   }
 
   const typer = typers[0]!;
+
+  if (typer.isLocal) {
+    return (
+      <div
+        className="chat-typing-indicator chat-typing-indicator--self"
+        role="status"
+        aria-live="polite"
+      >
+        <p className="chat-typing-indicator__text">
+          Vous êtes en train d&apos;écrire
+          <TypingDots />
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="chat-typing-indicator" role="status" aria-live="polite">

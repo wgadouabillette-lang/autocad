@@ -4,6 +4,7 @@ import type { SubscriptionPlan } from "./subscriptionPlans";
 import type { ColorThemePreference } from "./theme";
 import type { AccentColorPreference } from "./accentColor";
 import { normalizeAccentColorPreference } from "./accentColor";
+import { DEFAULT_HALL_DJ_GENRE, normalizeHallDjGenre } from "./hallDjGenres";
 
 const KEY = "forma-user-preferences";
 
@@ -54,6 +55,8 @@ export interface UserPreferences {
   calendarWorkStartMinutes: number;
   /** Minutes from midnight — default working-day end for calendar + /manage. */
   calendarWorkEndMinutes: number;
+  /** Spotify Hall DJ default genre seed (e.g. pop, country). */
+  hallDjPreferredGenre: string;
 }
 
 const DEFAULTS: UserPreferences = {
@@ -79,6 +82,7 @@ const DEFAULTS: UserPreferences = {
   agentAiNotesInstructions: "",
   calendarWorkStartMinutes: DEFAULT_CALENDAR_WORK_START_MINUTES,
   calendarWorkEndMinutes: DEFAULT_CALENDAR_WORK_END_MINUTES,
+  hallDjPreferredGenre: DEFAULT_HALL_DJ_GENRE,
 };
 
 function clampMinutes(value: number, min: number, max: number): number {
@@ -139,10 +143,7 @@ export function readUserPreferences(): UserPreferences {
       data.calendarWorkEndMinutes,
     );
     return {
-      colorTheme:
-        data.colorTheme === "light" || data.colorTheme === "system"
-          ? data.colorTheme
-          : "dark",
+      colorTheme: "dark",
       accentColor: normalizeAccentColorPreference(data.accentColor),
       chatWorkMode,
       autoWorkModeSwitch: Boolean(data.autoWorkModeSwitch),
@@ -178,6 +179,7 @@ export function readUserPreferences(): UserPreferences {
         typeof data.agentAiNotesInstructions === "string" ? data.agentAiNotesInstructions : "",
       calendarWorkStartMinutes: calendarHours.startMinutes,
       calendarWorkEndMinutes: calendarHours.endMinutes,
+      hallDjPreferredGenre: normalizeHallDjGenre(data.hallDjPreferredGenre),
     };
   } catch {
     return { ...DEFAULTS };

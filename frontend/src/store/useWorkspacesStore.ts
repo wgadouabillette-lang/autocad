@@ -8,6 +8,7 @@ import {
   type ServerMembership,
   type ServerRole,
   type Workspace,
+  workspaceMembersCanInvite,
 } from "../lib/workspaces";
 import { generateWorkspaceInviteId } from "../lib/workspaceInvite";
 import { auth } from "../lib/firebase/client";
@@ -61,6 +62,7 @@ interface WorkspacesState extends PersistedState {
   membershipIn: (workspaceId: string, userId?: string) => ServerMembership | undefined;
   roleIn: (workspaceId: string, userId?: string) => ServerRole | null;
   isWorkspaceOwner: (workspaceId: string, userId?: string) => boolean;
+  canManageWorkspaceInvites: (workspaceId: string, userId?: string) => boolean;
   ownedWorkspaceCount: (userId?: string) => number;
   canUserCreateWorkspace: (userId?: string) => boolean;
   createWorkspace: (name: string, ownerName: string, userId?: string) => string;
@@ -68,9 +70,13 @@ interface WorkspacesState extends PersistedState {
   addRemoteWorkspace: (workspace: Workspace, userId?: string) => boolean;
   updateWorkspace: (
     workspaceId: string,
-    patch: Partial<Pick<Workspace, "name" | "accent" | "iconURL">>,
+    patch: Partial<Pick<Workspace, "name" | "accent" | "iconURL" | "membersCanInvite">>,
     userId?: string,
   ) => boolean;
+  applySharedWorkspaceSettings: (
+    workspaceId: string,
+    patch: Partial<Pick<Workspace, "name" | "iconURL" | "membersCanInvite">>,
+  ) => void;
   requestJoinWorkspace: (
     workspaceId: string,
     profile: { uid: string; displayName: string; email: string },
@@ -141,6 +147,7 @@ function normalizeCustomServers(servers: Workspace[]): Workspace[] {
     ownerId: server.ownerId ?? LOCAL_USER_ID,
     ownerName: server.ownerName ?? "Vous",
     createdAt: server.createdAt ?? Date.now(),
+    ...(server.membersCanInvite === false ? { membersCanInvite: false } : {}),
   }));
 }
 
@@ -273,6 +280,13 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     return get().roleIn(workspaceId, userId) === "owner";
   },
 
+  canManageWorkspaceInvites: (workspaceId, userId) => {
+    const memberUid = userId ?? currentMembershipUserId();
+    if (get().isWorkspaceOwner(workspaceId, memberUid)) return true;
+    if (!get().membershipIn(workspaceId, memberUid)) return false;
+    return workspaceMembersCanInvite(get().findWorkspace(workspaceId));
+  },
+
   ownedWorkspaceCount: (userId) => {
     const memberUid = userId ?? currentMembershipUserId();
     return get().memberships.filter(
@@ -369,7 +383,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     if (get().roleIn(normalized, memberUid) !== "owner") return false;
 
     const trimmedName = patch.name?.trim();
-    const nextPatch: Partial<Pick<Workspace, "name" | "accent" | "iconURL">> = {
+    const nextPatch: Partial<Pick<Workspace, "name" | "accent" | "iconURL" | "membersCanInvite">> = {
       ...patch,
       ...(trimmedName ? { name: trimmedName } : {}),
     };
@@ -391,6 +405,20 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     return true;
   },
 
+  applySharedWorkspaceSettings: (workspaceId, patch) => {
+    const normalized = normalizeWorkspaceId(workspaceId);
+    set((state) => {
+      const inCustom = state.customServers.some((server) => server.id === normalized);
+      if (!inCustom) return state;
+
+      const customServers = state.customServers.map((server) =>
+        server.id === normalized ? { ...server, ...patch } : server,
+      );
+      writePersisted({ customServers, memberships: state.memberships });
+      return { customServers };
+    });
+  },
+
   requestJoinWorkspace: async (workspaceId, profile) => {
     const normalized = parseWorkspaceInviteInput(workspaceId);
     if (!normalized) {
@@ -406,9 +434,9 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
 
   respondJoinRequest: async (workspaceId, requesterUid, accept, requester) => {
     const normalized = normalizeWorkspaceId(workspaceId);
-    const ownerUid = currentMembershipUserId();
-    if (!get().isWorkspaceOwner(normalized, ownerUid)) {
-      throw new Error("Seul le propriétaire peut répondre aux demandes.");
+    const actorUid = currentMembershipUserId();
+    if (!get().canManageWorkspaceInvites(normalized, actorUid)) {
+      throw new Error("Vous n'avez pas la permission de gérer les invitations.");
     }
     await respondWorkspaceJoinRequest(normalized, requesterUid, accept);
     if (accept) {

@@ -1700,13 +1700,9 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     }
 
     if (!inVoice) {
-      if (!nextMuted) {
-        await get().joinCall(activeRoomId);
-      } else {
-        set({ muted: nextMuted });
-        playMutedTransition(wasMuted, nextMuted);
-        return;
-      }
+      set({ muted: nextMuted });
+      playMutedTransition(wasMuted, nextMuted);
+      return;
     }
 
     try {

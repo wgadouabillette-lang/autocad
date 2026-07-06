@@ -4,7 +4,6 @@ import {
   MARKETING_PREVIEW_NOTE_ID,
   MARKETING_PREVIEW_USER_ID,
   MARKETING_PREVIEW_WORKSPACE_ID,
-  readMarketingPreviewThemeParam,
 } from "./marketingPreview";
 import type { TheaterState } from "./theater";
 import type { ChatMessage, ChatSession } from "../store/useStore";
@@ -672,7 +671,7 @@ export function seedMarketingPreview(): void {
     chatSessions,
     activeManualNoteId: MARKETING_PREVIEW_NOTE_ID,
     showChatHistory: false,
-    colorTheme: readMarketingPreviewThemeParam(),
+    colorTheme: "dark",
   });
 
   useCallsStore.setState({

@@ -99,11 +99,6 @@ function disconnectAnalyser() {
 function findPlayingAudioElement(): HTMLMediaElement | null {
   const preview = getSpotifyPreviewAudioElement();
   if (preview && !preview.paused && preview.currentTime > 0) return preview;
-  for (const node of document.querySelectorAll("audio")) {
-    const el = node as HTMLMediaElement;
-    if (el === preview) continue;
-    if (!el.paused && el.currentTime > 0) return el;
-  }
   return null;
 }
 
@@ -156,6 +151,7 @@ function measureAudioLevel(): number {
 }
 
 function pollAudioAnalyser() {
+  if (activeMode === "full") return;
   const el = findPlayingAudioElement();
   if (!el) return;
   connectAnalyser(el);

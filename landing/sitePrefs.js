@@ -1,34 +1,24 @@
 (function () {
   var THEME_KEY = "lyte-landing-theme";
   var LANG_KEY = "lyte-landing-lang";
-  var THEME_MODES = ["system", "light", "dark"];
-  var DEFAULT_THEME = "system";
   var DEFAULT_LANG = "en";
 
-  function resolveTheme(mode) {
-    if (mode === "light" || mode === "dark") return mode;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
-
-  function applyTheme(mode) {
+  function applyTheme() {
     var root = document.documentElement;
-    var resolved = resolveTheme(mode);
-    root.dataset.themeMode = mode;
-    root.dataset.theme = resolved;
-    root.style.colorScheme = resolved;
+    root.dataset.themeMode = "dark";
+    root.dataset.theme = "dark";
+    root.style.colorScheme = "dark";
   }
 
   function getThemeMode() {
-    var stored = localStorage.getItem(THEME_KEY);
-    return THEME_MODES.indexOf(stored) >= 0 ? stored : DEFAULT_THEME;
+    return "dark";
   }
 
-  function setThemeMode(mode) {
-    var next = THEME_MODES.indexOf(mode) >= 0 ? mode : DEFAULT_THEME;
-    localStorage.setItem(THEME_KEY, next);
-    applyTheme(next);
+  function setThemeMode() {
+    localStorage.setItem(THEME_KEY, "dark");
+    applyTheme();
     document.dispatchEvent(
-      new CustomEvent("lyte-landing:theme", { detail: { theme: resolveTheme(next), mode: next } }),
+      new CustomEvent("lyte-landing:theme", { detail: { theme: "dark", mode: "dark" } }),
     );
   }
 
@@ -97,12 +87,9 @@
     syncLangTrigger(getLocale());
   }
 
-  applyTheme(getThemeMode());
+  localStorage.setItem(THEME_KEY, "dark");
+  applyTheme();
   document.documentElement.lang = getLocale();
-
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
-    if (getThemeMode() === "system") applyTheme("system");
-  });
 
   window.HallSitePrefs = {
     THEME_KEY: THEME_KEY,

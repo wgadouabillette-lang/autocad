@@ -34,13 +34,7 @@ export function isMarketingTheaterPreviewScene(): boolean {
   return isMarketingPreview() && readMarketingPreviewSceneParam() === "theater";
 }
 
-export function readMarketingPreviewThemeParam(): "light" | "dark" {
-  const raw = new URLSearchParams(window.location.search).get("theme");
-  return raw === "light" ? "light" : "dark";
-}
-
 export function applyMarketingPreviewThemeFromUrl(): void {
-  const theme = readMarketingPreviewThemeParam();
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.style.colorScheme = theme;
+  document.documentElement.dataset.theme = "dark";
+  document.documentElement.style.colorScheme = "dark";
 }

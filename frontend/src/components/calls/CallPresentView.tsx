@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { MonitorUp, User, UserMinus, Video } from "lucide-react";
 import {
   activeCallPartner,
@@ -9,6 +9,7 @@ import {
   userInitials,
   type CallBlock,
 } from "../../lib/calls";
+import { useMediaStreamAspectRatio } from "../../hooks/useMediaStreamAspectRatio";
 import { participantVideoStream } from "../../lib/webrtc/workspaceVoiceRtc";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
@@ -44,6 +45,13 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
   const partnerVideoStream = participantVideoStream(partnerMedia);
   const showPartnerVideo = !!partnerVideoStream;
 
+  const primaryStream = showScreen ? screenShareStream : showCamera ? localStream : null;
+  const primaryAspectRatio = useMediaStreamAspectRatio(primaryStream, !!(showScreen || showCamera));
+  const partnerAspectRatio = useMediaStreamAspectRatio(
+    partnerVideoStream,
+    showPartnerVideo,
+  );
+
   useEffect(() => {
     const video = primaryVideoRef.current;
     if (!video) return;
@@ -74,6 +82,7 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
           showCamera ? "call-present-tile--camera" : "call-present-tile--screen",
           speakingByParticipant.local && "call-present-tile--speaking",
         )}
+        style={{ "--voice-tile-aspect-ratio": primaryAspectRatio } as CSSProperties}
       >
         {showScreen || showCamera ? (
           <video
@@ -105,6 +114,11 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
           "call-present-tile call-present-tile--participant",
           partner && speakingByParticipant[partner.id] && "call-present-tile--speaking",
         )}
+        style={
+          showPartnerVideo
+            ? ({ "--voice-tile-aspect-ratio": partnerAspectRatio } as CSSProperties)
+            : undefined
+        }
       >
         {partner ? (
           <>

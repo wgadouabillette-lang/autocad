@@ -26,6 +26,24 @@ service cloud.firestore {
       return isSignedIn() && sharedWorkspace(workspaceId).data.ownerId == request.auth.uid;
     }
 
+    function isSharedWorkspaceMember(workspaceId) {
+      return isSignedIn() && (
+        isSharedWorkspaceOwner(workspaceId)
+        || exists(/databases/$(database)/documents/workspacesShared/$(workspaceId)/members/$(request.auth.uid))
+      );
+    }
+
+    function workspaceMembersCanInvite(workspaceId) {
+      let data = sharedWorkspace(workspaceId).data;
+      return !('membersCanInvite' in data) || data.membersCanInvite != false;
+    }
+
+    function canManageWorkspaceInvites(workspaceId) {
+      return isSharedWorkspaceOwner(workspaceId)
+        || (exists(/databases/$(database)/documents/workspacesShared/$(workspaceId)/members/$(request.auth.uid))
+          && workspaceMembersCanInvite(workspaceId));
+    }
+
     function isValidProfile() {
       let data = request.resource.data;
       return data.keys().hasAll(['email', 'userDisplayName', 'updatedAt'])
@@ -133,7 +151,8 @@ service cloud.firestore {
         && data.ownerName.size() >= 1
         && data.ownerName.size() <= 120
         && data.createdAt is number
-        && isOptionalWorkspaceIconURL(data);
+        && isOptionalWorkspaceIconURL(data)
+        && (!('membersCanInvite' in data) || data.membersCanInvite is bool);
     }
 
     function isValidSharedWorkspaceUpdate() {
@@ -149,6 +168,7 @@ service cloud.firestore {
         && data.ownerName.size() >= 1
         && data.ownerName.size() <= 120
         && isOptionalWorkspaceIconURL(data)
+        && (!('membersCanInvite' in data) || data.membersCanInvite is bool)
         && workspaceEnterpriseFieldsUnchanged();
     }
 
@@ -263,6 +283,11 @@ service cloud.firestore {
       let changed = request.resource.data.diff(resource.data).changedKeys();
       return changed.hasOnly(['votesByUserId', 'updatedAt'])
         || changed.hasOnly(['status', 'updatedAt']);
+    }
+
+    function isValidVoicePollReplace() {
+      return isValidVoicePollWrite()
+        && request.resource.data.createdByUserId == request.auth.uid;
     }
 
     function isVoiceKnockReopen(fromUid) {
@@ -552,19 +577,19 @@ service cloud.firestore {
       match /joinRequests/{requesterUid} {
         allow read: if isSignedIn() && (
           request.auth.uid == requesterUid
-          || isSharedWorkspaceOwner(workspaceId)
+          || canManageWorkspaceInvites(workspaceId)
         );
         allow create: if isSignedIn() && isValidJoinRequestCreate(requesterUid);
-        allow update: if isSharedWorkspaceOwner(workspaceId) && isJoinRequestResponse();
+        allow update: if canManageWorkspaceInvites(workspaceId) && isJoinRequestResponse();
         allow delete: if false;
       }
 
       match /members/{memberUid} {
         allow read: if isSignedIn() && (
           request.auth.uid == memberUid
-          || isSharedWorkspaceOwner(workspaceId)
+          || isSharedWorkspaceMember(workspaceId)
         );
-        allow create, update: if isSharedWorkspaceOwner(workspaceId)
+        allow create, update: if canManageWorkspaceInvites(workspaceId)
           && request.resource.data.uid == memberUid
           && request.resource.data.displayName is string
           && request.resource.data.displayName.size() >= 1
@@ -630,7 +655,10 @@ service cloud.firestore {
         allow create: if isSignedIn()
           && isValidVoicePollWrite()
           && request.resource.data.createdByUserId == request.auth.uid;
-        allow update: if isSignedIn() && isValidVoicePollPatch();
+        allow update: if isSignedIn() && (
+          isValidVoicePollPatch()
+          || isValidVoicePollReplace()
+        );
         allow delete: if isSignedIn();
       }
 

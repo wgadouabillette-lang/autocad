@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import base64
+import random
 import re
+from datetime import datetime, timezone
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -161,6 +163,144 @@ def _spotify_api_error_message(status_code: int, body: str) -> str:
             "Après activation, la propagation peut prendre quelques heures."
         )
     return text or "Erreur API Spotify."
+
+
+# Fallback artist seeds when recommendations API is unavailable and user has no history.
+_SPOTIFY_GENRE_ARTIST_SEEDS: dict[str, tuple[str, ...]] = {
+    "pop": ("Taylor Swift", "Dua Lipa", "The Weeknd", "Ariana Grande"),
+    "country": ("Luke Combs", "Morgan Wallen", "Chris Stapleton", "Carrie Underwood"),
+    "rock": ("Foo Fighters", "Arctic Monkeys", "Red Hot Chili Peppers", "Coldplay"),
+    "hip-hop": ("Drake", "Kendrick Lamar", "Travis Scott", "J. Cole"),
+    "r-n-b": ("SZA", "The Weeknd", "Frank Ocean", "H.E.R."),
+    "electronic": ("Calvin Harris", "Disclosure", "Fred again..", "Daft Punk"),
+    "indie": ("Arctic Monkeys", "Tame Impala", "The Strokes", "Phoenix"),
+    "jazz": ("Miles Davis", "John Coltrane", "Norah Jones", "Kamasi Washington"),
+    "classical": ("Ludovico Einaudi", "Yo-Yo Ma", "Max Richter", "Hans Zimmer"),
+    "latin": ("Bad Bunny", "Shakira", "Rosalía", "J Balvin"),
+    "metal": ("Metallica", "Slipknot", "Ghost", "Gojira"),
+    "blues": ("B.B. King", "Gary Clark Jr.", "Joe Bonamassa", "Stevie Ray Vaughan"),
+    "folk": ("Bon Iver", "Mumford & Sons", "Fleet Foxes", "The Lumineers"),
+    "soul": ("Alicia Keys", "Leon Bridges", "Sam Cooke", "Amy Winehouse"),
+    "reggae": ("Bob Marley", "Damian Marley", "Koffee", "Sean Paul"),
+}
+
+
+async def _spotify_search_tracks(
+    token: str,
+    query: str,
+    *,
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    trimmed = query.strip()
+    if not trimmed:
+        return []
+    async with httpx.AsyncClient(timeout=25) as client:
+        search_r = await client.get(
+            "https://api.spotify.com/v1/search",
+            headers={"Authorization": f"Bearer {token}"},
+            params={
+                "q": trimmed,
+                "type": "track",
+                "limit": max(1, min(limit, 20)),
+                "market": "from_token",
+            },
+        )
+    if search_r.status_code != 200:
+        return []
+    items = search_r.json().get("tracks", {}).get("items") or []
+    return [_spotify_track_card(item) for item in items if isinstance(item, dict)]
+
+
+def _dedupe_spotify_track_cards(
+    tracks: list[dict[str, Any]],
+    *,
+    seen: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    ids = seen if seen is not None else set()
+    out: list[dict[str, Any]] = []
+    for track in tracks:
+        track_id = str(track.get("id") or "").strip()
+        fallback = f"{track.get('name')}::{track.get('artists')}"
+        key = track_id or fallback
+        if key in ids:
+            continue
+        ids.add(key)
+        out.append(track)
+    return out
+
+
+async def _spotify_discovery_tracks(
+    token: str,
+    *,
+    seed_genres: list[str],
+    seed_track_ids: list[str],
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Discover tracks via search + top artists/tracks (replaces deprecated recommendations API)."""
+    collected: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def absorb(items: list[dict[str, Any]]) -> None:
+        nonlocal collected
+        for track in _dedupe_spotify_track_cards(items, seen=seen):
+            collected.append(track)
+            if len(collected) >= limit:
+                break
+
+    for track_id in seed_track_ids[:3]:
+        if len(collected) >= limit:
+            break
+        try:
+            track = await _fetch_spotify_track(token, track_id)
+        except HTTPException:
+            continue
+        artists = track.get("artists") if isinstance(track.get("artists"), list) else []
+        artist_name = None
+        if artists and isinstance(artists[0], dict):
+            artist_name = artists[0].get("name")
+        if isinstance(artist_name, str) and artist_name.strip():
+            absorb(await _spotify_search_tracks(token, f'artist:"{artist_name.strip()}"', limit=6))
+
+    async with httpx.AsyncClient(timeout=25) as client:
+        top_artists_r = await client.get(
+            "https://api.spotify.com/v1/me/top/artists",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"limit": 5, "time_range": "short_term"},
+        )
+    if top_artists_r.status_code == 200:
+        for artist in top_artists_r.json().get("items") or []:
+            if len(collected) >= limit:
+                break
+            if not isinstance(artist, dict):
+                continue
+            name = artist.get("name")
+            if isinstance(name, str) and name.strip():
+                absorb(await _spotify_search_tracks(token, f'artist:"{name.strip()}"', limit=4))
+
+    async with httpx.AsyncClient(timeout=25) as client:
+        top_tracks_r = await client.get(
+            "https://api.spotify.com/v1/me/top/tracks",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"limit": 10, "time_range": "short_term"},
+        )
+    if top_tracks_r.status_code == 200:
+        top_items = top_tracks_r.json().get("items") or []
+        absorb([_spotify_track_card(item) for item in top_items if isinstance(item, dict)])
+
+    if len(collected) < limit:
+        genre = seed_genres[0] if seed_genres else "pop"
+        artist_pool = list(_SPOTIFY_GENRE_ARTIST_SEEDS.get(genre, _SPOTIFY_GENRE_ARTIST_SEEDS["pop"]))
+        random.shuffle(artist_pool)
+        for artist_name in artist_pool[:3]:
+            if len(collected) >= limit:
+                break
+            absorb(await _spotify_search_tracks(token, f'artist:"{artist_name}"', limit=5))
+
+    if len(collected) < limit:
+        year = datetime.now(timezone.utc).year
+        absorb(await _spotify_search_tracks(token, f"year:{year}", limit=limit))
+
+    return collected[:limit]
 
 
 def _status(uid: str, connector_id: str) -> ConnectorStatusOut:
@@ -429,20 +569,64 @@ async def spotify_search(
 ):
     token = await _require_token(user.uid, "spotify")
     query = q.strip()
-    async with httpx.AsyncClient(timeout=25) as client:
-        search_r = await client.get(
-            "https://api.spotify.com/v1/search",
-            headers={"Authorization": f"Bearer {token}"},
-            params={"q": query, "type": "track", "limit": limit},
-        )
-    if search_r.status_code != 200:
-        raise HTTPException(
-            search_r.status_code,
-            _spotify_api_error_message(search_r.status_code, search_r.text),
-        )
-    items = search_r.json().get("tracks", {}).get("items") or []
-    tracks = [_spotify_track_card(item) for item in items if isinstance(item, dict)]
+    tracks = await _spotify_search_tracks(token, query, limit=limit)
+    if not tracks:
+        raise HTTPException(404, "Aucune piste trouvée pour cette recherche.")
     return {"tracks": tracks, "query": query}
+
+
+@router.get("/spotify/recently-played")
+async def spotify_recently_played(
+    limit: int = Query(default=50, ge=1, le=50),
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    token = await _require_token(user.uid, "spotify")
+    async with httpx.AsyncClient(timeout=25) as client:
+        r = await client.get(
+            "https://api.spotify.com/v1/me/player/recently-played",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"limit": limit},
+        )
+    if r.status_code in (401, 403):
+        return {"tracks": [], "scopeMissing": True}
+    if r.status_code != 200:
+        raise HTTPException(
+            r.status_code,
+            _spotify_api_error_message(r.status_code, r.text),
+        )
+    items = r.json().get("items") or []
+    tracks: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        track_raw = item.get("track")
+        if not isinstance(track_raw, dict):
+            continue
+        card = _spotify_track_card(track_raw)
+        played_at = item.get("played_at")
+        if isinstance(played_at, str):
+            card["playedAt"] = played_at
+        tracks.append(card)
+    return {"tracks": tracks}
+
+
+@router.get("/spotify/recommendations")
+async def spotify_recommendations(
+    seed_genres: str = Query(default="", max_length=120),
+    seed_tracks: str = Query(default="", max_length=200),
+    limit: int = Query(default=12, ge=1, le=20),
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    token = await _require_token(user.uid, "spotify")
+    genres = [g.strip() for g in seed_genres.split(",") if g.strip()]
+    track_ids = [t.strip() for t in seed_tracks.split(",") if t.strip()]
+    tracks = await _spotify_discovery_tracks(
+        token,
+        seed_genres=genres or ["pop"],
+        seed_track_ids=track_ids,
+        limit=limit,
+    )
+    return {"tracks": tracks}
 
 
 async def _fetch_spotify_track(token: str, track_id: str) -> dict[str, Any]:
@@ -520,26 +704,26 @@ async def spotify_play(
     else:
         if not query:
             raise HTTPException(400, "Indiquez une recherche ou un identifiant de piste.")
-        async with httpx.AsyncClient(timeout=25) as client:
-            search_r = await client.get(
-                "https://api.spotify.com/v1/search",
-                headers={"Authorization": f"Bearer {token}"},
-                params={"q": query, "type": "track", "limit": 1},
-            )
-        if search_r.status_code != 200:
-            raise HTTPException(
-                search_r.status_code,
-                _spotify_api_error_message(search_r.status_code, search_r.text),
-            )
-
-        items = search_r.json().get("tracks", {}).get("items") or []
-        if not items or not isinstance(items[0], dict):
+        items_cards = await _spotify_search_tracks(token, query, limit=1)
+        if not items_cards:
             raise HTTPException(404, "Aucune piste trouvée pour cette recherche.")
 
-        track = items[0]
+        track = items_cards[0]
         track_id = str(track.get("id") or "")
         if not track_id:
             raise HTTPException(404, "Aucune piste trouvée pour cette recherche.")
+
+        async with httpx.AsyncClient(timeout=25) as client:
+            track_r = await client.get(
+                f"https://api.spotify.com/v1/tracks/{track_id}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        if track_r.status_code != 200:
+            raise HTTPException(
+                track_r.status_code,
+                _spotify_api_error_message(track_r.status_code, track_r.text),
+            )
+        track = track_r.json()
 
     uri = f"spotify:track:{track_id}"
     async with httpx.AsyncClient(timeout=25) as client:

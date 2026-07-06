@@ -14,9 +14,8 @@ import {
   seedMarketingRecordingPreview,
   seedMarketingTheaterPreview,
 } from "./lib/marketingPreviewSeed";
-import { applyDocumentTheme, bootstrapDocumentTheme, resolveEffectiveTheme } from "./lib/theme";
+import { applyDocumentTheme, bootstrapDocumentTheme } from "./lib/theme";
 import { bootstrapDocumentAccentColor } from "./lib/accentColor";
-import { useStore } from "./store/useStore";
 import "./index.css";
 
 markMarketingPreview();
@@ -33,7 +32,7 @@ if (scene === "recording") {
   seedMarketingPreview();
 }
 
-applyDocumentTheme(resolveEffectiveTheme(useStore.getState().colorTheme));
+applyDocumentTheme();
 
 const PreviewRoot =
   scene === "connectors"

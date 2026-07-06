@@ -29,6 +29,7 @@ import { useAccentColor } from "./hooks/useAccentColor";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useDesktopUpdater } from "./hooks/useDesktopUpdater";
 import { useMeetingReminders } from "./hooks/useMeetingReminders";
+import { useSpotifyVoiceMix } from "./hooks/useSpotifyVoiceMix";
 import { useMobileLayout } from "./hooks/useMobileLayout";
 import { canAccessApp, DESKTOP_VIEWPORT_QUERY, getLandingUrl } from "./lib/appAccess";
 import { runAppBoot, type AppBootStatus } from "./lib/appBoot";
@@ -116,6 +117,7 @@ export default function App() {
   useAccentColor();
   useDesktopUpdater();
   useMeetingReminders();
+  useSpotifyVoiceMix();
   useCallVoiceActivity(inVoiceCall);
   useRemoteVoiceActivity(inVoiceCall);
   useWorkspacePresence();

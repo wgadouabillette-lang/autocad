@@ -28,6 +28,7 @@ export interface SharedWorkspaceDoc {
   enterpriseBillingManaged?: boolean;
   enterpriseMemberCount?: number;
   enterpriseSeatCount?: number;
+  membersCanInvite?: boolean;
 }
 
 export interface WorkspaceJoinRequestDoc {
@@ -64,6 +65,7 @@ export function toSharedWorkspaceDoc(workspace: Workspace): SharedWorkspaceDoc {
     ownerId: workspace.ownerId,
     ownerName: workspace.ownerName,
     createdAt: workspace.createdAt,
+    ...(workspace.membersCanInvite === false ? { membersCanInvite: false } : {}),
   };
 }
 
@@ -76,7 +78,27 @@ export function sharedDocToWorkspace(data: SharedWorkspaceDoc): Workspace {
     ownerId: data.ownerId,
     ownerName: data.ownerName,
     createdAt: data.createdAt,
+    membersCanInvite: data.membersCanInvite,
   };
+}
+
+export function watchSharedWorkspace(
+  workspaceId: string,
+  onChange: (workspace: Workspace | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  const trimmed = workspaceId.trim().toLowerCase();
+  if (!trimmed) {
+    onChange(null);
+    return () => {};
+  }
+  return onSnapshot(
+    sharedWorkspaceRef(trimmed),
+    (snap) => {
+      onChange(snap.exists() ? sharedDocToWorkspace(snap.data() as SharedWorkspaceDoc) : null);
+    },
+    onError,
+  );
 }
 
 export async function publishSharedWorkspace(workspace: Workspace): Promise<void> {

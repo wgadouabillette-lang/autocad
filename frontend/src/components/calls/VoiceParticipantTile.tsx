@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { Maximize2 } from "lucide-react";
 import { useEffect, useRef, type CSSProperties } from "react";
 import { avatarTileTint, type CallUser } from "../../lib/calls";
+import { useMediaStreamAspectRatio } from "../../hooks/useMediaStreamAspectRatio";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import UserAvatar from "../UserAvatar";
@@ -58,6 +59,10 @@ export default function VoiceParticipantTile({
   const showVideo = allowVideo && !!videoStream;
   const showMuteBadge = muted ?? (participant.isLocal && localMuted);
   const interactive = canMessage || !!onActivate;
+  const mediaAspectRatio = useMediaStreamAspectRatio(
+    videoStream,
+    showVideo && (stage || strip),
+  );
 
   useEffect(() => {
     const video = videoRef.current;
@@ -122,6 +127,9 @@ export default function VoiceParticipantTile({
   const tileStyle = {
     ...style,
     "--voice-tile-tint": avatarTileTint(participant.id),
+    ...(showVideo && (stage || strip)
+      ? { "--voice-tile-aspect-ratio": mediaAspectRatio }
+      : {}),
   } as CSSProperties;
 
   const handleActivate = (event: React.MouseEvent | React.KeyboardEvent) => {

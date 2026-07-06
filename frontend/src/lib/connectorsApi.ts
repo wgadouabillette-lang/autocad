@@ -220,6 +220,40 @@ export async function searchSpotifyTracks(
   return data.tracks ?? [];
 }
 
+export type SpotifyRecentlyPlayedTrack = SpotifyTrackCard & { playedAt?: string };
+
+export async function fetchSpotifyRecentlyPlayed(
+  limit = 50,
+): Promise<SpotifyRecentlyPlayedTrack[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const r = await fetch(`${BASE}/spotify/recently-played?${params}`, {
+    headers: await authHeaders(),
+  });
+  if (!r.ok) throw new Error(await readError(r));
+  const data = (await r.json()) as { tracks?: SpotifyRecentlyPlayedTrack[] };
+  return data.tracks ?? [];
+}
+
+export async function fetchSpotifyRecommendations(input: {
+  seedGenres?: string[];
+  seedTracks?: string[];
+  limit?: number;
+}): Promise<SpotifyTrackCard[]> {
+  const params = new URLSearchParams({ limit: String(input.limit ?? 12) });
+  if (input.seedGenres?.length) {
+    params.set("seed_genres", input.seedGenres.join(","));
+  }
+  if (input.seedTracks?.length) {
+    params.set("seed_tracks", input.seedTracks.join(","));
+  }
+  const r = await fetch(`${BASE}/spotify/recommendations?${params}`, {
+    headers: await authHeaders(),
+  });
+  if (!r.ok) throw new Error(await readError(r));
+  const data = (await r.json()) as { tracks?: SpotifyTrackCard[] };
+  return data.tracks ?? [];
+}
+
 export async function fetchSpotifyPlayerConfig(): Promise<{ clientId: string; premium: boolean }> {
   const r = await fetch(`${BASE}/spotify/player-config`, { headers: await authHeaders() });
   if (!r.ok) throw new Error(await readError(r));

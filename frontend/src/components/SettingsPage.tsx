@@ -57,7 +57,7 @@ const TAB_DESCRIPTIONS: Record<SettingsTab, string> = {
   billing: "Forfait actuel et date de prochain prélèvement.",
   agents: "Personnalisation du chat, des follow-ups et des AI Notes.",
   voice: "Salons vocaux, enregistrements et options de capture.",
-  audio: "Micro, sortie audio et traitement du signal.",
+  audio: "Micro, sortie audio, Spotify et Hall DJ.",
   models: "Choix du modèle IA pour la génération.",
   plugins: "Connecteurs utilisables dans le chat.",
 };
@@ -110,6 +110,8 @@ function buildNav(): NavItem[] {
 
 export default function SettingsPage() {
   const activeTab = useStore((s) => s.settingsTab);
+  const settingsScrollTarget = useStore((s) => s.settingsScrollTarget);
+  const clearSettingsScrollTarget = useStore((s) => s.clearSettingsScrollTarget);
   const setSettingsTab = useStore((s) => s.setSettingsTab);
   const closePage = useStore((s) => s.closePage);
   const signOut = useAuthStore((s) => s.signOut);
@@ -125,14 +127,25 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    if (settingsScrollTarget) return;
     panelBodyRef.current?.scrollTo(0, 0);
-  }, [resolvedTab]);
+  }, [resolvedTab, settingsScrollTarget]);
 
   useEffect(() => {
     if (resolvedTab !== activeTab) {
       setSettingsTab(resolvedTab);
     }
   }, [activeTab, resolvedTab, setSettingsTab]);
+
+  useEffect(() => {
+    if (!settingsScrollTarget) return;
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(settingsScrollTarget);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      clearSettingsScrollTarget();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [settingsScrollTarget, resolvedTab, clearSettingsScrollTarget]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

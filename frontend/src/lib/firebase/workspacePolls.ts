@@ -50,11 +50,15 @@ function pollFromDoc(data: VoicePollDoc): VoicePoll {
 }
 
 export async function publishWorkspacePoll(poll: VoicePoll): Promise<void> {
+  const ref = pollRef(poll.workspaceId);
   const payload: VoicePollDoc = {
     ...poll,
     updatedAt: serverTimestamp(),
   };
-  await setDoc(pollRef(poll.workspaceId), payload);
+  // Replacing the active poll must delete first — otherwise Firestore applies
+  // update rules (votes/status only) and rejects a full new poll from members.
+  await deleteDoc(ref);
+  await setDoc(ref, payload);
 }
 
 export async function voteWorkspacePoll(

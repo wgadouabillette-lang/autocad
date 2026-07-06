@@ -137,95 +137,6 @@
   --theater-seat-size: 2.3rem;
 }
 
-html[data-theme="light"] {
-  color-scheme: light;
-  --forma-bg: #ffffff;
-  --forma-main-bg: #f5f5f5;
-  --forma-shell-bg: #fafafa;
-  --forma-content-bg: #ffffff;
-  --forma-calls-bg: #f7f7f7;
-  --forma-panel: #f5f5f5;
-  --forma-elevated: #ebebeb;
-  --forma-border: #d4d4d4;
-  --forma-border-strong: #c4c4c4;
-  --forma-text: #1a1a1a;
-  --forma-text-bright: #0a0a0a;
-  --forma-text-muted: #737373;
-  --forma-hints-label: #6b6b6b;
-  --forma-accent: #525252;
-  --forma-accent-btn: #404040;
-  --forma-chrome: #ffffff;
-  --forma-chrome-active: #f5f5f5;
-  --forma-control-bg: #e8e8e8;
-  --forma-control-border: #d4d4d4;
-  --forma-control-hover-bg: #dddddd;
-  --forma-overlay: rgb(255 255 255 / 0.72);
-  --forma-user-bubble-bg: #f2f2f2;
-  --forma-user-bubble-border: #e2e2e2;
-  --forma-divider: #e0e0e0;
-  --forma-left-panel: #f5f5f5;
-  --forma-left-panel-active: #ebebeb;
-  --forma-left-panel-border: var(--forma-divider);
-  --forma-chat-composer-bg: #f4f4f4;
-  --forma-chat-composer-stroke: #e2e2e2;
-  --forma-composer-shadow:
-    0 6px 18px -5px rgba(0, 0, 0, 0.22), 0 2px 5px -2px rgba(0, 0, 0, 0.12);
-  --forma-shimmer-base: #a3a3a3;
-  --forma-shimmer-highlight: #525252;
-  --forma-exchange-veil: rgb(255 255 255 / 0.55);
-  --ink-900: #fafafa;
-  --ink-850: #f5f5f5;
-  --ink-800: #f0f0f0;
-  --ink-750: #e8e8e8;
-  --ink-700: #e0e0e0;
-  --ink-divider: #d4d4d4;
-  --ink-600: #c4c4c4;
-  --ink-500: #a3a3a3;
-  --ink-chrome: #ffffff;
-  --ink-left-panel: #f5f5f5;
-  --muted-100: #171717;
-  --muted-200: #262626;
-  --muted-300: #404040;
-  --muted-400: #525252;
-  --muted-500: #737373;
-  --forma-overlay-border: var(--forma-tint-07);
-  --forma-overlay-shadow: 0 8px 32px -18px rgb(0 0 0 / 0.14);
-  --forma-surface-hover: var(--forma-tint-08);
-  --forma-surface-active: var(--forma-tint-16);
-  --forma-glass-border: var(--forma-tint-06);
-  --forma-glass-bg: var(--forma-tint-04);
-  --forma-scrim: rgb(255 255 255 / 0.72);
-  --forma-scrim-strong: rgb(255 255 255 / 0.88);
-  --forma-tint-02: rgb(0 0 0 / 0.015);
-  --forma-tint-025: rgb(0 0 0 / 0.02);
-  --forma-tint-03: rgb(0 0 0 / 0.025);
-  --forma-tint-04: rgb(0 0 0 / 0.03);
-  --forma-tint-05: rgb(0 0 0 / 0.04);
-  --forma-tint-055: rgb(0 0 0 / 0.045);
-  --forma-tint-06: rgb(0 0 0 / 0.05);
-  --forma-tint-07: rgb(0 0 0 / 0.06);
-  --forma-tint-08: rgb(0 0 0 / 0.07);
-  --forma-tint-10: rgb(0 0 0 / 0.08);
-  --forma-tint-12: rgb(0 0 0 / 0.1);
-  --forma-tint-14: rgb(0 0 0 / 0.12);
-  --forma-tint-16: rgb(0 0 0 / 0.14);
-  --forma-tint-34: rgb(0 0 0 / 0.18);
-  --forma-drop-08: rgb(0 0 0 / 0.06);
-  --forma-drop-12: rgb(0 0 0 / 0.1);
-  --forma-drop-20: rgb(0 0 0 / 0.12);
-  --forma-drop-22: rgb(0 0 0 / 0.14);
-  --forma-drop-25: rgb(0 0 0 / 0.16);
-  --forma-drop-28: rgb(0 0 0 / 0.18);
-  --forma-drop-30: rgb(0 0 0 / 0.2);
-  --forma-drop-32: rgb(0 0 0 / 0.22);
-  --forma-drop-34: rgb(0 0 0 / 0.24);
-  --forma-drop-35: rgb(0 0 0 / 0.26);
-  --forma-drop-40: rgb(0 0 0 / 0.3);
-  --forma-drop-58: rgb(0 0 0 / 0.4);
-  --forma-drop-75: rgb(0 0 0 / 0.55);
-  --forma-drop-88: rgb(0 0 0 / 0.65);
-}
-
 html[data-theme="dark"] {
   color-scheme: dark;
   --forma-surface-hover: var(--forma-tint-08);
@@ -2285,8 +2196,10 @@ body {
   .call-present-tile {
     @apply relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-ink-700
       bg-ink-850;
-    aspect-ratio: var(--forma-call-media-aspect-ratio);
+    aspect-ratio: var(--voice-tile-aspect-ratio, var(--forma-call-media-aspect-ratio));
     max-height: min(80vh, calc(34rem + 10px));
+    width: auto;
+    max-width: 100%;
   }
   .call-present-tile__media {
     @apply h-full w-full object-contain bg-ink-900;
@@ -2332,14 +2245,11 @@ body {
     @apply relative flex min-h-0 flex-1 items-center justify-center;
   }
   .open-voice-spotlight__stage .voice-participant-tile--stage {
-    width: min(100%, calc((100dvh - var(--forma-calls-lift) - 10rem) * 16 / 9));
+    width: auto;
     max-width: 100%;
-    height: 100%;
-    max-height: min(
-      calc(100dvh - var(--forma-calls-lift) - 10rem),
-      calc(100vw * 9 / 16)
-    );
-    aspect-ratio: var(--forma-call-media-aspect-ratio);
+    height: min(calc(100dvh - var(--forma-calls-lift) - 10rem), 100%);
+    max-height: min(calc(100dvh - var(--forma-calls-lift) - 10rem), 100%);
+    aspect-ratio: var(--voice-tile-aspect-ratio, var(--forma-call-media-aspect-ratio));
     cursor: zoom-out;
   }
   .open-voice-spotlight__stage .voice-participant-tile--stage.voice-participant-tile--media {
@@ -2348,9 +2258,10 @@ body {
   }
   .open-voice-spotlight__strip .voice-participant-tile--strip {
     @apply shrink-0 cursor-pointer;
-    width: 9.5rem;
+    width: auto;
     height: 5.375rem;
-    aspect-ratio: var(--forma-call-media-aspect-ratio);
+    max-width: 9.5rem;
+    aspect-ratio: var(--voice-tile-aspect-ratio, var(--forma-call-media-aspect-ratio));
   }
   .open-voice-spotlight__strip .voice-participant-tile--strip .voice-participant-tile__avatar.user-avatar,
   .open-voice-spotlight__strip .voice-participant-tile--strip .voice-participant-tile__avatar img.user-avatar {
@@ -3590,7 +3501,7 @@ body {
   .chat-fullscreen-media-pip__item {
     position: relative;
     width: min(16rem, var(--forma-call-media-max-width));
-    aspect-ratio: var(--forma-call-media-aspect-ratio);
+    aspect-ratio: var(--voice-tile-aspect-ratio, var(--forma-call-media-aspect-ratio));
     min-height: 0;
     overflow: hidden;
     border-radius: 1.125rem;
@@ -4461,11 +4372,6 @@ body {
     @apply shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none;
     color: rgb(var(--forma-brand-muted));
     background-color: rgb(var(--forma-brand) / 0.1);
-  }
-  html[data-theme="light"] .chat-skills-pro-badge {
-    color: rgb(var(--forma-brand-light-text));
-    background-color: rgb(var(--forma-brand-light) / 0.18);
-    box-shadow: inset 0 0 0 1px rgb(var(--forma-brand-glow) / 0.35);
   }
   .chat-connectors-list--settings {
     @apply mt-1 w-full gap-1.5;
@@ -5982,6 +5888,9 @@ body {
   .mini-chat .chat-typing-indicator {
     @apply mb-0 px-2.5 pt-2;
   }
+  .mini-chat .chat-typing-indicator--self {
+    @apply mb-0 px-2.5 pt-2;
+  }
   .mini-chat__input {
     @apply min-w-0 flex-1 rounded-lg border-0 bg-transparent px-2 py-1.5 text-[12px] text-muted-100
       outline-none placeholder:text-muted-500;
@@ -6195,6 +6104,9 @@ body {
   }
   .chat-typing-indicator {
     @apply mb-2 flex flex-col gap-1.5 px-1;
+  }
+  .chat-typing-indicator--self {
+    @apply mb-2 px-1;
   }
   .chat-typing-indicator__row {
     @apply flex items-center gap-2;

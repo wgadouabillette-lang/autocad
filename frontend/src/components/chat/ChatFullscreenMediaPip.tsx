@@ -1,8 +1,9 @@
 import clsx from "clsx";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { buildCallMediaFeeds, selectPipFeeds, type CallMediaFeed } from "../../lib/callMediaFeeds";
 import { avatarColor, inCallParticipants, userInitials } from "../../lib/calls";
 import { buildRemoteMediaFeeds } from "../../lib/webrtc/workspaceVoiceRtc";
+import { useMediaStreamAspectRatio } from "../../hooks/useMediaStreamAspectRatio";
 import VoiceMuteBadge from "../calls/VoiceMuteBadge";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
@@ -17,6 +18,7 @@ function PipMediaTile({
   muted: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const aspectRatio = useMediaStreamAspectRatio(feed.stream, true);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -41,6 +43,7 @@ function PipMediaTile({
         feed.kind === "screen" && "chat-fullscreen-media-pip__item--screen",
         speaking && "chat-fullscreen-media-pip__item--speaking",
       )}
+      style={{ "--voice-tile-aspect-ratio": aspectRatio } as CSSProperties}
       aria-label={label}
     >
       <video

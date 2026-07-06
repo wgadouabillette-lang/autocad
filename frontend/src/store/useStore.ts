@@ -13,6 +13,7 @@ import { EMPTY_DRAWING } from "../lib/drawing/types";
 import { useDrawingStore } from "./useDrawingStore";
 import type { AiModel } from "../lib/aiModels";
 import { handleAiModelFallback } from "../lib/aiQuota";
+import { useHallDjStore } from "./useHallDjStore";
 import type { AiRun, AiRunExpand } from "../lib/aiRun";
 import { beginAiRequest, cancelAiRequest, endAiRequest } from "../lib/aiRequest";
 import { AI_STUB_INFINITE_LOADING, waitUntilAborted } from "../lib/aiMock";
@@ -31,6 +32,7 @@ import {
   type SidePanelSide,
   type UserPreferences,
 } from "../lib/userPreferences";
+import { normalizeHallDjGenre } from "../lib/hallDjGenres";
 import { hasAiAccess, type SubscriptionPlan } from "../lib/subscriptionPlans";
 import type { AnySettingsTab, SettingsTab } from "../lib/settingsSearchSuggestions";
 import { normalizeSettingsTab } from "../lib/settingsSearchSuggestions";
@@ -39,7 +41,6 @@ import { sortOpenPages, type MainPageId } from "../lib/mainPages";
 import type { ColorThemePreference } from "../lib/theme";
 import type { AccentColorPreference } from "../lib/accentColor";
 import { applyDocumentAccentColor, normalizeAccentColorPreference } from "../lib/accentColor";
-import { applyDocumentTheme, resolveEffectiveTheme } from "../lib/theme";
 import { writeLastActiveWorkspace } from "../lib/lastActiveWorkspace";
 import { normalizeWorkspaceId } from "../lib/workspaces";
 import { debugLog } from "../lib/debugLog";
@@ -308,10 +309,12 @@ interface State {
   agentAiNotesInstructions: string;
   calendarWorkStartMinutes: number;
   calendarWorkEndMinutes: number;
+  hallDjPreferredGenre: string;
   aiRun: AiRun | null;
   activePage: MainPageId | null;
   openPages: MainPageId[];
   settingsTab: SettingsTab;
+  settingsScrollTarget: string | null;
   workspaceSwitching: boolean;
   /** Pending text to seed the agent chat composer (consumed by ChatPanel). */
   agentComposerInsert: { id: number; text: string } | null;
@@ -327,7 +330,6 @@ interface State {
   setAudioEchoCancellation: (enabled: boolean) => void;
   setAudioNoiseSuppression: (enabled: boolean) => void;
   setSidePanelSide: (side: SidePanelSide) => void;
-  setColorTheme: (theme: ColorThemePreference) => void;
   setAccentColor: (accent: AccentColorPreference) => void;
   setUserDisplayName: (name: string) => void;
   setUserEmail: (email: string) => void;
@@ -339,6 +341,8 @@ interface State {
   setAgentFollowUpInstructions: (value: string) => void;
   setAgentAiNotesInstructions: (value: string) => void;
   setCalendarWorkingHours: (startMinutes: number, endMinutes: number) => void;
+  setHallDjPreferredGenre: (genre: string) => void;
+  clearSettingsScrollTarget: () => void;
   select: (id: string | null) => void;
   /** additive=true : ⌘/Ctrl+clic pour ajouter ou retirer une face de la sélection. */
   selectFace: (face: FaceReference, opts?: { additive?: boolean }) => void;
@@ -462,7 +466,7 @@ interface State {
   closePage: (page: MainPageId) => void;
   openSettingsPage: () => void;
   setSettingsTab: (tab: AnySettingsTab) => void;
-  openSettingsTab: (tab: AnySettingsTab) => void;
+  openSettingsTab: (tab: AnySettingsTab, scrollTarget?: string) => void;
 }
 
 function chatWithoutLastUserPrompt(chat: ChatMessage[], prompt: string): ChatMessage[] {
@@ -508,6 +512,7 @@ function userPreferencesSnapshot(state: {
   agentAiNotesInstructions: string;
   calendarWorkStartMinutes: number;
   calendarWorkEndMinutes: number;
+  hallDjPreferredGenre: string;
 }): UserPreferences {
   const calendarHours = resolveCalendarWorkingHours(
     state.calendarWorkStartMinutes,
@@ -538,6 +543,7 @@ function userPreferencesSnapshot(state: {
     agentAiNotesInstructions: state.agentAiNotesInstructions,
     calendarWorkStartMinutes: calendarHours.startMinutes,
     calendarWorkEndMinutes: calendarHours.endMinutes,
+    hallDjPreferredGenre: state.hallDjPreferredGenre,
   };
 }
 
@@ -610,6 +616,7 @@ export const useStore = create<State>((set, get) => ({
   activePage: null,
   openPages: [],
   settingsTab: "general",
+  settingsScrollTarget: null,
   workspaceSwitching: false,
   agentComposerInsert: null,
 
@@ -666,14 +673,6 @@ export const useStore = create<State>((set, get) => ({
     const normalized = normalizeSidePanelSide(side);
     set({ sidePanelSide: normalized });
     writeUserPreferences(userPreferencesSnapshot({ ...get(), sidePanelSide: normalized }));
-  },
-
-  setColorTheme: (theme) => {
-    const normalized =
-      theme === "light" || theme === "system" ? theme : ("dark" as const);
-    set({ colorTheme: normalized });
-    writeUserPreferences(userPreferencesSnapshot({ ...get(), colorTheme: normalized }));
-    applyDocumentTheme(resolveEffectiveTheme(normalized));
   },
 
   setAccentColor: (accent) => {
@@ -772,6 +771,14 @@ export const useStore = create<State>((set, get) => ({
       }),
     );
   },
+
+  setHallDjPreferredGenre: (genre) => {
+    const normalized = normalizeHallDjGenre(genre);
+    set({ hallDjPreferredGenre: normalized });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), hallDjPreferredGenre: normalized }));
+  },
+
+  clearSettingsScrollTarget: () => set({ settingsScrollTarget: null }),
 
   select: (id) => set({ selectedFeatureId: id }),
 
@@ -995,90 +1002,28 @@ export const useStore = create<State>((set, get) => ({
 
       if (isAddQueueSkillPrompt(displayText)) {
         get().tickAiRunStep();
-        const queueQuery = parseAddQueueSkillQuery(displayText);
-        if (!queueQuery) {
-          const assistantText =
-            "Indiquez un titre ou un artiste après `/add-queue`, par exemple : `/add-queue Bohemian Rhapsody`.";
-          await waitMinChatProcessing(processingStartedAt, signal);
-          set((s) => ({
-            ...patchChatState(
-              [...s.chat, { role: "assistant", text: assistantText, source: "play-skill" }],
-              s.openChatTabs,
-              s.activeChatTabId,
-            ),
-            aiRun: {
-              ...run,
-              status: "done",
-              finishedAt: Date.now(),
-              summary: assistantText.slice(0, 140),
-              message: assistantText,
-              source: "play-skill",
-              steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
-            },
-          }));
-          writeAutosave(get());
-          return;
-        }
-
-        try {
-          const playResult = await runPlaySearchSkill(queueQuery, signal);
-          await waitMinChatProcessing(processingStartedAt, signal);
-          const assistantText = playResult.summary;
-          const summary =
-            assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
-          set((s) => ({
-            ...patchChatState(
-              [
-                ...s.chat,
-                {
-                  role: "assistant",
-                  text: assistantText,
-                  source: "play-skill",
-                  spotifySearch: playResult.tracks,
-                  spotifySearchMode: "queue-add" as const,
-                },
-              ],
-              s.openChatTabs,
-              s.activeChatTabId,
-            ),
-            aiRun: {
-              ...run,
-              status: "done",
-              finishedAt: Date.now(),
-              summary,
-              message: assistantText,
-              source: "play-skill",
-              steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
-            },
-          }));
-          writeAutosave(get());
-          return;
-        } catch (queueErr: unknown) {
-          if (queueErr instanceof DOMException && queueErr.name === "AbortError") throw queueErr;
-          const message =
-            queueErr instanceof Error
-              ? queueErr.message
-              : "Impossible de rechercher sur Spotify.";
-          await waitMinChatProcessing(processingStartedAt, signal);
-          set((s) => ({
-            ...patchChatState(
-              [...s.chat, { role: "assistant", text: message, source: "play-skill" }],
-              s.openChatTabs,
-              s.activeChatTabId,
-            ),
-            aiRun: {
-              ...run,
-              status: "error",
-              finishedAt: Date.now(),
-              summary: message.slice(0, 140),
-              error: message,
-              source: "play-skill",
-              steps: [{ id: "1", label: "Spotify", detail: message, status: "error" }],
-            },
-          }));
-          writeAutosave(get());
-          return;
-        }
+        void useHallDjStore.getState().startDj();
+        const assistantText =
+          "La file d'attente est remplacée par le **Hall DJ**. Lecture automatique lancée — utilisez le bouton liste dans la barre du bas pour relancer.";
+        await waitMinChatProcessing(processingStartedAt, signal);
+        set((s) => ({
+          ...patchChatState(
+            [...s.chat, { role: "assistant", text: assistantText, source: "play-skill" }],
+            s.openChatTabs,
+            s.activeChatTabId,
+          ),
+          aiRun: {
+            ...run,
+            status: "done",
+            finishedAt: Date.now(),
+            summary: assistantText.slice(0, 140),
+            message: assistantText,
+            source: "play-skill",
+            steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+          },
+        }));
+        writeAutosave(get());
+        return;
       }
 
       if (isPlaySkillPrompt(displayText)) {
@@ -2513,7 +2458,7 @@ export const useStore = create<State>((set, get) => ({
 
   setSettingsTab: (tab) => set({ settingsTab: normalizeSettingsTab(tab) }),
 
-  openSettingsTab: (tab) => {
+  openSettingsTab: (tab, scrollTarget) => {
     const state = get();
     if (state.chatPanelExpanded || state.chatPanelLeaveAnimating) {
       set({
@@ -2526,7 +2471,10 @@ export const useStore = create<State>((set, get) => ({
     } else {
       state.setActivePage("settings");
     }
-    set({ settingsTab: normalizeSettingsTab(tab) });
+    set({
+      settingsTab: normalizeSettingsTab(tab),
+      settingsScrollTarget: scrollTarget?.trim() || null,
+    });
   },
 
 

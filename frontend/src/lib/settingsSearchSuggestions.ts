@@ -101,13 +101,6 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     keywords: "models modèle ia gpt grok claude opus génération",
   },
   {
-    id: "theme",
-    tab: "general",
-    label: "Theme",
-    hint: "Dark, light, or system by time of day",
-    keywords: "theme thème dark light clair sombre system système appearance apparence couleur color mode",
-  },
-  {
     id: "accent-color",
     tab: "general",
     label: "Accent color",

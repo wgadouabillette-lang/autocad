@@ -15,6 +15,10 @@ import {
   warmSpotifyWebPlayer,
 } from "../lib/spotifyWebPlayback";
 import { primeSpotifyPreviewAudio } from "../lib/spotifyAudioPulse";
+import { applyAudioOutputToElement } from "../lib/audioDevices";
+import { recordHallDjPlay } from "../lib/hallDjPlayHistory";
+import { readUserPreferences } from "../lib/userPreferences";
+import { useHallDjStore } from "./useHallDjStore";
 
 let sharedAudio: HTMLAudioElement | null = null;
 
@@ -29,6 +33,7 @@ let suppressTrackEnded = false;
 function audioElement(): HTMLAudioElement {
   if (!sharedAudio) {
     sharedAudio = new Audio();
+    sharedAudio.dataset.spotifyPlayback = "preview";
     sharedAudio.preload = "auto";
     sharedAudio.addEventListener("ended", () => {
       const state = useSpotifyPlayerStore.getState();
@@ -119,6 +124,7 @@ async function playPreview(track: SpotifyTrackCard, restart = false): Promise<bo
   primeSpotifyPreviewAudio();
   primeSpotifyWebAudioUnlock();
   const audio = audioElement();
+  await applyAudioOutputToElement(audio, readUserPreferences().audioOutputDeviceId);
   audio.src = preview;
   if (restart) {
     audio.currentTime = 0;
@@ -334,6 +340,7 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
     }
 
     await startPlayback(track, restart);
+    recordHallDjPlay(track);
     set({ lastPlayedTrack: track });
   },
 
@@ -442,17 +449,20 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
 
     if (queue.length === 0) {
       set({ playing: false, playbackMode: null });
+      void useHallDjStore.getState().refillIfNeeded();
       return;
     }
 
     const [next, ...rest] = queue;
     set({ queue: rest });
     void get().playTrack(next, { skipHistory: true, restart: true });
+    void useHallDjStore.getState().refillIfNeeded();
   },
 
   stop: () => {
     stopPreviewAudio();
     void pauseSpotifyWebPlayback();
+    useHallDjStore.getState().stopDj();
     set({
       playing: false,
       currentTrack: null,

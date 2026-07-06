@@ -11,6 +11,7 @@ import {
   Sparkles,
   ListMusic,
   ListTodo,
+  SkipForward,
   MicOff,
   MonitorUp,
   PhoneOff,
@@ -38,7 +39,8 @@ import { useMobileLayout } from "../hooks/useMobileLayout";
 import { useConnectors } from "../hooks/useConnectors";
 import { useSpotifyAudioPulse } from "../hooks/useSpotifyAudioPulse";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
-import { ADD_QUEUE_SKILL_TEMPLATE, PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
+import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
+import { useHallDjStore } from "../store/useHallDjStore";
 import { isMarketingPreview } from "../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
@@ -147,6 +149,10 @@ export default function BottomHeader() {
   const spotifyCurrentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
   const spotifyPlaying = useSpotifyPlayerStore((s) => s.playing);
   const queueAddFlashAt = useSpotifyPlayerStore((s) => s.queueAddFlashAt);
+  const hallDjLoading = useHallDjStore((s) => s.loading);
+  const hallDjActive = useHallDjStore((s) => s.active);
+  const startHallDj = useHallDjStore((s) => s.startDj);
+  const skipHallDjTrack = useHallDjStore((s) => s.skipNext);
   const [queueShimmer, setQueueShimmer] = useState(false);
   const { connectedIds, connect, connectingId, statuses } = useConnectors();
   const spotifyStatus = statuses.find((s) => s.id === "spotify");
@@ -269,12 +275,34 @@ export default function BottomHeader() {
     </BottomBarButton>
   );
 
-  const spotifyAddQueueButton = spotifyPlaybackActive ? (
+  const spotifyDjButton = spotifyConnected ? (
     <BottomBarButton
-      label="Ajouter à la file"
-      onClick={() => openSpotifyPanel(ADD_QUEUE_SKILL_TEMPLATE)}
+      label={
+        hallDjLoading
+          ? "Hall DJ…"
+          : hallDjActive
+            ? "Chanson suivante"
+            : "Démarrer le Hall DJ"
+      }
+      onClick={() => {
+        if (!spotifyConnected) {
+          void connect("spotify");
+          return;
+        }
+        if (hallDjActive) {
+          void skipHallDjTrack();
+          return;
+        }
+        void startHallDj();
+      }}
+      disabled={hallDjLoading || connectingId === "spotify"}
+      active={hallDjActive || hallDjLoading}
     >
-      <ListMusic size={ICON_SIZE} aria-hidden className={spotifyIconShimmerClass} />
+      {hallDjActive ? (
+        <SkipForward size={ICON_SIZE} aria-hidden className={spotifyIconShimmerClass} />
+      ) : (
+        <ListMusic size={ICON_SIZE} aria-hidden className={spotifyIconShimmerClass} />
+      )}
     </BottomBarButton>
   ) : null;
 
@@ -435,7 +463,7 @@ export default function BottomHeader() {
           <BottomBarCapsule>
             {notificationButton}
             {spotifyButton}
-            {spotifyAddQueueButton}
+            {spotifyDjButton}
             {callControls}
             {utilityControls}
           </BottomBarCapsule>
@@ -454,7 +482,7 @@ export default function BottomHeader() {
         <BottomBarCapsule>
           {notificationButton}
           {spotifyButton}
-          {spotifyAddQueueButton}
+          {spotifyDjButton}
         </BottomBarCapsule>
       </div>
 

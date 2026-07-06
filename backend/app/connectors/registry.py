@@ -66,6 +66,8 @@ CONNECTORS: dict[str, ConnectorDef] = {
             "user-read-currently-playing",
             "user-read-email",
             "user-read-private",
+            "user-top-read",
+            "user-read-recently-played",
         ),
     ),
 }

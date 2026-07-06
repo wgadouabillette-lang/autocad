@@ -86,6 +86,7 @@ import { useRecapStore } from "../store/useRecapStore";
 import HandoffComposerBar from "./chat/HandoffComposerBar";
 import HandoffPreviewBanner from "./chat/HandoffPreviewBanner";
 import { useHandoffStore } from "../store/useHandoffStore";
+import { useHallDjStore } from "../store/useHallDjStore";
 import {
   buildEligibleGroupChatMembers,
   collectAllWorkspaceMembers,
@@ -1398,14 +1399,17 @@ export default function ChatPanel() {
 
     const prompt = raw || "(Attachments)";
     const imageFiles = attachments.filter((a) => a.isImage).map((a) => a.file);
-    const addQueueQuery = isAddQueueSkillPrompt(prompt) ? parseAddQueueSkillQuery(prompt) : null;
-    const playQuery =
-      !addQueueQuery && isPlaySkillPrompt(prompt) ? parsePlaySkillQuery(prompt) : null;
+    const playQuery = isPlaySkillPrompt(prompt) ? parsePlaySkillQuery(prompt) : null;
+    const addQueueLegacy = isAddQueueSkillPrompt(prompt);
     setText("");
     clearAttachments();
-    if (addQueueQuery || playQuery) {
-      const searchQuery = addQueueQuery ?? playQuery!;
-      const skillId = addQueueQuery ? "add-queue" : "play";
+    if (addQueueLegacy) {
+      void useHallDjStore.getState().startDj();
+      return;
+    }
+    if (playQuery) {
+      const searchQuery = playQuery;
+      const skillId = "play";
       const spotifyConnected = connectedConnectors.has("spotify");
       const playSteps: SkillTimelineStep[] = spotifyConnected
         ? buildPlayTimelineSteps(searchQuery)
@@ -1458,11 +1462,9 @@ export default function ChatPanel() {
       : text.trim().length > 0 || attachments.length > 0;
 
   const playQueryDraft = parsePlaySkillQuery(text);
-  const addQueueQueryDraft = parseAddQueueSkillQuery(text);
   const canSubmitResolved =
     (showOpenAiKeyPrompt) ||
-    (isPlaySkillPrompt(text.trim()) && !playQueryDraft) ||
-    (isAddQueueSkillPrompt(text.trim()) && !addQueueQueryDraft)
+    (isPlaySkillPrompt(text.trim()) && !playQueryDraft)
       ? false
       : canSubmit;
 
