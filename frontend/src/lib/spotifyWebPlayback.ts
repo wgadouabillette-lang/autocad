@@ -126,37 +126,45 @@ function loadSpotifySdk(): Promise<void> {
   if (sdkPromise) return sdkPromise;
 
   sdkPromise = new Promise((resolve, reject) => {
-    const finish = () => resolve();
-    window.onSpotifyWebPlaybackSDKReady = finish;
+    let settled = false;
+    let poll: number | undefined;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (poll) window.clearInterval(poll);
+      window.clearTimeout(sdkTimeout);
+      fn();
+    };
+    const done = () => finish(resolve);
+    window.onSpotifyWebPlaybackSDKReady = done;
+
+    const sdkTimeout = window.setTimeout(() => {
+      finish(() => reject(new Error("SDK Spotify indisponible.")));
+    }, 10_000);
 
     if (window.Spotify?.Player) {
-      finish();
+      done();
       return;
     }
 
     const existing = document.querySelector(`script[src="${SDK_URL}"]`);
     if (existing) {
       if (window.Spotify?.Player) {
-        finish();
+        done();
         return;
       }
-      const poll = window.setInterval(() => {
+      poll = window.setInterval(() => {
         if (window.Spotify?.Player) {
-          window.clearInterval(poll);
-          finish();
+          done();
         }
       }, 50);
-      window.setTimeout(() => {
-        window.clearInterval(poll);
-        reject(new Error("SDK Spotify indisponible."));
-      }, 10_000);
       return;
     }
 
     const script = document.createElement("script");
     script.src = SDK_URL;
     script.async = true;
-    script.onerror = () => reject(new Error("Impossible de charger le SDK Spotify."));
+    script.onerror = () => finish(() => reject(new Error("Impossible de charger le SDK Spotify.")));
     document.body.appendChild(script);
   });
 
@@ -319,17 +327,25 @@ export async function playSpotifyFullTrack(trackId: string): Promise<boolean> {
 
     const token = await fetchSpotifyPlayerToken();
 
-    const play = await fetch(
-      `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(activeDeviceId)}`,
-      {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+    const playController = new AbortController();
+    const playTimeout = window.setTimeout(() => playController.abort(), 15_000);
+    let play: Response;
+    try {
+      play = await fetch(
+        `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(activeDeviceId)}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ uris: [`spotify:track:${trackId}`] }),
+          signal: playController.signal,
         },
-        body: JSON.stringify({ uris: [`spotify:track:${trackId}`] }),
-      },
-    );
+      );
+    } finally {
+      window.clearTimeout(playTimeout);
+    }
 
     const ok = play.ok || play.status === 204;
     if (ok) {

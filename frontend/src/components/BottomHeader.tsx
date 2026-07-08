@@ -44,6 +44,7 @@ import { useHallDjStore } from "../store/useHallDjStore";
 import { isMarketingPreview } from "../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
+import HallDjLoadingIcon from "./bottomBar/HallDjLoadingIcon";
 
 const ICON_SIZE = 19;
 
@@ -275,12 +276,15 @@ export default function BottomHeader() {
     </BottomBarButton>
   );
 
+  const showHallDjLoading = hallDjLoading && !hallDjActive;
+  const showHallDjSkip = hallDjActive;
+
   const spotifyDjButton = spotifyConnected ? (
     <BottomBarButton
       label={
-        hallDjLoading
+        showHallDjLoading
           ? "Hall DJ…"
-          : hallDjActive
+          : showHallDjSkip
             ? "Chanson suivante"
             : "Démarrer le Hall DJ"
       }
@@ -289,16 +293,18 @@ export default function BottomHeader() {
           void connect("spotify");
           return;
         }
-        if (hallDjActive) {
+        if (showHallDjSkip) {
           void skipHallDjTrack();
           return;
         }
         void startHallDj();
       }}
-      disabled={hallDjLoading || connectingId === "spotify"}
-      active={hallDjActive || hallDjLoading}
+      disabled={showHallDjLoading || connectingId === "spotify"}
+      active={showHallDjSkip || showHallDjLoading}
     >
-      {hallDjActive ? (
+      {showHallDjLoading ? (
+        <HallDjLoadingIcon size={ICON_SIZE} className={spotifyIconShimmerClass} />
+      ) : showHallDjSkip ? (
         <SkipForward size={ICON_SIZE} aria-hidden className={spotifyIconShimmerClass} />
       ) : (
         <ListMusic size={ICON_SIZE} aria-hidden className={spotifyIconShimmerClass} />

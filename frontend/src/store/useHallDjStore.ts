@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { buildHallDjBatch } from "../lib/hallDjEngine";
 import type { SpotifyTrackCard } from "../lib/connectorsApi";
+import { fetchSpotifyRecommendations } from "../lib/connectorsApi";
+import {
+  recordHallDjTrackFeedback,
+  type HallDjTrackVerdict,
+} from "../lib/hallDjTrackFeedback";
 import { useSpotifyPlayerStore } from "./useSpotifyPlayerStore";
 import { useStore } from "./useStore";
 
@@ -8,10 +13,13 @@ interface HallDjState {
   active: boolean;
   loading: boolean;
   error: string | null;
+  pendingFeedbackTrackId: string | null;
+  feedbackBusy: boolean;
   startDj: () => Promise<void>;
   skipNext: () => Promise<void>;
   stopDj: () => void;
   refillIfNeeded: () => Promise<void>;
+  rateCurrentTrack: (verdict: HallDjTrackVerdict) => Promise<void>;
 }
 
 function trackKey(track: { id?: string; name: string; artists: string }) {
@@ -19,9 +27,27 @@ function trackKey(track: { id?: string; name: string; artists: string }) {
 }
 
 function trackIsPlaying(): boolean {
-  const { playing, playbackMode } = useSpotifyPlayerStore.getState();
-  return playing || playbackMode !== null;
+  const { playing, playbackMode, currentTrack } = useSpotifyPlayerStore.getState();
+  return Boolean(currentTrack && (playing || playbackMode !== null));
 }
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function waitForPlaybackStarted(timeoutMs = 8_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (trackIsPlaying()) return true;
+    await sleep(120);
+  }
+  return trackIsPlaying();
+}
+
+const MAX_START_ATTEMPTS = 4;
+const START_DJ_TIMEOUT_MS = 55_000;
 
 async function startPlaylist(tracks: SpotifyTrackCard[]): Promise<boolean> {
   if (tracks.length === 0) return false;
@@ -29,32 +55,69 @@ async function startPlaylist(tracks: SpotifyTrackCard[]): Promise<boolean> {
   const player = useSpotifyPlayerStore.getState();
   await player.refreshPlayerConfig();
 
-  for (let index = 0; index < tracks.length; index += 1) {
+  const attempts = Math.min(tracks.length, MAX_START_ATTEMPTS);
+  for (let index = 0; index < attempts; index += 1) {
     const track = tracks[index]!;
     const rest = tracks.slice(index + 1);
     useSpotifyPlayerStore.setState({ queue: rest });
     await player.playTrack(track, { skipHistory: true });
-    if (trackIsPlaying()) return true;
+    if (await waitForPlaybackStarted()) return true;
   }
 
   return false;
+}
+
+async function appendSimilarTracksToQueue(track: SpotifyTrackCard): Promise<void> {
+  const trackId = track.id?.trim();
+  if (!trackId) return;
+  try {
+    const similar = await fetchSpotifyRecommendations({
+      seedTracks: [trackId],
+      limit: 8,
+    });
+    if (similar.length === 0) return;
+    const player = useSpotifyPlayerStore.getState();
+    const existingKeys = new Set<string>();
+    if (player.currentTrack) existingKeys.add(trackKey(player.currentTrack));
+    for (const entry of player.queue) existingKeys.add(trackKey(entry));
+    const fresh = similar.filter((entry) => !existingKeys.has(trackKey(entry)));
+    if (fresh.length === 0) return;
+    useSpotifyPlayerStore.setState((state) => ({
+      queue: [...state.queue, ...fresh],
+      queueAddFlashAt: Date.now(),
+    }));
+  } catch {
+    // Recommendations may fail when offline or scope is missing.
+  }
 }
 
 export const useHallDjStore = create<HallDjState>((set, get) => ({
   active: false,
   loading: false,
   error: null,
+  pendingFeedbackTrackId: null,
+  feedbackBusy: false,
 
   stopDj: () => {
-    set({ active: false, error: null });
+    set({ active: false, error: null, pendingFeedbackTrackId: null, feedbackBusy: false });
   },
 
   startDj: async () => {
     if (get().loading) return;
-    set({ loading: true, error: null, active: true });
+    set({ loading: true, error: null });
+    const startedAt = Date.now();
+    const timedOut = () => Date.now() - startedAt > START_DJ_TIMEOUT_MS;
     try {
       const preferredGenre = useStore.getState().hallDjPreferredGenre;
       const batch = await buildHallDjBatch(preferredGenre);
+      if (timedOut()) {
+        set({
+          loading: false,
+          active: false,
+          error: "Le Hall DJ met trop de temps à démarrer. Réessayez.",
+        });
+        return;
+      }
       if (batch.length === 0) {
         set({
           loading: false,
@@ -75,11 +138,24 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
 
       if (playing && currentTrack) {
         useSpotifyPlayerStore.setState({ queue: [...queue, ...nextBatch] });
-        set({ loading: false, error: null });
+        set({
+          loading: false,
+          error: null,
+          active: true,
+          pendingFeedbackTrackId: currentTrack.id?.trim() ?? null,
+        });
         return;
       }
 
       const started = await startPlaylist(nextBatch);
+      if (timedOut()) {
+        set({
+          loading: false,
+          active: false,
+          error: "Le Hall DJ met trop de temps à démarrer. Réessayez.",
+        });
+        return;
+      }
       if (!started) {
         set({
           loading: false,
@@ -91,10 +167,17 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
         });
         return;
       }
-      set({ loading: false, error: null });
+      set({
+        loading: false,
+        error: null,
+        active: true,
+        pendingFeedbackTrackId:
+          useSpotifyPlayerStore.getState().currentTrack?.id?.trim() ?? null,
+      });
     } catch (err) {
       set({
         loading: false,
+        active: false,
         error: err instanceof Error ? err.message : "Impossible de démarrer le Hall DJ.",
       });
     }
@@ -150,4 +233,32 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
       set({ loading: false });
     }
   },
+
+  rateCurrentTrack: async (verdict) => {
+    if (!get().active || get().feedbackBusy) return;
+    const track = useSpotifyPlayerStore.getState().currentTrack;
+    const pendingId = get().pendingFeedbackTrackId;
+    const trackId = track?.id?.trim();
+    if (!track || !trackId || trackId !== pendingId) return;
+
+    set({ feedbackBusy: true });
+    try {
+      recordHallDjTrackFeedback(track, verdict);
+      set({ pendingFeedbackTrackId: null });
+      if (verdict === "approve") {
+        await appendSimilarTracksToQueue(track);
+      }
+      void get().refillIfNeeded();
+    } finally {
+      set({ feedbackBusy: false });
+    }
+  },
 }));
+
+useSpotifyPlayerStore.subscribe((state, prev) => {
+  if (!useHallDjStore.getState().active) return;
+  const prevId = prev.currentTrack?.id?.trim() ?? null;
+  const nextId = state.currentTrack?.id?.trim() ?? null;
+  if (prevId === nextId) return;
+  useHallDjStore.setState({ pendingFeedbackTrackId: nextId });
+});

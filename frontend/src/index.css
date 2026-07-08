@@ -262,6 +262,22 @@ body {
     @apply inline-flex;
     animation: bottom-bar-queue-icon-shimmer 1.2s ease-in-out 1;
   }
+  .hall-dj-loading-icon {
+    @apply relative inline-flex items-center justify-center;
+  }
+  .hall-dj-loading-icon__ring {
+    width: 100%;
+    height: 100%;
+    border-radius: 999px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: hall-dj-loading-spin 0.75s linear infinite;
+  }
+  @keyframes hall-dj-loading-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   .header-chrome-control {
     @apply relative isolate inline-flex overflow-hidden rounded-full border-0 transition-[box-shadow,filter];
     appearance: none;
@@ -824,7 +840,7 @@ body {
     grid-column: 2;
   }
   .app-chrome-row {
-    @apply relative z-30 flex min-h-11 shrink-0 items-stretch overflow-visible;
+    @apply relative z-50 flex min-h-11 shrink-0 items-stretch overflow-visible;
     background-color: var(--forma-content-bg);
   }
   .app-chrome-row--immersive {
@@ -862,7 +878,7 @@ body {
     border-bottom: var(--forma-divider-width) solid var(--forma-divider);
   }
   .app-chrome-row__leading {
-    @apply flex items-center justify-start gap-0.5;
+    @apply relative z-[1] flex items-center justify-start gap-0.5;
     overflow: visible;
     grid-column: 1;
     grid-row: 1;
@@ -914,7 +930,7 @@ body {
     cursor: pointer;
   }
   .app-chrome-row__actions {
-    @apply flex items-center justify-end gap-0.5;
+    @apply relative z-[1] flex items-center justify-end gap-0.5;
     overflow: visible;
     grid-column: 3;
     grid-row: 1;
@@ -3286,7 +3302,10 @@ body {
   }
   .chat-panel--expanded {
     position: absolute;
-    inset: 0;
+    top: var(--forma-header-height);
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 45;
     grid-column: 1 / -1 !important;
     grid-row: 1 / -1 !important;
@@ -3360,13 +3379,13 @@ body {
   }
   .chat-panel--expanded-leave.chat-panel--dock-right {
     inset: auto;
-    top: 0;
+    top: var(--forma-header-height);
     bottom: 0;
     animation: chat-panel-leave-shell-right 0.54s cubic-bezier(0.32, 0.72, 0, 1) forwards;
   }
   .chat-panel--expanded-leave.chat-panel--dock-left {
     inset: auto;
-    top: 0;
+    top: var(--forma-header-height);
     bottom: 0;
     animation: chat-panel-leave-shell-left 0.54s cubic-bezier(0.32, 0.72, 0, 1) forwards;
   }
@@ -6494,6 +6513,39 @@ body {
   }
   .handoff-composer-bar {
     @apply flex w-full flex-col gap-2 pt-0.5 pb-2.5;
+  }
+  .chat-composer-cluster--dj-feedback {
+    @apply rounded-xl p-1;
+    border: 1px solid rgb(255 255 255 / 0.14);
+    background-color: transparent;
+  }
+  .chat-composer-cluster--dj-feedback .hall-dj-track-feedback {
+    @apply mb-1 gap-2 px-1 pb-1 pt-0.5;
+  }
+  .hall-dj-track-feedback {
+    @apply mb-2 flex w-full items-stretch gap-2 px-1;
+  }
+  .hall-dj-track-feedback__btn {
+    @apply flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border-0 px-3 py-1.5
+      text-[11px] font-medium transition-[background-color,color,opacity] disabled:opacity-40;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .hall-dj-track-feedback__btn--approve {
+    background-color: rgb(34 197 94 / 0.14);
+    color: rgb(134 239 172 / 0.88);
+  }
+  .hall-dj-track-feedback__btn--approve:hover:not(:disabled) {
+    background-color: rgb(34 197 94 / 0.2);
+    color: rgb(167 243 208 / 0.95);
+  }
+  .hall-dj-track-feedback__btn--reject {
+    background-color: rgb(239 68 68 / 0.14);
+    color: rgb(252 165 165 / 0.88);
+  }
+  .hall-dj-track-feedback__btn--reject:hover:not(:disabled) {
+    background-color: rgb(239 68 68 / 0.2);
+    color: rgb(254 202 202 / 0.95);
   }
   .handoff-composer-bar__header {
     @apply flex items-center gap-2;

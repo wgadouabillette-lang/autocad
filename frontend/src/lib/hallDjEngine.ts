@@ -10,6 +10,12 @@ import {
   mergeSpotifyRecentPlays,
   type HallDjPopularTrack,
 } from "./hallDjPlayHistory";
+import {
+  filterTracksByDjFeedback,
+  hallDjApprovedSeedTracks,
+  hallDjTrackWeight,
+  sortTracksByDjFeedback,
+} from "./hallDjTrackFeedback";
 
 const BATCH_SIZE = 12;
 
@@ -56,15 +62,27 @@ function interleave(replays: SpotifyTrackCard[], discoveries: SpotifyTrackCard[]
 
 function pickReplays(popular: HallDjPopularTrack[]): SpotifyTrackCard[] {
   if (popular.length === 0) return [];
-  const top = popular.slice(0, 6);
-  return top.map((entry) => entry.track);
+  const ranked = [...popular].sort((a, b) => {
+    const weightDiff = hallDjTrackWeight(b.track.id) - hallDjTrackWeight(a.track.id);
+    if (weightDiff !== 0) return weightDiff;
+    return b.playCount - a.playCount || b.lastPlayedAt - a.lastPlayedAt;
+  });
+  return ranked.slice(0, 6).map((entry) => entry.track);
 }
 
 function seedTrackIds(popular: HallDjPopularTrack[]): string[] {
-  return popular
+  const approved = hallDjApprovedSeedTracks(3)
+    .map((track) => track.id?.trim())
+    .filter((id): id is string => Boolean(id));
+  const fromPopular = popular
     .map((entry) => entry.track.id?.trim())
-    .filter((id): id is string => Boolean(id))
-    .slice(0, 5);
+    .filter((id): id is string => Boolean(id));
+  const merged: string[] = [];
+  for (const id of [...approved, ...fromPopular]) {
+    if (!merged.includes(id)) merged.push(id);
+    if (merged.length >= 5) break;
+  }
+  return merged;
 }
 
 function resolveSeedGenre(preferredGenre: string): string {
@@ -131,10 +149,12 @@ export async function buildHallDjBatch(preferredGenre: string): Promise<SpotifyT
   }
 
   const exclude = new Set<string>();
-  const replayPool = dedupeTracks(replays, exclude);
+  const replayPool = sortTracksByDjFeedback(dedupeTracks(replays, exclude));
   for (const track of replayPool) exclude.add(trackKey(track));
 
-  const discoveryPool = dedupeTracks(discoveries, exclude);
+  const discoveryPool = sortTracksByDjFeedback(
+    filterTracksByDjFeedback(dedupeTracks(discoveries, exclude)),
+  );
   const batch = interleave(replayPool, discoveryPool);
 
   if (batch.length > 0) return batch;

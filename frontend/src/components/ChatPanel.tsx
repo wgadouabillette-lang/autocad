@@ -87,6 +87,8 @@ import HandoffComposerBar from "./chat/HandoffComposerBar";
 import HandoffPreviewBanner from "./chat/HandoffPreviewBanner";
 import { useHandoffStore } from "../store/useHandoffStore";
 import { useHallDjStore } from "../store/useHallDjStore";
+import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
+import HallDjTrackFeedbackBar from "./chat/HallDjTrackFeedbackBar";
 import {
   buildEligibleGroupChatMembers,
   collectAllWorkspaceMembers,
@@ -475,6 +477,19 @@ export default function ChatPanel() {
   const activePoll = useActiveVoicePoll(activeRoomId);
   const pollVoteOpen = pollVoteOpenRaw && !!activePoll;
   const pollMorphActive = pollComposerOpen || pollVoteOpen;
+  const hallDjActive = useHallDjStore((s) => s.active);
+  const hallDjPendingFeedbackTrackId = useHallDjStore((s) => s.pendingFeedbackTrackId);
+  const hallDjFeedbackBusy = useHallDjStore((s) => s.feedbackBusy);
+  const rateHallDjTrack = useHallDjStore((s) => s.rateCurrentTrack);
+  const spotifyCurrentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
+  const showHallDjTrackFeedback = Boolean(
+    hallDjActive &&
+      !pollMorphActive &&
+      !handoffPreview &&
+      !handoffSelectionMode &&
+      hallDjPendingFeedbackTrackId &&
+      spotifyCurrentTrack?.id === hallDjPendingFeedbackTrackId,
+  );
   const {
     connectedIds: connectedConnectors,
     statuses: connectorStatuses,
@@ -1484,11 +1499,24 @@ export default function ChatPanel() {
 
   const composerBlock = handoffPreview ? null : (
     <div className="pointer-events-auto relative">
-      <div className="relative">
-        <div
-          className="chat-composer relative z-10 flex flex-col gap-1 rounded-xl px-2 py-1.5"
-          style={CHAT_COMPOSER_SURFACE_STYLE}
-        >
+      <div
+        className={clsx(
+          showHallDjTrackFeedback && "chat-composer-cluster chat-composer-cluster--dj-feedback",
+        )}
+      >
+        {showHallDjTrackFeedback && spotifyCurrentTrack ? (
+          <HallDjTrackFeedbackBar
+            track={spotifyCurrentTrack}
+            busy={hallDjFeedbackBusy}
+            onApprove={() => void rateHallDjTrack("approve")}
+            onReject={() => void rateHallDjTrack("reject")}
+          />
+        ) : null}
+        <div className="relative">
+          <div
+            className="chat-composer relative z-10 flex flex-col gap-1 rounded-xl px-2 py-1.5"
+            style={CHAT_COMPOSER_SURFACE_STYLE}
+          >
           {attachments.length > 0 && (
             <div className="flex h-8 items-center gap-1 overflow-hidden">
               {attachments.map((att, i) => (
@@ -1852,6 +1880,7 @@ export default function ChatPanel() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 
