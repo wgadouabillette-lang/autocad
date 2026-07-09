@@ -1,5 +1,3 @@
-import { CHAT_CONNECTORS } from "../components/chat/chatConnectors";
-
 export type SubscriptionPlan = "free" | "pro";
 export type WorkspaceEnterprisePlan = "free" | "enterprise";
 
@@ -11,7 +9,6 @@ export interface PlanDefinition {
   features: string[];
 }
 
-const CONNECTOR_LABELS = CHAT_CONNECTORS.map((c) => c.label);
 
 export const ENTERPRISE_MIN_MEMBERS = 2;
 
@@ -22,41 +19,35 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
     price: "0 €",
     description: "Workspace, appels et messagerie entre amis.",
     features: [
-      "Workspace et appels",
+      "Workspace et appels vocaux",
       "Jusqu'à 3 serveurs personnels",
-      "Liste d'amis et messages",
-      "Mode règles (sans IA)",
-      `Connecteurs : ${CONNECTOR_LABELS.join(", ")}`,
+      "Amis et messages",
+      "Connecteurs inclus",
     ],
   },
   {
     id: "pro",
     label: "Pro",
-    price: "$30 / mois",
-    description: "Assistant IA personnel — 30 $/mois de crédits IA au tarif Hall (marge incluse).",
+    price: "30 $ / mois",
+    description: "Assistant IA personnel avec crédits mensuels.",
     features: [
       "Serveurs personnels illimités",
-      "30 $ de crédits IA / mois (facturés au tarif Hall, pas au coût fournisseur)",
-      "Assistant IA (Agent & Render) partout",
-      "AI Notes — transcription live en appel vocal",
-      "Follow-up — récap structuré, calendrier et e-mails après l'appel",
+      "30 $ de crédits IA / mois",
+      "Assistant IA dans tout Hall",
+      "AI Notes et Follow-up",
       "Choix du modèle IA",
-      "Usage à la demande disponible en complément (add-on)",
     ],
   },
   {
     id: "enterprise",
     label: "Entreprise",
-    price: "Tarif par siège",
-    description:
-      "IA pour tout le workspace — dès que vous n'êtes plus seul sur le serveur, tarif compétitif par personne (style Discord Nitro).",
+    price: "20 $ par siège",
+    description: "IA partagée pour tout le workspace.",
     features: [
-      "Pool IA partagé pour tous les membres du workspace (25 $ × sièges / mois au tarif Hall)",
-      "IA activée pour tous les membres du workspace choisi",
-      "AI Notes et Follow-up dans ce workspace uniquement",
-      "Facturation centralisée par le propriétaire du workspace",
-      "Tarif dégressif par siège",
-      "Pro personnel reste valable partout si vous l'avez déjà",
+      "IA pour tous les membres du workspace",
+      "Pool IA partagé (20 $ × siège / mois)",
+      "AI Notes et Follow-up workspace",
+      "Facturation centralisée",
     ],
   },
 ];

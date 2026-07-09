@@ -82,6 +82,7 @@ interface SpotifyPlayerState {
   playing: boolean;
   playbackMode: PlaybackMode;
   premiumAvailable: boolean | null;
+  streamingScopeAvailable: boolean | null;
   playerNotice: string | null;
   /** Timestamp du dernier ajout réussi à la file (feedback UI bottom bar). */
   queueAddFlashAt: number;
@@ -142,6 +143,23 @@ async function playPreview(track: SpotifyTrackCard, restart = false): Promise<bo
   }
 }
 
+function spotifyPlayerNotice(config: {
+  premium: boolean;
+  reconnectRequired?: boolean;
+  hasStreamingScope?: boolean;
+}): string | null {
+  if (config.reconnectRequired) {
+    return "Spotify Premium détecté : déconnecte puis reconnecte le connecteur Spotify (Settings → Plugins) pour activer la lecture dans l'app.";
+  }
+  if (!config.premium) {
+    return "Compte Spotify Free : extraits 30 s dans l'app quand disponibles. Spotify Premium + reconnexion du connecteur pour la piste complète.";
+  }
+  if (config.hasStreamingScope === false) {
+    return "Reconnecte Spotify (Settings → Plugins) pour autoriser la lecture dans l'app.";
+  }
+  return null;
+}
+
 async function startPlayback(track: SpotifyTrackCard, restart = false): Promise<void> {
   suppressTrackEnded = true;
   cancelSpotifyPlaybackEnded();
@@ -162,20 +180,27 @@ async function startPlayback(track: SpotifyTrackCard, restart = false): Promise<
 
   try {
     let premium = useSpotifyPlayerStore.getState().premiumAvailable;
-    if (premium === null && trackId) {
+    let streamingScope = useSpotifyPlayerStore.getState().streamingScopeAvailable;
+    if ((premium === null || streamingScope === null) && trackId) {
       try {
         const config = await fetchSpotifyPlayerConfig();
         premium = config.premium;
-        useSpotifyPlayerStore.setState({ premiumAvailable: config.premium });
-        if (config.premium) warmSpotifyWebPlayer(true);
+        streamingScope = config.hasStreamingScope !== false;
+        useSpotifyPlayerStore.setState({
+          premiumAvailable: config.premium,
+          streamingScopeAvailable: config.hasStreamingScope !== false,
+          playerNotice: spotifyPlayerNotice(config),
+        });
+        if (config.premium && config.hasStreamingScope !== false) warmSpotifyWebPlayer(true);
       } catch {
         premium = false;
+        streamingScope = false;
       }
-    } else if (premium) {
+    } else if (premium && streamingScope !== false) {
       warmSpotifyWebPlayer(true);
     }
 
-    if (trackId && premium) {
+    if (trackId && premium && streamingScope !== false) {
       if (wasPlayingFull) {
         await pauseSpotifyWebPlayback();
       }
@@ -196,7 +221,7 @@ async function startPlayback(track: SpotifyTrackCard, restart = false): Promise<
       }
       useSpotifyPlayerStore.setState({
         playerNotice:
-          "Lecture complète indisponible. Déconnecte puis reconnecte Spotify (scope streaming).",
+          "Lecture complète indisponible. Déconnecte puis reconnecte Spotify dans Settings → Plugins (autorisation streaming).",
       });
     }
 
@@ -233,6 +258,7 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
   playing: false,
   playbackMode: null,
   premiumAvailable: null,
+  streamingScopeAvailable: null,
   playerNotice: null,
   queueAddFlashAt: 0,
 
@@ -283,13 +309,12 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
       const config = await fetchSpotifyPlayerConfig();
       set({
         premiumAvailable: config.premium,
-        playerNotice: config.premium
-          ? null
-          : "Compte Spotify Free : extraits 30 s uniquement. Premium + reconnexion du connecteur pour la piste complète.",
+        streamingScopeAvailable: config.hasStreamingScope !== false,
+        playerNotice: spotifyPlayerNotice(config),
       });
-      if (config.premium) warmSpotifyWebPlayer(true);
+      if (config.premium && config.hasStreamingScope !== false) warmSpotifyWebPlayer(true);
     } catch {
-      set({ premiumAvailable: false });
+      set({ premiumAvailable: false, streamingScopeAvailable: false });
     }
   },
 

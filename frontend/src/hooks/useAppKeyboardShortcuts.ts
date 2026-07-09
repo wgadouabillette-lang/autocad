@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { matchAppShortcut } from "../lib/keyboardShortcuts";
+import { triggerHallDjSkipFromShortcut } from "../lib/hallDjSkipShortcut";
 import { useCallsStore } from "../store/useCallsStore";
 import { useStore } from "../store/useStore";
 
@@ -23,7 +24,14 @@ export function useAppKeyboardShortcuts() {
         return;
       }
 
-      useStore.getState().cycleChatPanelMode();
+      if (shortcut === "djSkip") {
+        triggerHallDjSkipFromShortcut();
+        return;
+      }
+
+      if (shortcut === "panel") {
+        useStore.getState().cycleChatPanelMode();
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);

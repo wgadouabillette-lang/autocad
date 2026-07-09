@@ -38,7 +38,8 @@ export default function SpotifyTrackList({
         const isActive = currentTrack?.id === track.id;
         const isPlaying = isActive && playing;
         const hasPreview = !!track.previewUrl?.trim();
-        const canPlayFull = !!track.id && premiumAvailable;
+        const canPlayFull = !!track.id && premiumAvailable === true;
+        const canPlayInApp = !!track.id || hasPreview;
         const queued = isTrackQueued(track.id);
         const isCurrent = isActive;
         const addedToQueue = mode === "queue-add" && (queued || isCurrent);
@@ -102,7 +103,7 @@ export default function SpotifyTrackList({
                       <Plus size={14} strokeWidth={2.5} aria-hidden />
                     )}
                   </button>
-                ) : canPlayFull || hasPreview ? (
+                ) : canPlayInApp ? (
                   <button
                     type="button"
                     className="spotify-track-list__play"
@@ -117,7 +118,9 @@ export default function SpotifyTrackList({
                         ? "Pause"
                         : canPlayFull
                           ? "Lire la piste complète"
-                          : "Lire l'extrait (30 s)"
+                          : hasPreview
+                            ? "Lire l'extrait (30 s)"
+                            : "Lire dans l'app"
                     }
                   >
                     {isPlaying ? (

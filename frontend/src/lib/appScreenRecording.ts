@@ -1,4 +1,5 @@
 import { buildAudioInputConstraints } from "./audioDevices";
+import { getLocalMediaStream } from "./localMedia";
 import { hasFormaDesktop } from "./formaDesktop";
 import { isScreenCapturePermissionError } from "./screenCapturePermission";
 import { readUserPreferences } from "./userPreferences";
@@ -91,6 +92,12 @@ async function acquireViaElectronDesktop(): Promise<MediaStream> {
 }
 
 async function acquireMicrophoneStream(): Promise<MediaStream | null> {
+  const shared = getLocalMediaStream();
+  const liveTrack = shared?.getAudioTracks().find((track) => track.readyState === "live");
+  if (liveTrack) {
+    return new MediaStream([liveTrack]);
+  }
+
   if (!navigator.mediaDevices?.getUserMedia) return null;
   try {
     return await navigator.mediaDevices.getUserMedia({
@@ -158,7 +165,11 @@ function releaseCaptureStream() {
   displayStream?.getTracks().forEach((item) => item.stop());
   displayStream = null;
 
-  micStream?.getTracks().forEach((item) => item.stop());
+  micStream?.getTracks().forEach((item) => {
+    const shared = getLocalMediaStream();
+    if (shared?.getTrackById(item.id)) return;
+    item.stop();
+  });
   micStream = null;
 
   if (audioContext) {

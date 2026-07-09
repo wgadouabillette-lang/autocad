@@ -1,4 +1,5 @@
-import { APP_SHORTCUTS, shortcutModifierSymbol } from "../../lib/keyboardShortcuts";
+import clsx from "clsx";
+import { APP_SHORTCUTS, HALL_DJ_SKIP_SHORTCUT, shortcutModifierSymbol, type AppShortcut } from "../../lib/keyboardShortcuts";
 
 function ShortcutKey({ label }: { label: string }) {
   return (
@@ -21,14 +22,27 @@ function ShortcutKeys({ keys }: { keys: string[] }) {
   );
 }
 
-export default function ChatShortcutsHint() {
+export default function ChatShortcutsHint({
+  showHallDjSkip = false,
+}: {
+  showHallDjSkip?: boolean;
+}) {
   const modifier = shortcutModifierSymbol();
+  const shortcuts: AppShortcut[] = showHallDjSkip
+    ? [...APP_SHORTCUTS, HALL_DJ_SKIP_SHORTCUT]
+    : APP_SHORTCUTS;
 
   return (
     <section className="chat-shortcuts-hint" aria-label="Keyboard shortcuts">
       <ul className="chat-shortcuts-hint__list">
-        {APP_SHORTCUTS.map((shortcut) => (
-          <li key={shortcut.id} className="chat-shortcuts-hint__row">
+        {shortcuts.map((shortcut) => (
+          <li
+            key={shortcut.id}
+            className={clsx(
+              "chat-shortcuts-hint__row",
+              shortcut.id === "djSkip" && "chat-shortcuts-hint__row--dj-skip",
+            )}
+          >
             <span className="chat-shortcuts-hint__label">{shortcut.label}</span>
             <ShortcutKeys keys={[modifier, shortcut.key]} />
           </li>

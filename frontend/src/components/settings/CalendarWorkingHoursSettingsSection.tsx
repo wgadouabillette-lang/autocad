@@ -5,82 +5,68 @@ import {
   resolveCalendarWorkingHours,
 } from "../../lib/userPreferences";
 import { useStore } from "../../store/useStore";
+import { SettingsTimeInput } from "./SettingsControls";
+import SettingsFieldRow from "./SettingsFieldRow";
 
 export default function CalendarWorkingHoursSettingsSection() {
   const calendarWorkStartMinutes = useStore((s) => s.calendarWorkStartMinutes);
   const calendarWorkEndMinutes = useStore((s) => s.calendarWorkEndMinutes);
   const setCalendarWorkingHours = useStore((s) => s.setCalendarWorkingHours);
-  const [error, setError] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
+  const [endError, setEndError] = useState<string | null>(null);
 
   const startTime = formatCalendarWorkTime(calendarWorkStartMinutes);
   const endTime = formatCalendarWorkTime(calendarWorkEndMinutes);
 
   function handleStartChange(value: string) {
-    setError(null);
+    setStartError(null);
+    setEndError(null);
     const parsed = parseCalendarWorkTimeInput(value, calendarWorkStartMinutes);
     const next = resolveCalendarWorkingHours(parsed, calendarWorkEndMinutes);
     if (next.endMinutes <= next.startMinutes) {
-      setError("L'heure de fin doit être après l'heure de début.");
+      setStartError("Doit être avant l'heure de fermeture.");
       return;
     }
     setCalendarWorkingHours(next.startMinutes, next.endMinutes);
   }
 
   function handleEndChange(value: string) {
-    setError(null);
+    setStartError(null);
+    setEndError(null);
     const parsed = parseCalendarWorkTimeInput(value, calendarWorkEndMinutes);
     const next = resolveCalendarWorkingHours(calendarWorkStartMinutes, parsed);
     if (next.endMinutes <= next.startMinutes) {
-      setError("L'heure de fin doit être après l'heure de début.");
+      setEndError("Doit être après l'heure d'ouverture.");
       return;
     }
     setCalendarWorkingHours(next.startMinutes, next.endMinutes);
   }
 
   return (
-    <section className="settings-section">
-      <h3 className="settings-section__label">Heures d&apos;ouverture du calendrier</h3>
-      <p className="settings-section__hint">
-        Plage horaire utilisée par <span className="font-medium text-muted-300">/manage</span> pour
-        planifier vos tâches dans le calendrier.
-      </p>
+    <>
+      <SettingsFieldRow
+        label="Heure d'ouverture"
+        description="Début de la journée dans le calendrier."
+        error={startError}
+      >
+        <SettingsTimeInput
+          value={startTime}
+          ariaLabel="Heure d'ouverture"
+          onChange={handleStartChange}
+        />
+      </SettingsFieldRow>
 
-      <div className="settings-section__stack mt-3">
-        <div className="flex items-end gap-3">
-          <label className="settings-audio-field flex-1">
-            <span className="settings-audio-field__label">Début</span>
-            <input
-              type="time"
-              className="input w-full"
-              value={startTime}
-              step={300}
-              onChange={(event) => handleStartChange(event.target.value)}
-            />
-          </label>
-          <span className="pb-2 text-muted-500" aria-hidden>
-            →
-          </span>
-          <label className="settings-audio-field flex-1">
-            <span className="settings-audio-field__label">Fin</span>
-            <input
-              type="time"
-              className="input w-full"
-              value={endTime}
-              step={300}
-              onChange={(event) => handleEndChange(event.target.value)}
-            />
-          </label>
-        </div>
-      </div>
-
-      {error && <p className="settings-section__error">{error}</p>}
-
-      <p className="settings-section__meta">
-        Plage active :{" "}
-        <span className="text-muted-300">
-          {startTime} – {endTime}
-        </span>
-      </p>
-    </section>
+      <SettingsFieldRow
+        label="Heure de fermeture"
+        description="Fin de la journée dans le calendrier."
+        error={endError}
+      >
+        <SettingsTimeInput
+          value={endTime}
+          ariaLabel="Heure de fermeture"
+          onChange={handleEndChange}
+        />
+      </SettingsFieldRow>
+    </>
   );
 }

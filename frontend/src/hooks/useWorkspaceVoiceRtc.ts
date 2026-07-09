@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
-import { resolveVoiceRtcContext, enrichVoiceRtcContextWithPresence, voiceRtcContextFromPresence } from "../lib/webrtc/voiceSession";
+import {
+  resolveVoiceRtcContext,
+  resolveTheaterRtcContext,
+  enrichVoiceRtcContextWithPresence,
+  voiceRtcContextFromPresence,
+} from "../lib/webrtc/voiceSession";
 import { WorkspaceVoiceRtcSession } from "../lib/webrtc/workspaceVoiceRtc";
 import { useAuthStore } from "../store/useAuthStore";
 import { useCallsStore } from "../store/useCallsStore";
@@ -10,7 +15,11 @@ export function useWorkspaceVoiceRtc() {
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const activeRoomId = useStore((s) => s.activeRoomId);
-  const inCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
+  const callsViewMode = useCallsStore((s) => s.getCallsViewMode(activeRoomId));
+  const inBlockCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
+  const inTheaterCall = useCallsStore((s) => s.isLocalInTheaterCall(activeRoomId));
+  const canSpeakInTheater = useCallsStore((s) => s.canSpeakInTheater(activeRoomId));
+  const inVoice = callsViewMode === "theater" ? inTheaterCall : inBlockCall;
   const localOpenChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
   const roomCalls = useCallsStore((s) => s.callsByRoom[activeRoomId]);
   const presenceMembers = useWorkspacePresenceStore((s) => s.membersByWorkspace[activeRoomId]);
@@ -20,13 +29,28 @@ export function useWorkspaceVoiceRtc() {
   const cameraOn = useCallsStore((s) => s.cameraOn);
   const screenSharing = useCallsStore((s) => s.screenSharing);
 
+  const sendMuted =
+    callsViewMode === "theater" && inTheaterCall && !canSpeakInTheater ? true : muted;
+
   const rtcContext = useMemo(() => {
-    if (!isAuthenticated || !firebaseUid || !inCall) return null;
+    if (!isAuthenticated || !firebaseUid || !inVoice) return null;
+
+    if (callsViewMode === "theater" && inTheaterCall) {
+      const base = resolveTheaterRtcContext({
+        workspaceId: activeRoomId,
+        localFirebaseUid: firebaseUid,
+        localInTheaterCall: true,
+        presenceMembers,
+      });
+      if (!base) return null;
+      return enrichVoiceRtcContextWithPresence(base, presenceMembers, firebaseUid, null);
+    }
+
     const openChannelId = localOpenChannelId ?? null;
     const base = resolveVoiceRtcContext({
       workspaceId: activeRoomId,
       roomCalls,
-      localInCall: inCall,
+      localInCall: inBlockCall,
       localOpenChannelId: openChannelId,
       localFirebaseUid: firebaseUid,
     });
@@ -48,7 +72,10 @@ export function useWorkspaceVoiceRtc() {
     isAuthenticated,
     firebaseUid,
     activeRoomId,
-    inCall,
+    callsViewMode,
+    inVoice,
+    inBlockCall,
+    inTheaterCall,
     localOpenChannelId,
     roomCalls?.blocks,
     roomCalls?.openChannels,
@@ -92,12 +119,20 @@ export function useWorkspaceVoiceRtc() {
       void sessionRef.current.syncLocalMedia({
         localStream,
         screenShareStream,
-        muted,
+        muted: sendMuted,
         cameraOn,
         screenSharing,
       });
     });
-  }, [rtcContext, firebaseUid, localStream, screenShareStream, muted, cameraOn, screenSharing]);
+  }, [
+    rtcContext,
+    firebaseUid,
+    localStream,
+    screenShareStream,
+    sendMuted,
+    cameraOn,
+    screenSharing,
+  ]);
 
   useEffect(
     () => () => {

@@ -1,4 +1,5 @@
 import type { AiModel } from "./aiModels";
+import { isOpenAiChatModel } from "./aiModels";
 import type { PresenceActivityId } from "./presenceActivity";
 
 export type AiStrokeVariant = "claude" | "grok" | "auto";
@@ -10,8 +11,10 @@ export function aiStrokeVariantFromModel(model: AiModel): AiStrokeVariant {
 }
 
 export function presenceActivityFromModel(model: AiModel): PresenceActivityId {
+  if (model === "auto") return "auto";
   if (model === "grok" || model === "grok-mini") return "grok";
   if (model.startsWith("claude")) return "claude";
+  if (isOpenAiChatModel(model)) return "openai";
   return "auto";
 }
 

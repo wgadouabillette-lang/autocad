@@ -40,8 +40,12 @@ export interface WorkspaceJoinRequestDoc {
   respondedAt?: unknown;
 }
 
+function normalizeSharedWorkspaceId(workspaceId: string): string {
+  return workspaceId.trim().toLowerCase();
+}
+
 function sharedWorkspaceRef(workspaceId: string) {
-  return doc(db, "workspacesShared", workspaceId);
+  return doc(db, "workspacesShared", normalizeSharedWorkspaceId(workspaceId));
 }
 
 function joinRequestRef(workspaceId: string, requesterUid: string) {
@@ -102,7 +106,40 @@ export function watchSharedWorkspace(
 }
 
 export async function publishSharedWorkspace(workspace: Workspace): Promise<void> {
-  await setDoc(sharedWorkspaceRef(workspace.id), toSharedWorkspaceDoc(workspace));
+  const id = normalizeSharedWorkspaceId(workspace.id);
+  if (!id) throw new Error("Workspace invalide.");
+  await setDoc(sharedWorkspaceRef(id), toSharedWorkspaceDoc({ ...workspace, id }), {
+    merge: true,
+  });
+}
+
+/** Garantit que workspacesShared existe avec le bon propriétaire (requis pour Storage). */
+export async function ensureSharedWorkspacePublished(
+  workspace: Workspace,
+  firebaseUid: string,
+): Promise<void> {
+  const id = normalizeSharedWorkspaceId(workspace.id);
+  if (!id || !firebaseUid) {
+    throw new Error("Workspace invalide.");
+  }
+
+  const payload: Workspace = {
+    ...workspace,
+    id,
+    ownerId: firebaseUid,
+  };
+
+  const existing = await fetchSharedWorkspace(id);
+  if (!existing) {
+    await publishSharedWorkspace(payload);
+    return;
+  }
+
+  if (existing.ownerId !== firebaseUid) {
+    throw new Error(
+      "Ce workspace n'est pas enregistré avec votre compte. Réessayez après vous être reconnecté.",
+    );
+  }
 }
 
 export async function fetchSharedWorkspace(workspaceId: string): Promise<Workspace | null> {

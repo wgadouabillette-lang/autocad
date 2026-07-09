@@ -119,9 +119,58 @@ export class WorkspaceVoiceRtcSession {
     }
   }
 
+  private iceRecoveryTimers = new Map<RTCPeerConnection, number>();
+
+  private scheduleIceRecovery(pc: RTCPeerConnection): void {
+    const state = pc.iceConnectionState;
+    const connectionState = pc.connectionState;
+    const needsRecovery =
+      state === "failed" ||
+      state === "disconnected" ||
+      connectionState === "failed" ||
+      connectionState === "disconnected";
+    if (!needsRecovery) {
+      const timer = this.iceRecoveryTimers.get(pc);
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+        this.iceRecoveryTimers.delete(pc);
+      }
+      return;
+    }
+
+    if (state === "failed" || connectionState === "failed") {
+      try {
+        pc.restartIce();
+      } catch {
+        // Peer may already be closing.
+      }
+      return;
+    }
+
+    if (this.iceRecoveryTimers.has(pc)) return;
+    const timer = window.setTimeout(() => {
+      this.iceRecoveryTimers.delete(pc);
+      if (pc.connectionState === "closed") return;
+      const ice = pc.iceConnectionState;
+      const conn = pc.connectionState;
+      if (ice === "disconnected" || ice === "failed" || conn === "disconnected" || conn === "failed") {
+        try {
+          pc.restartIce();
+        } catch {
+          // Peer may already be closing.
+        }
+      }
+    }, 2500);
+    this.iceRecoveryTimers.set(pc, timer);
+  }
+
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    for (const timer of this.iceRecoveryTimers.values()) {
+      window.clearTimeout(timer);
+    }
+    this.iceRecoveryTimers.clear();
     this.signalUnsub?.();
     this.signalUnsub = null;
     for (const uid of [...this.peers.keys()]) {
@@ -135,6 +184,11 @@ export class WorkspaceVoiceRtcSession {
   private removePeer(uid: string): void {
     const peer = this.peers.get(uid);
     if (!peer) return;
+    const timer = this.iceRecoveryTimers.get(peer.pc);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      this.iceRecoveryTimers.delete(peer.pc);
+    }
     peer.pc.close();
     this.peers.delete(uid);
     this.onRemoteMediaClear(uid);
@@ -171,6 +225,9 @@ export class WorkspaceVoiceRtcSession {
       track.onended = () => {
         this.refreshRemoteMedia(peer);
       };
+      track.onunmute = () => {
+        this.onRemoteMedia(remoteUid, { ...peer.remoteMedia });
+      };
       this.onRemoteMedia(remoteUid, { ...peer.remoteMedia });
     };
 
@@ -184,14 +241,18 @@ export class WorkspaceVoiceRtcSession {
       }).catch(() => {});
     };
 
+    pc.oniceconnectionstatechange = () => {
+      this.scheduleIceRecovery(pc);
+    };
+
     pc.onnegotiationneeded = () => {
       if (peer.pc.signalingState !== "stable" || this.negotiating.has(peer.remoteUid)) return;
       void this.negotiate(peer);
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "failed") {
-        pc.restartIce();
+      if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+        this.scheduleIceRecovery(pc);
       }
       if (pc.connectionState === "closed") {
         this.onRemoteMediaClear(remoteUid);

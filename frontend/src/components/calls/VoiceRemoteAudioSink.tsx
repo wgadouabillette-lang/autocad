@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { applyAudioOutputToElement } from "../../lib/audioDevices";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 import type { RemoteParticipantStreams } from "../../lib/webrtc/workspaceVoiceRtc";
@@ -7,10 +8,12 @@ function RemoteAudioPlayer({
   uid,
   stream,
   muted,
+  outputDeviceId,
 }: {
   uid: string;
   stream: MediaStream;
   muted: boolean;
+  outputDeviceId: string;
 }) {
   const ref = useRef<HTMLAudioElement>(null);
 
@@ -26,9 +29,17 @@ function RemoteAudioPlayer({
       void audio.play().catch(() => {});
     };
 
-    play();
+    void applyAudioOutputToElement(audio, outputDeviceId).then(play);
+
     stream.addEventListener("addtrack", play);
     audio.addEventListener("canplay", play);
+
+    const trackHandlers: Array<{ track: MediaStreamTrack; handler: () => void }> = [];
+    for (const track of stream.getAudioTracks()) {
+      const handler = () => play();
+      track.addEventListener("unmute", handler);
+      trackHandlers.push({ track, handler });
+    }
 
     const resumeOnGesture = () => {
       play();
@@ -39,13 +50,16 @@ function RemoteAudioPlayer({
     return () => {
       stream.removeEventListener("addtrack", play);
       audio.removeEventListener("canplay", play);
+      for (const { track, handler } of trackHandlers) {
+        track.removeEventListener("unmute", handler);
+      }
       document.removeEventListener("pointerdown", resumeOnGesture, true);
       document.removeEventListener("keydown", resumeOnGesture, true);
       if (audio.srcObject === stream) {
         audio.srcObject = null;
       }
     };
-  }, [stream, muted]);
+  }, [stream, muted, outputDeviceId]);
 
   return (
     <audio
@@ -59,14 +73,18 @@ function RemoteAudioPlayer({
   );
 }
 
-/** Joue l'audio distant — indépendant de la vue affichée (salon ouvert, grille, etc.). */
+/** Joue l'audio distant — indépendant de la vue affichée (salon ouvert, grille, théâtre, etc.). */
 export default function VoiceRemoteAudioSink() {
   const activeRoomId = useStore((s) => s.activeRoomId);
-  const inCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
+  const audioOutputDeviceId = useStore((s) => s.audioOutputDeviceId);
+  const callsViewMode = useCallsStore((s) => s.getCallsViewMode(activeRoomId));
+  const inBlockCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
+  const inTheaterCall = useCallsStore((s) => s.isLocalInTheaterCall(activeRoomId));
+  const inVoice = callsViewMode === "theater" ? inTheaterCall : inBlockCall;
   const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
   const deafen = useCallsStore((s) => s.deafen);
 
-  if (!inCall) return null;
+  if (!inVoice) return null;
 
   const audioMuted = deafen;
 
@@ -79,6 +97,7 @@ export default function VoiceRemoteAudioSink() {
             uid={uid}
             stream={media.audioStream}
             muted={audioMuted}
+            outputDeviceId={audioOutputDeviceId}
           />
         ) : null,
       )}

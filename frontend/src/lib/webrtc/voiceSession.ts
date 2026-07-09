@@ -13,6 +13,7 @@ function uniquePeerUids(ids: string[], localFirebaseUid: string): string[] {
 export interface PresenceVoiceSnapshot {
   inPrivateCall: boolean;
   openChannelId: string | null;
+  inTheaterCall?: boolean;
 }
 
 function sessionIdForPeers(
@@ -21,6 +22,19 @@ function sessionIdForPeers(
   peerUids: string[],
 ): string {
   return `${prefix}__${[localFirebaseUid, ...peerUids].sort().join("_")}`;
+}
+
+function theaterPeerUids(
+  presenceMembers: Record<string, { voice: PresenceVoiceSnapshot }> | undefined,
+  localFirebaseUid: string,
+): string[] {
+  if (!presenceMembers) return [];
+  const peers: string[] = [];
+  for (const [uid, entry] of Object.entries(presenceMembers)) {
+    if (!uid || uid === "local" || uid === localFirebaseUid) continue;
+    if (entry.voice.inTheaterCall) peers.push(uid);
+  }
+  return peers;
 }
 
 function presencePeerUids(
@@ -48,10 +62,10 @@ export function enrichVoiceRtcContextWithPresence(
   localFirebaseUid: string,
   localOpenChannelId: string | null,
 ): VoiceRtcContext {
-  const peerUids = uniquePeerUids(
-    [...context.peerUids, ...presencePeerUids(presenceMembers, localFirebaseUid, localOpenChannelId)],
-    localFirebaseUid,
-  );
+  const presencePeers = context.sessionId.startsWith("theater__")
+    ? theaterPeerUids(presenceMembers, localFirebaseUid)
+    : presencePeerUids(presenceMembers, localFirebaseUid, localOpenChannelId);
+  const peerUids = uniquePeerUids([...context.peerUids, ...presencePeers], localFirebaseUid);
   if (
     peerUids.length === context.peerUids.length &&
     peerUids.every((uid, index) => uid === context.peerUids[index])
@@ -59,10 +73,16 @@ export function enrichVoiceRtcContextWithPresence(
     return context;
   }
 
+  if (
+    context.sessionId.startsWith("block__") ||
+    context.sessionId.startsWith("open__") ||
+    context.sessionId.startsWith("theater__")
+  ) {
+    return { ...context, peerUids };
+  }
+
   let sessionId = context.sessionId;
-  if (context.sessionId.startsWith("block__")) {
-    sessionId = sessionIdForPeers("block", localFirebaseUid, peerUids);
-  } else if (context.sessionId.startsWith("private__")) {
+  if (context.sessionId.startsWith("private__")) {
     sessionId = sessionIdForPeers("private", localFirebaseUid, peerUids);
   }
 
@@ -97,6 +117,27 @@ export function voiceRtcContextFromPresence(input: {
   return {
     workspaceId: input.workspaceId,
     sessionId: sessionIdForPeers("private", input.localFirebaseUid, peerUids),
+    peerUids,
+  };
+}
+
+/** Session WebRTC du théâtre — tous les participants présents entendent les intervenants. */
+export function resolveTheaterRtcContext(input: {
+  workspaceId: string;
+  localFirebaseUid: string;
+  localInTheaterCall: boolean;
+  presenceMembers: Record<string, { voice: PresenceVoiceSnapshot }> | undefined;
+}): VoiceRtcContext | null {
+  if (!input.localInTheaterCall || !input.localFirebaseUid || !input.workspaceId) return null;
+
+  const peerUids = uniquePeerUids(
+    theaterPeerUids(input.presenceMembers, input.localFirebaseUid),
+    input.localFirebaseUid,
+  );
+
+  return {
+    workspaceId: input.workspaceId,
+    sessionId: `theater__${input.workspaceId}`,
     peerUids,
   };
 }
@@ -136,7 +177,7 @@ export function resolveVoiceRtcContext(input: {
     );
     return {
       workspaceId,
-      sessionId: sessionIdForPeers("block", localFirebaseUid, peerUids),
+      sessionId: `block__${localBlock.id}`,
       peerUids,
     };
   }

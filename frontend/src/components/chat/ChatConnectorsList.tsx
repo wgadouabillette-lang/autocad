@@ -1,6 +1,7 @@
-import { ArrowUpRight, Settings2 } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { CHAT_CONNECTORS, isConnectorComingSoon, type ChatConnectorId } from "./chatConnectors";
 import type { ConnectorStatus } from "../../lib/connectorsApi";
+import SpotifyPluginSettingsExpand from "../settings/SpotifyPluginSettingsExpand";
 
 export default function ChatConnectorsList({
   statuses,
@@ -12,7 +13,6 @@ export default function ChatConnectorsList({
   onConnect,
   onDisconnect,
   onInsertSlash,
-  onOpenConnectorSettings,
 }: {
   statuses?: ConnectorStatus[];
   connectedIds: ReadonlySet<ChatConnectorId>;
@@ -23,7 +23,6 @@ export default function ChatConnectorsList({
   onConnect: (id: ChatConnectorId) => void;
   onDisconnect?: (id: ChatConnectorId) => void;
   onInsertSlash: (slash: string) => void;
-  onOpenConnectorSettings?: (id: ChatConnectorId) => void;
 }) {
   const items = CHAT_CONNECTORS;
   const isSettings = variant === "settings";
@@ -51,102 +50,115 @@ export default function ChatConnectorsList({
         const connecting = connectingId === id;
         const comingSoon = isConnectorComingSoon(id);
         const accountLabel = status?.accountLabel;
+        const rowMain = (
+          <div className="chat-connectors-row__main">
+            <span className="chat-connectors-row__icon">
+              <Logo />
+            </span>
+            <span className="chat-connectors-row__label-wrap">
+              <span className="chat-connectors-row__label">{label}</span>
+              {connected && accountLabel && (
+                <span className="chat-connectors-row__meta">{accountLabel}</span>
+              )}
+              {comingSoon && (
+                <span className="chat-connectors-row__meta">
+                  {isSettings ? "Bientôt disponible" : "Coming soon"}
+                </span>
+              )}
+              {!comingSoon && !configured && isSettings && (
+                <span className="chat-connectors-row__meta">Non configuré sur le serveur</span>
+              )}
+            </span>
+          </div>
+        );
+
+        const rowActions = locked ? (
+          <span className="chat-connectors-row__slash chat-connectors-row__slash--preview">
+            <span className="chat-connectors-row__slash-cmd">{slash}</span>
+          </span>
+        ) : isSettings && connected ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="text-[11px] text-muted-400">Connecté</span>
+            <button
+              type="button"
+              className="chat-connectors-row__connect"
+              onClick={() => onDisconnect?.(id)}
+            >
+              Déconnecter
+            </button>
+          </div>
+        ) : isSettings ? (
+          comingSoon ? (
+            <span className="text-[11px] text-muted-500">Pas encore disponible</span>
+          ) : (
+            <button
+              type="button"
+              className="chat-connectors-row__connect"
+              onClick={() => onConnect(id)}
+              disabled={connecting || !configured}
+              title={!configured ? "Ajoutez les clés OAuth dans backend/.env" : undefined}
+            >
+              {connecting ? "Connexion…" : configured ? "Connecter" : "Indisponible"}
+              {!connecting && configured && (
+                <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
+              )}
+            </button>
+          )
+        ) : connected ? (
+          <button
+            type="button"
+            className="chat-connectors-row__slash"
+            title={`Insert ${slash}`}
+            onClick={() => onInsertSlash(slash)}
+          >
+            use <span className="chat-connectors-row__slash-cmd">{slash}</span>
+          </button>
+        ) : comingSoon ? (
+          <span className="text-[11px] text-muted-500">Coming soon</span>
+        ) : (
+          <button
+            type="button"
+            className="chat-connectors-row__connect"
+            onClick={() => onConnect(id)}
+            disabled={connecting || !configured}
+            title={!configured ? "Ajoutez les clés OAuth dans backend/.env" : undefined}
+          >
+            {connecting ? "Connecting…" : configured ? "Connect" : "Unavailable"}
+            {!connecting && configured && (
+              <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
+            )}
+          </button>
+        );
+
+        const spotifySettingsExpanded = isSettings && id === "spotify" && connected;
         return (
           <div
             key={id}
             role="listitem"
-            className="chat-connectors-row"
+            className={
+              spotifySettingsExpanded
+                ? "chat-connectors-row chat-connectors-row--spotify-expanded"
+                : "chat-connectors-row"
+            }
             style={
               isSettings ? undefined : { animationDelay: `${(items.length - 1 - index) * 55}ms` }
             }
           >
-            <div className="chat-connectors-row__main">
-              <span className="chat-connectors-row__icon">
-                <Logo />
-              </span>
-              <span className="chat-connectors-row__label-wrap">
-                <span className="chat-connectors-row__label">{label}</span>
-                {connected && accountLabel && (
-                  <span className="chat-connectors-row__meta">{accountLabel}</span>
-                )}
-                {comingSoon && (
-                  <span className="chat-connectors-row__meta">
-                    {isSettings ? "Bientôt disponible" : "Coming soon"}
-                  </span>
-                )}
-                {!comingSoon && !configured && isSettings && (
-                  <span className="chat-connectors-row__meta">Non configuré sur le serveur</span>
-                )}
-              </span>
-            </div>
-
-            {locked ? (
-              <span className="chat-connectors-row__slash chat-connectors-row__slash--preview">
-                <span className="chat-connectors-row__slash-cmd">{slash}</span>
-              </span>
-            ) : isSettings && connected ? (
-              <div className="flex shrink-0 items-center gap-2">
-                {id === "spotify" && onOpenConnectorSettings ? (
-                  <button
-                    type="button"
-                    className="chat-connectors-row__connect"
-                    onClick={() => onOpenConnectorSettings(id)}
-                    title="Réglages Hall DJ"
-                    aria-label="Réglages Hall DJ"
-                  >
-                    <Settings2 size={12} strokeWidth={2.25} aria-hidden />
-                  </button>
-                ) : null}
-                <span className="text-[11px] text-muted-400">Connecté</span>
-                <button
-                  type="button"
-                  className="chat-connectors-row__connect"
-                  onClick={() => onDisconnect?.(id)}
-                >
-                  Déconnecter
-                </button>
-              </div>
-            ) : isSettings ? (
-              comingSoon ? (
-                <span className="text-[11px] text-muted-500">Pas encore disponible</span>
-              ) : (
-                <button
-                  type="button"
-                  className="chat-connectors-row__connect"
-                  onClick={() => onConnect(id)}
-                  disabled={connecting || !configured}
-                  title={!configured ? "Ajoutez les clés OAuth dans backend/.env" : undefined}
-                >
-                  {connecting ? "Connexion…" : configured ? "Connecter" : "Indisponible"}
-                  {!connecting && configured && (
-                    <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
-                  )}
-                </button>
-              )
-            ) : connected ? (
-              <button
-                type="button"
-                className="chat-connectors-row__slash"
-                title={`Insert ${slash}`}
-                onClick={() => onInsertSlash(slash)}
-              >
-                use <span className="chat-connectors-row__slash-cmd">{slash}</span>
-              </button>
-            ) : comingSoon ? (
-              <span className="text-[11px] text-muted-500">Coming soon</span>
+            {spotifySettingsExpanded ? (
+              <>
+                <div className="chat-connectors-row__header">
+                  {rowMain}
+                  {rowActions}
+                </div>
+                <div className="chat-connectors-row__expand">
+                  <SpotifyPluginSettingsExpand />
+                </div>
+              </>
             ) : (
-              <button
-                type="button"
-                className="chat-connectors-row__connect"
-                onClick={() => onConnect(id)}
-                disabled={connecting || !configured}
-                title={!configured ? "Ajoutez les clés OAuth dans backend/.env" : undefined}
-              >
-                {connecting ? "Connecting…" : configured ? "Connect" : "Unavailable"}
-                {!connecting && configured && (
-                  <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
-                )}
-              </button>
+              <>
+                {rowMain}
+                {rowActions}
+              </>
             )}
           </div>
         );

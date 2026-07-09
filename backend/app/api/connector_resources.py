@@ -516,6 +516,11 @@ async def spotify_me(user: FirebaseUser = Depends(require_firebase_user)):
     }
 
 
+def _spotify_has_streaming_scope(entry: dict[str, Any] | None) -> bool:
+    scope = str((entry or {}).get("scope") or "")
+    return "streaming" in scope.split()
+
+
 @router.get("/spotify/player-config")
 async def spotify_player_config(user: FirebaseUser = Depends(require_firebase_user)):
     import os
@@ -524,10 +529,15 @@ async def spotify_player_config(user: FirebaseUser = Depends(require_firebase_us
     if not client_id:
         raise HTTPException(400, "Spotify OAuth non configuré sur le backend.")
     await _require_token(user.uid, "spotify")
+    entry = get_connection(user.uid, "spotify")
+    has_streaming_scope = _spotify_has_streaming_scope(entry)
     me = await spotify_me(user)
+    premium = me.get("product") == "premium"
     return {
         "clientId": client_id,
-        "premium": me.get("product") == "premium",
+        "premium": premium,
+        "hasStreamingScope": has_streaming_scope,
+        "reconnectRequired": premium and not has_streaming_scope,
     }
 
 

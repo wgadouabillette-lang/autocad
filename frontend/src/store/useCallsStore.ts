@@ -52,8 +52,11 @@ import {
   acquireLocalMedia,
   disableCamera,
   enableCamera,
+  ensureLiveAudioTrack,
   getLocalMediaStream,
+  hasLiveAudioTrack,
   hasLocalMediaStream,
+  setLocalMediaAudioRecoveryHandler,
   setMicrophoneEnabled,
   stopLocalMedia,
 } from "../lib/localMedia";
@@ -966,7 +969,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     if (!localUser) return;
 
     try {
-      if (!hasLocalMediaStream()) {
+      if (!hasLiveAudioTrack()) {
         await acquireLocalMedia({ audio: true, video: get().cameraOn });
       }
       setMicrophoneEnabled(!get().muted);
@@ -1407,7 +1410,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
   joinCall: async (roomId, options) => {
     get().ensureRoom(roomId);
-    if (get().isLocalInCall(roomId) && !get().mediaError) return;
+    if (get().isLocalInCall(roomId) && !get().mediaError && hasLiveAudioTrack()) return;
 
     const markLocalBlockInCall = options?.markLocalBlockInCall !== false;
 
@@ -1968,3 +1971,24 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   },
   toggleDeafen: () => set((s) => ({ deafen: !s.deafen })),
 }));
+
+setLocalMediaAudioRecoveryHandler(() => {
+  const activeRoomId = useStore.getState().activeRoomId;
+  const state = useCallsStore.getState();
+  if (!isInVoiceSession(state, activeRoomId)) return;
+
+  void (async () => {
+    try {
+      await ensureLiveAudioTrack();
+      setMicrophoneEnabled(!useCallsStore.getState().muted);
+      useCallsStore.setState({
+        localStream: getLocalMediaStream(),
+        mediaError: null,
+      });
+    } catch (error) {
+      useCallsStore.setState({
+        mediaError: mediaMessage(error, "Micro déconnecté — impossible de le rétablir."),
+      });
+    }
+  })();
+});

@@ -6,14 +6,13 @@ import {
   Gauge,
   LayoutGrid,
   LogOut,
-  Mic,
   Plug,
   Settings,
   Users,
   Volume2,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   normalizeSettingsTab,
   type SettingsTab,
@@ -27,7 +26,6 @@ import AgentsSettingsSection from "./settings/AgentsSettingsSection";
 import AudioSettingsSection from "./settings/AudioSettingsSection";
 import UsageSettingsSection from "./settings/UsageSettingsSection";
 import BillingSettingsSection from "./settings/BillingSettingsSection";
-import VoiceSettingsSection from "./settings/VoiceSettingsSection";
 import { useAuthStore } from "../store/useAuthStore";
 import SettingsProfileHeader from "./settings/SettingsProfileHeader";
 import WorkspacesSettingsSection from "./settings/WorkspacesSettingsSection";
@@ -43,21 +41,19 @@ const TAB_TITLES: Record<SettingsTab, string> = {
   usage: "Plan & Usage",
   billing: "Billing",
   agents: "Agents",
-  voice: "Voice",
-  audio: "Audio",
+  audio: "Audio & Video",
   models: "Models",
   plugins: "Plugins",
 };
 
 const TAB_DESCRIPTIONS: Record<SettingsTab, string> = {
-  general: "Profil, interface et apparence.",
+  general: "",
   friends: "Amis et invitations.",
   workspaces: "Vos workspaces, invitations et consommation IA Entreprise.",
   usage: "Forfaits, consommation IA et comparaison des plans.",
   billing: "Forfait actuel et date de prochain prélèvement.",
   agents: "Personnalisation du chat, des follow-ups et des AI Notes.",
-  voice: "Salons vocaux, enregistrements et options de capture.",
-  audio: "Micro, sortie audio, Spotify et Hall DJ.",
+  audio: "",
   models: "Choix du modèle IA pour la génération.",
   plugins: "Connecteurs utilisables dans le chat.",
 };
@@ -69,7 +65,6 @@ const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
   usage: Gauge,
   billing: CreditCard,
   agents: Bot,
-  voice: Mic,
   audio: Volume2,
   models: Cpu,
   plugins: Plug,
@@ -82,7 +77,6 @@ const TAB_PANELS: Record<SettingsTab, () => JSX.Element> = {
   usage: UsageSettingsSection,
   billing: BillingSettingsSection,
   agents: AgentsSettingsSection,
-  voice: VoiceSettingsSection,
   audio: AudioSettingsSection,
   models: ModelsSettingsSection,
   plugins: PluginsSettingsSection,
@@ -96,14 +90,13 @@ function buildNav(): NavItem[] {
   ];
   items.push(
     { kind: "separator" },
+    { kind: "tab", id: "plugins", label: "Plugins" },
+    { kind: "tab", id: "agents", label: "Agents" },
+    { kind: "tab", id: "models", label: "Models" },
+    { kind: "tab", id: "audio", label: "Audio & Video" },
+    { kind: "separator" },
     { kind: "tab", id: "usage", label: "Plan & Usage" },
     { kind: "tab", id: "billing", label: "Billing" },
-    { kind: "tab", id: "agents", label: "Agents" },
-    { kind: "tab", id: "voice", label: "Voice" },
-    { kind: "tab", id: "audio", label: "Audio" },
-    { kind: "tab", id: "models", label: "Models" },
-    { kind: "separator" },
-    { kind: "tab", id: "plugins", label: "Plugins" },
   );
   return items;
 }
@@ -116,15 +109,9 @@ export default function SettingsPage() {
   const closePage = useStore((s) => s.closePage);
   const signOut = useAuthStore((s) => s.signOut);
   const panelBodyRef = useRef<HTMLDivElement>(null);
-  const [enterAnim, setEnterAnim] = useState(false);
   const navItems = useMemo(() => buildNav(), []);
   const resolvedTab = useMemo(() => normalizeSettingsTab(activeTab), [activeTab]);
   const Panel = TAB_PANELS[resolvedTab] ?? GeneralSettingsSection;
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setEnterAnim(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
 
   useEffect(() => {
     if (settingsScrollTarget) return;
@@ -156,7 +143,7 @@ export default function SettingsPage() {
   }, [closePage]);
 
   return (
-    <div className={clsx("settings-view", enterAnim && "settings-view--enter")}>
+    <div className="settings-view">
       <div className="settings-view__frame">
         <div className="settings-view__layout">
           <nav className="settings-view__nav" aria-label="Settings sections">
@@ -208,13 +195,17 @@ export default function SettingsPage() {
             <header className="settings-view__panel-header">
               <div className="settings-view__panel-content">
                 <h2 className="settings-view__panel-title">{TAB_TITLES[resolvedTab]}</h2>
-                <p className="settings-view__panel-desc">{TAB_DESCRIPTIONS[resolvedTab]}</p>
+                {TAB_DESCRIPTIONS[resolvedTab] ? (
+                  <p className="settings-view__panel-desc">{TAB_DESCRIPTIONS[resolvedTab]}</p>
+                ) : null}
               </div>
             </header>
 
             <div ref={panelBodyRef} className="settings-view__panel-body">
               <div className="settings-view__panel-content">
-                <Panel />
+                <div key={resolvedTab} className="settings-view__panel-slot">
+                  <Panel />
+                </div>
               </div>
             </div>
           </div>

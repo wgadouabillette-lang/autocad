@@ -478,7 +478,7 @@ export default function ChatPanel() {
   const pollVoteOpen = pollVoteOpenRaw && !!activePoll;
   const pollMorphActive = pollComposerOpen || pollVoteOpen;
   const hallDjActive = useHallDjStore((s) => s.active);
-  const hallDjPendingFeedbackTrackId = useHallDjStore((s) => s.pendingFeedbackTrackId);
+  const hallDjFeedbackResolvedTrackId = useHallDjStore((s) => s.feedbackResolvedTrackId);
   const hallDjFeedbackBusy = useHallDjStore((s) => s.feedbackBusy);
   const rateHallDjTrack = useHallDjStore((s) => s.rateCurrentTrack);
   const spotifyCurrentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
@@ -487,8 +487,8 @@ export default function ChatPanel() {
       !pollMorphActive &&
       !handoffPreview &&
       !handoffSelectionMode &&
-      hallDjPendingFeedbackTrackId &&
-      spotifyCurrentTrack?.id === hallDjPendingFeedbackTrackId,
+      spotifyCurrentTrack?.id &&
+      hallDjFeedbackResolvedTrackId !== spotifyCurrentTrack.id.trim(),
   );
   const {
     connectedIds: connectedConnectors,
@@ -499,6 +499,8 @@ export default function ChatPanel() {
   } = useConnectors();
   const prevChatTabIdRef = useRef<string | null>(null);
   const prevChatLenRef = useRef(chat.length);
+  const prevChatLenForRiseRef = useRef(chat.length);
+  const [risingMessageIndex, setRisingMessageIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!agentComposerInsert) return;
@@ -520,6 +522,8 @@ export default function ChatPanel() {
   useEffect(() => {
     if (prevChatTabIdRef.current === activeChatTabId) return;
     prevChatTabIdRef.current = activeChatTabId;
+    prevChatLenForRiseRef.current = chat.length;
+    setRisingMessageIndex(null);
     setText("");
     setAttachments([]);
     setActiveComposerSkill(null);
@@ -802,6 +806,17 @@ export default function ChatPanel() {
     }
     prevChatLenRef.current = chat.length;
   }, [chat]);
+
+  useEffect(() => {
+    if (chat.length > prevChatLenForRiseRef.current) {
+      const newIndex = chat.length - 1;
+      setRisingMessageIndex(newIndex);
+      const timer = window.setTimeout(() => setRisingMessageIndex(null), 380);
+      prevChatLenForRiseRef.current = chat.length;
+      return () => window.clearTimeout(timer);
+    }
+    prevChatLenForRiseRef.current = chat.length;
+  }, [chat.length]);
 
   useEffect(() => {
     if (!activeSkillRun) return;
@@ -1501,9 +1516,13 @@ export default function ChatPanel() {
     <div className="pointer-events-auto relative">
       <div
         className={clsx(
-          showHallDjTrackFeedback && "chat-composer-cluster chat-composer-cluster--dj-feedback",
+          "relative",
+          showHallDjTrackFeedback && "chat-composer-cluster--dj-feedback",
         )}
       >
+        {showHallDjTrackFeedback ? (
+          <div className="chat-composer-cluster-stroke" aria-hidden />
+        ) : null}
         {showHallDjTrackFeedback && spotifyCurrentTrack ? (
           <HallDjTrackFeedbackBar
             track={spotifyCurrentTrack}
@@ -1512,11 +1531,10 @@ export default function ChatPanel() {
             onReject={() => void rateHallDjTrack("reject")}
           />
         ) : null}
-        <div className="relative">
-          <div
-            className="chat-composer relative z-10 flex flex-col gap-1 rounded-xl px-2 py-1.5"
-            style={CHAT_COMPOSER_SURFACE_STYLE}
-          >
+        <div
+          className="chat-composer relative z-10 flex flex-col gap-1 rounded-xl px-2 py-1.5"
+          style={CHAT_COMPOSER_SURFACE_STYLE}
+        >
           {attachments.length > 0 && (
             <div className="flex h-8 items-center gap-1 overflow-hidden">
               {attachments.map((att, i) => (
@@ -1881,14 +1899,13 @@ export default function ChatPanel() {
         </div>
       </div>
     </div>
-    </div>
   );
 
   return (
     <div className="chat-panel-layout relative overflow-hidden">
       {chatIsEmpty && !isMobileLayout && (
         <div className="chat-shortcuts-hint-anchor">
-          <ChatShortcutsHint />
+          <ChatShortcutsHint showHallDjSkip={hallDjActive} />
         </div>
       )}
 
@@ -1936,6 +1953,7 @@ export default function ChatPanel() {
           {chat.map((message, i) => {
             if (message.role === "system") return null;
             const spacing = chatMessageSpacingClass(chat, i);
+            const isRising = i === risingMessageIndex;
             const selected = handoffSelectedIndices.has(i);
             const bubble = (
               <ChatBubble
@@ -1975,20 +1993,30 @@ export default function ChatPanel() {
                   className={clsx(spacing, "chat-sticky-prompt")}
                   style={{ zIndex: userPromptStickyZIndex(chat, i) }}
                 >
-                  <div className="chat-sticky-prompt__bubble">{row}</div>
+                  <div
+                    className={clsx(
+                      "chat-sticky-prompt__bubble",
+                      isRising && "chat-panel-rise-in",
+                    )}
+                  >
+                    {row}
+                  </div>
                 </div>
               );
             }
 
             return (
-              <div key={`${message.role}-${i}`} className={spacing}>
+              <div
+                key={`${message.role}-${i}`}
+                className={clsx(spacing, isRising && "chat-panel-rise-in")}
+              >
                 {row}
               </div>
             );
           })}
 
           {activeSkillRun ? (
-            <div className="chat-assistant-bubble mt-3">
+            <div className="chat-assistant-bubble chat-panel-rise-in mt-3">
               <SkillTimeline
                 key={activeSkillRun.runId}
                 steps={activeSkillRun.steps}
@@ -2002,7 +2030,7 @@ export default function ChatPanel() {
               />
             </div>
           ) : showPendingAssistant && !handoffSelectionMode ? (
-            <div className="chat-assistant-bubble mt-3">
+            <div className="chat-assistant-bubble chat-panel-rise-in mt-3">
               <AssistantPendingBubble
                 label={activeStepLabel(aiRun) || undefined}
                 onStop={handleStop}
@@ -2024,6 +2052,7 @@ export default function ChatPanel() {
         className={clsx(
           "chat-panel-footer pointer-events-none shrink-0 px-3 pb-3 pt-0",
           pollMorphActive && "chat-panel-footer--poll-morph",
+          showHallDjTrackFeedback && "chat-panel-footer--dj-feedback",
         )}
       >
         <div
@@ -2042,7 +2071,7 @@ export default function ChatPanel() {
               {slashOpen && slashOptions.length > 0 && (
                 <div
                   ref={skillsRef}
-                  className="chat-connectors-stage chat-connectors-stage--footer"
+                  className="chat-connectors-stage chat-connectors-stage--footer chat-panel-rise-in"
                 >
                   <ChatSkillsList
                     skills={slashOptions}
@@ -2053,7 +2082,7 @@ export default function ChatPanel() {
                 </div>
               )}
               {!slashOpen && connectorsOpen && (
-                <div className="chat-connectors-stage chat-connectors-stage--footer">
+                <div className="chat-connectors-stage chat-connectors-stage--footer chat-panel-rise-in">
                   <ChatConnectorsList
                     connectedIds={connectedConnectors}
                     statuses={connectorStatuses}

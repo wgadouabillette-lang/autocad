@@ -81,9 +81,11 @@ SPOTIFY_CLIENT_SECRET=xxxx
 
 | Plugin | Scopes |
 |--------|--------|
-| Spotify | `user-read-playback-state`, `user-modify-playback-state`, `user-read-currently-playing`, `user-read-email`, `user-read-private` |
+| Spotify | `streaming`, `user-read-playback-state`, `user-modify-playback-state`, `user-read-currently-playing`, `user-read-email`, `user-read-private`, `user-top-read`, `user-read-recently-played` |
 
 Dans le chat, utilisez le skill **`/play`** (menu `/`) ou la commande **`/play titre ou artiste`** pour lancer une piste sur Spotify. Une carte avec pochette et métadonnées s’affiche dans le fil.
+
+**Lecture complète dans l’app** : Spotify **Premium** + scope **`streaming`** (reconnecter le connecteur si la connexion date d’avant cette autorisation). Sans Premium : extraits 30 s dans l’app quand Spotify fournit un `preview_url`.
 
 ---
 
@@ -98,6 +100,7 @@ Dans le chat, utilisez le skill **`/play`** (menu `/`) ou la commande **`/play t
 | Google « non validé » | App en Testing — ajoutez-vous en test user ou soumettez à la validation |
 | Outlook `AADSTS` | Mauvais tenant ou permissions API manquantes |
 | Spotify sans lecture | Ouvrir Spotify sur un appareil actif (Premium requis pour contrôle à distance) |
+| Spotify ouvre l'app externe au lieu de lire dans Hall | Compte **Free** ou scope **`streaming`** manquant — reconnecter Spotify dans Settings → Plugins ; Premium requis pour piste complète |
 | Safari « ne peut pas ouvrir le serveur » | Redirect URI OAuth pointe vers `127.0.0.1:8000` en prod — ajoutez l’URL Vercel dans Spotify Dashboard **et** définissez `FORMA_OAUTH_REDIRECT_BASE=https://autocad-blue.vercel.app` sur Vercel |
 | Spotify `Active premium subscription required for the owner of the app` | Le **compte propriétaire** de l'app sur [developer.spotify.com](https://developer.spotify.com/dashboard) doit avoir **Spotify Premium** (règle Spotify Dev Mode, fév. 2026). Ce n'est pas le forfait Hall ni forcément le compte utilisateur connecté dans Hall. Propagation : quelques heures après activation. |
 

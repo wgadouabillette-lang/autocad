@@ -24,11 +24,23 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
+    function isSharedWorkspaceOwnerForStorage(workspaceId) {
+      return exists(/databases/(default)/documents/workspacesShared/$(workspaceId))
+        && firestore.get(/databases/(default)/documents/workspacesShared/$(workspaceId)).data.ownerId
+          == request.auth.uid;
+    }
+
+    function isUserWorkspaceOwnerForStorage(workspaceId) {
+      return exists(/databases/(default)/documents/users/$(request.auth.uid)/workspaces/$(workspaceId))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)/workspaces/$(workspaceId)).data.ownerId
+          == request.auth.uid;
+    }
+
     match /workspaces/{workspaceId}/{fileName} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
         && fileName.matches('icon\\.(jpg|png|webp)')
-        && firestore.get(/databases/(default)/documents/workspacesShared/$(workspaceId)).data.ownerId == request.auth.uid
+        && (isSharedWorkspaceOwnerForStorage(workspaceId) || isUserWorkspaceOwnerForStorage(workspaceId))
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }

@@ -69,7 +69,7 @@ export default function MentionFloatingMenu({
   return createPortal(
     <div
       ref={menuRef}
-      className={clsx("chat-composer-floating-menu", className)}
+      className={clsx("chat-composer-floating-menu chat-panel-fade-in", className)}
       style={{
         top: pos.top,
         left: pos.left,

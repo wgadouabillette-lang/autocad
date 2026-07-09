@@ -404,6 +404,8 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
   }
 
   void useWorkspacesStore.getState().reconcilePendingJoinRequests(uid);
+  useWorkspacesStore.getState().reconcileOwnedWorkspacesForAuth(uid);
+  void useAuthStore.getState().syncWorkspacesToCloud();
 
   if (chatSessions.length) {
     useStore.setState({ chatSessions });

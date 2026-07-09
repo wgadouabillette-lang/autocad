@@ -13,7 +13,7 @@ interface HallDjState {
   active: boolean;
   loading: boolean;
   error: string | null;
-  pendingFeedbackTrackId: string | null;
+  feedbackResolvedTrackId: string | null;
   feedbackBusy: boolean;
   startDj: () => Promise<void>;
   skipNext: () => Promise<void>;
@@ -95,11 +95,11 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
   active: false,
   loading: false,
   error: null,
-  pendingFeedbackTrackId: null,
+  feedbackResolvedTrackId: null,
   feedbackBusy: false,
 
   stopDj: () => {
-    set({ active: false, error: null, pendingFeedbackTrackId: null, feedbackBusy: false });
+    set({ active: false, error: null, feedbackResolvedTrackId: null, feedbackBusy: false });
   },
 
   startDj: async () => {
@@ -142,7 +142,7 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
           loading: false,
           error: null,
           active: true,
-          pendingFeedbackTrackId: currentTrack.id?.trim() ?? null,
+          feedbackResolvedTrackId: null,
         });
         return;
       }
@@ -171,8 +171,7 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
         loading: false,
         error: null,
         active: true,
-        pendingFeedbackTrackId:
-          useSpotifyPlayerStore.getState().currentTrack?.id?.trim() ?? null,
+        feedbackResolvedTrackId: null,
       });
     } catch (err) {
       set({
@@ -237,16 +236,18 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
   rateCurrentTrack: async (verdict) => {
     if (!get().active || get().feedbackBusy) return;
     const track = useSpotifyPlayerStore.getState().currentTrack;
-    const pendingId = get().pendingFeedbackTrackId;
     const trackId = track?.id?.trim();
-    if (!track || !trackId || trackId !== pendingId) return;
+    if (!track || !trackId) return;
+    if (get().feedbackResolvedTrackId === trackId) return;
 
     set({ feedbackBusy: true });
     try {
       recordHallDjTrackFeedback(track, verdict);
-      set({ pendingFeedbackTrackId: null });
+      set({ feedbackResolvedTrackId: trackId });
       if (verdict === "approve") {
         await appendSimilarTracksToQueue(track);
+      } else {
+        await get().skipNext();
       }
       void get().refillIfNeeded();
     } finally {
@@ -254,11 +255,3 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
     }
   },
 }));
-
-useSpotifyPlayerStore.subscribe((state, prev) => {
-  if (!useHallDjStore.getState().active) return;
-  const prevId = prev.currentTrack?.id?.trim() ?? null;
-  const nextId = state.currentTrack?.id?.trim() ?? null;
-  if (prevId === nextId) return;
-  useHallDjStore.setState({ pendingFeedbackTrackId: nextId });
-});

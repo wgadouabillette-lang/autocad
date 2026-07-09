@@ -254,10 +254,20 @@ export async function fetchSpotifyRecommendations(input: {
   return data.tracks ?? [];
 }
 
-export async function fetchSpotifyPlayerConfig(): Promise<{ clientId: string; premium: boolean }> {
+export async function fetchSpotifyPlayerConfig(): Promise<{
+  clientId: string;
+  premium: boolean;
+  hasStreamingScope?: boolean;
+  reconnectRequired?: boolean;
+}> {
   const r = await fetch(`${BASE}/spotify/player-config`, { headers: await authHeaders() });
   if (!r.ok) throw new Error(await readError(r));
-  return (await r.json()) as { clientId: string; premium: boolean };
+  return (await r.json()) as {
+    clientId: string;
+    premium: boolean;
+    hasStreamingScope?: boolean;
+    reconnectRequired?: boolean;
+  };
 }
 
 export async function fetchSpotifyPlayerToken(): Promise<string> {

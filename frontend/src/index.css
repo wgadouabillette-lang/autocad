@@ -37,6 +37,7 @@
   --forma-chat-composer-bg: #222222;
   --forma-chat-composer-stroke: #404040;
   --forma-composer-shadow: 0 6px 18px -5px rgba(0, 0, 0, 0.44), 0 2px 5px -2px rgba(0, 0, 0, 0.24);
+  --forma-mode-tab-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.36), 0 1px 4px -1px rgba(0, 0, 0, 0.2);
   --forma-shimmer-base: #808080;
   --forma-shimmer-highlight: #d4d4d4;
   --forma-exchange-veil: rgb(18 18 18 / 0.42);
@@ -1204,6 +1205,21 @@ body {
   .settings-profile-photo {
     @apply flex items-center gap-4;
   }
+  .settings-profile-photo--row {
+    @apply w-full flex-col items-end gap-2;
+  }
+  .settings-profile-photo__trigger {
+    @apply rounded-full transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-50;
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+  }
+  .settings-field-row__value {
+    @apply m-0 py-2 text-sm text-muted-200;
+  }
   .settings-profile-photo__preview {
     @apply h-16 w-16 rounded-full;
   }
@@ -1254,14 +1270,14 @@ body {
   }
   .settings-view__logout {
     @apply flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[13px] font-medium
-      text-muted-500 transition-colors;
+      text-red-400 transition-colors;
     appearance: none;
     -webkit-appearance: none;
     border: none;
     background: transparent;
   }
   .settings-view__logout:not(:disabled):hover {
-    @apply bg-ink-850 text-red-300;
+    @apply bg-red-500/10 text-red-300;
   }
   .settings-view__logout:disabled {
     @apply cursor-not-allowed opacity-50;
@@ -1315,55 +1331,6 @@ body {
     @apply mt-6 min-h-0 w-full flex-1 overflow-y-auto pb-8;
     overscroll-behavior: contain;
   }
-  .settings-view--enter .settings-view__panel-header .settings-view__panel-content,
-  .settings-view--enter .settings-view__panel-body .settings-view__panel-content > * {
-    opacity: 0;
-    will-change: transform, opacity;
-    backface-visibility: hidden;
-    animation: settings-cascade-in 0.36s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
-  .settings-view--enter .settings-view__panel-header .settings-view__panel-content {
-    animation-delay: 0ms;
-  }
-  .settings-view--enter .settings-view__panel-body .settings-view__panel-content > *:nth-child(1) {
-    animation-delay: 55ms;
-  }
-  .settings-view--enter .settings-view__panel-body .settings-view__panel-content > *:nth-child(2) {
-    animation-delay: 110ms;
-  }
-  .settings-view--enter .settings-view__panel-body .settings-view__panel-content > *:nth-child(3) {
-    animation-delay: 165ms;
-  }
-  .settings-view--enter .settings-view__panel-body .settings-view__panel-content > *:nth-child(4) {
-    animation-delay: 220ms;
-  }
-  .settings-view--enter .settings-view__panel-body .settings-view__panel-content > *:nth-child(5) {
-    animation-delay: 275ms;
-  }
-  .settings-view--enter .settings-view__panel-body .settings-view__panel-content > *:nth-child(6) {
-    animation-delay: 330ms;
-  }
-  .settings-view--enter .settings-view__panel-body .settings-view__panel-content > *:nth-child(n + 7) {
-    animation-delay: 385ms;
-  }
-  @keyframes settings-cascade-in {
-    from {
-      opacity: 0;
-      transform: translate3d(0, 10px, 0) scale(0.985);
-    }
-    to {
-      opacity: 1;
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .settings-view--enter .settings-view__panel-header .settings-view__panel-content,
-    .settings-view--enter .settings-view__panel-body .settings-view__panel-content > * {
-      animation: none;
-      opacity: 1;
-      transform: none;
-    }
-  }
   /* Scrollbar flush to chat edge; content centered with 100px less width */
   .app-layout--settings.app-layout--chat-open.app-layout--panel-right .settings-view {
     padding-right: 0;
@@ -1390,6 +1357,102 @@ body {
   }
   .settings-section {
     @apply mb-6 w-full last:mb-0;
+  }
+  .settings-field-list {
+    @apply flex w-full flex-col;
+  }
+  .settings-field-list__divider {
+    @apply my-4 h-px w-full shrink-0 border-0 bg-ink-700;
+  }
+  .settings-field-row {
+    @apply flex w-full flex-wrap items-start justify-between gap-x-6 gap-y-3 py-4;
+  }
+  .settings-field-row:first-child {
+    @apply pt-0;
+  }
+  .settings-field-row:last-child {
+    @apply pb-0;
+  }
+  .settings-field-row__info {
+    @apply min-w-0 flex-1 pr-4;
+  }
+  .settings-field-row__label {
+    @apply m-0 text-sm font-medium text-muted-100;
+  }
+  .settings-field-row__desc {
+    @apply mt-1 text-[12px] leading-relaxed text-muted-400;
+  }
+  .settings-field-row__control {
+    @apply flex w-[11rem] shrink-0 flex-col items-stretch justify-center;
+  }
+  .settings-field-row__control--actions {
+    @apply w-[12.5rem];
+  }
+  .settings-field-row__control--toggle {
+    @apply items-end;
+  }
+  .settings-picker {
+    @apply flex w-full items-center gap-2;
+  }
+  .settings-picker--with-prefix .settings-picker__field {
+    @apply min-w-0 flex-1;
+  }
+  .settings-picker__prefix {
+    @apply shrink-0;
+  }
+  .settings-picker__swatch {
+    @apply block h-8 w-8 rounded-lg ring-1 ring-white/10;
+  }
+  .settings-picker__field {
+    @apply relative w-full;
+  }
+  .settings-picker__select {
+    @apply w-full appearance-none rounded-lg border border-ink-700 bg-ink-900 py-2 pl-3 pr-8
+      text-[12px] text-muted-200 outline-none transition-colors;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .settings-picker__select:hover:not(:disabled) {
+    @apply border-ink-600 bg-ink-850;
+  }
+  .settings-picker__select:focus-visible {
+    border-color: color-mix(in srgb, var(--muted-400) 55%, transparent);
+  }
+  .settings-picker__select:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+  .settings-picker__time {
+    @apply pr-3;
+  }
+  .settings-picker__time::-webkit-calendar-picker-indicator {
+    filter: invert(0.72);
+    opacity: 0.85;
+    cursor: pointer;
+  }
+  .settings-picker__chevron {
+    @apply pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-500;
+  }
+  .settings-checkbox {
+    @apply inline-flex cursor-pointer items-center justify-center;
+  }
+  .settings-checkbox--disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+  .settings-checkbox__box {
+    @apply flex h-[1.125rem] w-[1.125rem] items-center justify-center rounded-md border border-ink-600
+      bg-ink-900 text-muted-100 transition-colors;
+  }
+  .settings-checkbox:has(.settings-checkbox__input:checked) .settings-checkbox__box {
+    @apply border-muted-400 bg-ink-750;
+  }
+  .settings-checkbox:has(.settings-checkbox__input:focus-visible) .settings-checkbox__box {
+    border-color: color-mix(in srgb, var(--muted-400) 55%, transparent);
+  }
+  .settings-field-row__error {
+    @apply basis-full text-[11px] text-red-300;
+  }
+  .settings-field-row .settings-section__inline-form {
+    @apply mt-0;
   }
   .settings-section--card {
     @apply rounded-xl border border-ink-700 bg-ink-850 p-4;
@@ -1738,50 +1801,46 @@ body {
     @apply mb-0;
   }
   .settings-plan-card {
-    @apply flex h-full cursor-pointer flex-col rounded-xl border border-ink-700 bg-ink-850 p-4 text-left
-      transition-colors;
-    appearance: none;
-    -webkit-appearance: none;
-  }
-  .settings-plan-card:hover:not(:disabled) {
-    @apply border-ink-600 bg-ink-800;
-  }
-  .settings-plan-card:disabled {
-    @apply cursor-not-allowed opacity-55;
-  }
-  .settings-plan-card:disabled:hover {
-    @apply border-ink-700 bg-ink-850;
-  }
-  .settings-plan-card--static {
-    @apply cursor-default;
-  }
-  .settings-plan-card--static:hover {
-    @apply border-ink-700 bg-ink-850;
+    @apply flex h-full flex-col rounded-xl border border-ink-700 bg-ink-850 p-4 text-left;
   }
   .settings-plan-card--active {
     @apply border-muted-400 bg-ink-750;
   }
-  .settings-plan-card__header {
-    @apply flex items-baseline justify-between gap-2;
-  }
   .settings-plan-card__name {
-    @apply text-base font-semibold text-muted-100;
+    @apply m-0 text-[13px] font-semibold text-muted-200;
   }
   .settings-plan-card__price {
-    @apply text-sm font-medium text-muted-400;
+    @apply mt-1 text-[1.75rem] font-semibold leading-none tracking-tight text-muted-100;
   }
-  .settings-plan-card__desc {
-    @apply mt-2 text-xs leading-relaxed text-muted-400;
+  .settings-plan-card__cta {
+    @apply mt-4 inline-flex w-full items-center justify-center rounded-lg border border-ink-600
+      bg-ink-750 px-3 py-2 text-[12px] font-medium text-muted-100 transition-colors;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .settings-plan-card__cta:hover:not(:disabled) {
+    @apply border-ink-500 bg-ink-700 text-muted-100;
+  }
+  .settings-plan-card__cta:disabled {
+    @apply cursor-default border-ink-700 bg-ink-850 text-muted-500 opacity-100;
+  }
+  .settings-plan-card--active .settings-plan-card__cta:disabled {
+    @apply bg-ink-800 text-muted-300;
+    border-color: color-mix(in srgb, var(--muted-400) 35%, transparent);
+  }
+  .settings-plan-card__divider {
+    @apply my-4 h-px w-full shrink-0 border-0 bg-ink-700;
   }
   .settings-plan-card__features {
-    @apply mt-3 flex flex-col gap-1.5 text-[11px] leading-snug text-muted-300;
+    @apply m-0 flex flex-col gap-2 p-0 text-[11px] leading-snug text-muted-300;
+    list-style: none;
+  }
+  .settings-plan-card__features li {
+    @apply relative pl-3;
   }
   .settings-plan-card__features li::before {
-    content: "·";
-    @apply mr-1.5 text-muted-500;
-  }
-  .settings-plan-card__action {
-    @apply mt-3 border-t border-ink-700 pt-3 text-[11px] font-medium text-muted-400;
+    content: "";
+    @apply absolute left-0 top-[0.45em] h-1 w-1 rounded-full bg-muted-500;
   }
   .settings-usage-summary {
     @apply flex flex-col gap-2;
@@ -3923,11 +3982,13 @@ body {
     @apply truncate text-[12.5px] font-semibold text-muted-100;
   }
   .chat-panel-mode-tabs {
-    @apply w-full min-w-0 shrink-0 py-0.5 pr-0;
+    @apply relative z-[2] w-full min-w-0 shrink-0 pr-0;
     padding-left: 18px;
+    padding-top: 0.125rem;
+    padding-bottom: 0.5625rem;
   }
   .chat-panel-mode-tabs__fade-wrap {
-    @apply relative min-w-0;
+    @apply relative min-w-0 overflow-visible;
   }
   .chat-panel-mode-tabs__fade {
     @apply pointer-events-none absolute top-0 bottom-0 z-[1];
@@ -3943,7 +4004,9 @@ body {
     );
   }
   .chat-panel-mode-tabs__scroll {
-    @apply min-w-0 overflow-x-auto overflow-y-visible py-0;
+    @apply min-w-0 overflow-x-auto py-0;
+    overflow-y: visible;
+    padding-bottom: 0.4375rem;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -3966,6 +4029,7 @@ body {
     -webkit-appearance: none;
     border: none;
     background-color: var(--forma-chat-composer-bg);
+    box-shadow: var(--forma-mode-tab-shadow);
   }
   .chat-panel-mode-tabs__icon-wrap {
     @apply relative inline-flex shrink-0 items-center justify-center;
@@ -4103,6 +4167,40 @@ body {
     width: 0;
     height: 0;
   }
+  .chat-panel-rise-in {
+    animation: chat-panel-rise-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes chat-panel-rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .chat-panel-fade-in {
+    animation: chat-panel-fade-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes chat-panel-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .chat-shortcuts-hint-anchor .chat-shortcuts-hint {
+    animation: chat-panel-rise-in 420ms cubic-bezier(0.22, 1, 0.36, 1) 60ms both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chat-panel-rise-in,
+    .chat-panel-fade-in,
+    .chat-shortcuts-hint-anchor .chat-shortcuts-hint {
+      animation: none;
+    }
+  }
   .chat-panel-footer {
     flex-shrink: 0;
     position: relative;
@@ -4111,6 +4209,9 @@ body {
     max-width: 100%;
     overflow-x: hidden;
     overflow-y: visible;
+  }
+  .chat-panel-footer--dj-feedback {
+    overflow: visible;
   }
   .chat-panel-footer::before {
     content: "";
@@ -4216,6 +4317,10 @@ body {
   }
   .chat-shortcuts-hint__row {
     @apply contents;
+  }
+  .chat-shortcuts-hint__row--dj-skip > .chat-shortcuts-hint__label,
+  .chat-shortcuts-hint__row--dj-skip > .chat-shortcuts-hint__keys {
+    @apply mt-4;
   }
   .chat-shortcuts-hint__label {
     @apply whitespace-nowrap text-[11px] leading-none text-muted-400;
@@ -4398,6 +4503,21 @@ body {
   .chat-connectors-list--settings .chat-connectors-row {
     @apply rounded-lg border border-ink-700 bg-ink-850 px-3 py-2.5 opacity-100;
     animation: none;
+  }
+  .chat-connectors-list--settings .chat-connectors-row__connect {
+    @apply h-6 items-center;
+  }
+  .chat-connectors-list--settings .chat-connectors-row--spotify-expanded {
+    @apply flex-col items-stretch gap-0 py-0;
+  }
+  .chat-connectors-list--settings .chat-connectors-row__header {
+    @apply flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2.5;
+  }
+  .chat-connectors-list--settings .chat-connectors-row--spotify-expanded .chat-connectors-row__expand {
+    @apply border-t border-ink-700 px-3 pb-3 pt-2.5;
+  }
+  .spotify-plugin-settings-expand__hint {
+    @apply m-0 text-[11px] leading-relaxed;
   }
   .chat-connectors-list--settings .settings-model-row--active {
     @apply border-muted-400 bg-ink-750;
@@ -6515,19 +6635,60 @@ body {
     @apply flex w-full flex-col gap-2 pt-0.5 pb-2.5;
   }
   .chat-composer-cluster--dj-feedback {
-    @apply rounded-xl p-1;
+    @apply relative overflow-visible;
+  }
+  .chat-composer-cluster-stroke {
+    @apply pointer-events-none absolute inset-0 z-0 rounded-xl;
     border: 1px solid rgb(255 255 255 / 0.14);
-    background-color: transparent;
   }
   .chat-composer-cluster--dj-feedback .hall-dj-track-feedback {
-    @apply mb-1 gap-2 px-1 pb-1 pt-0.5;
+    --dj-feedback-inset: 0.375rem;
+    @apply relative z-[1];
+    padding: var(--dj-feedback-inset);
+    animation: chat-panel-rise-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .chat-composer-cluster--dj-feedback .chat-composer-cluster-stroke {
+    animation: chat-panel-fade-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chat-composer-cluster--dj-feedback .hall-dj-track-feedback,
+    .chat-composer-cluster--dj-feedback .chat-composer-cluster-stroke {
+      animation: none;
+    }
+  }
+  .chat-composer-cluster--dj-feedback .chat-composer {
+    @apply relative z-[1];
   }
   .hall-dj-track-feedback {
-    @apply mb-2 flex w-full items-stretch gap-2 px-1;
+    @apply flex w-full min-w-0 items-center gap-2.5;
+  }
+  .hall-dj-track-feedback__art {
+    @apply h-9 w-9 shrink-0 overflow-hidden rounded-md bg-ink-800;
+  }
+  .hall-dj-track-feedback__cover {
+    @apply h-full w-full object-cover;
+  }
+  .hall-dj-track-feedback__cover--fallback {
+    @apply object-contain p-1.5 opacity-80;
+  }
+  .hall-dj-track-feedback__meta {
+    @apply min-w-0 pr-1;
+  }
+  .hall-dj-track-feedback__title {
+    @apply text-[12px] font-medium leading-tight text-muted-100;
+  }
+  .hall-dj-track-feedback__artist {
+    @apply mt-0.5 truncate text-[10px] leading-tight text-muted-300;
+  }
+  .hall-dj-track-feedback__actions {
+    @apply ml-auto flex shrink-0 items-center gap-1.5;
+  }
+  .hall-dj-track-feedback__elapsed {
+    @apply shrink-0 tabular-nums pe-2 text-[10px] font-medium leading-none text-muted-400;
   }
   .hall-dj-track-feedback__btn {
-    @apply flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border-0 px-3 py-1.5
-      text-[11px] font-medium transition-[background-color,color,opacity] disabled:opacity-40;
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-0
+      transition-[background-color,color,opacity] disabled:opacity-40;
     appearance: none;
     -webkit-appearance: none;
   }

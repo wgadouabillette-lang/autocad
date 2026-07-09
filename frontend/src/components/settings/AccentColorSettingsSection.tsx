@@ -1,39 +1,34 @@
-import clsx from "clsx";
 import { ACCENT_COLOR_OPTIONS } from "../../lib/accentColor";
 import { useStore } from "../../store/useStore";
+import SettingsFieldRow from "./SettingsFieldRow";
+import SettingsPicker from "./SettingsControls";
 
 export default function AccentColorSettingsSection() {
   const accentColor = useStore((s) => s.accentColor);
   const setAccentColor = useStore((s) => s.setAccentColor);
+  const selected =
+    ACCENT_COLOR_OPTIONS.find((option) => option.id === accentColor) ?? ACCENT_COLOR_OPTIONS[0]!;
 
   return (
-    <section className="settings-section">
-      <h3 className="settings-section__label">Accent color</h3>
-      <p className="settings-section__hint">
-        Choose the color for header buttons, chat bubbles, and other primary controls.
-      </p>
-
-      <div className="settings-accent-grid">
-        {ACCENT_COLOR_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => setAccentColor(option.id)}
-            className={clsx(
-              "settings-accent-option",
-              accentColor === option.id && "settings-accent-option--active",
-            )}
-            aria-pressed={accentColor === option.id}
-          >
-            <span
-              className="settings-accent-option__swatch"
-              style={{ backgroundColor: option.swatch }}
-              aria-hidden
-            />
-            <span className="settings-accent-option__label">{option.title}</span>
-          </button>
-        ))}
-      </div>
-    </section>
+    <SettingsFieldRow
+      label="Accent color"
+      description="Couleur des boutons, bulles de chat et contrôles principaux."
+    >
+      <SettingsPicker
+        value={accentColor}
+        ariaLabel="Couleur d'accent"
+        prefix={
+          <span
+            className="settings-picker__swatch"
+            style={{ backgroundColor: selected.swatch }}
+          />
+        }
+        options={ACCENT_COLOR_OPTIONS.map((option) => ({
+          value: option.id,
+          label: option.title,
+        }))}
+        onChange={(value) => setAccentColor(value as typeof accentColor)}
+      />
+    </SettingsFieldRow>
   );
 }

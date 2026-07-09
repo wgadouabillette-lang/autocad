@@ -7,7 +7,6 @@ export type SettingsTab =
   | "usage"
   | "billing"
   | "agents"
-  | "voice"
   | "audio"
   | "models"
   | "plugins";
@@ -19,7 +18,8 @@ export type LegacySettingsTab =
   | "plan"
   | "recording"
   | "skills"
-  | "workspace";
+  | "workspace"
+  | "voice";
 
 export type AnySettingsTab = SettingsTab | LegacySettingsTab;
 
@@ -30,7 +30,6 @@ const SETTINGS_TABS: SettingsTab[] = [
   "usage",
   "billing",
   "agents",
-  "voice",
   "audio",
   "models",
   "plugins",
@@ -40,9 +39,10 @@ const LEGACY_TAB_MAP: Record<LegacySettingsTab, SettingsTab> = {
   chat: "agents",
   account: "general",
   plan: "usage",
-  recording: "voice",
+  recording: "audio",
   skills: "plugins",
   workspace: "workspaces",
+  voice: "audio",
 };
 
 export function normalizeSettingsTab(tab: string | null | undefined): SettingsTab {
@@ -110,23 +110,23 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
   {
     id: "audio-devices",
     tab: "audio",
-    label: "Audio",
-    hint: "Micro, sortie et réduction du bruit",
-    keywords: "audio micro microphone haut-parleur sortie écho bruit appel vocal",
+    label: "Audio & Video",
+    hint: "Micro, sortie, enregistrements et caméra",
+    keywords: "audio video micro microphone haut-parleur sortie écho bruit appel vocal enregistrement camera caméra",
   },
   {
     id: "recording-camera-preview",
-    tab: "voice",
+    tab: "audio",
     label: "Camera preview",
     hint: "Rounded camera preview while recording",
-    keywords: "voice recording enregistrement camera preview aperçu caméra salon vocal",
+    keywords: "audio video recording enregistrement camera preview aperçu caméra salon vocal",
   },
   {
-    id: "voice",
-    tab: "voice",
-    label: "Voice",
-    hint: "Enregistrements et options de capture",
-    keywords: "voice vocal salon appel enregistrement recording capture",
+    id: "recording",
+    tab: "audio",
+    label: "Enregistrement",
+    hint: "Options de capture vidéo et audio",
+    keywords: "audio video vocal salon appel enregistrement recording capture caméra",
   },
   {
     id: "friends",

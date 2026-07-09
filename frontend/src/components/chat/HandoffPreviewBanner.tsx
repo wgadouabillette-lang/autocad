@@ -12,7 +12,7 @@ export default function HandoffPreviewBanner({
   onBack,
 }: HandoffPreviewBannerProps) {
   return (
-    <div className="handoff-preview-banner">
+    <div className="handoff-preview-banner chat-panel-rise-in">
       <button type="button" className="handoff-preview-banner__back" onClick={onBack}>
         <ArrowLeft size={14} aria-hidden />
         <span>Retour</span>

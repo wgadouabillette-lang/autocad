@@ -88,6 +88,7 @@ interface WorkspacesState extends PersistedState {
     requester?: Pick<WorkspaceJoinRequestDoc, "requesterName" | "requesterEmail">,
   ) => Promise<void>;
   reconcilePendingJoinRequests: (userId: string) => Promise<void>;
+  reconcileOwnedWorkspacesForAuth: (firebaseUid: string) => void;
   leaveWorkspace: (workspaceId: string, userId?: string) => void;
   deleteWorkspace: (workspaceId: string, userId?: string) => Promise<void>;
   resetLocalMemberships: () => void;
@@ -388,6 +389,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       ...(trimmedName ? { name: trimmedName } : {}),
     };
 
+    let updated = false;
     set((state) => {
       const inCustom = state.customServers.some((server) => server.id === normalized);
       if (!inCustom) return state;
@@ -396,13 +398,14 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
         server.id === normalized ? { ...server, ...nextPatch } : server,
       );
       writePersisted({ customServers, memberships: state.memberships });
-      const updated = customServers.find((server) => server.id === normalized);
-      if (updated) {
-        void publishSharedWorkspace(updated).catch(() => {});
+      const workspace = customServers.find((server) => server.id === normalized);
+      if (workspace) {
+        updated = true;
+        void publishSharedWorkspace(workspace).catch(() => {});
       }
       return { customServers };
     });
-    return true;
+    return updated;
   },
 
   applySharedWorkspaceSettings: (workspaceId, patch) => {
@@ -465,6 +468,40 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       } else if (request.status === "declined") {
         get().removePendingJoinRequest(workspaceId);
       }
+    }
+  },
+
+  reconcileOwnedWorkspacesForAuth: (firebaseUid) => {
+    if (!firebaseUid) return;
+
+    const state = get();
+    let customServers = state.customServers;
+    let changed = false;
+
+    for (let index = 0; index < customServers.length; index += 1) {
+      const server = customServers[index];
+      const isOwner = state.memberships.some(
+        (entry) =>
+          entry.workspaceId === server.id &&
+          entry.userId === firebaseUid &&
+          entry.role === "owner",
+      );
+      if (!isOwner) continue;
+
+      const nextOwnerId = firebaseUid;
+      const nextServer =
+        server.ownerId === nextOwnerId ? server : { ...server, ownerId: nextOwnerId };
+      if (nextServer !== server) {
+        changed = true;
+        customServers = [...customServers];
+        customServers[index] = nextServer;
+      }
+      void publishSharedWorkspace(nextServer).catch(() => {});
+    }
+
+    if (changed) {
+      writePersisted({ customServers, memberships: state.memberships });
+      set({ customServers });
     }
   },
 

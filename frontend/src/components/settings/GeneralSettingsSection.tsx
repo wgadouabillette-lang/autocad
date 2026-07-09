@@ -4,10 +4,11 @@ import CalendarWorkingHoursSettingsSection from "./CalendarWorkingHoursSettingsS
 
 export default function GeneralSettingsSection() {
   return (
-    <>
+    <div className="settings-field-list">
       <AccountSettingsSection />
+      <div className="settings-field-list__divider" role="presentation" />
       <CalendarWorkingHoursSettingsSection />
       <AccentColorSettingsSection />
-    </>
+    </div>
   );
 }
