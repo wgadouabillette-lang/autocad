@@ -13,6 +13,15 @@ import { hasFormaDesktop } from "../../lib/formaDesktop";
 import { shouldShowPollToUser } from "../../lib/voicePoll";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
+import { isNotificationsPreviewAllEnabled } from "../../lib/notificationPreviewFixtures";
+import RecordingNotificationVisual from "./RecordingNotificationVisual";
+import CalendarConnectNotificationVisual from "./CalendarConnectNotificationVisual";
+import FriendRequestNotificationVisual from "./FriendRequestNotificationVisual";
+import ErrorNotificationVisual from "./ErrorNotificationVisual";
+import {
+  errorNotificationVisualVariant,
+  isErrorNotification,
+} from "../../lib/notificationErrorVisual";
 
 const PANEL_WIDTH = 268; // 16.75rem
 const PANEL_HEIGHT = 288; // 18rem
@@ -63,11 +72,23 @@ function notificationCategory(item: AppNotification): string {
 }
 
 function notificationVisualClass(item: AppNotification): string {
+  if (isErrorNotification(item)) return "notifications-panel__visual--error";
+  if (isRecordingSavedNotification(item)) return "notifications-panel__visual--record";
+  if (isConnectCalendarNotification(item)) return "notifications-panel__visual--calendar-connect";
+  if (isFriendRequestNotification(item)) return "notifications-panel__visual--friend-request";
   return VISUAL_BY_TITLE[item.title] ?? VISUAL_BY_KIND[item.kind];
 }
 
 function isRecordingSavedNotification(item: AppNotification): boolean {
   return item.kind === "recording" || item.title === "Recording saved";
+}
+
+function isConnectCalendarNotification(item: AppNotification): boolean {
+  return item.title === "Connect your Calendar";
+}
+
+function isFriendRequestNotification(item: AppNotification): boolean {
+  return item.title === "Demande d'ami" && Boolean(item.friendRequestId);
 }
 
 interface NotificationsPanelProps {
@@ -133,6 +154,10 @@ export default function NotificationsPanel({
 
   const handleNext = () => {
     if (!item) return;
+    if (isNotificationsPreviewAllEnabled()) {
+      nextNotification();
+      return;
+    }
     markRead(item.id);
     if (item.kind === "poll") {
       if (item.pollSnapshot) {
@@ -264,7 +289,20 @@ export default function NotificationsPanel({
             <div
               className={clsx("notifications-panel__visual", notificationVisualClass(item))}
               aria-hidden
-            />
+            >
+              {isErrorNotification(item) ? (
+                <ErrorNotificationVisual variant={errorNotificationVisualVariant(item)} />
+              ) : isRecordingSavedNotification(item) ? (
+                <RecordingNotificationVisual />
+              ) : isConnectCalendarNotification(item) ? (
+                <CalendarConnectNotificationVisual />
+              ) : isFriendRequestNotification(item) ? (
+                <FriendRequestNotificationVisual
+                  friendRequestId={item.friendRequestId}
+                  body={item.body}
+                />
+              ) : null}
+            </div>
 
             <div className="notifications-panel__content">
               <div className="notifications-panel__copy">

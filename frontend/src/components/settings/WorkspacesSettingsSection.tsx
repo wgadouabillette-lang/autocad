@@ -7,7 +7,6 @@ import {
   type WorkspaceJoinRequestDoc,
 } from "../../lib/firebase/workspaceRegistry";
 import { uploadWorkspaceIcon } from "../../lib/firebase/workspaceIcon";
-import { ensureSharedWorkspacePublished } from "../../lib/firebase/workspaceRegistry";
 import { buildWorkspaceJoinUrl } from "../../lib/workspaceInvite";
 import {
   LOCAL_USER_ID,
@@ -186,6 +185,7 @@ export default function WorkspacesSettingsSection() {
   const customServers = useWorkspacesStore((s) => s.customServers);
   const roleIn = useWorkspacesStore((s) => s.roleIn);
   const findWorkspace = useWorkspacesStore((s) => s.findWorkspace);
+  const prepareWorkspaceIconUpload = useWorkspacesStore((s) => s.prepareWorkspaceIconUpload);
   const canManageWorkspaceInvites = useWorkspacesStore((s) => s.canManageWorkspaceInvites);
   const updateWorkspace = useWorkspacesStore((s) => s.updateWorkspace);
   const deleteWorkspace = useWorkspacesStore((s) => s.deleteWorkspace);
@@ -322,13 +322,9 @@ export default function WorkspacesSettingsSection() {
         return next;
       });
       try {
-        const workspace = findWorkspace(workspaceId);
-        if (!workspace) {
-          throw new Error("Workspace introuvable.");
-        }
-        await ensureSharedWorkspacePublished(workspace, firebaseUid);
-        const iconURL = await uploadWorkspaceIcon(workspaceId, file);
-        const updated = updateWorkspace(workspaceId, { iconURL }, ownerUserId);
+        const prepared = await prepareWorkspaceIconUpload(workspaceId, firebaseUid);
+        const iconURL = await uploadWorkspaceIcon(prepared.id, file);
+        const updated = updateWorkspace(prepared.id, { iconURL }, ownerUserId);
         if (!updated) {
           throw new Error("Impossible d'enregistrer l'icône localement.");
         }
@@ -336,12 +332,11 @@ export default function WorkspacesSettingsSection() {
       } catch (error) {
         let message =
           error instanceof Error ? error.message : "Impossible d'enregistrer l'icône.";
-        if (
-          typeof error === "object" &&
-          error !== null &&
-          "code" in error &&
-          String((error as { code?: string }).code).includes("unauthorized")
-        ) {
+        const code =
+          typeof error === "object" && error !== null && "code" in error
+            ? String((error as { code?: string }).code)
+            : "";
+        if (code.includes("unauthorized") || code.includes("permission-denied")) {
           message =
             "Permission refusée pour modifier l'icône. Réessayez après vous être reconnecté.";
         }
@@ -350,7 +345,7 @@ export default function WorkspacesSettingsSection() {
         setIconBusyWorkspaceId((current) => (current === workspaceId ? null : current));
       }
     },
-    [firebaseUid, ownerUserId, updateWorkspace, findWorkspace],
+    [firebaseUid, ownerUserId, updateWorkspace, prepareWorkspaceIconUpload],
   );
 
   const onRequestJoin = async (event: FormEvent) => {
@@ -414,7 +409,7 @@ export default function WorkspacesSettingsSection() {
       setRemoveBusyWorkspaceId(workspaceId);
       try {
         await deleteWorkspace(workspaceId, ownerUserId);
-        void useAuthStore.getState().syncWorkspacesToCloud();
+        await useAuthStore.getState().syncWorkspacesToCloud();
       } catch (error) {
         window.alert(
           error instanceof Error ? error.message : "Impossible de retirer ce workspace.",

@@ -14,6 +14,7 @@ import {
   signOut as firebaseSignOut,
   type User,
 } from "firebase/auth";
+import { getDatabase } from "firebase/database";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getStorage } from "firebase/storage";
@@ -28,6 +29,7 @@ const app = initializeApp({
 });
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const rtdb = getDatabase(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, functionsRegion);
 

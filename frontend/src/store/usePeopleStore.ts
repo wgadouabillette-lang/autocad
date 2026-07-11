@@ -80,7 +80,6 @@ import { useStore } from "./useStore";
 import { useWorkspacePresenceStore } from "./useWorkspacePresenceStore";
 import {
   parseWorkspaceChannelMentions,
-  userShouldNotifyForWorkspaceMention,
   workspaceMembersForMentions,
 } from "../lib/workspaceChannelMentions";
 
@@ -725,50 +724,6 @@ function syncWorkspaceTextChannelMessages(
   );
   const newIncoming = newIncomingMessages.length;
   const unreadDelta = viewing ? 0 : newIncoming;
-
-  if (!viewing && newIncomingMessages.length > 0) {
-    const mentionMembers = workspaceMembersForMentions(
-      useWorkspacePresenceStore.getState().membersByWorkspace,
-      workspaceId,
-      uid,
-    );
-    const isOnline = useWorkspacePresenceStore.getState().isOnline;
-
-    for (const message of newIncomingMessages) {
-      const parsed =
-        message.mentionedUids?.length || message.mentionBroadcast
-          ? {
-              mentionedUids: message.mentionedUids ?? [],
-              broadcast: message.mentionBroadcast ?? null,
-            }
-          : parseWorkspaceChannelMentions(message.text, mentionMembers);
-
-      if (
-        !userShouldNotifyForWorkspaceMention({
-          uid,
-          authorUid: message.authorUid,
-          mentionedUids: parsed.mentionedUids,
-          broadcast: parsed.broadcast,
-          workspaceId,
-          isOnline,
-        })
-      ) {
-        continue;
-      }
-
-      const channelName = channel.name?.trim() || "salon";
-      useNotificationsStore.getState().push({
-        kind: "message",
-        title:
-          parsed.broadcast === "everyone"
-            ? `@everyone dans #${channelName}`
-            : parsed.broadcast === "here"
-              ? `@here dans #${channelName}`
-              : `${message.authorName} vous a mentionné`,
-        body: message.text.slice(0, 160),
-      });
-    }
-  }
 
   set((state) => {
     const current = state.workspaceChannelThreadsByWorkspace[workspaceId] ?? [];

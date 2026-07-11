@@ -10,6 +10,8 @@ export interface RemoteParticipantStreams {
   audioStream: MediaStream | null;
   cameraStream: MediaStream | null;
   screenStream: MediaStream | null;
+  /** System / display audio from a remote screen share (separate from mic). */
+  screenAudioStream: MediaStream | null;
 }
 
 export interface LocalMediaSnapshot {
@@ -29,13 +31,20 @@ interface PeerState {
   isSettingRemoteAnswerPending: boolean;
   pendingCandidates: RTCIceCandidateInit[];
   audioSender: RTCRtpSender | null;
+  screenAudioSender: RTCRtpSender | null;
+  screenAudioTransceiver: RTCRtpTransceiver | null;
   cameraSender: RTCRtpSender | null;
   screenSender: RTCRtpSender | null;
   remoteMedia: RemoteParticipantStreams;
 }
 
 function emptyRemoteMedia(): RemoteParticipantStreams {
-  return { audioStream: null, cameraStream: null, screenStream: null };
+  return {
+    audioStream: null,
+    cameraStream: null,
+    screenStream: null,
+    screenAudioStream: null,
+  };
 }
 
 function isScreenVideoTrack(track: MediaStreamTrack): boolean {
@@ -197,6 +206,7 @@ export class WorkspaceVoiceRtcSession {
   private async addPeer(remoteUid: string): Promise<void> {
     const pc = createPeerConnection();
     const audioTransceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
+    const screenAudioTransceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
     const peer: PeerState = {
       pc,
       remoteUid,
@@ -206,6 +216,8 @@ export class WorkspaceVoiceRtcSession {
       isSettingRemoteAnswerPending: false,
       pendingCandidates: [],
       audioSender: audioTransceiver.sender,
+      screenAudioSender: screenAudioTransceiver.sender,
+      screenAudioTransceiver,
       cameraSender: null,
       screenSender: null,
       remoteMedia: emptyRemoteMedia(),
@@ -214,7 +226,14 @@ export class WorkspaceVoiceRtcSession {
     pc.ontrack = (event) => {
       const track = event.track;
       if (track.kind === "audio") {
-        peer.remoteMedia.audioStream = ensureStream(peer.remoteMedia.audioStream, track);
+        if (event.transceiver === peer.screenAudioTransceiver) {
+          peer.remoteMedia.screenAudioStream = ensureStream(
+            peer.remoteMedia.screenAudioStream,
+            track,
+          );
+        } else {
+          peer.remoteMedia.audioStream = ensureStream(peer.remoteMedia.audioStream, track);
+        }
       } else if (track.kind === "video") {
         if (isScreenVideoTrack(track)) {
           peer.remoteMedia.screenStream = ensureStream(peer.remoteMedia.screenStream, track);
@@ -286,6 +305,7 @@ export class WorkspaceVoiceRtcSession {
       audioStream: prune(peer.remoteMedia.audioStream),
       cameraStream: prune(peer.remoteMedia.cameraStream),
       screenStream: prune(peer.remoteMedia.screenStream),
+      screenAudioStream: prune(peer.remoteMedia.screenAudioStream),
     };
     this.onRemoteMedia(peer.remoteUid, { ...peer.remoteMedia });
   }
@@ -310,6 +330,16 @@ export class WorkspaceVoiceRtcSession {
           null)
         : null;
     peer.screenSender = await this.setSenderTrack(peer, peer.screenSender, screenTrack);
+    const screenAudioTrack =
+      screenSharing && screenShareStream
+        ? (screenShareStream.getAudioTracks().find((track) => track.readyState === "live") ??
+          null)
+        : null;
+    peer.screenAudioSender = await this.setSenderTrack(
+      peer,
+      peer.screenAudioSender,
+      screenAudioTrack,
+    );
 
     if (
       audioTrackChanged &&
@@ -438,7 +468,7 @@ export class WorkspaceVoiceRtcSession {
 
   private async safeDeleteSignal(signalId: string): Promise<void> {
     try {
-      await deleteRtcSignal(this.workspaceId, this.sessionId, signalId);
+      await deleteRtcSignal(this.workspaceId, this.sessionId, signalId, this.localUid);
     } catch {
       // Déjà supprimé.
     }

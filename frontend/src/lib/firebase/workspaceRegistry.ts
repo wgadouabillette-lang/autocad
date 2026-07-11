@@ -60,6 +60,17 @@ function workspaceMemberRef(workspaceId: string, memberUid: string) {
   return doc(db, "workspacesShared", workspaceId, "members", memberUid);
 }
 
+function workspaceMembersCol(workspaceId: string) {
+  return collection(db, "workspacesShared", workspaceId, "members");
+}
+
+export interface WorkspaceMemberDoc {
+  uid: string;
+  displayName: string;
+  email: string;
+  joinedAt?: unknown;
+}
+
 export function toSharedWorkspaceDoc(workspace: Workspace): SharedWorkspaceDoc {
   return {
     id: workspace.id,
@@ -111,6 +122,14 @@ export async function publishSharedWorkspace(workspace: Workspace): Promise<void
   await setDoc(sharedWorkspaceRef(id), toSharedWorkspaceDoc({ ...workspace, id }), {
     merge: true,
   });
+  // Owner must appear in members so invitees can list the full roster.
+  if (workspace.ownerId) {
+    await grantWorkspaceMember(id, {
+      uid: workspace.ownerId,
+      displayName: workspace.ownerName.trim() || "Membre",
+      email: "",
+    });
+  }
 }
 
 /** Garantit que workspacesShared existe avec le bon propriétaire (requis pour Storage). */
@@ -130,16 +149,14 @@ export async function ensureSharedWorkspacePublished(
   };
 
   const existing = await fetchSharedWorkspace(id);
-  if (!existing) {
-    await publishSharedWorkspace(payload);
-    return;
-  }
-
-  if (existing.ownerId !== firebaseUid) {
+  if (existing && existing.ownerId !== firebaseUid) {
     throw new Error(
       "Ce workspace n'est pas enregistré avec votre compte. Réessayez après vous être reconnecté.",
     );
   }
+
+  // Toujours republier pour que Storage voie le bon ownerId dans workspacesShared.
+  await publishSharedWorkspace(payload);
 }
 
 export async function fetchSharedWorkspace(workspaceId: string): Promise<Workspace | null> {
@@ -208,12 +225,45 @@ export async function grantWorkspaceMember(
 ): Promise<void> {
   const trimmed = workspaceId.trim().toLowerCase();
   if (!trimmed || !member.uid) return;
-  await setDoc(workspaceMemberRef(trimmed, member.uid), {
-    uid: member.uid,
-    displayName: member.displayName.trim() || "Membre",
-    email: member.email.trim().toLowerCase(),
-    joinedAt: serverTimestamp(),
-  });
+  await setDoc(
+    workspaceMemberRef(trimmed, member.uid),
+    {
+      uid: member.uid,
+      displayName: member.displayName.trim() || "Membre",
+      email: member.email.trim().toLowerCase(),
+      joinedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export function watchWorkspaceMembers(
+  workspaceId: string,
+  onChange: (members: WorkspaceMemberDoc[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  const trimmed = workspaceId.trim().toLowerCase();
+  if (!trimmed) {
+    onChange([]);
+    return () => {};
+  }
+  return onSnapshot(
+    workspaceMembersCol(trimmed),
+    (snap) => {
+      onChange(
+        snap.docs.map((entry) => {
+          const data = entry.data() as Partial<WorkspaceMemberDoc>;
+          return {
+            uid: data.uid?.trim() || entry.id,
+            displayName: data.displayName?.trim() || "Membre",
+            email: typeof data.email === "string" ? data.email : "",
+            joinedAt: data.joinedAt,
+          };
+        }),
+      );
+    },
+    onError,
+  );
 }
 
 export function watchPendingJoinRequests(

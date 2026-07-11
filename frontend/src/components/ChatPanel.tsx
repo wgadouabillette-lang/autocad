@@ -34,7 +34,7 @@ import ChatSkillsList from "./chat/ChatSkillsList";
 import ChatShortcutsHint from "./chat/ChatShortcutsHint";
 import HighlightedPromptInput from "./chat/HighlightedPromptInput";
 import { useConnectors } from "../hooks/useConnectors";
-import { isMarketingPreview, readMarketingPreviewSceneParam } from "../lib/marketingPreview";
+import { isMarketingPreview, readMarketingPreviewConnectorsActiveParam, readMarketingPreviewSceneParam } from "../lib/marketingPreview";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { activeStepLabel } from "../lib/aiRun";
 import StructuredAssistantMessage, {
@@ -756,6 +756,11 @@ export default function ChatPanel() {
   useEffect(() => {
     if (!isMarketingPreview()) return;
     if (readMarketingPreviewSceneParam() !== "connectors") return;
+
+    if (readMarketingPreviewConnectorsActiveParam()) {
+      setConnectorsOpen(true);
+      return;
+    }
 
     let open = true;
     setConnectorsOpen(true);

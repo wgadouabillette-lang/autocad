@@ -10,7 +10,7 @@ import { useCallsStore } from "../../store/useCallsStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
 import UserAvatar from "../UserAvatar";
-import PresenceActivityButton from "./PresenceActivityButton";
+import PresenceActivityButton, { CallBlockMediaStatusIcons } from "./PresenceActivityButton";
 import VoiceParticipantTile from "./VoiceParticipantTile";
 
 export const CALL_BLOCK_AVATAR_SLOTS = 4;
@@ -73,7 +73,7 @@ export default function CallBlockCard({
   const previewTiles = participants.slice(0, CALL_BLOCK_TILE_SLOTS);
   const avatarParticipants = participants.slice(0, CALL_BLOCK_AVATAR_SLOTS);
   const audiencePreview = audienceParticipants.slice(0, CALL_BLOCK_AVATAR_SLOTS);
-  const blockClassName = clsx(className, ...aiStrokeClasses(aiStroke));
+  const blockClassName = clsx("forma-capsule", className, ...aiStrokeClasses(aiStroke));
 
   const renderAvatar = (user: CallUser) => (
     <UserAvatar
@@ -169,37 +169,47 @@ export default function CallBlockCard({
 
   return (
     <article className={blockClassName} style={style}>
-      {standby && <span className="call-block__standby-veil" aria-hidden />}
-      <div
-        className={clsx(
-          "call-block__main",
-          onMainClick && mainDisabled && "call-block__main--disabled",
-        )}
-        role={onMainClick ? "button" : undefined}
-        tabIndex={mainClickEnabled ? 0 : onMainClick ? -1 : undefined}
-        aria-disabled={onMainClick && mainDisabled ? true : undefined}
-        aria-label={onMainClick ? mainAriaLabel ?? title : undefined}
-        onClick={onMainClick ? handleMainClick : undefined}
-        onKeyDown={onMainClick ? handleMainKeyDown : undefined}
-      >
-        <div className="call-block__surface">
-          <div className="call-block__row call-block__row--header">
-            {titleContent ?? <p className="call-block__title">{title}</p>}
-            <div className="call-block__header-trailing" data-call-block-action="">
-              {showActivity && !standby && (
-                <PresenceActivityButton
-                  roomId={activeRoomId}
-                  userId={activityUserId}
-                  isLocal={activityIsLocal}
-                />
-              )}
-              {trailing}
-            </div>
+      <div className="call-block__clip">
+        {standby && <span className="call-block__standby-veil" aria-hidden />}
+        {showActivity && !standby && (
+          <div className="call-block__activity-overlay" data-call-block-action="">
+            <PresenceActivityButton
+              roomId={activeRoomId}
+              userId={activityUserId}
+              isLocal={activityIsLocal}
+              layout="corner"
+            />
           </div>
+        )}
+        <div
+          className={clsx(
+            "call-block__main",
+            onMainClick && mainDisabled && "call-block__main--disabled",
+          )}
+          role={onMainClick ? "button" : undefined}
+          tabIndex={mainClickEnabled ? 0 : onMainClick ? -1 : undefined}
+          aria-disabled={onMainClick && mainDisabled ? true : undefined}
+          aria-label={onMainClick ? mainAriaLabel ?? title : undefined}
+          onClick={onMainClick ? handleMainClick : undefined}
+          onKeyDown={onMainClick ? handleMainKeyDown : undefined}
+        >
+          <div className="call-block__surface">
+            <div className="call-block__row call-block__row--header">
+              {titleContent ?? <p className="call-block__title">{title}</p>}
+              {trailing || (showActivity && !standby && activityIsLocal) ? (
+                <div className="call-block__header-trailing" data-call-block-action="">
+                  {showActivity && !standby && activityIsLocal && (
+                    <CallBlockMediaStatusIcons userId={activityUserId} isLocal />
+                  )}
+                  {trailing}
+                </div>
+              ) : null}
+            </div>
 
-          {belowHeader}
+            {belowHeader}
 
-          {participantSection}
+            {participantSection}
+          </div>
         </div>
       </div>
     </article>

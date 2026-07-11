@@ -1,16 +1,14 @@
 import {
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  setDoc,
-  type CollectionReference,
-  type DocumentData,
-  type QueryDocumentSnapshot,
+  onDisconnect,
+  onValue,
+  ref,
+  remove,
+  set,
   type Unsubscribe,
-} from "firebase/firestore";
+} from "firebase/database";
 import type { ChatTypingScope } from "../chatTypingScope";
-import { db } from "./client";
+import { chatTypingScopeKey } from "../chatTypingScope";
+import { rtdb } from "./client";
 
 export interface CloudChatTyper {
   userId: string;
@@ -20,33 +18,30 @@ export interface CloudChatTyper {
 }
 
 const TYPING_STALE_MS = 5_000;
+const armedTypingDisconnect = new Set<string>();
 
-function typingCollection(scope: ChatTypingScope): CollectionReference {
-  switch (scope.kind) {
-    case "theater":
-      return collection(db, "workspacesShared", scope.workspaceId, "theaterTyping");
-    case "friend":
-      return collection(db, "friendChats", scope.chatId, "typing");
-    case "group":
-      return collection(db, "groupChats", scope.groupId, "typing");
-    case "workspace-channel":
-      return collection(
-        db,
-        "workspacesShared",
-        scope.workspaceId,
-        "textChannels",
-        scope.channelId,
-        "typing",
-      );
+function typingPath(scope: ChatTypingScope, uid?: string) {
+  const scopeKey = chatTypingScopeKey(scope);
+  return uid ? `typing/${scopeKey}/${uid}` : `typing/${scopeKey}`;
+}
+
+function typingDisconnectKey(scope: ChatTypingScope, uid: string) {
+  return `${chatTypingScopeKey(scope)}/${uid}`;
+}
+
+async function armTypingDisconnect(scope: ChatTypingScope, uid: string): Promise<void> {
+  const key = typingDisconnectKey(scope, uid);
+  if (armedTypingDisconnect.has(key)) return;
+  armedTypingDisconnect.add(key);
+  try {
+    await onDisconnect(ref(rtdb, typingPath(scope, uid))).remove();
+  } catch {
+    armedTypingDisconnect.delete(key);
   }
 }
 
-function typingRef(scope: ChatTypingScope, uid: string) {
-  return doc(typingCollection(scope), uid);
-}
-
-function mapTypingDoc(docSnap: QueryDocumentSnapshot<DocumentData>): CloudChatTyper | null {
-  const data = docSnap.data();
+function mapTypingEntry(uid: string, raw: unknown): CloudChatTyper | null {
+  const data = (raw ?? {}) as Record<string, unknown>;
   const updatedAt =
     typeof data.updatedAt === "number" && Number.isFinite(data.updatedAt)
       ? data.updatedAt
@@ -54,10 +49,9 @@ function mapTypingDoc(docSnap: QueryDocumentSnapshot<DocumentData>): CloudChatTy
   if (Date.now() - updatedAt > TYPING_STALE_MS) return null;
 
   return {
-    userId: docSnap.id,
+    userId: uid,
     name: typeof data.authorName === "string" ? data.authorName : "Membre",
-    photoURL:
-      typeof data.authorPhotoURL === "string" ? data.authorPhotoURL : data.authorPhotoURL ?? null,
+    photoURL: typeof data.authorPhotoURL === "string" ? data.authorPhotoURL : null,
     updatedAt,
   };
 }
@@ -70,23 +64,20 @@ export async function setChatTyping(
 ): Promise<void> {
   if (!uid) return;
 
-  await setDoc(
-    typingRef(scope, uid),
-    {
-      authorUid: uid,
-      authorName: authorName.trim() || "Membre",
-      authorPhotoURL,
-      updatedAt: Date.now(),
-    },
-    { merge: true },
-  );
+  await set(ref(rtdb, typingPath(scope, uid)), {
+    authorUid: uid,
+    authorName: authorName.trim() || "Membre",
+    authorPhotoURL,
+    updatedAt: Date.now(),
+  });
+  await armTypingDisconnect(scope, uid);
 }
 
 export async function clearChatTyping(scope: ChatTypingScope, uid: string): Promise<void> {
   if (!uid) return;
-
+  armedTypingDisconnect.delete(typingDisconnectKey(scope, uid));
   try {
-    await deleteDoc(typingRef(scope, uid));
+    await remove(ref(rtdb, typingPath(scope, uid)));
   } catch {
     // Déjà supprimé ou indisponible.
   }
@@ -97,15 +88,22 @@ export function watchChatTyping(
   onChange: (typers: CloudChatTyper[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  return onSnapshot(
-    typingCollection(scope),
+  return onValue(
+    ref(rtdb, typingPath(scope)),
     (snap) => {
-      const typers = snap.docs
-        .map((docSnap) => mapTypingDoc(docSnap))
+      const value = snap.val() as Record<string, unknown> | null;
+      if (!value) {
+        onChange([]);
+        return;
+      }
+      const typers = Object.entries(value)
+        .map(([uid, data]) => mapTypingEntry(uid, data))
         .filter((typer): typer is CloudChatTyper => typer !== null);
       onChange(typers);
     },
-    onError,
+    (error) => {
+      onError?.(error);
+    },
   );
 }
 

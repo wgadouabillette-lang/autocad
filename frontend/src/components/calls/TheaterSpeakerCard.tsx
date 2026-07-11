@@ -37,7 +37,7 @@ export default function TheaterSpeakerCard({
   };
 
   const remoteMedia = participant.isLocal ? undefined : remoteMediaByUid[participant.id];
-  const { stream: videoStream, cover: videoCover } = resolveCallParticipantVideoDisplay({
+  const { stream: videoStream } = resolveCallParticipantVideoDisplay({
     isLocal: !!participant.isLocal,
     cameraOn,
     screenSharing,
@@ -69,10 +69,7 @@ export default function TheaterSpeakerCard({
           autoPlay
           muted
           playsInline
-          className={clsx(
-            "theater-speaker-card__media",
-            videoCover && "theater-speaker-card__media--cover",
-          )}
+          className="theater-speaker-card__media"
         />
       ) : canMessage ? (
         <ParticipantAvatarSignetHost name={participant.name}>

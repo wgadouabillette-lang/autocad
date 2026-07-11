@@ -5,11 +5,13 @@ import BottomHeader from "./components/BottomHeader";
 import CallsView from "./components/calls/CallsView";
 import { useColorTheme } from "./hooks/useColorTheme";
 import { useMarketingRecordingSectionPreview } from "./hooks/useMarketingRecordingSectionPreview";
+import { readMarketingPreviewRecordingActiveParam } from "./lib/marketingPreview";
 import { useCallsStore } from "./store/useCallsStore";
 import { useStore } from "./store/useStore";
 
 export default function MarketingRecordingPreviewApp() {
   useColorTheme();
+  const recordingActive = readMarketingPreviewRecordingActiveParam();
   useMarketingRecordingSectionPreview();
 
   const sidePanelSide = useStore((s) => s.sidePanelSide);
@@ -21,7 +23,10 @@ export default function MarketingRecordingPreviewApp() {
 
   return (
     <div
-      className="app-shell marketing-preview-shell marketing-preview-shell--recording"
+      className={clsx(
+        "app-shell marketing-preview-shell marketing-preview-shell--recording",
+        recordingActive && "marketing-preview-shell--recording-static",
+      )}
       aria-hidden="true"
     >
       <div

@@ -42,6 +42,24 @@ Fichier produit : `desktop/release/Hall-0.1.0.dmg`
 > Au premier lancement, macOS peut afficher « développeur non identifié » :  
 > **Réglages Système → Confidentialité et sécurité → Ouvrir quand même**.
 
+### Spotify (lecture complète Premium)
+
+L’app Mac utilise **Electron Castlabs** + **Widevine**. Spotify exige une **signature VMP production** (Castlabs EVS, gratuit) — sans elle, la lecture coupe après ~1 s (`playback_error`).
+
+**Une fois (compte EVS + signature du binaire de dev) :**
+
+```bash
+python3 -m venv .venv-evs && .venv-evs/bin/pip install castlabs-evs
+.venv-evs/bin/python -m castlabs_evs.account signup   # e-mail + confirmation
+chmod +x scripts/sign-electron-widevine.sh
+./scripts/sign-electron-widevine.sh
+./scripts/desktop-dev.sh
+```
+
+Ensuite la musique joue **dans Hall** comme dans le navigateur. Les builds `.dmg` sont signés automatiquement via `desktop/afterPack.cjs` si le compte EVS est configuré.
+
+**Prérequis :** Spotify Premium + connecteur lié (scope `streaming`).
+
 ### Clé API (Grok) en mode app
 
 Le fichier de config est créé automatiquement :
@@ -101,6 +119,17 @@ Double-cliquez pour installer (assistant NSIS), puis lancez **Hall** depuis le m
 
 Config utilisateur : `%APPDATA%\forma-desktop\forma-data\.env`
 
+### Spotify (lecture complète Premium)
+
+Sur Windows, l’app `.exe` utilise un **lecteur WebView2** (moteur Microsoft Edge) en arrière-plan pour le Spotify Web Playback SDK. Edge embarque Widevine DRM, ce qu’Electron seul ne fournit pas — d’où les échecs de lecture complète dans la fenêtre principale.
+
+**Prérequis :**
+- Compte **Spotify Premium**
+- Connecteur Spotify lié dans **Settings → Plugins** (scope `streaming`)
+- **WebView2 Runtime** installé (présent par défaut sur Windows 11 ; [téléchargement](https://developer.microsoft.com/microsoft-edge/webview2/) sur Windows 10 si besoin)
+
+Au premier lancement Windows, Hall démarre une fenêtre WebView2 cachée qui s’enregistre comme appareil Spotify « Hall WebView2 Player ». L’audio sort des haut-parleurs système normalement ; le Hall DJ et la barre de lecture utilisent ce chemin automatiquement.
+
 ---
 
 ## Différences avec le mode développeur
@@ -124,3 +153,5 @@ Config utilisateur : `%APPDATA%\forma-desktop\forma-data\.env`
 - **Écran noir au lancement** → attendez 10–20 s (démarrage Python)
 - **LLM déconnecté** → éditez le `.env` utilisateur (voir ci-dessus)
 - **Build .dmg échoue** → vérifiez `python3`, espace disque (~1 Go pour le venv embarqué)
+- **Spotify : lecture complète ne marche pas (Windows)** → Premium + reconnecter le connecteur ; installez [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) si absent ; relancez l’app
+- **Spotify : lecture complète ne marche pas (Mac)** → Premium + reconnecter le connecteur ; au 1er lancement attendez le téléchargement Widevine ; relancez si besoin (`cd desktop && npm install` installe Electron Castlabs)

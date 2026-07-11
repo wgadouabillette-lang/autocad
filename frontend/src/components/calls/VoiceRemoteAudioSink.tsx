@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import { applyAudioOutputToElement } from "../../lib/audioDevices";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
@@ -8,11 +8,13 @@ function RemoteAudioPlayer({
   uid,
   stream,
   muted,
+  volume,
   outputDeviceId,
 }: {
   uid: string;
   stream: MediaStream;
   muted: boolean;
+  volume: number;
   outputDeviceId: string;
 }) {
   const ref = useRef<HTMLAudioElement>(null);
@@ -23,7 +25,7 @@ function RemoteAudioPlayer({
 
     audio.srcObject = stream;
     audio.muted = muted;
-    audio.volume = 1;
+    audio.volume = Math.min(1, Math.max(0, volume));
 
     const play = () => {
       void audio.play().catch(() => {});
@@ -61,6 +63,13 @@ function RemoteAudioPlayer({
     };
   }, [stream, muted, outputDeviceId]);
 
+  useEffect(() => {
+    const audio = ref.current;
+    if (!audio) return;
+    audio.volume = Math.min(1, Math.max(0, volume));
+    audio.muted = muted || volume <= 0.001;
+  }, [volume, muted]);
+
   return (
     <audio
       ref={ref}
@@ -83,6 +92,7 @@ export default function VoiceRemoteAudioSink() {
   const inVoice = callsViewMode === "theater" ? inTheaterCall : inBlockCall;
   const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
   const deafen = useCallsStore((s) => s.deafen);
+  const remoteScreenShareVolume = useCallsStore((s) => s.remoteScreenShareVolume);
 
   if (!inVoice) return null;
 
@@ -90,17 +100,30 @@ export default function VoiceRemoteAudioSink() {
 
   return (
     <>
-      {Object.entries(remoteMediaByUid).map(([uid, media]: [string, RemoteParticipantStreams]) =>
-        media.audioStream ? (
-          <RemoteAudioPlayer
-            key={`${uid}:${media.audioStream.id}`}
-            uid={uid}
-            stream={media.audioStream}
-            muted={audioMuted}
-            outputDeviceId={audioOutputDeviceId}
-          />
-        ) : null,
-      )}
+      {Object.entries(remoteMediaByUid).map(([uid, media]: [string, RemoteParticipantStreams]) => (
+        <Fragment key={uid}>
+          {media.audioStream ? (
+            <RemoteAudioPlayer
+              key={`${uid}:mic:${media.audioStream.id}`}
+              uid={uid}
+              stream={media.audioStream}
+              muted={audioMuted}
+              volume={1}
+              outputDeviceId={audioOutputDeviceId}
+            />
+          ) : null}
+          {media.screenAudioStream ? (
+            <RemoteAudioPlayer
+              key={`${uid}:screen:${media.screenAudioStream.id}`}
+              uid={`${uid}-screen`}
+              stream={media.screenAudioStream}
+              muted={audioMuted}
+              volume={remoteScreenShareVolume}
+              outputDeviceId={audioOutputDeviceId}
+            />
+          ) : null}
+        </Fragment>
+      ))}
     </>
   );
 }

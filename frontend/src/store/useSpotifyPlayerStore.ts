@@ -11,9 +11,11 @@ import {
   primeSpotifyWebAudioUnlock,
   resumeSpotifyWebPlayback,
   setSpotifyWebPlaybackEndedListener,
+  setSpotifyWebPlaybackErrorListener,
   setSpotifyWebPlaybackListener,
   warmSpotifyWebPlayer,
 } from "../lib/spotifyWebPlayback";
+import { hasFormaDesktop } from "../lib/formaDesktop";
 import { primeSpotifyPreviewAudio } from "../lib/spotifyAudioPulse";
 import { applyAudioOutputToElement } from "../lib/audioDevices";
 import { recordHallDjPlay } from "../lib/hallDjPlayHistory";
@@ -29,6 +31,7 @@ function tracksEqual(a: SpotifyTrackCard | null | undefined, b: SpotifyTrackCard
 }
 
 let suppressTrackEnded = false;
+let handlingTrackEnded = false;
 
 function audioElement(): HTMLAudioElement {
   if (!sharedAudio) {
@@ -110,8 +113,59 @@ setSpotifyWebPlaybackListener((playing) => {
 });
 
 setSpotifyWebPlaybackEndedListener(() => {
+  // #region agent log
+  fetch("http://127.0.0.1:7941/ingest/bf77dbb7-04a4-446f-817c-db0d19c43744", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9c6d7b" },
+    body: JSON.stringify({
+      sessionId: "9c6d7b",
+      runId: "dj-auto-next",
+      hypothesisId: "C",
+      location: "useSpotifyPlayerStore.ts:endedListener",
+      message: "onPlaybackEnded received",
+      data: {
+        suppressTrackEnded,
+        queueLen: useSpotifyPlayerStore.getState().queue.length,
+        hallDj: useHallDjStore.getState().active,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   if (suppressTrackEnded) return;
   useSpotifyPlayerStore.getState().handleTrackEnded();
+});
+
+setSpotifyWebPlaybackErrorListener(() => {
+  const track = useSpotifyPlayerStore.getState().currentTrack;
+  void (async () => {
+    suppressTrackEnded = true;
+    try {
+      await pauseSpotifyWebPlayback();
+      if (track) {
+        const heard = await playPreview(track, true);
+        if (heard) {
+          useSpotifyPlayerStore.setState({
+            playing: true,
+            playbackMode: "preview",
+            playerNotice: hasFormaDesktop()
+              ? "DRM Electron : signe Widevine (./scripts/sign-electron-widevine.sh) pour la lecture complète in-app. Extrait 30 s en attendant."
+              : "Extrait 30 s.",
+          });
+          return;
+        }
+      }
+      useSpotifyPlayerStore.setState({
+        playing: false,
+        playbackMode: null,
+        playerNotice: hasFormaDesktop()
+          ? "Lecture Spotify in-app bloquée (DRM). Lance ./scripts/sign-electron-widevine.sh puis relance Hall — comme le web."
+          : "Lecture complète indisponible.",
+      });
+    } finally {
+      suppressTrackEnded = false;
+    }
+  })();
 });
 
 function pausePreviewAudio() {
@@ -214,14 +268,17 @@ async function startPlayback(track: SpotifyTrackCard, restart = false): Promise<
         const heard = await playPreview(track, restart);
         if (heard) {
           useSpotifyPlayerStore.setState({
-            playerNotice: "Lecture complète indisponible — extrait 30 s.",
+            playerNotice: hasFormaDesktop()
+              ? "DRM Electron : ./scripts/sign-electron-widevine.sh pour la lecture complète in-app. Extrait 30 s."
+              : "Lecture complète indisponible — extrait 30 s.",
           });
           return;
         }
       }
       useSpotifyPlayerStore.setState({
-        playerNotice:
-          "Lecture complète indisponible. Déconnecte puis reconnecte Spotify dans Settings → Plugins (autorisation streaming).",
+        playerNotice: hasFormaDesktop()
+          ? "Lecture Spotify in-app bloquée (DRM Widevine). Lance ./scripts/sign-electron-widevine.sh puis relance Hall."
+          : "Lecture complète indisponible. Déconnecte puis reconnecte Spotify dans Settings → Plugins.",
       });
     }
 
@@ -460,28 +517,62 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
   },
 
   handleTrackEnded: () => {
-    if (suppressTrackEnded) return;
+    // #region agent log
+    fetch("http://127.0.0.1:7941/ingest/bf77dbb7-04a4-446f-817c-db0d19c43744", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9c6d7b" },
+      body: JSON.stringify({
+        sessionId: "9c6d7b",
+        runId: "dj-auto-next",
+        hypothesisId: "C",
+        location: "useSpotifyPlayerStore.ts:handleTrackEnded",
+        message: "handleTrackEnded",
+        data: {
+          suppressTrackEnded,
+          handlingTrackEnded,
+          queueLen: get().queue.length,
+          trackId: get().currentTrack?.id ?? null,
+          playbackMode: get().playbackMode,
+          hallDj: useHallDjStore.getState().active,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    if (suppressTrackEnded || handlingTrackEnded) return;
+    handlingTrackEnded = true;
     cancelSpotifyPlaybackEnded();
 
-    const { queue, currentTrack } = get();
-    if (currentTrack) {
-      set((s) => ({
-        lastPlayedTrack: currentTrack,
-        history: [...s.history, currentTrack],
-        playing: false,
-      }));
-    }
+    void (async () => {
+      try {
+        // Hall DJ: same action as the Next button.
+        const hallDj = useHallDjStore.getState();
+        if (hallDj.active) {
+          await hallDj.skipNext();
+          return;
+        }
 
-    if (queue.length === 0) {
-      set({ playing: false, playbackMode: null });
-      void useHallDjStore.getState().refillIfNeeded();
-      return;
-    }
+        const { queue, currentTrack } = get();
+        if (currentTrack) {
+          set((s) => ({
+            lastPlayedTrack: currentTrack,
+            history: [...s.history, currentTrack],
+            playing: false,
+          }));
+        }
 
-    const [next, ...rest] = queue;
-    set({ queue: rest });
-    void get().playTrack(next, { skipHistory: true, restart: true });
-    void useHallDjStore.getState().refillIfNeeded();
+        if (queue.length === 0) {
+          set({ playing: false, playbackMode: null });
+          return;
+        }
+
+        const [next, ...rest] = queue;
+        set({ queue: rest });
+        await get().playTrack(next, { skipHistory: true, restart: true });
+      } finally {
+        handlingTrackEnded = false;
+      }
+    })();
   },
 
   stop: () => {

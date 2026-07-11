@@ -43,6 +43,9 @@ service firebase.storage {
         && (isSharedWorkspaceOwnerForStorage(workspaceId) || isUserWorkspaceOwnerForStorage(workspaceId))
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null
+        && fileName.matches('icon\\.(jpg|png|webp)')
+        && (isSharedWorkspaceOwnerForStorage(workspaceId) || isUserWorkspaceOwnerForStorage(workspaceId));
     }
   }
 }

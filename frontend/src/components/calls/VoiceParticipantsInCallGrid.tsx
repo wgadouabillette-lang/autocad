@@ -86,7 +86,7 @@ function ParticipantTile({
   stage,
 }: ParticipantTileProps) {
   const remoteMedia = media.remoteMediaByUid[participant.id];
-  const { stream: videoStream, cover: videoCover } = resolveParticipantVideo(participant, media);
+  const { stream: videoStream } = resolveParticipantVideo(participant, media);
 
   return (
     <VoiceParticipantTile
@@ -99,7 +99,6 @@ function ParticipantTile({
       shape={shape}
       style={style}
       videoStream={videoStream}
-      videoCover={videoCover}
       audioStream={participant.isLocal ? null : remoteMedia?.audioStream ?? null}
       onActivate={onActivate}
       activateTitle={activateTitle}
@@ -176,35 +175,37 @@ export default function VoiceParticipantsInCallGrid({
 
       return (
         <div className="open-voice-in-call open-voice-in-call--spotlight">
-          {stripParticipants.length > 0 ? (
-            <div
-              className="open-voice-spotlight__strip"
-              aria-label="Autres participants"
-            >
-              {stripParticipants.map((participant) => (
-                <ParticipantTile
-                  key={participant.id}
-                  participant={participant}
-                  workspaceId={workspaceId}
-                  media={media}
-                  {...tilePropsFor(participant)}
-                  strip
-                  onActivate={() => setSpotlightParticipantId(participant.id)}
-                  activateTitle={`Voir ${participant.name}`}
-                />
-              ))}
+          <div className="open-voice-spotlight__stack">
+            {stripParticipants.length > 0 ? (
+              <div
+                className="open-voice-spotlight__strip"
+                aria-label="Autres participants"
+              >
+                {stripParticipants.map((participant) => (
+                  <ParticipantTile
+                    key={participant.id}
+                    participant={participant}
+                    workspaceId={workspaceId}
+                    media={media}
+                    {...tilePropsFor(participant)}
+                    strip
+                    onActivate={() => setSpotlightParticipantId(participant.id)}
+                    activateTitle={`Voir ${participant.name}`}
+                  />
+                ))}
+              </div>
+            ) : null}
+            <div className="open-voice-spotlight__stage">
+              <ParticipantTile
+                participant={spotlightParticipant}
+                workspaceId={workspaceId}
+                media={media}
+                {...tilePropsFor(spotlightParticipant)}
+                stage
+                onActivate={() => setSpotlightParticipantId(null)}
+                activateTitle="Réduire"
+              />
             </div>
-          ) : null}
-          <div className="open-voice-spotlight__stage">
-            <ParticipantTile
-              participant={spotlightParticipant}
-              workspaceId={workspaceId}
-              media={media}
-              {...tilePropsFor(spotlightParticipant)}
-              stage
-              onActivate={() => setSpotlightParticipantId(null)}
-              activateTitle="Réduire"
-            />
           </div>
         </div>
       );

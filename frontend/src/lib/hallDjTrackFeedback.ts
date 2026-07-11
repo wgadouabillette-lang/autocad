@@ -1,7 +1,13 @@
 import type { SpotifyTrackCard } from "./connectorsApi";
 
 const STORAGE_KEY = "forma-hall-dj-feedback";
+const RECENT_SERVED_KEY = "forma-hall-dj-recent-served";
 const MAX_ENTRIES = 400;
+const MAX_RECENT_SERVED = 200;
+/** After a dislike, do not propose the track again for two weeks. */
+const REJECT_BLOCK_MS = 14 * 24 * 60 * 60 * 1000;
+/** Avoid replaying the same track too soon across DJ sessions. */
+const RECENT_SERVED_MS = 36 * 60 * 60 * 1000;
 
 export type HallDjTrackVerdict = "approve" | "reject";
 
@@ -13,6 +19,11 @@ interface FeedbackEntry {
   rejectCount: number;
   lastVerdict: HallDjTrackVerdict;
   updatedAt: number;
+}
+
+interface RecentServedEntry {
+  trackId: string;
+  servedAt: number;
 }
 
 function readEntries(): FeedbackEntry[] {
@@ -42,18 +53,86 @@ function getEntry(trackId: string): FeedbackEntry | undefined {
   return readEntries().find((entry) => entry.trackId === trackId);
 }
 
-/** Lower weight = proposed less often (never fully excluded). */
+function readRecentServed(): RecentServedEntry[] {
+  try {
+    const raw = localStorage.getItem(RECENT_SERVED_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as RecentServedEntry[];
+    if (!Array.isArray(parsed)) return [];
+    const cutoff = Date.now() - RECENT_SERVED_MS;
+    return parsed.filter(
+      (entry) =>
+        entry &&
+        typeof entry.trackId === "string" &&
+        typeof entry.servedAt === "number" &&
+        entry.servedAt >= cutoff,
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentServed(entries: RecentServedEntry[]) {
+  localStorage.setItem(RECENT_SERVED_KEY, JSON.stringify(entries.slice(-MAX_RECENT_SERVED)));
+}
+
+export function recordHallDjServedTracks(tracks: SpotifyTrackCard[]): void {
+  const now = Date.now();
+  const byId = new Map<string, number>();
+  for (const entry of readRecentServed()) {
+    byId.set(entry.trackId, entry.servedAt);
+  }
+  for (const track of tracks) {
+    const id = track.id?.trim();
+    if (!id) continue;
+    byId.set(id, now);
+  }
+  writeRecentServed(
+    Array.from(byId.entries()).map(([trackId, servedAt]) => ({ trackId, servedAt })),
+  );
+}
+
+export function wasHallDjRecentlyServed(trackId: string | undefined): boolean {
+  if (!trackId) return false;
+  const cutoff = Date.now() - RECENT_SERVED_MS;
+  return readRecentServed().some((entry) => entry.trackId === trackId && entry.servedAt >= cutoff);
+}
+
+/** Hard exclusion after dislike / strong negative score. */
+export function isHallDjTrackBlocked(trackId: string | undefined): boolean {
+  if (!trackId) return false;
+  const entry = getEntry(trackId);
+  if (!entry) return false;
+  if (entry.score <= -1 && entry.lastVerdict === "reject") {
+    if (Date.now() - entry.updatedAt < REJECT_BLOCK_MS) return true;
+  }
+  if (entry.score <= -2) return true;
+  return false;
+}
+
+export function hallDjBlockedTrackIds(): Set<string> {
+  const blocked = new Set<string>();
+  for (const entry of readEntries()) {
+    if (isHallDjTrackBlocked(entry.trackId)) blocked.add(entry.trackId);
+  }
+  for (const entry of readRecentServed()) {
+    blocked.add(entry.trackId);
+  }
+  return blocked;
+}
+
+/** Soft weight for ranking only — blocked tracks should already be filtered out. */
 export function hallDjTrackWeight(trackId: string | undefined): number {
   if (!trackId) return 1;
+  if (isHallDjTrackBlocked(trackId)) return 0;
   const entry = getEntry(trackId);
   if (!entry || entry.score >= 0) return 1;
-  if (entry.score <= -2) return 0.22;
-  return 0.48;
+  return 0.35;
 }
 
 export function hallDjApprovedSeedTracks(limit = 5): SpotifyTrackCard[] {
   return readEntries()
-    .filter((entry) => entry.score >= 1)
+    .filter((entry) => entry.score >= 1 && !isHallDjTrackBlocked(entry.trackId))
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, limit)
     .map((entry) => entry.track);
@@ -85,6 +164,10 @@ export function recordHallDjTrackFeedback(
   if (index >= 0) entries[index] = next;
   else entries.push(next);
   writeEntries(entries);
+
+  if (verdict === "reject") {
+    recordHallDjServedTracks([track]);
+  }
 }
 
 export function sortTracksByDjFeedback(tracks: SpotifyTrackCard[]): SpotifyTrackCard[] {
@@ -95,7 +178,13 @@ export function sortTracksByDjFeedback(tracks: SpotifyTrackCard[]): SpotifyTrack
   });
 }
 
+/** Drop blocked / recently served tracks. Never reintroduce them as a fallback. */
 export function filterTracksByDjFeedback(tracks: SpotifyTrackCard[]): SpotifyTrackCard[] {
-  const kept = tracks.filter((track) => Math.random() < hallDjTrackWeight(track.id));
-  return kept.length > 0 ? kept : tracks.slice(0, Math.max(1, Math.ceil(tracks.length / 3)));
+  return tracks.filter((track) => {
+    const id = track.id?.trim();
+    if (!id) return true;
+    if (isHallDjTrackBlocked(id)) return false;
+    if (wasHallDjRecentlyServed(id)) return false;
+    return Math.random() < hallDjTrackWeight(id);
+  });
 }

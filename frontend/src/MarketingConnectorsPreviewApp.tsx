@@ -3,6 +3,7 @@ import { type CSSProperties } from "react";
 import ChatPanelShell from "./components/ChatPanelShell";
 import { useColorTheme } from "./hooks/useColorTheme";
 import { useMarketingConnectorsSectionPreview } from "./hooks/useMarketingConnectorsSectionPreview";
+import { readMarketingPreviewConnectorsActiveParam } from "./lib/marketingPreview";
 import { useStore } from "./store/useStore";
 
 export default function MarketingConnectorsPreviewApp() {
@@ -10,6 +11,7 @@ export default function MarketingConnectorsPreviewApp() {
   useMarketingConnectorsSectionPreview();
 
   const sidePanelSide = useStore((s) => s.sidePanelSide);
+  const connectorsStatic = readMarketingPreviewConnectorsActiveParam();
 
   const layoutStyle = {
     "--app-chat-col": "100%",
@@ -17,7 +19,10 @@ export default function MarketingConnectorsPreviewApp() {
 
   return (
     <div
-      className="app-shell marketing-preview-shell marketing-preview-shell--connectors-section"
+      className={clsx(
+        "app-shell marketing-preview-shell marketing-preview-shell--connectors-section",
+        connectorsStatic && "marketing-preview-shell--connectors-static",
+      )}
       aria-hidden="true"
     >
       <div

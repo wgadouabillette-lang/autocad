@@ -20,6 +20,7 @@ import {
   publishSharedWorkspace,
   requestWorkspaceJoin,
   respondWorkspaceJoinRequest,
+  ensureSharedWorkspacePublished,
   type WorkspaceJoinRequestDoc,
 } from "../lib/firebase/workspaceRegistry";
 import { parseWorkspaceInviteInput } from "../lib/workspaceInvite";
@@ -31,15 +32,66 @@ import {
   canCreateOwnedWorkspace,
   FREE_OWNED_WORKSPACE_LIMIT,
 } from "../lib/subscriptionPlans";
+import { saveUserWorkspaces } from "../lib/firebase/userData";
 import { resolveActiveWorkspaceId } from "../lib/lastActiveWorkspace";
 import { useCallsStore } from "./useCallsStore";
 import { useStore } from "./useStore";
 
 const STORAGE_KEY = "forma-server-memberships";
 const PENDING_JOINS_KEY = "forma-pending-join-requests";
+const DELETED_WORKSPACES_KEY = "forma-deleted-workspaces";
 
 function currentMembershipUserId(): string {
   return auth.currentUser?.uid ?? LOCAL_USER_ID;
+}
+
+function readDeletedWorkspaceIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_WORKSPACES_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(
+      parsed
+        .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+        .map((id) => normalizeWorkspaceId(id)),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+function writeDeletedWorkspaceIds(ids: Set<string>) {
+  localStorage.setItem(DELETED_WORKSPACES_KEY, JSON.stringify([...ids]));
+}
+
+function rememberDeletedWorkspace(workspaceId: string) {
+  const normalized = normalizeWorkspaceId(workspaceId);
+  if (!normalized) return;
+  const ids = readDeletedWorkspaceIds();
+  ids.add(normalized);
+  writeDeletedWorkspaceIds(ids);
+}
+
+function forgetDeletedWorkspace(workspaceId: string) {
+  const normalized = normalizeWorkspaceId(workspaceId);
+  if (!normalized) return;
+  const ids = readDeletedWorkspaceIds();
+  if (!ids.delete(normalized)) return;
+  writeDeletedWorkspaceIds(ids);
+}
+
+function isDeletedWorkspace(workspaceId: string): boolean {
+  return readDeletedWorkspaceIds().has(normalizeWorkspaceId(workspaceId));
+}
+
+function withoutDeletedWorkspaces(state: PersistedState): PersistedState {
+  const deleted = readDeletedWorkspaceIds();
+  if (deleted.size === 0) return state;
+  return {
+    customServers: state.customServers.filter((server) => !deleted.has(server.id)),
+    memberships: state.memberships.filter((entry) => !deleted.has(entry.workspaceId)),
+  };
 }
 
 interface PersistedState {
@@ -89,10 +141,16 @@ interface WorkspacesState extends PersistedState {
   ) => Promise<void>;
   reconcilePendingJoinRequests: (userId: string) => Promise<void>;
   reconcileOwnedWorkspacesForAuth: (firebaseUid: string) => void;
+  prepareWorkspaceIconUpload: (workspaceId: string, firebaseUid: string) => Promise<Workspace>;
   leaveWorkspace: (workspaceId: string, userId?: string) => void;
   deleteWorkspace: (workspaceId: string, userId?: string) => Promise<void>;
   resetLocalMemberships: () => void;
   stripLegacyPublicWorkspaces: () => void;
+  /** Apply cloud workspace snapshot while respecting locally deleted tombstones. */
+  applyCloudWorkspaces: (data: {
+    customServers: Workspace[];
+    memberships: ServerMembership[];
+  }) => void;
 }
 
 function readPersisted(): PersistedState {
@@ -209,7 +267,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
 
   hydrate: () => {
     if (get().hydrated) return;
-    const persisted = sanitizePersisted(readPersisted());
+    const persisted = withoutDeletedWorkspaces(sanitizePersisted(readPersisted()));
     const customServers = normalizeCustomServers(persisted.customServers);
     const memberships = normalizeMemberships(persisted.memberships);
     const pendingJoinRequests = readPendingJoinRequests();
@@ -355,6 +413,10 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
 
   addRemoteWorkspace: (workspace, userId = LOCAL_USER_ID) => {
     const normalized = normalizeWorkspaceId(workspace.id);
+    if (isDeletedWorkspace(normalized)) {
+      // Explicit re-join after a prior leave/delete clears the tombstone.
+      forgetDeletedWorkspace(normalized);
+    }
     if (get().membershipIn(normalized, userId)) return false;
 
     const membership: ServerMembership = {
@@ -476,11 +538,36 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
 
     const state = get();
     let customServers = state.customServers;
+    let memberships = state.memberships;
     let changed = false;
+
+    const nextMemberships = [...memberships];
+    for (const entry of memberships) {
+      if (entry.userId !== LOCAL_USER_ID) continue;
+      const duplicateIndex = nextMemberships.findIndex(
+        (member) => member.userId === firebaseUid && member.workspaceId === entry.workspaceId,
+      );
+      const localIndex = nextMemberships.findIndex(
+        (member) => member.userId === LOCAL_USER_ID && member.workspaceId === entry.workspaceId,
+      );
+      if (localIndex < 0) continue;
+      if (duplicateIndex >= 0) {
+        nextMemberships.splice(localIndex, 1);
+        changed = true;
+        continue;
+      }
+      if (entry.role === "owner") {
+        nextMemberships[localIndex] = { ...entry, userId: firebaseUid };
+        changed = true;
+      }
+    }
+    if (changed) {
+      memberships = nextMemberships;
+    }
 
     for (let index = 0; index < customServers.length; index += 1) {
       const server = customServers[index];
-      const isOwner = state.memberships.some(
+      const isOwner = memberships.some(
         (entry) =>
           entry.workspaceId === server.id &&
           entry.userId === firebaseUid &&
@@ -500,9 +587,46 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     }
 
     if (changed) {
-      writePersisted({ customServers, memberships: state.memberships });
+      writePersisted({ customServers, memberships });
+      set({ customServers, memberships });
+    }
+  },
+
+  prepareWorkspaceIconUpload: async (workspaceId, firebaseUid) => {
+    const normalized = normalizeWorkspaceId(workspaceId);
+    if (get().roleIn(normalized, firebaseUid) !== "owner") {
+      throw new Error("Seul le propriétaire peut modifier l'icône.");
+    }
+
+    const workspace = get().findWorkspace(normalized);
+    if (!workspace) {
+      throw new Error("Workspace introuvable.");
+    }
+
+    let customServers = get().customServers;
+    let changed = false;
+    const serverIndex = customServers.findIndex((server) => server.id === normalized);
+    if (serverIndex >= 0 && customServers[serverIndex].ownerId !== firebaseUid) {
+      customServers = [...customServers];
+      customServers[serverIndex] = { ...customServers[serverIndex], ownerId: firebaseUid };
+      changed = true;
+      writePersisted({ customServers, memberships: get().memberships });
       set({ customServers });
     }
+
+    const prepared: Workspace = {
+      ...(serverIndex >= 0 ? customServers[serverIndex] : workspace),
+      id: normalized,
+      ownerId: firebaseUid,
+    };
+
+    await ensureSharedWorkspacePublished(prepared, firebaseUid);
+    await saveUserWorkspaces(firebaseUid, {
+      customServers: get().customServers,
+      memberships: get().memberships,
+    });
+
+    return prepared;
   },
 
   leaveWorkspace: (workspaceId, userId) => {
@@ -511,14 +635,22 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     const membership = get().membershipIn(normalized, memberUid);
     if (!membership || membership.role === "owner") return;
 
+    rememberDeletedWorkspace(normalized);
+
     set((state) => {
-      const memberships = state.memberships.filter(
-        (entry) => !(entry.userId === memberUid && entry.workspaceId === normalized),
-      );
-      writePersisted({ customServers: state.customServers, memberships });
-      return { memberships };
+      const memberships = state.memberships.filter((entry) => entry.workspaceId !== normalized);
+      const customServers = state.customServers.filter((server) => server.id !== normalized);
+      writePersisted({ customServers, memberships });
+      return { customServers, memberships };
     });
     syncActiveWorkspace(get().joinedWorkspaces(memberUid), memberUid);
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      void saveUserWorkspaces(uid, {
+        customServers: get().customServers,
+        memberships: get().memberships,
+      }).catch(() => {});
+    }
   },
 
   deleteWorkspace: async (workspaceId, userId) => {
@@ -531,8 +663,17 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
 
     if (role !== "owner") {
       get().leaveWorkspace(normalized, memberUid);
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        await saveUserWorkspaces(uid, {
+          customServers: get().customServers,
+          memberships: get().memberships,
+        });
+      }
       return;
     }
+
+    rememberDeletedWorkspace(normalized);
 
     set((state) => {
       const customServers = state.customServers.filter((server) => server.id !== normalized);
@@ -563,6 +704,14 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       const { removeWorkspaceIcon } = await import("../lib/firebase/workspaceIcon");
       void removeWorkspaceIcon(normalized).catch(() => {});
     }
+
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      await saveUserWorkspaces(uid, {
+        customServers: get().customServers,
+        memberships: get().memberships,
+      });
+    }
   },
 
   resetLocalMemberships: () => {
@@ -572,6 +721,23 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       memberships: [],
       hydrated: true,
     });
+  },
+
+  applyCloudWorkspaces: (data) => {
+    const cleaned = withoutDeletedWorkspaces(
+      sanitizePersisted({
+        customServers: data.customServers.filter(
+          (server) => !isLegacyPublicWorkspaceId(server.id),
+        ),
+        memberships: data.memberships.filter(
+          (entry) => !isLegacyPublicWorkspaceId(entry.workspaceId),
+        ),
+      }),
+    );
+    const customServers = normalizeCustomServers(cleaned.customServers);
+    const memberships = normalizeMemberships(cleaned.memberships);
+    writePersisted({ customServers, memberships });
+    set({ customServers, memberships, hydrated: true });
   },
 
   stripLegacyPublicWorkspaces: () => {

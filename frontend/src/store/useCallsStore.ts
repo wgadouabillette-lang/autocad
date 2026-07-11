@@ -103,6 +103,8 @@ interface CallControls {
   pushToTalk: boolean;
   raiseHand: boolean;
   deafen: boolean;
+  /** 0–1 volume for remote screen-share system audio. */
+  remoteScreenShareVolume: number;
   mediaError: string | null;
   localStream: MediaStream | null;
   screenShareStream: MediaStream | null;
@@ -180,6 +182,7 @@ interface CallsState extends CallControls {
   isLocalInCall: (workspaceId: string) => boolean;
   togglePushToTalk: () => void;
   toggleDeafen: () => void;
+  setRemoteScreenShareVolume: (volume: number) => void;
   startLocalMedia: () => Promise<void>;
   stopLocalMediaTracks: () => void;
   toggleMuted: () => Promise<void>;
@@ -243,6 +246,8 @@ function voiceProfile() {
   const photoURL = useStore.getState().photoURL;
   return { displayName, photoURL };
 }
+
+const speakingPresenceCache = new Map<string, { value: boolean; at: number }>();
 
 function pushVoicePresence(get: () => CallsState, workspaceId: string) {
   const firebaseUid = useAuthStore.getState().firebaseUid;
@@ -339,6 +344,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   pushToTalk: false,
   raiseHand: false,
   deafen: false,
+  remoteScreenShareVolume: 1,
   mediaError: null,
   localStream: null,
   screenShareStream: null,
@@ -367,6 +373,11 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   pushLocalSpeakingPresence: (workspaceId, speaking) => {
     const firebaseUid = useAuthStore.getState().firebaseUid;
     if (!firebaseUid || !workspaceId || !get().isLocalInCall(workspaceId)) return;
+    const key = `${workspaceId}:${firebaseUid}`;
+    const prev = speakingPresenceCache.get(key);
+    const now = Date.now();
+    if (prev && prev.value === speaking && now - prev.at < 450) return;
+    speakingPresenceCache.set(key, { value: speaking, at: now });
     const activity = getLocalPresenceActivityForSync(workspaceId);
     void touchWorkspacePresence(
       workspaceId,
@@ -1970,6 +1981,8 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     playMutedTransition(wasMuted, nextMuted);
   },
   toggleDeafen: () => set((s) => ({ deafen: !s.deafen })),
+  setRemoteScreenShareVolume: (volume) =>
+    set({ remoteScreenShareVolume: Math.min(1, Math.max(0, volume)) }),
 }));
 
 setLocalMediaAudioRecoveryHandler(() => {

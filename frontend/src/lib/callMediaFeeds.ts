@@ -15,7 +15,6 @@ export type CallMediaKind = "camera" | "screen";
 
 export interface CallParticipantVideoDisplay {
   stream: MediaStream | null;
-  cover: boolean;
 }
 
 export function resolveCallParticipantVideoDisplay(input: {
@@ -28,19 +27,17 @@ export function resolveCallParticipantVideoDisplay(input: {
 }): CallParticipantVideoDisplay {
   if (input.isLocal) {
     if (input.screenSharing && input.screenShareStream) {
-      return { stream: input.screenShareStream, cover: false };
+      return { stream: input.screenShareStream };
     }
     if (input.cameraOn && input.localStream) {
-      return { stream: input.localStream, cover: true };
+      return { stream: input.localStream };
     }
-    return { stream: null, cover: true };
+    return { stream: null };
   }
 
   const stream = participantVideoStream(input.remoteMedia);
-  if (!stream) return { stream: null, cover: true };
-  const isScreen =
-    !!input.remoteMedia?.screenStream && stream === input.remoteMedia.screenStream;
-  return { stream, cover: !isScreen };
+  if (!stream) return { stream: null };
+  return { stream };
 }
 
 export interface ParticipantMediaState {

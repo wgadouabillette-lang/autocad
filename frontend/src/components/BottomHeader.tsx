@@ -6,16 +6,17 @@ import {
   Circle,
   BarChart3,
   Hand,
+  Loader2,
   MessageSquare,
   Mic,
   Sparkles,
-  ListMusic,
   ListTodo,
   SkipForward,
   MicOff,
   MonitorUp,
   PhoneOff,
   Square,
+  Volume2,
   Video,
   VideoOff,
 } from "lucide-react";
@@ -44,7 +45,7 @@ import { useHallDjStore } from "../store/useHallDjStore";
 import { isMarketingPreview } from "../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
-import HallDjLoadingIcon from "./bottomBar/HallDjLoadingIcon";
+import HallDjDiscoIcon from "./bottomBar/HallDjDiscoIcon";
 
 const ICON_SIZE = 19;
 
@@ -80,6 +81,9 @@ export default function BottomHeader() {
   const cameraOn = useCallsStore((s) => s.cameraOn);
   const mediaError = useCallsStore((s) => s.mediaError);
   const screenSharing = useCallsStore((s) => s.screenSharing);
+  const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
+  const remoteScreenShareVolume = useCallsStore((s) => s.remoteScreenShareVolume);
+  const setRemoteScreenShareVolume = useCallsStore((s) => s.setRemoteScreenShareVolume);
   const recording = useCallsStore((s) => s.recording);
   const toggleMuted = useCallsStore((s) => s.toggleMuted);
   const toggleCamera = useCallsStore((s) => s.toggleCamera);
@@ -154,11 +158,14 @@ export default function BottomHeader() {
   const hallDjActive = useHallDjStore((s) => s.active);
   const startHallDj = useHallDjStore((s) => s.startDj);
   const skipHallDjTrack = useHallDjStore((s) => s.skipNext);
+  const spotifyPremiumAvailable = useSpotifyPlayerStore((s) => s.premiumAvailable);
+  const refreshSpotifyPlayerConfig = useSpotifyPlayerStore((s) => s.refreshPlayerConfig);
   const [queueShimmer, setQueueShimmer] = useState(false);
   const { connectedIds, connect, connectingId, statuses } = useConnectors();
   const spotifyStatus = statuses.find((s) => s.id === "spotify");
   const spotifyConnected = connectedIds.has("spotify");
   const spotifyConfigured = spotifyStatus?.configured ?? false;
+  const hallDjNeedsPremium = spotifyConnected && spotifyPremiumAvailable === false;
 
   useEffect(() => {
     ensureRoom(activeRoomId);
@@ -170,6 +177,11 @@ export default function BottomHeader() {
     const timer = window.setTimeout(() => setQueueShimmer(false), 1400);
     return () => window.clearTimeout(timer);
   }, [queueAddFlashAt]);
+
+  useEffect(() => {
+    if (!spotifyConnected) return;
+    void refreshSpotifyPlayerConfig();
+  }, [spotifyConnected, refreshSpotifyPlayerConfig]);
 
   useEffect(() => {
     for (const item of notificationItems) {
@@ -278,15 +290,19 @@ export default function BottomHeader() {
 
   const showHallDjLoading = hallDjLoading && !hallDjActive;
   const showHallDjSkip = hallDjActive;
+  const hallDjPremiumLabel =
+    "Votre compte Spotify connecté doit être Premium pour utiliser le Hall DJ";
 
   const spotifyDjButton = spotifyConnected ? (
     <BottomBarButton
       label={
-        showHallDjLoading
-          ? "Hall DJ…"
-          : showHallDjSkip
-            ? "Chanson suivante"
-            : "Démarrer le Hall DJ"
+        hallDjNeedsPremium && !showHallDjSkip
+          ? hallDjPremiumLabel
+          : showHallDjLoading
+            ? "Hall DJ…"
+            : showHallDjSkip
+              ? "Chanson suivante"
+              : "Démarrer le Hall DJ"
       }
       onClick={() => {
         if (!spotifyConnected) {
@@ -297,17 +313,24 @@ export default function BottomHeader() {
           void skipHallDjTrack();
           return;
         }
+        if (hallDjNeedsPremium) {
+          useSpotifyPlayerStore.setState({
+            playerNotice: hallDjPremiumLabel,
+          });
+          return;
+        }
         void startHallDj();
       }}
       disabled={showHallDjLoading || connectingId === "spotify"}
       active={showHallDjSkip || showHallDjLoading}
+      className={hallDjNeedsPremium && !showHallDjSkip ? "bottom-bar-btn--wide-signet" : undefined}
     >
       {showHallDjLoading ? (
-        <HallDjLoadingIcon size={ICON_SIZE} className={spotifyIconShimmerClass} />
+        <Loader2 size={ICON_SIZE} aria-hidden className={clsx("animate-spin", spotifyIconShimmerClass)} />
       ) : showHallDjSkip ? (
         <SkipForward size={ICON_SIZE} aria-hidden className={spotifyIconShimmerClass} />
       ) : (
-        <ListMusic size={ICON_SIZE} aria-hidden className={spotifyIconShimmerClass} />
+        <HallDjDiscoIcon className={spotifyIconShimmerClass} />
       )}
     </BottomBarButton>
   ) : null;
@@ -375,6 +398,29 @@ export default function BottomHeader() {
       >
         <MonitorUp size={ICON_SIZE} />
       </BottomBarButton>
+
+      {inCall &&
+        Object.values(remoteMediaByUid).some((media) =>
+          media.screenStream?.getVideoTracks().some((track) => track.readyState === "live"),
+        ) && (
+          <label
+            className="bottom-bar-screen-volume"
+            title="Volume du partage d'écran"
+            aria-label="Volume du partage d'écran des autres"
+          >
+            <Volume2 size={14} aria-hidden />
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round(remoteScreenShareVolume * 100)}
+              onChange={(event) =>
+                setRemoteScreenShareVolume(Number(event.target.value) / 100)
+              }
+            />
+          </label>
+        )}
 
       {showAssistButtons && (
         <BottomBarButton

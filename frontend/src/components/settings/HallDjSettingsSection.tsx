@@ -11,7 +11,7 @@ export default function HallDjSettingsSection() {
     <SettingsFieldRow
       id="settings-hall-dj"
       label="Style Hall DJ"
-      description="Style par défaut si peu d'historique d'écoute récent."
+      description="Style musical du Hall DJ. Si le DJ tourne, la file est reconstruite avec ce style."
     >
       <SettingsPicker
         value={hallDjPreferredGenre}

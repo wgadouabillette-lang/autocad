@@ -353,17 +353,7 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
   const displayName = useStore.getState().userDisplayName;
 
   if (hasCloudWorkspaces) {
-    const sanitizedServers = workspaces.customServers.filter(
-      (server) => !isLegacyPublicWorkspaceId(server.id),
-    );
-    const sanitizedMemberships = workspaces.memberships.filter(
-      (entry) => !isLegacyPublicWorkspaceId(entry.workspaceId),
-    );
-    useWorkspacesStore.setState({
-      customServers: sanitizedServers,
-      memberships: sanitizedMemberships,
-      hydrated: true,
-    });
+    useWorkspacesStore.getState().applyCloudWorkspaces(workspaces);
     const joined = useWorkspacesStore.getState().joinedWorkspaces(ownerUid);
     for (const workspace of joined) {
       useCallsStore.getState().ensureRoom(workspace.id);

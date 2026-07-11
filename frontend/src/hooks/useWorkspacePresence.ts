@@ -1,7 +1,12 @@
 import { useEffect } from "react";
+import {
+  watchSharedWorkspace,
+  watchWorkspaceMembers,
+} from "../lib/firebase/workspaceRegistry";
 import { touchWorkspacePresence, watchWorkspacePresence } from "../lib/firebase/workspacePresence";
 import { createPresenceHeartbeat } from "../lib/firebase/workspacePresenceHeartbeat";
 import { getLocalPresenceActivityForSync } from "../lib/localPresenceActivity";
+import { getLocalSpotifyNowPlayingForSync } from "../lib/spotifyNowPlaying";
 import { presenceActivityKey } from "../lib/presenceActivity";
 import { LOCAL_USER_ID } from "../lib/workspaces";
 import { useAuthStore } from "../store/useAuthStore";
@@ -11,6 +16,17 @@ import { useStore } from "../store/useStore";
 import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
 import { useWorkspacesStore } from "../store/useWorkspacesStore";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
+
+function syncCallsFromPresenceStore(workspaceId: string, localFirebaseUid: string) {
+  const members = useWorkspacePresenceStore.getState().membersByWorkspace[workspaceId] ?? {};
+  const memberRows = Object.entries(members).map(([id, entry]) => ({
+    id,
+    name: entry.displayName,
+    photoURL: entry.photoURL,
+    voice: entry.voice,
+  }));
+  useCallsStore.getState().syncPresenceMembers(workspaceId, memberRows, localFirebaseUid);
+}
 
 function workspaceIdsFromKey(key: string): string[] {
   return key ? key.split("\n") : [];
@@ -57,7 +73,15 @@ export function useWorkspacePresence() {
         ? buildLocalVoicePresenceForWorkspace(workspaceId)
         : { inPrivateCall: false, openChannelId: null };
       const activity = getLocalPresenceActivityForSync(workspaceId);
-      return touchWorkspacePresence(workspaceId, firebaseUid, profile, voice, activity);
+      const spotifyNowPlaying = getLocalSpotifyNowPlayingForSync(workspaceId);
+      return touchWorkspacePresence(
+        workspaceId,
+        firebaseUid,
+        profile,
+        voice,
+        activity,
+        spotifyNowPlaying,
+      );
     };
 
     const heartbeat = () => {
@@ -113,7 +137,13 @@ export function useWorkspacePresence() {
     const spotifySnapshotRef = { current: "" };
     const unsubSpotify = useSpotifyPlayerStore.subscribe(() => {
       const { playing, currentTrack } = useSpotifyPlayerStore.getState();
-      const snapshot = JSON.stringify({ playing, trackId: currentTrack?.id ?? null });
+      const snapshot = JSON.stringify({
+        playing,
+        trackId: currentTrack?.id ?? null,
+        trackName: currentTrack?.name ?? null,
+        artists: currentTrack?.artists ?? null,
+        imageUrl: currentTrack?.imageUrl ?? null,
+      });
       if (snapshot === spotifySnapshotRef.current) return;
       spotifySnapshotRef.current = snapshot;
       scheduler.pulse();
@@ -132,8 +162,71 @@ export function useWorkspacePresence() {
     const workspaceIds = workspaceIdsFromKey(workspaceIdsKey);
     if (!isAuthenticated || !firebaseUid || workspaceIds.length === 0) return;
 
-    const unsubs = workspaceIds.map((workspaceId) =>
-      watchWorkspacePresence(
+    type RosterPerson = { uid: string; displayName: string; photoURL?: string };
+    const rosterState = new Map<
+      string,
+      { members: RosterPerson[]; owner: RosterPerson | null }
+    >();
+
+    const publishRoster = (workspaceId: string) => {
+      const state = rosterState.get(workspaceId);
+      if (!state) return;
+      const byUid = new Map<string, RosterPerson>();
+      for (const member of state.members) {
+        byUid.set(member.uid, member);
+      }
+      if (state.owner && !byUid.has(state.owner.uid)) {
+        byUid.set(state.owner.uid, state.owner);
+      }
+      useWorkspacePresenceStore.getState().setWorkspaceRoster(
+        workspaceId,
+        Array.from(byUid.values()),
+      );
+      syncCallsFromPresenceStore(workspaceId, firebaseUid);
+    };
+
+    const ensureState = (workspaceId: string) => {
+      let state = rosterState.get(workspaceId);
+      if (!state) {
+        state = { members: [], owner: null };
+        rosterState.set(workspaceId, state);
+      }
+      return state;
+    };
+
+    const unsubs = workspaceIds.flatMap((workspaceId) => {
+      const unsubMembers = watchWorkspaceMembers(
+        workspaceId,
+        (members) => {
+          const state = ensureState(workspaceId);
+          state.members = members.map((member) => ({
+            uid: member.uid,
+            displayName: member.displayName,
+          }));
+          publishRoster(workspaceId);
+        },
+        () => {
+          // Permission/network errors — keep last known roster.
+        },
+      );
+
+      const unsubShared = watchSharedWorkspace(
+        workspaceId,
+        (workspace) => {
+          if (!workspace?.ownerId) return;
+          const state = ensureState(workspaceId);
+          state.owner = {
+            uid: workspace.ownerId,
+            displayName: workspace.ownerName?.trim() || "Membre",
+          };
+          publishRoster(workspaceId);
+        },
+        () => {
+          // Ignore shared workspace watch errors.
+        },
+      );
+
+      const unsubPresence = watchWorkspacePresence(
         workspaceId,
         (members) => {
           useWorkspacePresenceStore.getState().setWorkspacePresence(
@@ -143,6 +236,7 @@ export function useWorkspacePresence() {
               displayName: member.displayName,
               photoURL: member.photoURL,
               lastSeenMs: member.lastSeenMs,
+              online: member.online,
               voice: member.voice,
             })),
           );
@@ -153,24 +247,25 @@ export function useWorkspacePresence() {
               member.uid,
               member.presenceActivity,
             );
+            usePresenceActivityStore.getState().syncRemoteSpotifyNowPlaying(
+              workspaceId,
+              member.uid,
+              member.spotifyNowPlaying,
+            );
             useCallsStore.getState().markParticipantVoiceActivity(
               member.uid,
               member.voice.speaking === true,
             );
           }
-          const memberRows = members.map((member) => ({
-            id: member.uid,
-            name: member.displayName,
-            photoURL: member.photoURL,
-            voice: member.voice,
-          }));
-          useCallsStore.getState().syncPresenceMembers(workspaceId, memberRows, firebaseUid);
+          syncCallsFromPresenceStore(workspaceId, firebaseUid);
         },
         () => {
-          useWorkspacePresenceStore.getState().clearWorkspacePresence(workspaceId);
+          useWorkspacePresenceStore.getState().setWorkspacePresence(workspaceId, []);
         },
-      ),
-    );
+      );
+
+      return [unsubMembers, unsubShared, unsubPresence];
+    });
 
     return () => {
       for (const unsub of unsubs) unsub();

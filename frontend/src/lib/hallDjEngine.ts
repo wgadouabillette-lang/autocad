@@ -13,11 +13,13 @@ import {
 import {
   filterTracksByDjFeedback,
   hallDjApprovedSeedTracks,
+  hallDjBlockedTrackIds,
   hallDjTrackWeight,
   sortTracksByDjFeedback,
 } from "./hallDjTrackFeedback";
 
-const BATCH_SIZE = 12;
+const BATCH_SIZE = 14;
+const MAX_REPLAYS = 3;
 
 function trackKey(track: SpotifyTrackCard): string {
   return track.id ?? `${track.name}::${track.artists}`;
@@ -35,6 +37,7 @@ function dedupeTracks(tracks: SpotifyTrackCard[], exclude = new Set<string>()): 
   return out;
 }
 
+/** Prefer discovery over replays for variety (≈2 discoveries per replay). */
 function interleave(replays: SpotifyTrackCard[], discoveries: SpotifyTrackCard[]): SpotifyTrackCard[] {
   const out: SpotifyTrackCard[] = [];
   let replayIndex = 0;
@@ -43,18 +46,19 @@ function interleave(replays: SpotifyTrackCard[], discoveries: SpotifyTrackCard[]
     out.length < BATCH_SIZE &&
     (replayIndex < replays.length || discoveryIndex < discoveries.length)
   ) {
-    if (replayIndex < replays.length) {
-      out.push(replays[replayIndex]!);
-      replayIndex += 1;
+    if (discoveryIndex < discoveries.length) {
+      out.push(discoveries[discoveryIndex]!);
+      discoveryIndex += 1;
     }
     if (out.length >= BATCH_SIZE) break;
     if (discoveryIndex < discoveries.length) {
       out.push(discoveries[discoveryIndex]!);
       discoveryIndex += 1;
     }
-    if (discoveryIndex < discoveries.length && out.length < BATCH_SIZE) {
-      out.push(discoveries[discoveryIndex]!);
-      discoveryIndex += 1;
+    if (out.length >= BATCH_SIZE) break;
+    if (replayIndex < replays.length) {
+      out.push(replays[replayIndex]!);
+      replayIndex += 1;
     }
   }
   return out.slice(0, BATCH_SIZE);
@@ -62,25 +66,33 @@ function interleave(replays: SpotifyTrackCard[], discoveries: SpotifyTrackCard[]
 
 function pickReplays(popular: HallDjPopularTrack[]): SpotifyTrackCard[] {
   if (popular.length === 0) return [];
-  const ranked = [...popular].sort((a, b) => {
-    const weightDiff = hallDjTrackWeight(b.track.id) - hallDjTrackWeight(a.track.id);
-    if (weightDiff !== 0) return weightDiff;
-    return b.playCount - a.playCount || b.lastPlayedAt - a.lastPlayedAt;
-  });
-  return ranked.slice(0, 6).map((entry) => entry.track);
+  const blocked = hallDjBlockedTrackIds();
+  const ranked = popular
+    .filter((entry) => {
+      const id = entry.track.id?.trim();
+      return !id || !blocked.has(id);
+    })
+    .sort((a, b) => {
+      const weightDiff = hallDjTrackWeight(b.track.id) - hallDjTrackWeight(a.track.id);
+      if (weightDiff !== 0) return weightDiff;
+      return b.playCount - a.playCount || b.lastPlayedAt - a.lastPlayedAt;
+    });
+  return shuffle(ranked.map((entry) => entry.track)).slice(0, MAX_REPLAYS);
 }
 
 function seedTrackIds(popular: HallDjPopularTrack[]): string[] {
+  const blocked = hallDjBlockedTrackIds();
   const approved = hallDjApprovedSeedTracks(3)
     .map((track) => track.id?.trim())
-    .filter((id): id is string => Boolean(id));
-  const fromPopular = popular
+    .filter((id): id is string => typeof id === "string" && id.length > 0 && !blocked.has(id));
+  const fromPopular = shuffle(popular)
     .map((entry) => entry.track.id?.trim())
-    .filter((id): id is string => Boolean(id));
+    .filter((id): id is string => typeof id === "string" && id.length > 0 && !blocked.has(id));
   const merged: string[] = [];
   for (const id of [...approved, ...fromPopular]) {
     if (!merged.includes(id)) merged.push(id);
-    if (merged.length >= 5) break;
+    // Leave room for the genre seed (Spotify max 5 combined seeds).
+    if (merged.length >= 4) break;
   }
   return merged;
 }
@@ -98,7 +110,27 @@ function shuffle<T>(items: T[]): T[] {
   return copy;
 }
 
-/** Fallback when there is no listening history — discovery via search-based API. */
+async function fetchGenreSearchTracks(genre: string, limit: number): Promise<SpotifyTrackCard[]> {
+  const seedGenre = resolveSeedGenre(genre);
+  const year = new Date().getFullYear();
+  const queries = [
+    `genre:${seedGenre}`,
+    `genre:${seedGenre} year:${year - 2}-${year}`,
+    `${seedGenre} hit`,
+  ];
+  const pools: SpotifyTrackCard[] = [];
+  for (const query of queries) {
+    try {
+      const tracks = await searchSpotifyTracks(query, Math.min(limit, 10));
+      pools.push(...tracks);
+    } catch {
+      // Try next query.
+    }
+  }
+  return shuffle(pools);
+}
+
+/** Fallback when there is no listening history — discovery via genre. */
 async function fetchRandomDjTracks(genre: string): Promise<SpotifyTrackCard[]> {
   const seedGenre = resolveSeedGenre(genre);
 
@@ -107,23 +139,22 @@ async function fetchRandomDjTracks(genre: string): Promise<SpotifyTrackCard[]> {
       seedGenres: [seedGenre],
       limit: BATCH_SIZE,
     });
-    if (discovered.length > 0) return shuffle(discovered);
+    if (discovered.length > 0) {
+      return filterTracksByDjFeedback(shuffle(discovered));
+    }
   } catch {
-    // Try a single simple search below.
+    // Try search below.
   }
 
-  const year = new Date().getFullYear();
-  try {
-    const tracks = await searchSpotifyTracks(`year:${year}`, BATCH_SIZE);
-    if (tracks.length > 0) return shuffle(tracks);
-  } catch {
-    // Last resort handled by caller.
-  }
-
+  const searched = await fetchGenreSearchTracks(seedGenre, BATCH_SIZE);
+  if (searched.length > 0) return filterTracksByDjFeedback(searched);
   return [];
 }
 
 export async function buildHallDjBatch(preferredGenre: string): Promise<SpotifyTrackCard[]> {
+  const seedGenre = resolveSeedGenre(preferredGenre);
+  const blocked = hallDjBlockedTrackIds();
+
   const localPopular = hallDjPopularTracksLast7Days(12);
   let popular = localPopular;
   try {
@@ -135,32 +166,62 @@ export async function buildHallDjBatch(preferredGenre: string): Promise<SpotifyT
 
   const replays = pickReplays(popular);
   const seedTracks = seedTrackIds(popular);
-  const seedGenre = resolveSeedGenre(preferredGenre);
 
-  let discoveries: SpotifyTrackCard[] = [];
+  const discoveryPools: SpotifyTrackCard[] = [];
+
+  // Always seed with the settings genre so category changes actually apply.
   try {
-    discoveries = await fetchSpotifyRecommendations({
-      seedGenres: seedTracks.length >= 3 ? [] : [seedGenre],
-      seedTracks,
+    const byGenre = await fetchSpotifyRecommendations({
+      seedGenres: [seedGenre],
+      seedTracks: seedTracks.slice(0, 2),
       limit: BATCH_SIZE,
     });
+    discoveryPools.push(...byGenre);
   } catch {
-    discoveries = [];
+    // Continue with other sources.
   }
 
-  const exclude = new Set<string>();
-  const replayPool = sortTracksByDjFeedback(dedupeTracks(replays, exclude));
+  if (seedTracks.length > 0) {
+    try {
+      const byTracks = await fetchSpotifyRecommendations({
+        seedGenres: [seedGenre],
+        seedTracks: seedTracks.slice(0, 4),
+        limit: BATCH_SIZE,
+      });
+      discoveryPools.push(...byTracks);
+    } catch {
+      // Optional second pass.
+    }
+  }
+
+  try {
+    const searched = await fetchGenreSearchTracks(seedGenre, BATCH_SIZE);
+    discoveryPools.push(...searched);
+  } catch {
+    // Search is best-effort.
+  }
+
+  const exclude = new Set<string>(blocked);
+  const replayPool = sortTracksByDjFeedback(
+    filterTracksByDjFeedback(dedupeTracks(replays, exclude)),
+  );
   for (const track of replayPool) exclude.add(trackKey(track));
 
   const discoveryPool = sortTracksByDjFeedback(
-    filterTracksByDjFeedback(dedupeTracks(discoveries, exclude)),
+    filterTracksByDjFeedback(dedupeTracks(discoveryPools, exclude)),
   );
-  const batch = interleave(replayPool, discoveryPool);
 
-  if (batch.length > 0) return batch;
+  let batch = shuffle(interleave(replayPool, discoveryPool));
 
-  if (discoveryPool.length > 0) return discoveryPool.slice(0, BATCH_SIZE);
-  if (replayPool.length > 0) return replayPool.slice(0, BATCH_SIZE);
+  if (batch.length < Math.min(6, BATCH_SIZE)) {
+    const fallback = await fetchRandomDjTracks(preferredGenre);
+    batch = dedupeTracks([...batch, ...fallback], new Set(batch.map(trackKey)));
+  }
 
-  return fetchRandomDjTracks(preferredGenre);
+  if (batch.length === 0) {
+    batch = await fetchRandomDjTracks(preferredGenre);
+  }
+
+  batch = batch.slice(0, BATCH_SIZE);
+  return batch;
 }

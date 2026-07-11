@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { MicOff, MonitorUp, Radio, Video } from "lucide-react";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { getLocalBlockPresenceActivityDisplay } from "../../lib/localPresenceActivity";
@@ -16,11 +17,13 @@ import { useCallsStore } from "../../store/useCallsStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 import { pushWorkspacePresenceActivity } from "../../lib/firebase/workspacePresence";
+import { spotifyNowPlayingFromTrack, type SpotifyNowPlayingSnapshot } from "../../lib/spotifyNowPlaying";
 
 interface PresenceActivityButtonProps {
   roomId: string;
   userId: string;
   isLocal?: boolean;
+  layout?: "corner" | "inline";
 }
 
 interface MenuPosition {
@@ -31,13 +34,130 @@ interface MenuPosition {
 
 const MENU_WIDTH = 168; // 10.5rem
 
-function ActivityGlyph({ activityId }: { activityId: PresenceActivityId }) {
+function ActivityNowPlayingTooltip({
+  nowPlaying,
+  children,
+  className,
+}: {
+  nowPlaying: SpotifyNowPlayingSnapshot | null;
+  children: ReactNode;
+  className?: string;
+}) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [tipPos, setTipPos] = useState<{ top: number; left: number } | null>(null);
+
+  const updateTipPosition = useCallback(() => {
+    const anchor = anchorRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    setTipPos({
+      top: rect.top - 8,
+      left: rect.right,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !nowPlaying) return;
+    updateTipPosition();
+    const onLayout = () => updateTipPosition();
+    window.addEventListener("resize", onLayout);
+    window.addEventListener("scroll", onLayout, true);
+    return () => {
+      window.removeEventListener("resize", onLayout);
+      window.removeEventListener("scroll", onLayout, true);
+    };
+  }, [visible, nowPlaying, updateTipPosition]);
+
+  if (!nowPlaying) return <>{children}</>;
+
+  const showTip = () => {
+    updateTipPosition();
+    setVisible(true);
+  };
+
+  const hideTip = () => setVisible(false);
+
+  return (
+    <>
+      <span
+        ref={anchorRef}
+        className={clsx("call-block__activity-now-playing", className)}
+        onMouseEnter={showTip}
+        onMouseLeave={hideTip}
+        onFocus={showTip}
+        onBlur={hideTip}
+      >
+        {children}
+      </span>
+      {visible && tipPos
+        ? createPortal(
+            <span
+              className="call-block__activity-now-playing-tip call-block__activity-now-playing-tip--floating"
+              role="tooltip"
+              style={{
+                top: tipPos.top,
+                left: tipPos.left,
+              }}
+            >
+              <span className="call-block__activity-now-playing-tip__content">
+                {nowPlaying.imageUrl ? (
+                  <img
+                    src={nowPlaying.imageUrl}
+                    alt=""
+                    className="call-block__activity-now-playing-tip__cover"
+                    draggable={false}
+                  />
+                ) : (
+                  <span
+                    className="call-block__activity-now-playing-tip__cover call-block__activity-now-playing-tip__cover--empty"
+                    aria-hidden
+                  />
+                )}
+                <span className="call-block__activity-now-playing-tip__text">{nowPlaying.label}</span>
+              </span>
+            </span>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
+function ActivityGlyph({ activityId, large = false }: { activityId: PresenceActivityId; large?: boolean }) {
   const option = getPresenceActivityOption(activityId);
+
+  let glyph: React.ReactNode;
   if (option.imageSrc) {
-    return <img src={option.imageSrc} alt="" className="call-block__activity-img" draggable={false} />;
+    glyph = (
+      <img
+        src={option.imageSrc}
+        alt=""
+        className={large ? "call-block__activity-glyph" : "call-block__activity-img"}
+        draggable={false}
+      />
+    );
+  } else {
+    const Icon = option.icon ?? Radio;
+    glyph = (
+      <Icon
+        size={large ? 64 : 14}
+        strokeWidth={2}
+        aria-hidden
+        className={large ? "call-block__activity-glyph call-block__activity-glyph--icon" : undefined}
+      />
+    );
   }
-  const Icon = option.icon ?? Radio;
-  return <Icon size={14} strokeWidth={2} aria-hidden />;
+
+  if (large) {
+    return <span className="call-block__activity-glyph-shell">{glyph}</span>;
+  }
+
+  return glyph;
+}
+
+export function CallBlockMediaStatusIcons({ userId, isLocal }: { userId: string; isLocal: boolean }) {
+  return <MediaStatusIcons userId={userId} isLocal={isLocal} />;
 }
 
 function MediaStatusIcons({ userId, isLocal }: { userId: string; isLocal: boolean }) {
@@ -77,8 +197,14 @@ export default function PresenceActivityButton({
   roomId,
   userId,
   isLocal = false,
+  layout = "inline",
 }: PresenceActivityButtonProps) {
   const storedActivity = usePresenceActivityStore((s) => s.getActivity(roomId, userId, isLocal));
+  const remoteSpotifyNowPlaying = usePresenceActivityStore((s) =>
+    isLocal ? null : s.getSpotifyNowPlaying(roomId, userId),
+  );
+  const localCurrentTrack = useSpotifyPlayerStore((s) => (isLocal ? s.currentTrack : null));
+  const localPlaying = useSpotifyPlayerStore((s) => (isLocal ? s.playing : false));
   const setActivity = usePresenceActivityStore((s) => s.setActivity);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const userDisplayName = useStore((s) => s.userDisplayName);
@@ -140,12 +266,28 @@ export default function PresenceActivityButton({
       ? "Choisir une activité"
       : getPresenceActivityOption(pickerActivity).label;
 
+  const displayedActivity = isLocal ? pickerActivity : storedActivity;
+  const spotifyNowPlaying: SpotifyNowPlayingSnapshot | null =
+    displayedActivity === "spotify"
+      ? isLocal
+        ? localPlaying && localCurrentTrack
+          ? spotifyNowPlayingFromTrack(localCurrentTrack)
+          : null
+        : remoteSpotifyNowPlaying
+      : null;
+
   if (!isLocal) {
     const label = getPresenceActivityOption(storedActivity).label;
     return (
-      <span className="call-block__activity call-block__activity--readonly" title={label}>
-        <ActivityGlyph activityId={storedActivity} />
-      </span>
+      <ActivityNowPlayingTooltip nowPlaying={spotifyNowPlaying}>
+        <span
+          className="call-block__activity call-block__activity--readonly"
+          title={spotifyNowPlaying?.label ?? label}
+          aria-label={spotifyNowPlaying?.label ?? label}
+        >
+          <ActivityGlyph activityId={storedActivity} large={layout === "corner"} />
+        </span>
+      </ActivityNowPlayingTooltip>
     );
   }
 
@@ -216,15 +358,22 @@ export default function PresenceActivityButton({
         )
       : null;
 
-  return (
-    <div className="call-block__activity-anchor">
-      <MediaStatusIcons userId={userId} isLocal={isLocal} />
+  const activityButton = (
+    <ActivityNowPlayingTooltip nowPlaying={spotifyNowPlaying}>
       <button
         ref={buttonRef}
         type="button"
         className={clsx("call-block__activity", open && "call-block__activity--open")}
-        title={`${pickerLabel}. Cliquer pour changer.`}
-        aria-label={`${pickerLabel}. Changer.`}
+        title={
+          spotifyNowPlaying
+            ? spotifyNowPlaying.label
+            : `${pickerLabel}. Cliquer pour changer.`
+        }
+        aria-label={
+          spotifyNowPlaying
+            ? `En écoute : ${spotifyNowPlaying.label}. Changer l'activité.`
+            : `${pickerLabel}. Changer.`
+        }
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={(event) => {
@@ -233,11 +382,38 @@ export default function PresenceActivityButton({
         }}
       >
         {pickerActivity === "unset" ? (
-          <Radio size={14} strokeWidth={2} className="text-muted-500" aria-hidden />
+          layout === "corner" ? (
+            <span className="call-block__activity-glyph-shell">
+              <Radio
+                size={64}
+                strokeWidth={2}
+                className="call-block__activity-glyph call-block__activity-glyph--icon text-muted-500"
+                aria-hidden
+              />
+            </span>
+          ) : (
+            <Radio size={14} strokeWidth={2} className="text-muted-500" aria-hidden />
+          )
         ) : (
-          <ActivityGlyph activityId={pickerActivity} />
+          <ActivityGlyph activityId={pickerActivity} large={layout === "corner"} />
         )}
       </button>
+    </ActivityNowPlayingTooltip>
+  );
+
+  if (layout === "corner") {
+    return (
+      <>
+        {activityButton}
+        {menu}
+      </>
+    );
+  }
+
+  return (
+    <div className="call-block__activity-anchor">
+      <MediaStatusIcons userId={userId} isLocal={isLocal} />
+      {activityButton}
       {menu}
     </div>
   );

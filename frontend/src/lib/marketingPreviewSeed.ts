@@ -4,6 +4,7 @@ import {
   MARKETING_PREVIEW_NOTE_ID,
   MARKETING_PREVIEW_USER_ID,
   MARKETING_PREVIEW_WORKSPACE_ID,
+  readMarketingPreviewRecordingActiveParam,
 } from "./marketingPreview";
 import type { TheaterState } from "./theater";
 import type { ChatMessage, ChatSession } from "../store/useStore";
@@ -477,6 +478,7 @@ function seedPresence(): void {
     {
       displayName: string;
       lastSeenMs: number;
+      online: boolean;
       voice: { inPrivateCall: boolean; openChannelId: string | null };
     }
   > = {};
@@ -486,6 +488,7 @@ function seedPresence(): void {
     members[member.id] = {
       displayName: member.name,
       lastSeenMs: isOffline ? now - PRESENCE_OFFLINE_AFTER_MS - 60_000 : now,
+      online: !isOffline,
       voice: {
         inPrivateCall: member.id === "jordan" || member.id === "sam",
         openChannelId:
@@ -705,7 +708,7 @@ export function seedMarketingRecordingPreview(): void {
   });
 
   useCallsStore.setState({
-    recording: false,
+    recording: readMarketingPreviewRecordingActiveParam(),
     recordingBusy: false,
     mediaError: null,
   });

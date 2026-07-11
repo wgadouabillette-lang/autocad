@@ -2,7 +2,6 @@ import clsx from "clsx";
 import { Maximize2 } from "lucide-react";
 import { useEffect, useRef, type CSSProperties } from "react";
 import { avatarTileTint, type CallUser } from "../../lib/calls";
-import { useMediaStreamAspectRatio } from "../../hooks/useMediaStreamAspectRatio";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import UserAvatar from "../UserAvatar";
@@ -17,7 +16,6 @@ interface VoiceParticipantTileProps {
   audioMuted?: boolean;
   /** Désactive la vidéo (aperçus publics visibles par tout le groupe). */
   allowVideo?: boolean;
-  videoCover?: boolean;
   compact?: boolean;
   fill?: boolean;
   shape?: "fill" | "wide" | "square";
@@ -39,7 +37,6 @@ export default function VoiceParticipantTile({
   audioStream: _audioStream = null,
   audioMuted: _audioMuted = false,
   allowVideo = true,
-  videoCover = true,
   compact = false,
   fill = false,
   shape,
@@ -59,10 +56,6 @@ export default function VoiceParticipantTile({
   const showVideo = allowVideo && !!videoStream;
   const showMuteBadge = muted ?? (participant.isLocal && localMuted);
   const interactive = canMessage || !!onActivate;
-  const mediaAspectRatio = useMediaStreamAspectRatio(
-    videoStream,
-    showVideo && (stage || strip),
-  );
 
   useEffect(() => {
     const video = videoRef.current;
@@ -78,10 +71,7 @@ export default function VoiceParticipantTile({
           autoPlay
           muted
           playsInline
-          className={clsx(
-            "voice-participant-tile__media",
-            videoCover && "voice-participant-tile__media--cover",
-          )}
+          className="voice-participant-tile__media"
         />
       ) : (
         <div className="voice-participant-tile__avatar-stage" aria-hidden>
@@ -127,9 +117,6 @@ export default function VoiceParticipantTile({
   const tileStyle = {
     ...style,
     "--voice-tile-tint": avatarTileTint(participant.id),
-    ...(showVideo && (stage || strip)
-      ? { "--voice-tile-aspect-ratio": mediaAspectRatio }
-      : {}),
   } as CSSProperties;
 
   const handleActivate = (event: React.MouseEvent | React.KeyboardEvent) => {

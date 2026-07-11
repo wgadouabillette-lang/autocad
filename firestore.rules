@@ -224,7 +224,15 @@ service cloud.firestore {
         && (!('voiceSpeaking' in data) || data.voiceSpeaking is bool)
         && (!('presenceActivity' in data)
           || data.presenceActivity == null
-          || (data.presenceActivity is string && data.presenceActivity.size() <= 32));
+          || (data.presenceActivity is string && data.presenceActivity.size() <= 32))
+        && (!('spotifyNowPlaying' in data)
+          || data.spotifyNowPlaying == null
+          || (data.spotifyNowPlaying is string && data.spotifyNowPlaying.size() <= 200))
+        && (!('spotifyNowPlayingImageUrl' in data)
+          || data.spotifyNowPlayingImageUrl == null
+          || (data.spotifyNowPlayingImageUrl is string
+            && data.spotifyNowPlayingImageUrl.size() <= 512
+            && data.spotifyNowPlayingImageUrl.matches('https://.*')));
     }
 
     function isValidOpenVoiceChannelWrite(workspaceId, channelId) {
@@ -496,9 +504,9 @@ service cloud.firestore {
       }
 
       match /typing/{uid} {
+        // Migrated to Realtime Database — deny Firestore writes.
         allow read: if isFriendChatMember(chatId);
-        allow create, update: if isOwner(uid) && isFriendChatMember(chatId) && isValidChatTypingWrite();
-        allow delete: if isOwner(uid);
+        allow write: if false;
       }
     }
 
@@ -547,14 +555,11 @@ service cloud.firestore {
       }
 
       match /typing/{uid} {
+        // Migrated to Realtime Database — deny Firestore writes.
         allow read: if isSignedIn()
           && get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants is list
           && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants;
-        allow create, update: if isOwner(uid)
-          && get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants is list
-          && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants
-          && isValidChatTypingWrite();
-        allow delete: if isOwner(uid);
+        allow write: if false;
       }
     }
 
@@ -606,22 +611,15 @@ service cloud.firestore {
       }
 
       match /presence/{uid} {
+        // Migrated to Realtime Database — deny Firestore writes.
         allow read: if isSignedIn();
-        allow create, update: if isOwner(uid) && isValidPresenceWrite(uid);
-        allow delete: if isOwner(uid);
+        allow write: if false;
       }
 
       match /voiceKnocks/{knockId} {
+        // Migrated to Realtime Database — deny Firestore writes.
         allow read: if isSignedIn();
-        allow create: if isSignedIn()
-          && (isValidVoiceKnockCreate(request.resource.data.fromUid)
-            || isValidVoiceEjectCreate());
-        allow update: if isSignedIn() && (
-          isVoiceKnockResponse(resource.data.toUid)
-          || isVoiceKnockCancel(resource.data.fromUid)
-          || isVoiceKnockReopen(resource.data.fromUid)
-        );
-        allow delete: if isSignedIn() && resource.data.fromUid == request.auth.uid;
+        allow write: if false;
       }
 
       match /openVoiceChannels/{channelId} {
@@ -644,9 +642,9 @@ service cloud.firestore {
         }
 
         match /typing/{uid} {
+          // Migrated to Realtime Database — deny Firestore writes.
           allow read: if isSignedIn();
-          allow create, update: if isOwner(uid) && isValidChatTypingWrite();
-          allow delete: if isOwner(uid);
+          allow write: if false;
         }
       }
 
@@ -678,18 +676,18 @@ service cloud.firestore {
       }
 
       match /theaterTyping/{uid} {
+        // Migrated to Realtime Database — deny Firestore writes.
         allow read: if isSignedIn();
-        allow create, update: if isOwner(uid) && isValidChatTypingWrite();
-        allow delete: if isOwner(uid);
+        allow write: if false;
       }
 
       match /voiceRtc/{sessionId} {
+        // Migrated to Realtime Database — deny Firestore writes.
         allow read: if isSignedIn();
 
         match /signals/{signalId} {
-          allow read: if isRtcSignalParticipant();
-          allow create: if isValidRtcSignalCreate();
-          allow update, delete: if isRtcSignalParticipant();
+          allow read: if isSignedIn();
+          allow write: if false;
         }
       }
     }

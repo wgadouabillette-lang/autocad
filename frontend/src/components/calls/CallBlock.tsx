@@ -13,7 +13,7 @@ import { UserMinus } from "lucide-react";
 import { useUserAiStroke } from "../../hooks/useAiBlockStroke";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
-import { PRESENCE_OFFLINE_AFTER_MS, useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
+import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
 import CallBlockCard from "./CallBlockCard";
 
 interface CallBlockProps {
@@ -57,9 +57,7 @@ export default function CallBlock({
   const isOffline = useWorkspacePresenceStore((s) => {
     if (isLocal || !remoteUserId || !s.loadedByWorkspace[activeRoomId]) return false;
     void s.presenceTick;
-    const entry = s.membersByWorkspace[activeRoomId]?.[remoteUserId];
-    if (!entry?.lastSeenMs) return true;
-    return Date.now() - entry.lastSeenMs >= PRESENCE_OFFLINE_AFTER_MS;
+    return !s.isOnline(activeRoomId, remoteUserId);
   });
   const remoteInPrivateCall = useWorkspacePresenceStore((s) => {
     if (isLocal || !remoteUserId) return false;

@@ -7,6 +7,10 @@ import {
   markNotificationSeen,
   markNotificationsSeen,
 } from "../lib/notificationsPersistence";
+import {
+  isNotificationsPreviewAllEnabled,
+  previewNotificationFixtures,
+} from "../lib/notificationPreviewFixtures";
 
 export type NotificationKind =
   | "friend_request"
@@ -80,11 +84,14 @@ function commitItems(
   email: string | null,
   items: AppNotification[],
 ): AppNotification[] {
+  if (isNotificationsPreviewAllEnabled()) {
+    return previewNotificationFixtures();
+  }
   return finalizeNotifications(email, items);
 }
 
 export const useNotificationsStore = create<NotificationsState>((set, get) => ({
-  items: [],
+  items: isNotificationsPreviewAllEnabled() ? previewNotificationFixtures() : [],
   panelOpen: false,
   panelOpenGeneration: 0,
   currentIndex: 0,
@@ -93,6 +100,16 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   unreadCount: () => get().items.filter((n) => !n.read).length,
 
   hydrate: (email) => {
+    if (isNotificationsPreviewAllEnabled()) {
+      const items = previewNotificationFixtures();
+      set({
+        persistedEmail: email,
+        items,
+        currentIndex: 0,
+        panelOpen: false,
+      });
+      return;
+    }
     const items = finalizeNotifications(email, loadPersistedNotifications(email));
     set({
       persistedEmail: email,
@@ -102,7 +119,8 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     });
   },
 
-  syncFriendRequests: (requests) =>
+  syncFriendRequests: (requests) => {
+    if (isNotificationsPreviewAllEnabled()) return;
     set((s) => {
       const activeRequestIds = new Set(requests.map((request) => request.friendRequestId));
       const existingByRequestId = new Map(
@@ -139,7 +157,8 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         currentIndex: firstUnreadIndex(items),
         panelOpen: items.length > 0 ? s.panelOpen : false,
       };
-    }),
+    });
+  },
 
   togglePanel: () => {
     const { panelOpen, items, panelOpenGeneration } = get();
@@ -197,7 +216,10 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
       return next;
     }),
 
-  markRead: (id) =>
+  markRead: (id) => {
+    if (isNotificationsPreviewAllEnabled()) {
+      return;
+    }
     set((s) => {
       markNotificationSeen(s.persistedEmail, id);
       const items = finalizeNotifications(
@@ -207,9 +229,18 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
       const nextIndex =
         items.length === 0 ? 0 : Math.min(s.currentIndex, items.length - 1);
       return { items, currentIndex: nextIndex };
-    }),
+    });
+  },
 
-  markAllRead: () =>
+  markAllRead: () => {
+    if (isNotificationsPreviewAllEnabled()) {
+      set({
+        items: previewNotificationFixtures(),
+        currentIndex: 0,
+        panelOpen: false,
+      });
+      return;
+    }
     set((s) => {
       const dismissable = s.items.filter((n) => n.kind !== "friend_request");
       const persistent = s.items.filter((n) => n.kind === "friend_request");
@@ -219,9 +250,16 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
       );
       const items = finalizeNotifications(s.persistedEmail, persistent);
       return { items, currentIndex: firstUnreadIndex(items) };
-    }),
+    });
+  },
 
-  removeNotification: (id) =>
+  removeNotification: (id) => {
+    if (isNotificationsPreviewAllEnabled()) {
+      const { items, currentIndex } = get();
+      if (items.length === 0) return;
+      set({ currentIndex: (currentIndex + 1) % items.length });
+      return;
+    }
     set((s) => {
       markNotificationSeen(s.persistedEmail, id);
       const items = finalizeNotifications(
@@ -235,7 +273,8 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         currentIndex: nextIndex,
         panelOpen: items.length > 0 ? s.panelOpen : false,
       };
-    }),
+    });
+  },
 
   nextNotification: () => {
     const { items, currentIndex } = get();

@@ -1,16 +1,17 @@
 import {
-  collection,
-  deleteField,
-  doc,
-  onSnapshot,
-  serverTimestamp,
-  setDoc,
+  onDisconnect,
+  onValue,
+  ref,
+  remove,
+  update,
+  type OnDisconnect,
   type Unsubscribe,
-} from "firebase/firestore";
-import { db } from "./client";
+} from "firebase/database";
+import { rtdb } from "./client";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 
 import type { PresenceActivityId } from "../presenceActivity";
+import type { SpotifyNowPlayingSnapshot } from "../spotifyNowPlaying";
 
 export interface WorkspaceVoicePresence {
   inPrivateCall: boolean;
@@ -24,8 +25,10 @@ export interface WorkspaceVoicePresence {
 export interface WorkspacePresenceDoc {
   uid: string;
   displayName: string;
-  photoURL?: string;
-  lastSeen?: { seconds: number; nanoseconds: number };
+  photoURL?: string | null;
+  lastSeen?: number;
+  /** false after disconnect — node is kept so offline members stay visible. */
+  online?: boolean;
   voiceInPrivateCall?: boolean;
   voiceOpenChannelId?: string | null;
   voiceInTheaterCall?: boolean;
@@ -33,6 +36,8 @@ export interface WorkspacePresenceDoc {
   voiceMuted?: boolean;
   voiceHandRaised?: boolean;
   presenceActivity?: string | null;
+  spotifyNowPlaying?: string | null;
+  spotifyNowPlayingImageUrl?: string | null;
 }
 
 export interface WorkspacePresenceMember {
@@ -40,9 +45,26 @@ export interface WorkspacePresenceMember {
   displayName: string;
   photoURL?: string;
   lastSeenMs: number;
+  online: boolean;
   voice: WorkspaceVoicePresence;
   presenceActivity: PresenceActivityId | null;
+  spotifyNowPlaying: SpotifyNowPlayingSnapshot | null;
 }
+
+const disconnectOps = new Map<string, OnDisconnect>();
+
+const OFFLINE_CLEAR = {
+  online: false,
+  voiceInPrivateCall: false,
+  voiceOpenChannelId: null,
+  voiceInTheaterCall: false,
+  voiceSpeaking: false,
+  voiceMuted: false,
+  voiceHandRaised: false,
+  presenceActivity: null,
+  spotifyNowPlaying: null,
+  spotifyNowPlayingImageUrl: null,
+} as const;
 
 function activityFromDoc(data: WorkspacePresenceDoc): PresenceActivityId | null {
   const value = data.presenceActivity;
@@ -64,17 +86,61 @@ function voiceFromDoc(data: WorkspacePresenceDoc): WorkspaceVoicePresence {
   };
 }
 
-function presenceCol(workspaceId: string) {
-  return collection(db, "workspacesShared", workspaceId, "presence");
+function presencePath(workspaceId: string, uid?: string) {
+  return uid ? `presence/${workspaceId}/${uid}` : `presence/${workspaceId}`;
 }
 
-function presenceRef(workspaceId: string, uid: string) {
-  return doc(db, "workspacesShared", workspaceId, "presence", uid);
+function presenceKey(workspaceId: string, uid: string) {
+  return `${workspaceId}/${uid}`;
 }
 
 function lastSeenToMs(lastSeen: WorkspacePresenceDoc["lastSeen"]): number {
-  if (!lastSeen || typeof lastSeen.seconds !== "number") return 0;
-  return lastSeen.seconds * 1000 + Math.floor(lastSeen.nanoseconds / 1_000_000);
+  return typeof lastSeen === "number" && Number.isFinite(lastSeen) ? lastSeen : 0;
+}
+
+function memberFromEntry(uid: string, raw: unknown): WorkspacePresenceMember {
+  const data = (raw ?? {}) as WorkspacePresenceDoc;
+  return {
+    uid: data.uid ?? uid,
+    displayName: data.displayName?.trim() || "Membre",
+    photoURL: typeof data.photoURL === "string" ? data.photoURL : undefined,
+    lastSeenMs: lastSeenToMs(data.lastSeen),
+    online: data.online !== false,
+    voice: voiceFromDoc(data),
+    presenceActivity: activityFromDoc(data),
+    spotifyNowPlaying:
+      typeof data.spotifyNowPlaying === "string" && data.spotifyNowPlaying.trim()
+        ? {
+            label: data.spotifyNowPlaying.trim(),
+            imageUrl:
+              typeof data.spotifyNowPlayingImageUrl === "string" &&
+              data.spotifyNowPlayingImageUrl.trim()
+                ? data.spotifyNowPlayingImageUrl.trim()
+                : null,
+          }
+        : null,
+  };
+}
+
+async function armPresenceDisconnect(workspaceId: string, uid: string): Promise<void> {
+  const key = presenceKey(workspaceId, uid);
+  const node = ref(rtdb, presencePath(workspaceId, uid));
+  const previous = disconnectOps.get(key);
+  if (previous) {
+    try {
+      await previous.cancel();
+    } catch {
+      // Already fired or cancelled.
+    }
+  }
+  const op = onDisconnect(node);
+  disconnectOps.set(key, op);
+  try {
+    // Keep the member row; mark offline + clear ephemeral voice/activity.
+    await op.update({ ...OFFLINE_CLEAR });
+  } catch {
+    disconnectOps.delete(key);
+  }
 }
 
 export function watchWorkspacePresence(
@@ -86,23 +152,21 @@ export function watchWorkspacePresence(
     onChange([]);
     return () => {};
   }
-  return onSnapshot(
-    presenceCol(workspaceId),
+
+  return onValue(
+    ref(rtdb, presencePath(workspaceId)),
     (snap) => {
-      const members = snap.docs.map((entry) => {
-        const data = entry.data() as WorkspacePresenceDoc;
-        return {
-          uid: data.uid ?? entry.id,
-          displayName: data.displayName?.trim() || "Membre",
-          photoURL: data.photoURL,
-          lastSeenMs: lastSeenToMs(data.lastSeen),
-          voice: voiceFromDoc(data),
-          presenceActivity: activityFromDoc(data),
-        };
-      });
+      const value = snap.val() as Record<string, WorkspacePresenceDoc> | null;
+      if (!value) {
+        onChange([]);
+        return;
+      }
+      const members = Object.entries(value).map(([uid, data]) => memberFromEntry(uid, data));
       onChange(members);
     },
-    onError,
+    (error) => {
+      onError?.(error);
+    },
   );
 }
 
@@ -112,17 +176,20 @@ export async function touchWorkspacePresence(
   profile: { displayName: string; photoURL?: string | null },
   voice?: WorkspaceVoicePresence,
   presenceActivity?: PresenceActivityId | null,
+  spotifyNowPlaying?: SpotifyNowPlayingSnapshot | null,
 ): Promise<void> {
   if (!workspaceId || !uid) return;
+
   const payload: Record<string, unknown> = {
     uid,
     displayName: profile.displayName.trim() || "Membre",
-    photoURL: profile.photoURL ? profile.photoURL : deleteField(),
-    lastSeen: serverTimestamp(),
+    photoURL: profile.photoURL ? profile.photoURL : null,
+    lastSeen: Date.now(),
+    online: true,
   };
   if (voice) {
     payload.voiceInPrivateCall = voice.inPrivateCall;
-    payload.voiceOpenChannelId = voice.openChannelId ?? deleteField();
+    payload.voiceOpenChannelId = voice.openChannelId ?? null;
     payload.voiceInTheaterCall = voice.inTheaterCall === true;
     payload.voiceSpeaking = voice.speaking === true;
     payload.voiceMuted = voice.muted === true;
@@ -130,9 +197,42 @@ export async function touchWorkspacePresence(
   }
   if (presenceActivity !== undefined) {
     payload.presenceActivity =
-      presenceActivity && presenceActivity !== "none" ? presenceActivity : deleteField();
+      presenceActivity && presenceActivity !== "none" ? presenceActivity : null;
   }
-  await setDoc(presenceRef(workspaceId, uid), payload, { merge: true });
+  if (spotifyNowPlaying !== undefined) {
+    const label = spotifyNowPlaying?.label?.trim();
+    if (label && spotifyNowPlaying) {
+      payload.spotifyNowPlaying = label.slice(0, 200);
+      const imageUrl = spotifyNowPlaying.imageUrl?.trim();
+      payload.spotifyNowPlayingImageUrl = imageUrl ? imageUrl.slice(0, 512) : null;
+    } else {
+      payload.spotifyNowPlaying = null;
+      payload.spotifyNowPlayingImageUrl = null;
+    }
+  }
+
+  const node = ref(rtdb, presencePath(workspaceId, uid));
+  await update(node, payload);
+  await armPresenceDisconnect(workspaceId, uid);
+}
+
+export async function clearWorkspacePresence(workspaceId: string, uid: string): Promise<void> {
+  if (!workspaceId || !uid) return;
+  const key = presenceKey(workspaceId, uid);
+  const previous = disconnectOps.get(key);
+  if (previous) {
+    try {
+      await previous.cancel();
+    } catch {
+      // ignore
+    }
+    disconnectOps.delete(key);
+  }
+  try {
+    await remove(ref(rtdb, presencePath(workspaceId, uid)));
+  } catch {
+    // Already gone.
+  }
 }
 
 export async function pushWorkspacePresenceActivity(

@@ -1,15 +1,12 @@
 import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  query,
-  serverTimestamp,
-  where,
+  onChildAdded,
+  push,
+  ref,
+  remove,
+  set,
   type Unsubscribe,
-} from "firebase/firestore";
-import { db } from "./client";
+} from "firebase/database";
+import { rtdb } from "./client";
 
 export type RtcSignalType = "offer" | "answer" | "candidate";
 
@@ -20,15 +17,15 @@ export interface RtcSignalDoc {
   type: RtcSignalType;
   sdp?: string;
   candidate?: RTCIceCandidateInit;
-  createdAt?: unknown;
+  createdAt?: number;
 }
 
-function signalsCol(workspaceId: string, sessionId: string) {
-  return collection(db, "workspacesShared", workspaceId, "voiceRtc", sessionId, "signals");
+function signalsPath(workspaceId: string, sessionId: string, toUid: string) {
+  return `voiceRtc/${workspaceId}/${sessionId}/${toUid}`;
 }
 
-function signalRef(workspaceId: string, sessionId: string, signalId: string) {
-  return doc(db, "workspacesShared", workspaceId, "voiceRtc", sessionId, "signals", signalId);
+function signalPath(workspaceId: string, sessionId: string, toUid: string, signalId: string) {
+  return `${signalsPath(workspaceId, sessionId, toUid)}/${signalId}`;
 }
 
 export async function sendRtcSignal(
@@ -36,9 +33,11 @@ export async function sendRtcSignal(
   sessionId: string,
   signal: Omit<RtcSignalDoc, "id" | "createdAt">,
 ): Promise<void> {
-  await addDoc(signalsCol(workspaceId, sessionId), {
+  const listRef = ref(rtdb, signalsPath(workspaceId, sessionId, signal.toUid));
+  const signalRef = push(listRef);
+  await set(signalRef, {
     ...signal,
-    createdAt: serverTimestamp(),
+    createdAt: Date.now(),
   });
 }
 
@@ -46,8 +45,10 @@ export async function deleteRtcSignal(
   workspaceId: string,
   sessionId: string,
   signalId: string,
+  toUid?: string,
 ): Promise<void> {
-  await deleteDoc(signalRef(workspaceId, sessionId, signalId));
+  if (!toUid) return;
+  await remove(ref(rtdb, signalPath(workspaceId, sessionId, toUid, signalId)));
 }
 
 export function watchIncomingRtcSignals(
@@ -61,15 +62,15 @@ export function watchIncomingRtcSignals(
     return () => {};
   }
 
-  const q = query(signalsCol(workspaceId, sessionId), where("toUid", "==", localUid));
-  return onSnapshot(
-    q,
+  return onChildAdded(
+    ref(rtdb, signalsPath(workspaceId, sessionId, localUid)),
     (snap) => {
-      for (const change of snap.docChanges()) {
-        if (change.type !== "added") continue;
-        onSignal({ id: change.doc.id, ...(change.doc.data() as RtcSignalDoc) });
-      }
+      const data = snap.val() as Omit<RtcSignalDoc, "id"> | null;
+      if (!data || typeof data.fromUid !== "string" || typeof data.type !== "string") return;
+      onSignal({ id: snap.key ?? undefined, ...data, toUid: localUid });
     },
-    onError,
+    (error) => {
+      onError?.(error);
+    },
   );
 }

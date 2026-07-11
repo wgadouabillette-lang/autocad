@@ -776,6 +776,9 @@ export const useStore = create<State>((set, get) => ({
     const normalized = normalizeHallDjGenre(genre);
     set({ hallDjPreferredGenre: normalized });
     writeUserPreferences(userPreferencesSnapshot({ ...get(), hallDjPreferredGenre: normalized }));
+    void import("./useHallDjStore").then(({ useHallDjStore }) => {
+      void useHallDjStore.getState().applyPreferredGenre(normalized);
+    });
   },
 
   clearSettingsScrollTarget: () => set({ settingsScrollTarget: null }),

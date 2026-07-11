@@ -19,8 +19,19 @@
     },
     "files": [
       "main.cjs",
-      "preload.cjs"
+      "preload.cjs",
+      "afterPack.cjs",
+      "spotifyWebView2Manager.cjs",
+      "spotify-webview2-host.cjs",
+      "spotify-webview2/**"
     ],
+    "asarUnpack": [
+      "**/node_modules/ewvjs/**"
+    ],
+    "afterPack": "./afterPack.cjs",
+    "electronDownload": {
+      "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
+    },
     "extraResources": [
       {
         "from": "build-resources/frontend-dist",
@@ -43,7 +54,12 @@
       "icon": "build/icon.png",
       "identity": null,
       "hardenedRuntime": false,
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "extendInfo": {
+        "NSScreenCaptureUsageDescription": "Hall a besoin d'accéder à l'écran pour le partage d'écran et l'enregistrement.",
+        "NSCameraUsageDescription": "Hall utilise la caméra pour les appels vidéo.",
+        "NSMicrophoneUsageDescription": "Hall utilise le micro pour les appels vocaux."
+      }
     },
     "win": {
       "target": ["nsis"],
@@ -58,7 +74,10 @@
     }
   },
   "devDependencies": {
-    "electron": "^33.2.0",
+    "electron": "https://github.com/castlabs/electron-releases#v42.5.2+wvcus",
     "electron-builder": "^25.1.8"
+  },
+  "optionalDependencies": {
+    "ewvjs": "^1.0.25"
   }
 }

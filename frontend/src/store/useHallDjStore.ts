@@ -3,6 +3,9 @@ import { buildHallDjBatch } from "../lib/hallDjEngine";
 import type { SpotifyTrackCard } from "../lib/connectorsApi";
 import { fetchSpotifyRecommendations } from "../lib/connectorsApi";
 import {
+  filterTracksByDjFeedback,
+  isHallDjTrackBlocked,
+  recordHallDjServedTracks,
   recordHallDjTrackFeedback,
   type HallDjTrackVerdict,
 } from "../lib/hallDjTrackFeedback";
@@ -20,6 +23,8 @@ interface HallDjState {
   stopDj: () => void;
   refillIfNeeded: () => Promise<void>;
   rateCurrentTrack: (verdict: HallDjTrackVerdict) => Promise<void>;
+  /** Rebuild queue for a new settings genre while DJ is running. */
+  applyPreferredGenre: (genre: string) => Promise<void>;
 }
 
 function trackKey(track: { id?: string; name: string; artists: string }) {
@@ -49,6 +54,33 @@ async function waitForPlaybackStarted(timeoutMs = 8_000): Promise<boolean> {
 const MAX_START_ATTEMPTS = 4;
 const START_DJ_TIMEOUT_MS = 55_000;
 
+function purgeTrackFromQueue(trackId: string) {
+  useSpotifyPlayerStore.setState((state) => ({
+    queue: state.queue.filter((track) => track.id?.trim() !== trackId),
+  }));
+}
+
+function queueFreshTracks(tracks: SpotifyTrackCard[], mode: "replace" | "append") {
+  const usable = tracks.filter((track) => !isHallDjTrackBlocked(track.id));
+  if (usable.length === 0) return [] as SpotifyTrackCard[];
+  recordHallDjServedTracks(usable);
+  if (mode === "replace") {
+    useSpotifyPlayerStore.setState({ queue: usable, queueAddFlashAt: Date.now() });
+  } else {
+    useSpotifyPlayerStore.setState((state) => {
+      const existingKeys = new Set(state.queue.map(trackKey));
+      if (state.currentTrack) existingKeys.add(trackKey(state.currentTrack));
+      const fresh = usable.filter((track) => !existingKeys.has(trackKey(track)));
+      if (fresh.length === 0) return state;
+      return {
+        queue: [...state.queue, ...fresh],
+        queueAddFlashAt: Date.now(),
+      };
+    });
+  }
+  return usable;
+}
+
 async function startPlaylist(tracks: SpotifyTrackCard[]): Promise<boolean> {
   if (tracks.length === 0) return false;
 
@@ -60,6 +92,7 @@ async function startPlaylist(tracks: SpotifyTrackCard[]): Promise<boolean> {
     const track = tracks[index]!;
     const rest = tracks.slice(index + 1);
     useSpotifyPlayerStore.setState({ queue: rest });
+    recordHallDjServedTracks([track, ...rest]);
     await player.playTrack(track, { skipHistory: true });
     if (await waitForPlaybackStarted()) return true;
   }
@@ -71,21 +104,15 @@ async function appendSimilarTracksToQueue(track: SpotifyTrackCard): Promise<void
   const trackId = track.id?.trim();
   if (!trackId) return;
   try {
+    const preferredGenre = useStore.getState().hallDjPreferredGenre;
     const similar = await fetchSpotifyRecommendations({
       seedTracks: [trackId],
+      seedGenres: [preferredGenre],
       limit: 8,
     });
-    if (similar.length === 0) return;
-    const player = useSpotifyPlayerStore.getState();
-    const existingKeys = new Set<string>();
-    if (player.currentTrack) existingKeys.add(trackKey(player.currentTrack));
-    for (const entry of player.queue) existingKeys.add(trackKey(entry));
-    const fresh = similar.filter((entry) => !existingKeys.has(trackKey(entry)));
-    if (fresh.length === 0) return;
-    useSpotifyPlayerStore.setState((state) => ({
-      queue: [...state.queue, ...fresh],
-      queueAddFlashAt: Date.now(),
-    }));
+    const filtered = filterTracksByDjFeedback(similar);
+    if (filtered.length === 0) return;
+    queueFreshTracks(filtered, "append");
   } catch {
     // Recommendations may fail when offline or scope is missing.
   }
@@ -108,6 +135,18 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
     const startedAt = Date.now();
     const timedOut = () => Date.now() - startedAt > START_DJ_TIMEOUT_MS;
     try {
+      const playerStore = useSpotifyPlayerStore.getState();
+      if (playerStore.premiumAvailable == null) {
+        await playerStore.refreshPlayerConfig();
+      }
+      if (useSpotifyPlayerStore.getState().premiumAvailable === false) {
+        const message =
+          "Votre compte Spotify connecté doit être Premium pour utiliser le Hall DJ";
+        set({ loading: false, active: false, error: message });
+        useSpotifyPlayerStore.setState({ playerNotice: message });
+        return;
+      }
+
       const preferredGenre = useStore.getState().hallDjPreferredGenre;
       const batch = await buildHallDjBatch(preferredGenre);
       if (timedOut()) {
@@ -127,27 +166,9 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
         return;
       }
 
-      const player = useSpotifyPlayerStore.getState();
-      const { playing, currentTrack, queue } = player;
-      const existingKeys = new Set<string>();
-      if (currentTrack) existingKeys.add(trackKey(currentTrack));
-      for (const entry of queue) existingKeys.add(trackKey(entry));
-
-      const fresh = batch.filter((track) => !existingKeys.has(trackKey(track)));
-      const nextBatch = fresh.length > 0 ? fresh : batch;
-
-      if (playing && currentTrack) {
-        useSpotifyPlayerStore.setState({ queue: [...queue, ...nextBatch] });
-        set({
-          loading: false,
-          error: null,
-          active: true,
-          feedbackResolvedTrackId: null,
-        });
-        return;
-      }
-
-      const started = await startPlaylist(nextBatch);
+      // Always start a fresh DJ queue so reopen / genre preference take effect.
+      useSpotifyPlayerStore.setState({ queue: [] });
+      const started = await startPlaylist(batch);
       if (timedOut()) {
         set({
           loading: false,
@@ -182,6 +203,31 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
     }
   },
 
+  applyPreferredGenre: async (genre) => {
+    if (!get().active || get().loading) return;
+    set({ loading: true, error: null });
+    try {
+      const batch = await buildHallDjBatch(genre);
+      if (batch.length === 0) {
+        set({ loading: false });
+        return;
+      }
+      useSpotifyPlayerStore.setState({ queue: [] });
+      const started = await startPlaylist(batch);
+      set({
+        loading: false,
+        active: started,
+        feedbackResolvedTrackId: null,
+        error: started ? null : "Impossible d'appliquer le nouveau style Hall DJ.",
+      });
+    } catch (err) {
+      set({
+        loading: false,
+        error: err instanceof Error ? err.message : "Impossible d'appliquer le style Hall DJ.",
+      });
+    }
+  },
+
   skipNext: async () => {
     if (!get().active || get().loading) return;
     const player = useSpotifyPlayerStore.getState();
@@ -206,25 +252,15 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
         set({ loading: false });
         return;
       }
-      const player = useSpotifyPlayerStore.getState();
-      const existingKeys = new Set<string>();
-      if (player.currentTrack) existingKeys.add(trackKey(player.currentTrack));
-      for (const entry of player.queue) existingKeys.add(trackKey(entry));
-      const fresh = batch.filter((track) => !existingKeys.has(trackKey(track)));
-      if (fresh.length === 0) {
-        set({ loading: false });
-        return;
-      }
-      useSpotifyPlayerStore.setState((state) => ({
-        queue: [...state.queue, ...fresh],
-        queueAddFlashAt: Date.now(),
-      }));
+      queueFreshTracks(batch, "append");
 
       const after = useSpotifyPlayerStore.getState();
       if (!after.playing && get().active) {
         const [next, ...rest] = after.queue;
-        useSpotifyPlayerStore.setState({ queue: rest });
-        await after.playTrack(next!, { skipHistory: true, restart: true });
+        if (next) {
+          useSpotifyPlayerStore.setState({ queue: rest });
+          await after.playTrack(next, { skipHistory: true, restart: true });
+        }
       }
 
       set({ loading: false });
@@ -247,6 +283,7 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
       if (verdict === "approve") {
         await appendSimilarTracksToQueue(track);
       } else {
+        purgeTrackFromQueue(trackId);
         await get().skipNext();
       }
       void get().refillIfNeeded();

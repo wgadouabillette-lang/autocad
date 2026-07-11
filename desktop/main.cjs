@@ -6,6 +6,7 @@ const {
   ipcMain,
   desktopCapturer,
   systemPreferences,
+  components,
 } = require("electron");
 const { spawn } = require("child_process");
 const http = require("http");
@@ -18,6 +19,7 @@ const {
   handleGetState,
   handleTriggerMockUpdate,
 } = require("./updater.cjs");
+const spotifyWebView2 = require("./spotifyWebView2Manager.cjs");
 
 app.setName("Hall");
 
@@ -162,6 +164,27 @@ function waitForBackend(maxMs = 90000) {
   });
 }
 
+function getWidevineStatus() {
+  if (typeof components?.status !== "function") {
+    return { available: false, platform: process.platform };
+  }
+  try {
+    return { available: true, platform: process.platform, ...components.status() };
+  } catch {
+    return { available: false, platform: process.platform };
+  }
+}
+
+async function ensureDesktopPlaybackReady() {
+  if (process.platform !== "darwin") return;
+  if (typeof components?.whenReady !== "function") {
+    console.warn("[hall] Electron Castlabs (Widevine) attendu sur macOS — vérifiez desktop/package.json");
+    return;
+  }
+  await components.whenReady();
+  console.log("[hall] Widevine CDM prêt:", getWidevineStatus());
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -174,11 +197,28 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      // Castlabs Widevine / Spotify Web Playback SDK
+      plugins: true,
     },
   });
 
+  // Spotify licence Widevine : UA proche de Chrome (évite certains rejets anti-bot).
+  try {
+    const chromeMajor = process.versions.chrome?.split(".")[0] || "132";
+    mainWindow.webContents.setUserAgent(
+      `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`,
+    );
+  } catch {
+    // ignore
+  }
+
   mainWindow.loadURL(START_URL);
+  spotifyWebView2.setMainWindow(mainWindow);
+  if (spotifyWebView2.isSupported()) {
+    void spotifyWebView2.startHost();
+  }
   mainWindow.on("closed", () => {
+    spotifyWebView2.setMainWindow(null);
     mainWindow = null;
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -218,6 +258,23 @@ async function listWindowSources() {
     types: ["window"],
     thumbnailSize: capturerThumbnailSize(),
   });
+}
+
+async function listDisplayMediaSources() {
+  return desktopCapturer.getSources({
+    types: ["screen", "window"],
+    thumbnailSize: capturerThumbnailSize(),
+  });
+}
+
+async function resolvePreferredScreenSource() {
+  const sources = await listDisplayMediaSources();
+  return (
+    sources.find((source) => source.id.startsWith("screen:0")) ??
+    sources.find((source) => source.id.startsWith("screen:")) ??
+    sources[0] ??
+    null
+  );
 }
 
 async function resolveHallWindowSource() {
@@ -319,26 +376,61 @@ ipcMain.handle("forma:update-schedule-tonight", () => handleScheduleTonight());
 ipcMain.handle("forma:update-get-state", () => handleGetState());
 ipcMain.handle("forma:update-trigger-mock", () => handleTriggerMockUpdate());
 
+ipcMain.handle("forma:spotify-webview2-availability", () => spotifyWebView2.getAvailability());
+ipcMain.handle("forma:spotify-webview2-warm", () => spotifyWebView2.warm());
+ipcMain.handle("forma:spotify-webview2-play", (_event, trackId) => spotifyWebView2.play(trackId));
+ipcMain.handle("forma:spotify-webview2-pause", () => spotifyWebView2.pause());
+ipcMain.handle("forma:spotify-webview2-resume", () => spotifyWebView2.resume());
+ipcMain.handle("forma:spotify-webview2-toggle", () => spotifyWebView2.toggle());
+ipcMain.handle("forma:spotify-webview2-reset", () => spotifyWebView2.reset());
+ipcMain.handle("forma:spotify-token-response", (_event, payload) => {
+  if (!payload || typeof payload.id !== "string") return;
+  spotifyWebView2.respondToken(payload.id, typeof payload.token === "string" ? payload.token : "");
+});
+ipcMain.handle("forma:spotify-widevine-status", () => getWidevineStatus());
+
 app.whenReady().then(async () => {
+  // Screen share / recording: prefer OS picker when available (macOS 15+).
+  // Fallback grants the primary display — not only the Hall window.
   session.defaultSession.setDisplayMediaRequestHandler(
-    async (_request, callback) => {
+    async (request, callback) => {
       try {
-        const source = await resolveHallWindowSource();
-        callback(source ? { video: source } : {});
+        // Probe sources so macOS registers Hall/Electron in Screen Recording.
+        const source = await resolvePreferredScreenSource();
+        if (!source) {
+          callback({});
+          return;
+        }
+        /** @type {{ video: Electron.DesktopCapturerSource; audio?: string }} */
+        const grant = { video: source };
+        if (request.audioRequested) {
+          grant.audio = "loopback";
+        }
+        callback(grant);
       } catch (err) {
         console.error("forma display-media handler:", err);
         callback({});
       }
     },
-    { useSystemPicker: false },
+    { useSystemPicker: true },
   );
 
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
-    return permission === "media" || permission === "display-capture";
+    return (
+      permission === "media" ||
+      permission === "display-capture" ||
+      permission === "protectedMedia" ||
+      permission === "mediaKeySystem"
+    );
   });
 
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    callback(permission === "media" || permission === "display-capture");
+    callback(
+      permission === "media" ||
+        permission === "display-capture" ||
+        permission === "protectedMedia" ||
+        permission === "mediaKeySystem",
+    );
   });
 
   try {
@@ -347,6 +439,7 @@ app.whenReady().then(async () => {
         "Build frontend manquant. Lancez: cd frontend && npm run build",
       );
     }
+    await ensureDesktopPlaybackReady();
     if (!DEV_URL) {
       spawnBackend();
     }
@@ -383,4 +476,7 @@ app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
 
-app.on("before-quit", () => stopBackend());
+app.on("before-quit", () => {
+  spotifyWebView2.stopHost();
+  stopBackend();
+});

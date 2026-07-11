@@ -1,13 +1,12 @@
 import {
-  collection,
-  doc,
-  onSnapshot,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
+  onValue,
+  ref,
+  remove,
+  set,
+  update,
   type Unsubscribe,
-} from "firebase/firestore";
-import { db } from "./client";
+} from "firebase/database";
+import { rtdb } from "./client";
 
 export type VoiceKnockStatus = "pending" | "accepted" | "declined" | "ejected";
 
@@ -18,20 +17,20 @@ export interface VoiceKnockDoc {
   fromName: string;
   toUid: string;
   status: VoiceKnockStatus;
-  createdAt?: unknown;
-  respondedAt?: unknown;
+  createdAt?: number;
+  respondedAt?: number;
 }
 
 function knockId(fromUid: string, toUid: string): string {
   return `${fromUid}_${toUid}`;
 }
 
-function knockRef(workspaceId: string, fromUid: string, toUid: string) {
-  return doc(db, "workspacesShared", workspaceId, "voiceKnocks", knockId(fromUid, toUid));
+function knockPath(workspaceId: string, id: string) {
+  return `voiceKnocks/${workspaceId}/${id}`;
 }
 
-function knocksCol(workspaceId: string) {
-  return collection(db, "workspacesShared", workspaceId, "voiceKnocks");
+function knocksPath(workspaceId: string) {
+  return `voiceKnocks/${workspaceId}`;
 }
 
 export async function sendVoiceKnock(
@@ -41,14 +40,14 @@ export async function sendVoiceKnock(
   toUid: string,
 ): Promise<string> {
   const id = knockId(fromUid, toUid);
-  await setDoc(knockRef(workspaceId, fromUid, toUid), {
+  await set(ref(rtdb, knockPath(workspaceId, id)), {
     id,
     workspaceId,
     fromUid,
     fromName: fromName.trim() || "Membre",
     toUid,
     status: "pending",
-    createdAt: serverTimestamp(),
+    createdAt: Date.now(),
   });
   return id;
 }
@@ -59,9 +58,9 @@ export async function respondVoiceKnock(
   toUid: string,
   accept: boolean,
 ): Promise<void> {
-  await updateDoc(knockRef(workspaceId, fromUid, toUid), {
+  await update(ref(rtdb, knockPath(workspaceId, knockId(fromUid, toUid))), {
     status: accept ? "accepted" : "declined",
-    respondedAt: serverTimestamp(),
+    respondedAt: Date.now(),
   });
 }
 
@@ -80,15 +79,36 @@ export async function sendVoiceEject(
   remoteUid: string,
 ): Promise<void> {
   const id = `eject_${hostUid}_${remoteUid}`;
-  await setDoc(doc(db, "workspacesShared", workspaceId, "voiceKnocks", id), {
+  await set(ref(rtdb, knockPath(workspaceId, id)), {
     id,
     workspaceId,
     fromUid: hostUid,
     fromName: hostName.trim() || "Membre",
     toUid: remoteUid,
     status: "ejected",
-    createdAt: serverTimestamp(),
+    createdAt: Date.now(),
   });
+}
+
+function watchKnocksCollection(
+  workspaceId: string,
+  onChange: (knocks: VoiceKnockDoc[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  return onValue(
+    ref(rtdb, knocksPath(workspaceId)),
+    (snap) => {
+      const value = snap.val() as Record<string, VoiceKnockDoc> | null;
+      if (!value) {
+        onChange([]);
+        return;
+      }
+      onChange(Object.values(value));
+    },
+    (error) => {
+      onError?.(error);
+    },
+  );
 }
 
 export function watchVoiceEjects(
@@ -101,14 +121,17 @@ export function watchVoiceEjects(
     return () => {};
   }
 
-  return onSnapshot(
-    knocksCol(workspaceId),
-    (snap) => {
-      for (const entry of snap.docs) {
-        const knock = entry.data() as VoiceKnockDoc;
-        if (knock.status === "ejected" && knock.toUid === localUid) {
-          onEject(knock);
-        }
+  const seen = new Set<string>();
+  return watchKnocksCollection(
+    workspaceId,
+    (knocks) => {
+      for (const knock of knocks) {
+        if (knock.status !== "ejected" || knock.toUid !== localUid) continue;
+        const key = knock.id || `${knock.fromUid}_${knock.toUid}_${knock.createdAt ?? 0}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        onEject(knock);
+        void remove(ref(rtdb, knockPath(workspaceId, knock.id))).catch(() => {});
       }
     },
     onError,
@@ -126,17 +149,16 @@ export function watchVoiceKnocks(
     return () => {};
   }
 
-  return onSnapshot(
-    knocksCol(workspaceId),
-    (snap) => {
-      const knocks = snap.docs
-        .map((entry) => entry.data() as VoiceKnockDoc)
-        .filter(
+  return watchKnocksCollection(
+    workspaceId,
+    (knocks) => {
+      onChange(
+        knocks.filter(
           (knock) =>
             knock.status === "pending" &&
             (knock.fromUid === localUid || knock.toUid === localUid),
-        );
-      onChange(knocks);
+        ),
+      );
     },
     onError,
   );
@@ -153,17 +175,16 @@ export function watchVoiceKnockResponses(
     return () => {};
   }
 
-  return onSnapshot(
-    knocksCol(workspaceId),
-    (snap) => {
-      const knocks = snap.docs
-        .map((entry) => entry.data() as VoiceKnockDoc)
-        .filter(
+  return watchKnocksCollection(
+    workspaceId,
+    (knocks) => {
+      onChange(
+        knocks.filter(
           (knock) =>
             knock.fromUid === localUid &&
             (knock.status === "accepted" || knock.status === "declined"),
-        );
-      onChange(knocks);
+        ),
+      );
     },
     onError,
   );
