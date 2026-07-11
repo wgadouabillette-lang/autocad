@@ -40,6 +40,10 @@ type SpotifyWebPlayer = {
   getCurrentState(): Promise<{
     position: number;
     paused: boolean;
+    duration?: number;
+    track_window?: {
+      current_track?: { uri?: string } | null;
+    };
   } | null>;
   addListener(event: "ready", callback: (data: { device_id: string }) => void): void;
   addListener(event: "not_ready", callback: (data: { device_id: string }) => void): void;
