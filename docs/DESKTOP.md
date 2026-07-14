@@ -107,7 +107,7 @@ Pour que le **backend embarqué** lise les clés utilisateur depuis Firestore (r
 
 ## Option C — Installateur Windows (.exe)
 
-**À construire sur une machine Windows** :
+**À construire sur une machine Windows** (ou via GitHub Actions — voir ci-dessous) :
 
 ```bat
 scripts\build-desktop-win.bat
@@ -118,6 +118,72 @@ Fichier produit : `desktop/release/Hall Setup 0.1.0.exe`
 Double-cliquez pour installer (assistant NSIS), puis lancez **Hall** depuis le menu Démarrer.
 
 Config utilisateur : `%APPDATA%\forma-desktop\forma-data\.env`
+
+### Installateur Windows signé (téléchargement utilisateurs)
+
+Pour que Windows **SmartScreen** fasse confiance à l’installateur, Hall utilise **Azure Trusted Signing** (Artifact Signing, ~10 $/mois) via `electron-builder` 26.
+
+La signature **VMP Widevine** (Castlabs EVS) s’applique ensuite dans `desktop/afterSign.cjs`.
+
+#### 1. Configuration Azure (une fois)
+
+Sur ta machine, avec Azure CLI et GitHub CLI :
+
+```bash
+brew install azure-cli   # si besoin
+./scripts/setup-azure-trusted-signing.sh
+```
+
+Le script :
+1. Lance `az login` (connexion navigateur — **je ne peux pas le faire sans toi**)
+2. Crée le compte Artifact Signing + app registration GitHub
+3. Configure les secrets/variables GitHub automatiquement
+
+**Étape manuelle obligatoire** (portail Azure, ~20 min) : validation d’identité (pièce d’identité + facture + Microsoft Authenticator). Impossible à automatiser.
+
+#### 2. Secrets GitHub
+
+| Type | Nom | Description |
+|------|-----|-------------|
+| Variable | `AZURE_CODESIGN_ENDPOINT` | ex. `https://eus.codesigning.azure.net/` |
+| Variable | `AZURE_CODESIGN_CERT_PROFILE` | Nom du certificate profile |
+| Variable | `AZURE_CODESIGN_ACCOUNT` | Nom du compte Artifact Signing |
+| Variable | `AZURE_CODESIGN_PUBLISHER` | Nom légal (= CN du certificat) |
+| Secret | `AZURE_TENANT_ID` | Tenant Entra ID |
+| Secret | `AZURE_CLIENT_ID` | Application (client) ID de l’app registration |
+| Secret | `AZURE_CLIENT_SECRET` | Client secret de l’app registration |
+| Secret | `EVS_ACCOUNT_NAME` | Compte Castlabs EVS (ex. `Willgb`) |
+| Secret | `EVS_PASSWD` | Mot de passe Castlabs EVS |
+
+#### 3. Lancer le build CI
+
+```bash
+gh workflow run "Release Windows Desktop"
+```
+
+Artefact : **Hall-windows-installer** → `Hall-windows.exe`
+
+#### Build local signé (machine Windows)
+
+```bat
+set AZURE_CODESIGN_ENDPOINT=https://eus.codesigning.azure.net/
+set AZURE_CODESIGN_CERT_PROFILE=hall-public
+set AZURE_CODESIGN_ACCOUNT=hall-signing
+set AZURE_CODESIGN_PUBLISHER=William Gadoua-Billette
+set AZURE_TENANT_ID=...
+set AZURE_CLIENT_ID=...
+set AZURE_CLIENT_SECRET=...
+scripts\build-desktop-win.bat
+scripts\prepare-landing-downloads.bat
+```
+
+Publier :
+
+```bash
+./scripts/upload-desktop-downloads.sh
+```
+
+URL : `https://forma.app/downloads/Hall-windows.exe`
 
 ### Spotify (lecture complète Premium)
 

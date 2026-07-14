@@ -1,18 +1,17 @@
 /**
- * VMP-sign Electron Castlabs package (macOS: afterPack, before code-sign).
+ * VMP-sign Electron Castlabs package on macOS (before code-sign).
  * Requires: pip install castlabs-evs + EVS account (python3 -m castlabs_evs.account signup)
  */
+const { resolveEvsPython, signVmpPackage } = require("./evs-sign.cjs");
+
 exports.default = async function afterPack(context) {
   if (context.electronPlatformName !== "darwin") return;
 
-  const { execSync } = require("child_process");
   const appOutDir = context.appOutDir;
-  console.log("[evs] VMP signing (streaming):", appOutDir);
+  const evsPython = resolveEvsPython();
+  console.log("[evs] VMP signing macOS (before code-sign):", appOutDir);
   try {
-    execSync(`python3 -m castlabs_evs.vmp sign-pkg "${appOutDir}"`, {
-      stdio: "inherit",
-      env: { ...process.env, EVS_NO_ASK: process.env.CI ? "1" : process.env.EVS_NO_ASK },
-    });
+    signVmpPackage(appOutDir, evsPython);
     console.log("[evs] VMP signature OK");
   } catch (err) {
     console.error(

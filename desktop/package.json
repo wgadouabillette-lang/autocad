@@ -7,9 +7,9 @@
   "scripts": {
     "start": "electron .",
     "prepare-resources": "node ../scripts/prepare-desktop-resources.cjs",
-    "dist:mac": "npm run prepare-resources && electron-builder --mac dmg",
-    "dist:win": "npm run prepare-resources && electron-builder --win nsis",
-    "dist": "npm run prepare-resources && electron-builder --mac dmg --win nsis"
+    "dist:mac": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --mac dmg",
+    "dist:win": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --config electron-builder.config.cjs --win nsis",
+    "dist": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --mac dmg --win nsis"
   },
   "build": {
     "appId": "com.forma.cad",
@@ -29,6 +29,7 @@
       "**/node_modules/ewvjs/**"
     ],
     "afterPack": "./afterPack.cjs",
+    "afterSign": "./afterSign.cjs",
     "electronDownload": {
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
     },
@@ -40,17 +41,23 @@
       {
         "from": "build-resources/backend",
         "to": "backend",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "build-resources/backend-venv",
         "to": "backend-venv",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "icon": "build/icon.png",
       "identity": null,
       "hardenedRuntime": false,
@@ -62,12 +69,17 @@
       }
     },
     "win": {
-      "target": ["nsis"],
-      "icon": "build/icon.png"
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false,
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Hall Setup ${version}.${ext}"
     },
     "dmg": {
       "title": "Hall"
@@ -75,7 +87,7 @@
   },
   "devDependencies": {
     "electron": "https://github.com/castlabs/electron-releases#v42.5.2+wvcus",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^26.15.3"
   },
   "optionalDependencies": {
     "ewvjs": "^1.0.25"
