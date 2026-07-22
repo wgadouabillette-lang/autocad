@@ -123,8 +123,16 @@
         "footer.product",
         link(appHref, "footer.openApp") +
           link("/tarifs", "footer.pricing") +
-          link("/downloads/Hall-mac.dmg", "footer.downloadMac") +
-          link("/downloads/Hall-windows.exe", "footer.downloadWin"),
+          link(
+            (window.HallDownloadUrls && window.HallDownloadUrls.mac) ||
+              "/downloads/Hall-mac.dmg",
+            "footer.downloadMac",
+          ) +
+          link(
+            (window.HallDownloadUrls && window.HallDownloadUrls.windows) ||
+              "/downloads/Hall-windows.exe",
+            "footer.downloadWin",
+          ),
       ),
       column(
         "footer.resources",

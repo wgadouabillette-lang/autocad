@@ -81,6 +81,18 @@
   [headers.values]
     Cross-Origin-Opener-Policy = "same-origin-allow-popups"
 
+[[redirects]]
+  from = "/downloads/Hall-windows.exe"
+  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-windows.exe?alt=media"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/downloads/Hall-mac.dmg"
+  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-mac.dmg?alt=media"
+  status = 302
+  force = true
+
 [[headers]]
   for = "/downloads/*"
   [headers.values]

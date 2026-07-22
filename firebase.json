@@ -74,7 +74,17 @@
       { "source": "/ressources.html", "destination": "/ressources", "type": 301 },
       { "source": "/terms.html", "destination": "/terms", "type": 301 },
       { "source": "/privacy.html", "destination": "/privacy", "type": 301 },
-      { "source": "/subprocessors.html", "destination": "/subprocessors", "type": 301 }
+      { "source": "/subprocessors.html", "destination": "/subprocessors", "type": 301 },
+      {
+        "source": "/downloads/Hall-windows.exe",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-windows.exe?alt=media",
+        "type": 302
+      },
+      {
+        "source": "/downloads/Hall-mac.dmg",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-mac.dmg?alt=media",
+        "type": 302
+      }
     ],
     "headers": [
       {
