@@ -20,7 +20,9 @@
     "files": [
       "main.cjs",
       "preload.cjs",
-      "afterPack.cjs",
+      "updater.cjs",
+      "updater-state.cjs",
+      "package.json",
       "spotifyWebView2Manager.cjs",
       "spotify-webview2-host.cjs",
       "spotify-webview2/**"
