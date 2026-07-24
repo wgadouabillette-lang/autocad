@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
 import type { ChatConnectorId } from "../components/chat/chatConnectors";
-import { isConnectorOAuthMessage } from "../lib/connectorsApi";
+import { isConnectorOAuthMessage, warmConnectorAuth } from "../lib/connectorsApi";
 import {
   applyConnectorOAuthResult,
   tryFinishConnectorOAuthFromStorage,
@@ -21,6 +21,7 @@ export function useConnectors() {
   const authReady = useAuthStore((s) => s.ready);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const statuses = useConnectorsStore((s) => s.statuses);
+  const statusSource = useConnectorsStore((s) => s.statusSource);
   const loading = useConnectorsStore((s) => s.loading);
   const error = useConnectorsStore((s) => s.error);
   const connectingId = useConnectorsStore((s) => s.connectingId);
@@ -47,6 +48,7 @@ export function useConnectors() {
       setVisualOnly();
       return;
     }
+    warmConnectorAuth();
     void refresh(true);
   }, [authReady, isAuthenticated, refresh, setVisualOnly]);
 
@@ -114,6 +116,7 @@ export function useConnectors() {
   return {
     visualOnly: CONNECTORS_VISUAL_ONLY,
     statuses,
+    statusSource,
     connectedIds,
     loading,
     error,

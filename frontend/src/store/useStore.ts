@@ -67,6 +67,8 @@ import {
   runManageScheduleSkill,
   type ManageScheduleEventDraft,
 } from "../lib/manageScheduleSkill";
+import { isMarketingPreview } from "../lib/marketingPreview";
+import { marketingPlaySearchResult } from "../lib/marketingPlayDemo";
 import { parseAddQueueSkillQuery, parsePlaySkillQuery, runPlaySearchSkill } from "../lib/playSkill";
 import type { ManageSchedulePromptDraft } from "../lib/manageSchedulePrompt";
 import type { MeetingPromptDraft } from "../lib/meetingSkill";
@@ -185,6 +187,110 @@ function initialOpenChatTabs(): {
   };
 }
 
+type ChatPanelMode = "agent" | "friends" | "calendar" | "theater" | "ai-notes" | "follow-up";
+
+/** État chat agent isolé par workspace (évite de voir les messages d'un autre room). */
+interface WorkspaceChatBucket {
+  chat: ChatMessage[];
+  openChatTabs: ChatSession[];
+  activeChatTabId: string;
+  chatNavStack: string[];
+  chatNavPointer: number;
+  showChatHistory: boolean;
+  activeManualNoteId: string | null;
+  chatPanelMode: ChatPanelMode;
+  chatHistoryHighlightRecordingId: string | null;
+}
+
+function emptyWorkspaceChatBucket(): WorkspaceChatBucket {
+  const tabs = initialOpenChatTabs();
+  return {
+    chat: [],
+    openChatTabs: tabs.openChatTabs,
+    activeChatTabId: tabs.activeChatTabId,
+    chatNavStack: tabs.chatNavStack,
+    chatNavPointer: tabs.chatNavPointer,
+    showChatHistory: false,
+    activeManualNoteId: null,
+    chatPanelMode: "agent",
+    chatHistoryHighlightRecordingId: null,
+  };
+}
+
+function snapshotWorkspaceChatBucket(state: {
+  chat: ChatMessage[];
+  openChatTabs: ChatSession[];
+  activeChatTabId: string;
+  chatNavStack: string[];
+  chatNavPointer: number;
+  showChatHistory: boolean;
+  activeManualNoteId: string | null;
+  chatPanelMode: ChatPanelMode;
+  chatHistoryHighlightRecordingId: string | null;
+}): WorkspaceChatBucket {
+  const synced = updateActiveTabInTabs(state.openChatTabs, state.activeChatTabId, state.chat);
+  return {
+    chat: structuredClone(state.chat),
+    openChatTabs: structuredClone(synced),
+    activeChatTabId: state.activeChatTabId,
+    chatNavStack: [...state.chatNavStack],
+    chatNavPointer: state.chatNavPointer,
+    showChatHistory: state.showChatHistory,
+    activeManualNoteId: state.activeManualNoteId,
+    chatPanelMode: state.chatPanelMode,
+    chatHistoryHighlightRecordingId: state.chatHistoryHighlightRecordingId,
+  };
+}
+
+function workspaceChatSwitchPatch(
+  state: {
+    activeRoomId: string;
+    chatByWorkspace: Record<string, WorkspaceChatBucket>;
+    chat: ChatMessage[];
+    openChatTabs: ChatSession[];
+    activeChatTabId: string;
+    chatNavStack: string[];
+    chatNavPointer: number;
+    showChatHistory: boolean;
+    activeManualNoteId: string | null;
+    chatPanelMode: ChatPanelMode;
+    chatHistoryHighlightRecordingId: string | null;
+  },
+  nextWorkspaceId: string,
+): Partial<{
+  chatByWorkspace: Record<string, WorkspaceChatBucket>;
+  chat: ChatMessage[];
+  openChatTabs: ChatSession[];
+  activeChatTabId: string;
+  chatNavStack: string[];
+  chatNavPointer: number;
+  showChatHistory: boolean;
+  activeManualNoteId: string | null;
+  chatPanelMode: ChatPanelMode;
+  chatHistoryHighlightRecordingId: string | null;
+  agentComposerInsert: { id: number; text: string } | null;
+}> {
+  const previousId = normalizeWorkspaceId(state.activeRoomId);
+  const buckets = { ...state.chatByWorkspace };
+  if (previousId) {
+    buckets[previousId] = snapshotWorkspaceChatBucket(state);
+  }
+  const restored = buckets[nextWorkspaceId] ?? emptyWorkspaceChatBucket();
+  return {
+    chatByWorkspace: buckets,
+    chat: restored.chat,
+    openChatTabs: restored.openChatTabs,
+    activeChatTabId: restored.activeChatTabId,
+    chatNavStack: restored.chatNavStack,
+    chatNavPointer: restored.chatNavPointer,
+    showChatHistory: restored.showChatHistory,
+    activeManualNoteId: restored.activeManualNoteId,
+    chatPanelMode: restored.chatPanelMode === "theater" ? "agent" : restored.chatPanelMode,
+    chatHistoryHighlightRecordingId: restored.chatHistoryHighlightRecordingId,
+    agentComposerInsert: null,
+  };
+}
+
 function resolveOpenChatTabs(data: {
   chat?: ChatMessage[];
   openChatTabs?: ChatSession[];
@@ -278,7 +384,9 @@ interface State {
   showChatHistory: boolean;
   /** Recording row to shimmer once after Go from a saved-recording notification. */
   chatHistoryHighlightRecordingId: string | null;
-  chatPanelMode: "agent" | "friends" | "calendar" | "theater" | "ai-notes" | "follow-up";
+  chatPanelMode: ChatPanelMode;
+  /** Snapshot chat agent par workspace — restauré au switch. */
+  chatByWorkspace: Record<string, WorkspaceChatBucket>;
   /** Compteur servant de clé pour remonter le composant de notes manuelles. */
   manualNoteResetTick: number;
   /** Id de la note manuelle actuellement ouverte (null = nouvelle note vide). */
@@ -599,6 +707,7 @@ export const useStore = create<State>((set, get) => ({
   showChatHistory: false,
   chatHistoryHighlightRecordingId: null,
   chatPanelMode: "agent",
+  chatByWorkspace: {},
   manualNoteResetTick: 0,
   activeManualNoteId: null,
   pendingAutosave: null,
@@ -701,8 +810,7 @@ export const useStore = create<State>((set, get) => ({
     useCallsStore.getState().syncLocalParticipantProfile({ photoURL });
   },
 
-  // Toggle dev local — Stripe désactivé pour le moment.
-  // Quand Stripe sera réintroduit, le webhook Firestore reprendra le contrôle (cf. billingManaged).
+  // Toggle dev local (ALLOW_DEV_PLAN_SYNC). Avec Stripe, le webhook seul active Pro.
   setSubscriptionPlan: (plan) => {
     const normalized: SubscriptionPlan = plan === "pro" ? "pro" : "free";
     const billingManaged = normalized === "pro";
@@ -720,6 +828,7 @@ export const useStore = create<State>((set, get) => ({
         onDemandUsageEnabled: onDemand,
       }),
     );
+    // Ignoré par l'API si Stripe checkout est actif (sauf ALLOW_DEV_PLAN_SYNC=1 explicite).
     pushDevSubscriptionToFirestore(normalized, onDemand);
   },
 
@@ -1057,8 +1166,15 @@ export const useStore = create<State>((set, get) => ({
         }
 
         try {
-          const playResult = await runPlaySearchSkill(playQuery, signal);
-          await waitMinChatProcessing(processingStartedAt, signal);
+          const [playResult] = await Promise.all([
+            isMarketingPreview()
+              ? Promise.resolve(marketingPlaySearchResult(playQuery))
+              : runPlaySearchSkill(playQuery, signal),
+            waitMinChatProcessing(processingStartedAt, signal),
+          ]);
+          if (signal.aborted) {
+            throw new DOMException("Aborted", "AbortError");
+          }
           const assistantText = playResult.summary;
           const summary =
             assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
@@ -2394,12 +2510,21 @@ export const useStore = create<State>((set, get) => ({
     if (state.activePage === "settings") {
       state.closePage("settings");
     }
-    if (workspaceId !== state.activeRoomId) {
+    const roomChanged = workspaceId !== state.activeRoomId;
+    if (roomChanged) {
       useCallsStore.getState().closeTheaterView(state.activeRoomId);
+      usePeopleStore.getState().setActiveFriendThread(null);
     }
     useCallsStore.getState().ensureRoom(workspaceId);
     writeLastActiveWorkspace(workspaceId);
-    set({ activeRoomId: workspaceId });
+    if (!roomChanged) {
+      set({ activeRoomId: workspaceId });
+      return;
+    }
+    set({
+      activeRoomId: workspaceId,
+      ...workspaceChatSwitchPatch(state, workspaceId),
+    });
   },
 
   switchWorkspace: (id) => {
@@ -2411,8 +2536,13 @@ export const useStore = create<State>((set, get) => ({
     }
     useCallsStore.getState().closeTheaterView(state.activeRoomId);
     useCallsStore.getState().ensureRoom(workspaceId);
+    usePeopleStore.getState().setActiveFriendThread(null);
     writeLastActiveWorkspace(workspaceId);
-    set({ workspaceSwitching: true, activeRoomId: workspaceId });
+    set({
+      workspaceSwitching: true,
+      activeRoomId: workspaceId,
+      ...workspaceChatSwitchPatch(state, workspaceId),
+    });
   },
 
   finishWorkspaceSwitch: () => {

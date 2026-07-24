@@ -28,11 +28,11 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
   {
     id: "pro",
     label: "Pro",
-    price: "30 $ / mois",
+    price: "25 $ / mois",
     description: "Assistant IA personnel avec crédits mensuels.",
     features: [
       "Serveurs personnels illimités",
-      "30 $ de crédits IA / mois",
+      "Crédits IA mensuels inclus",
       "Assistant IA dans tout Hall",
       "AI Notes et Follow-up",
       "Choix du modèle IA",
@@ -41,11 +41,11 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
   {
     id: "enterprise",
     label: "Entreprise",
-    price: "20 $ par siège",
+    price: "18 $ / siège",
     description: "IA partagée pour tout le workspace.",
     features: [
       "IA pour tous les membres du workspace",
-      "Pool IA partagé (20 $ × siège / mois)",
+      "Pool IA partagé (18 $ × siège / mois)",
       "AI Notes et Follow-up workspace",
       "Facturation centralisée",
     ],

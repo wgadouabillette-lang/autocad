@@ -197,12 +197,16 @@ export default function WorkspaceTextChannelsSection({
       ) : (
         <button
           type="button"
-          className="workspace-text-channel-create"
+          className="open-channel-add"
           onClick={() => startDraft(workspaceId)}
           aria-label="Create a text channel"
+          title="Create a text channel"
         >
-          <Plus size={14} strokeWidth={2.25} aria-hidden />
-          <span>Create text channel</span>
+          <span className="open-channel-add__label">
+            <Plus size={12} strokeWidth={2.25} aria-hidden />
+            Text channel
+            <Hash size={12} strokeWidth={2.25} aria-hidden />
+          </span>
         </button>
       )}
     </div>

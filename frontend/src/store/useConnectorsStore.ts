@@ -17,6 +17,8 @@ const VISUAL_STATUSES: ConnectorStatus[] = CHAT_CONNECTORS.map(({ id, label }) =
   configured: false,
 }));
 
+export type ConnectorStatusSource = "none" | "visual" | "api";
+
 /** Safari / iOS bloquent souvent les popups OAuth — même onglet plus fiable. */
 function prefersSameTabOAuth(): boolean {
   const ua = navigator.userAgent;
@@ -27,6 +29,7 @@ function prefersSameTabOAuth(): boolean {
 
 interface ConnectorsState {
   statuses: ConnectorStatus[];
+  statusSource: ConnectorStatusSource;
   loading: boolean;
   error: string | null;
   connectingId: ChatConnectorId | null;
@@ -48,12 +51,13 @@ interface ConnectorsState {
  */
 export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
   statuses: [],
+  statusSource: "none",
   loading: true,
   error: null,
   connectingId: null,
   inflight: null,
 
-  setVisualOnly: () => set({ statuses: VISUAL_STATUSES, loading: false, error: null }),
+  setVisualOnly: () => set({ statuses: VISUAL_STATUSES, statusSource: "visual", loading: false, error: null }),
 
   refresh: async (force = false) => {
     const current = get().inflight;
@@ -61,7 +65,7 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
     const promise = (async () => {
       try {
         const items = await fetchConnectorStatuses();
-        set({ statuses: items, error: null });
+        set({ statuses: items, statusSource: "api", error: null });
       } catch (err) {
         set({
           error: err instanceof Error ? err.message : "Failed to load connectors.",
@@ -70,7 +74,7 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
         set({ loading: false, inflight: null });
       }
     })();
-    set({ inflight: promise });
+    set({ inflight: promise, loading: true });
     await promise;
   },
 

@@ -8,6 +8,8 @@ import {
   canRequestJoin,
   createDraftOpenChannel,
   createRoomCallsState,
+  ensureDefaultOpenChannel,
+  isDefaultOpenChannel,
   isOpenChannelIdleExpired,
   mapOpenChannelsVacancy,
   syncOpenChannelVacancy,
@@ -73,7 +75,7 @@ import { useWorkspacesStore } from "./useWorkspacesStore";
 import { useAuthStore } from "./useAuthStore";
 import { useWorkspacePresenceStore } from "./useWorkspacePresenceStore";
 import { debugLog } from "../lib/debugLog";
-import { isMarketingTheaterPreviewScene } from "../lib/marketingPreview";
+import { isMarketingPreview } from "../lib/marketingPreview";
 import { useAiNotesStore } from "./useAiNotesStore";
 import { useFollowUpCaptureStore } from "./useFollowUpCaptureStore";
 import { useStore } from "./useStore";
@@ -467,7 +469,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
           [workspaceId]: (() => {
             const existing = s.theaterByWorkspace[workspaceId];
             if (
-              isMarketingTheaterPreviewScene() &&
+              isMarketingPreview() &&
               existing &&
               (existing.speakers.length > 0 || existing.audience.length > 0)
             ) {
@@ -644,7 +646,10 @@ export const useCallsStore = create<CallsState>((set, get) => ({
           });
         }
       }
-      const openChannels = mapOpenChannelsVacancy([...byId.values()]);
+      const openChannels = ensureDefaultOpenChannel(
+        workspaceId,
+        mapOpenChannelsVacancy([...byId.values()]),
+      );
       if (openChannelsSignature(current.openChannels) === openChannelsSignature(openChannels)) {
         return s;
       }
@@ -865,11 +870,12 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
   removeOpenChannel: (roomId, channelId) => {
     const state = roomState(get, roomId);
-    if (!state.openChannels.some((channel) => channel.id === channelId)) return;
-
-    if (get().localOpenChannelByRoom[roomId] === channelId) {
-      get().leaveCall(roomId);
-    }
+    const channel = state.openChannels.find((entry) => entry.id === channelId);
+    if (!channel) return;
+    // Seuls les brouillons s'annulent manuellement ; les salons vides expirent via TTL.
+    // Le salon permanent n'est jamais supprimé.
+    if (!channel.isDraft) return;
+    if (isDefaultOpenChannel(roomId, channelId)) return;
 
     set((s) => {
       const current = s.callsByRoom[roomId];
@@ -879,16 +885,17 @@ export const useCallsStore = create<CallsState>((set, get) => ({
           ...s.callsByRoom,
           [roomId]: {
             ...current,
-            openChannels: current.openChannels.filter((channel) => channel.id !== channelId),
+            openChannels: current.openChannels.filter((entry) => entry.id !== channelId),
           },
         },
       };
     });
-    void removeOpenVoiceChannel(roomId, channelId);
   },
 
   purgeIdleOpenChannels: () => {
     const now = Date.now();
+    const removedForFirebase: Array<{ roomId: string; channelId: string }> = [];
+
     set((s) => {
       let callsByRoom = s.callsByRoom;
       let localOpenChannelByRoom = s.localOpenChannelByRoom;
@@ -897,7 +904,8 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
       for (const [roomId, state] of Object.entries(s.callsByRoom)) {
         const synced = mapOpenChannelsVacancy(state.openChannels, now);
-        const openChannels = synced.filter((channel) => !isOpenChannelIdleExpired(channel, now));
+        const kept = synced.filter((channel) => !isOpenChannelIdleExpired(channel, now));
+        const openChannels = ensureDefaultOpenChannel(roomId, kept);
         const roomChanged =
           openChannels.length !== state.openChannels.length ||
           openChannels.some((channel) => {
@@ -919,6 +927,10 @@ export const useCallsStore = create<CallsState>((set, get) => ({
             .filter((channel) => !openChannels.some((entry) => entry.id === channel.id))
             .map((channel) => channel.id),
         );
+        for (const channelId of removedChannelIds) {
+          if (isDefaultOpenChannel(roomId, channelId)) continue;
+          removedForFirebase.push({ roomId, channelId });
+        }
         const localChannelId = localOpenChannelByRoom[roomId];
         if (localChannelId && removedChannelIds.has(localChannelId)) {
           localOpenChannelByRoom = { ...localOpenChannelByRoom, [roomId]: null };
@@ -929,6 +941,10 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       if (!changed) return s;
       return { callsByRoom, localOpenChannelByRoom, localInCallByRoom };
     });
+
+    for (const { roomId, channelId } of removedForFirebase) {
+      void removeOpenVoiceChannel(roomId, channelId);
+    }
   },
 
   kickMember: (roomId, blockId) => {

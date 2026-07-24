@@ -2,7 +2,7 @@ import ChatConnectorsList from "../chat/ChatConnectorsList";
 import { useConnectors } from "../../hooks/useConnectors";
 
 export default function PluginsSettingsSection() {
-  const { connectedIds, statuses, loading, error, connectingId, connect, disconnect } =
+  const { connectedIds, statuses, statusSource, loading, error, connectingId, connect, disconnect } =
     useConnectors();
 
   return (
@@ -13,6 +13,7 @@ export default function PluginsSettingsSection() {
         variant="settings"
         connectedIds={connectedIds}
         statuses={statuses}
+        statusSource={statusSource}
         connectingId={connectingId}
         connectError={error}
         onConnect={connect}

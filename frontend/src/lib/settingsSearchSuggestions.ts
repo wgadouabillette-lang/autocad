@@ -177,6 +177,13 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     hint: "Adresse de votre compte",
     keywords: "compte email adresse general account",
   },
+  {
+    id: "account-delete",
+    tab: "general",
+    label: "Supprimer mon compte",
+    hint: "Effacer définitivement le compte et toutes les données",
+    keywords: "compte supprimer delete effacer danger general account",
+  },
 ];
 
 const PLUGIN_SUGGESTIONS: SettingsSearchSuggestion[] = CHAT_CONNECTORS.map((connector) => ({

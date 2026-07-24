@@ -1,6 +1,7 @@
 import type { CallBlock, OpenVoiceChannel, RoomCallsState } from "./calls";
 import { memberBlockId } from "./calls";
 import {
+  MARKETING_PREVIEW_BLINDING_LIGHTS_COVER_URL,
   MARKETING_PREVIEW_NOTE_ID,
   MARKETING_PREVIEW_USER_ID,
   MARKETING_PREVIEW_WORKSPACE_ID,
@@ -14,12 +15,14 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useCallsStore } from "../store/useCallsStore";
 import { useConnectorsStore } from "../store/useConnectorsStore";
 import { useFollowUpsStore } from "../store/useFollowUpsStore";
+import { useHallDjStore } from "../store/useHallDjStore";
 import { useStore } from "../store/useStore";
 import {
   PRESENCE_OFFLINE_AFTER_MS,
   useWorkspacePresenceStore,
 } from "../store/useWorkspacePresenceStore";
 import { useWorkspacesStore } from "../store/useWorkspacesStore";
+import { useWorkspaceTextChannelsStore } from "../store/useWorkspaceTextChannelsStore";
 import { useCalendarOverlayStore } from "../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../store/useCalendarStore";
 import { usePeopleStore } from "../store/usePeopleStore";
@@ -53,17 +56,16 @@ const DEMO_MEMBERS = [
 
 const OFFLINE_MEMBER_IDS = new Set(["quinn", "avery"]);
 
+/** Activities on side tiles only (open-channel members are hidden from the grid). */
 const PREVIEW_PRESENCE_ACTIVITIES: Record<string, PresenceActivityId> = {
-  jordan: "claude",
-  sam: "claude",
-  riley: "claude",
-  morgan: "claude",
-  casey: "openai",
+  casey: "claude",
   taylor: "openai",
   elena: "spotify",
-  noah: "spotify",
-  zoe: "spotify",
+  noah: "claude",
+  zoe: "openai",
   chris: "spotify",
+  lena: "calendar",
+  omar: "claude",
 };
 
 const THEATER_AUDIENCE_EXTRA = [
@@ -110,8 +112,8 @@ const THEATER_AUDIENCE_EXTRA = [
   { id: "diego", name: "Diego" },
 ];
 
-const THEATER_SPEAKER_COUNT = 2;
-const THEATER_AUDIENCE_SIZE = 21;
+const THEATER_SPEAKER_COUNT = 1;
+const THEATER_AUDIENCE_SIZE = 7;
 const THEATER_PREVIEW_AUDIENCE_SIZE = 48;
 
 const PREVIEW_NOTE_BODY_HTML = [
@@ -139,21 +141,19 @@ function memberBlock(userId: string, name: string, inCall = false): CallBlock {
 }
 
 function buildRoomCallsState(): RoomCallsState {
-  const inCallPeers = DEMO_MEMBERS.slice(0, 2);
+  const openChannelId = `${MARKETING_PREVIEW_WORKSPACE_ID}-open-main`;
   const blocks: CallBlock[] = [
     memberBlock("local", LOCAL_USER.name, false),
-    ...DEMO_MEMBERS.map((member, index) =>
-      memberBlock(member.id, member.name, index < 2),
-    ),
+    ...DEMO_MEMBERS.map((member) => memberBlock(member.id, member.name, false)),
   ];
 
   const openChannels: OpenVoiceChannel[] = [
     {
-      id: `${MARKETING_PREVIEW_WORKSPACE_ID}-open-main`,
+      id: openChannelId,
       roomId: MARKETING_PREVIEW_WORKSPACE_ID,
-      name: "Voice lounge",
-      participants: inCallPeers.map((member) => ({ id: member.id, name: member.name })),
-      inCall: true,
+      name: "Salon vocal",
+      participants: [],
+      inCall: false,
     },
   ];
 
@@ -214,7 +214,10 @@ function buildAgentChatTabs(): {
   tabs: ChatSession[];
   activeId: string;
   activeMessages: ChatMessage[];
+  pendingPrompt: string;
 } {
+  const pendingPrompt =
+    "Can you also list the open action items from that review?";
   const tabs = [
     buildDiscussionTab(
       "preview-chat-design",
@@ -237,6 +240,10 @@ function buildAgentChatTabs(): {
           role: "assistant",
           text:
             "We finalized the dashboard layout and voice grid. Landing now shows the real workspace shell. Calendar connector wiring is next on the roadmap.",
+        },
+        {
+          role: "user",
+          text: pendingPrompt,
         },
       ],
       0,
@@ -302,6 +309,7 @@ function buildAgentChatTabs(): {
     tabs,
     activeId: tabs[0].id,
     activeMessages: structuredClone(tabs[0].messages),
+    pendingPrompt,
   };
 }
 
@@ -325,7 +333,7 @@ function buildPreviewCalendarEvents(today: string): CalendarEvent[] {
       startMinutes: 8 * 60,
       endMinutes: 8 * 60 + 30,
       title: "Team standup",
-      detail: "Design Team · Voice lounge",
+      detail: "Design Team · Salon vocal",
       source: "google",
       googleEventId: "preview-g-1",
     },
@@ -490,11 +498,8 @@ function seedPresence(): void {
       lastSeenMs: isOffline ? now - PRESENCE_OFFLINE_AFTER_MS - 60_000 : now,
       online: !isOffline,
       voice: {
-        inPrivateCall: member.id === "jordan" || member.id === "sam",
-        openChannelId:
-          member.id === "jordan" || member.id === "sam"
-            ? `${MARKETING_PREVIEW_WORKSPACE_ID}-open-main`
-            : null,
+        inPrivateCall: false,
+        openChannelId: null,
       },
     };
   }
@@ -514,15 +519,22 @@ function seedPresenceActivities(): void {
 }
 
 function seedConnectors(): void {
+  const accountById: Partial<Record<string, string>> = {
+    calendar: "Alex",
+    spotify: "Alex",
+    gmail: "alex@demo.hall.app",
+    outlook: "Alex",
+  };
   useConnectorsStore.setState({
     statuses: CHAT_CONNECTORS.map(({ id, label }) => ({
       id,
       label,
       provider: id,
-      connected: id === "spotify",
-      configured: id === "spotify" || id === "calendar" || id === "gmail",
-      accountLabel: id === "spotify" ? "Alex" : undefined,
+      connected: true,
+      configured: true,
+      accountLabel: accountById[id],
     })),
+    statusSource: "visual",
     loading: false,
     error: null,
     connectingId: null,
@@ -538,20 +550,57 @@ function seedSpotifyPlayback(): void {
     searching: false,
     searchError: null,
     currentTrack: {
-      id: "preview-spotify-track",
-      name: "Midnight City",
-      artists: "M83",
-      album: "Hurry Up, We're Dreaming",
-      url: "https://open.spotify.com/",
-      imageUrl: null,
+      id: "0VjIjW4GlUZAMYd2vXMi3b",
+      name: "Blinding Lights",
+      artists: "The Weeknd",
+      album: "After Hours",
+      url: "https://open.spotify.com/track/0VjIjW4GlUZAMYd2vXMi3b",
+      imageUrl: MARKETING_PREVIEW_BLINDING_LIGHTS_COVER_URL,
     },
     lastPlayedTrack: null,
     queue: [],
     history: [],
     playing: true,
-    playbackMode: "preview",
+    playbackMode: "full",
     premiumAvailable: true,
+    streamingScopeAvailable: true,
     playerNotice: null,
+    queueAddFlashAt: 0,
+  });
+}
+
+function seedHallDj(): void {
+  useHallDjStore.setState({
+    active: true,
+    loading: false,
+    error: null,
+    feedbackResolvedTrackId: null,
+    feedbackBusy: false,
+  });
+}
+
+function seedWorkspaceTextChannels(): void {
+  useWorkspaceTextChannelsStore.setState({
+    channelsByWorkspace: {
+      [MARKETING_PREVIEW_WORKSPACE_ID]: [
+        {
+          id: `${MARKETING_PREVIEW_WORKSPACE_ID}-general`,
+          workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
+          name: "general",
+        },
+        {
+          id: `${MARKETING_PREVIEW_WORKSPACE_ID}-design`,
+          workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
+          name: "design",
+        },
+        {
+          id: `${MARKETING_PREVIEW_WORKSPACE_ID}-standup`,
+          workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
+          name: "standup",
+        },
+      ],
+    },
+    renamingChannel: null,
   });
 }
 
@@ -576,12 +625,12 @@ function seedPeopleThreads(): void {
     workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
     preview:
       index === 0
-        ? "Can you join the voice lounge?"
+        ? "Tu peux rejoindre le salon vocal ?"
         : index === 1
-          ? "Shared the dashboard mockup."
+          ? "J’ai partagé le mockup du dashboard."
           : index === 2
-            ? "Calendar looks busy today."
-            : "On my way.",
+            ? "Le calendrier est chargé aujourd’hui."
+            : "J’arrive.",
     updatedAt: now - index * 120_000,
     unread: index === 0 ? 1 : index === 2 ? 1 : 0,
     messages: [
@@ -591,12 +640,12 @@ function seedPeopleThreads(): void {
         authorUid: member.id,
         text:
           index === 0
-            ? "Can you join the voice lounge?"
+            ? "Tu peux rejoindre le salon vocal ?"
             : index === 1
-              ? "Shared the dashboard mockup."
+              ? "J’ai partagé le mockup du dashboard."
               : index === 2
-                ? "Calendar looks busy today — still good for 3pm?"
-                : "On my way.",
+                ? "Le calendrier est chargé aujourd’hui — toujours OK pour 15h ?"
+                : "J’arrive.",
         at: now - index * 120_000,
       },
     ],
@@ -652,7 +701,7 @@ export function seedMarketingPreview(): void {
   });
 
   const manualNote = buildManualNoteSession();
-  const { tabs, activeId, activeMessages } = buildAgentChatTabs();
+  const { tabs, activeId, activeMessages, pendingPrompt } = buildAgentChatTabs();
   const chatSessions = [manualNote, ...tabs];
 
   useStore.setState({
@@ -675,6 +724,21 @@ export function seedMarketingPreview(): void {
     activeManualNoteId: MARKETING_PREVIEW_NOTE_ID,
     showChatHistory: false,
     colorTheme: "dark",
+    aiModel: "claude-opus-4-7",
+    busy: true,
+    activeAiRequests: 1,
+    aiRun: {
+      id: "preview-ai-run",
+      prompt: pendingPrompt,
+      workMode: "agent",
+      aiModel: "claude-opus-4-7",
+      status: "running",
+      expand: "peek",
+      startedAt: Date.now(),
+      steps: [{ id: "1", label: "Processing…", status: "active" }],
+      runKind: "chat",
+      summary: "Processing…",
+    },
   });
 
   useCallsStore.setState({
@@ -693,6 +757,8 @@ export function seedMarketingPreview(): void {
   seedPresenceActivities();
   seedConnectors();
   seedSpotifyPlayback();
+  seedHallDj();
+  seedWorkspaceTextChannels();
   seedCalendar();
   seedPeopleThreads();
   seedFollowUp();

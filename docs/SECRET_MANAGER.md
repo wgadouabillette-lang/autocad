@@ -111,6 +111,13 @@ Sans `FIREBASE_SERVICE_ACCOUNT_JSON`, le backend démarre mais Firestore (tokens
 
 Le backend détecte `VERCEL=1` et **ne tente pas** GSM au démarrage (évite `FUNCTION_INVOCATION_FAILED`).
 
+## Stripe
+
+Variables `STRIPE_*` (checkout + webhook) : voir **[docs/STRIPE_BILLING.md](./STRIPE_BILLING.md)**.
+
+- Backend / Vercel : dans `forma-backend-env` **et** les env Vercel (prod serverless)
+- Cloud Function `stripeWebhook` : dans `forma-functions-env`
+
 ## Rotation
 
 1. Mettre à jour la valeur localement (ou éditer le bundle)

@@ -15,9 +15,11 @@ export default function AddVoiceChannelButton({ onStartDraft, disabled }: AddVoi
       aria-label="Créer un salon vocal"
       title="Créer un salon vocal"
     >
-      <Plus size={16} strokeWidth={2} aria-hidden />
-      <Mic size={14} strokeWidth={2} aria-hidden />
-      <span>Créer un salon vocal</span>
+      <span className="open-channel-add__label">
+        <Plus size={12} strokeWidth={2.25} aria-hidden />
+        Salon vocal
+        <Mic size={12} strokeWidth={2.25} aria-hidden />
+      </span>
     </button>
   );
 }

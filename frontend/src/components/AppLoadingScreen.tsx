@@ -13,22 +13,20 @@ export default function AppLoadingScreen({
 }: AppLoadingScreenProps) {
   return (
     <div className="app-loading-screen" role={connectionError ? "alert" : "status"}>
+      <header className="app-loading-screen__brand">
+        <span className="app-loading-screen__brand-mark" aria-hidden>
+          {APP_DISPLAY_NAME}
+        </span>
+        <span className="sr-only">{APP_DISPLAY_NAME}</span>
+      </header>
       <div className="app-loading-screen__center">
-        <div className="app-loading-screen__brand">
-          <span className="app-loading-screen__brand-mark" aria-hidden>
-            {APP_DISPLAY_NAME}
-          </span>
-          <span className="sr-only">{APP_DISPLAY_NAME}</span>
-        </div>
         {!connectionError ? (
           <div
-            className="app-loading-screen__bar"
+            className="app-loading-screen__spinner"
             role="progressbar"
             aria-label={label}
             aria-busy="true"
-          >
-            <span className="app-loading-screen__bar-fill" aria-hidden />
-          </div>
+          />
         ) : null}
         {connectionError ? (
           <div className="app-loading-screen__error">

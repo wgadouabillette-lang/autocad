@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import { CONNECTOR_ICON_FILES, connectorIconPath } from "../../lib/connectorIcons";
 
-const faviconSrc = `${import.meta.env.BASE_URL}favicon.png`;
+const faviconSrc = `${import.meta.env.BASE_URL}favicon.svg`;
 const calendarSrc = connectorIconPath(CONNECTOR_ICON_FILES.calendar);
 
 export default function CalendarConnectNotificationVisual() {

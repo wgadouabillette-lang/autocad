@@ -18,6 +18,7 @@ function localBillingSummary(
       workspaceId: activeRoomId,
       nextBillingDate: null,
       cancelAtPeriodEnd: false,
+      stripeEnabled: false,
       transactions: [],
     };
   }
@@ -28,6 +29,7 @@ function localBillingSummary(
       billingManaged: true,
       nextBillingDate: null,
       cancelAtPeriodEnd: false,
+      stripeEnabled: false,
       transactions: [],
     };
   }
@@ -38,6 +40,7 @@ function localBillingSummary(
       billingManaged: false,
       nextBillingDate: null,
       cancelAtPeriodEnd: false,
+      stripeEnabled: false,
       transactions: [],
     };
   }
@@ -47,6 +50,7 @@ function localBillingSummary(
     billingManaged: false,
     nextBillingDate: null,
     cancelAtPeriodEnd: false,
+    stripeEnabled: false,
     transactions: [],
   };
 }

@@ -6,6 +6,7 @@ import {
 } from "../lib/connectorsApi";
 import {
   cancelSpotifyPlaybackEnded,
+  ensureSpotifyWebPlayer,
   pauseSpotifyWebPlayback,
   playSpotifyFullTrack,
   primeSpotifyWebAudioUnlock,
@@ -24,6 +25,47 @@ import { useHallDjStore } from "./useHallDjStore";
 
 let sharedAudio: HTMLAudioElement | null = null;
 
+const PLAYER_CONFIG_TTL_MS = 5 * 60 * 1000;
+/** Bumped after Spotify Feb 2026 /me.product removal so stale premium=false caches refresh. */
+const PLAYER_CONFIG_CACHE_KEY = "forma-spotify-player-config-v2";
+let playerConfigInflight: Promise<void> | null = null;
+
+interface StoredPlayerConfig {
+  premiumAvailable: boolean;
+  streamingScopeAvailable: boolean;
+  refreshedAt: number;
+}
+
+function readStoredPlayerConfig(): StoredPlayerConfig | null {
+  try {
+    const raw = localStorage.getItem(PLAYER_CONFIG_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredPlayerConfig;
+    if (typeof parsed.premiumAvailable !== "boolean") return null;
+    if (typeof parsed.streamingScopeAvailable !== "boolean") return null;
+    if (typeof parsed.refreshedAt !== "number") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredPlayerConfig(premiumAvailable: boolean, streamingScopeAvailable: boolean) {
+  try {
+    const payload: StoredPlayerConfig = {
+      premiumAvailable,
+      streamingScopeAvailable,
+      refreshedAt: Date.now(),
+    };
+    localStorage.setItem(PLAYER_CONFIG_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+const storedPlayerConfig = readStoredPlayerConfig();
+let playerConfigRefreshedAt = storedPlayerConfig?.refreshedAt ?? 0;
+
 function tracksEqual(a: SpotifyTrackCard | null | undefined, b: SpotifyTrackCard | null | undefined) {
   if (!a || !b) return false;
   if (a.id && b.id) return a.id === b.id;
@@ -32,6 +74,8 @@ function tracksEqual(a: SpotifyTrackCard | null | undefined, b: SpotifyTrackCard
 
 let suppressTrackEnded = false;
 let handlingTrackEnded = false;
+/** Ignore preview pause events while switching to full playback. */
+let suppressPreviewPauseState = false;
 
 function audioElement(): HTMLAudioElement {
   if (!sharedAudio) {
@@ -44,6 +88,7 @@ function audioElement(): HTMLAudioElement {
       state.handleTrackEnded();
     });
     sharedAudio.addEventListener("pause", () => {
+      if (suppressPreviewPauseState) return;
       const state = useSpotifyPlayerStore.getState();
       if (state.playbackMode === "preview" && !sharedAudio?.ended) {
         useSpotifyPlayerStore.setState({ playing: false });
@@ -53,12 +98,17 @@ function audioElement(): HTMLAudioElement {
   return sharedAudio;
 }
 
-function stopPreviewAudio() {
+function stopPreviewAudio(options?: { silent?: boolean }) {
   const audio = sharedAudio;
   if (!audio) return;
-  audio.pause();
-  audio.removeAttribute("src");
-  audio.load();
+  if (options?.silent) suppressPreviewPauseState = true;
+  try {
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+  } finally {
+    if (options?.silent) suppressPreviewPauseState = false;
+  }
 }
 
 export function getSpotifyPreviewAudioElement(): HTMLAudioElement | null {
@@ -94,8 +144,8 @@ interface SpotifyPlayerState {
   closePanel: () => void;
   setSearchQuery: (query: string) => void;
   search: (query?: string) => Promise<void>;
-  refreshPlayerConfig: () => Promise<void>;
-  playTrack: (track: SpotifyTrackCard, options?: PlayTrackOptions) => Promise<void>;
+  refreshPlayerConfig: (force?: boolean) => Promise<void>;
+  playTrack: (track: SpotifyTrackCard, options?: PlayTrackOptions) => Promise<boolean>;
   addToQueue: (track: SpotifyTrackCard) => boolean;
   isTrackQueued: (trackId: string | undefined) => boolean;
   togglePlayback: () => void;
@@ -109,6 +159,15 @@ setSpotifyWebPlaybackListener((playing) => {
   const state = useSpotifyPlayerStore.getState();
   if (state.playbackMode === "full") {
     useSpotifyPlayerStore.setState({ playing });
+    return;
+  }
+  // SDK may start full playback before the store leaves preview mode (Electron upgrade path).
+  if (playing && state.currentTrack && state.playbackMode === "preview") {
+    useSpotifyPlayerStore.setState({
+      playing: true,
+      playbackMode: "full",
+      playerNotice: null,
+    });
   }
 });
 
@@ -214,14 +273,34 @@ function spotifyPlayerNotice(config: {
   return null;
 }
 
-async function startPlayback(track: SpotifyTrackCard, restart = false): Promise<void> {
+async function upgradePreviewToFullTrack(trackId: string): Promise<void> {
+  const state = useSpotifyPlayerStore.getState();
+  let premium = state.premiumAvailable;
+  let streamingScope = state.streamingScopeAvailable;
+  if (premium === null || streamingScope === null) {
+    await state.refreshPlayerConfig();
+    premium = useSpotifyPlayerStore.getState().premiumAvailable;
+    streamingScope = useSpotifyPlayerStore.getState().streamingScopeAvailable;
+  }
+  if (!premium || streamingScope === false) return;
+
+  warmSpotifyWebPlayer(true);
+  void ensureSpotifyWebPlayer({ premiumHint: true });
+  const ok = await playSpotifyFullTrack(trackId);
+  if (!ok) return;
+  useSpotifyPlayerStore.setState({
+    playing: true,
+    playbackMode: "full",
+    playerNotice: null,
+  });
+  stopPreviewAudio({ silent: true });
+}
+
+async function startPlayback(track: SpotifyTrackCard, restart = false): Promise<boolean> {
   suppressTrackEnded = true;
   cancelSpotifyPlaybackEnded();
   const trackId = track.id?.trim();
   const preview = track.previewUrl?.trim();
-  const wasPlayingFull =
-    useSpotifyPlayerStore.getState().playing &&
-    useSpotifyPlayerStore.getState().playbackMode === "full";
 
   stopPreviewAudio();
   primeSpotifyWebAudioUnlock();
@@ -233,61 +312,49 @@ async function startPlayback(track: SpotifyTrackCard, restart = false): Promise<
   });
 
   try {
+    if (preview) {
+      const heard = await playPreview(track, restart);
+      if (heard) {
+        warmSpotifyWebPlayer(true);
+        void ensureSpotifyWebPlayer({ premiumHint: true });
+        if (trackId) void upgradePreviewToFullTrack(trackId);
+        useSpotifyPlayerStore.setState({
+          playerNotice: hasFormaDesktop()
+            ? "Extrait 30 s — passage à la piste complète dès que le lecteur in-app est prêt."
+            : null,
+        });
+        return true;
+      }
+    }
+
     let premium = useSpotifyPlayerStore.getState().premiumAvailable;
     let streamingScope = useSpotifyPlayerStore.getState().streamingScopeAvailable;
     if ((premium === null || streamingScope === null) && trackId) {
       try {
-        const config = await fetchSpotifyPlayerConfig();
-        premium = config.premium;
-        streamingScope = config.hasStreamingScope !== false;
-        useSpotifyPlayerStore.setState({
-          premiumAvailable: config.premium,
-          streamingScopeAvailable: config.hasStreamingScope !== false,
-          playerNotice: spotifyPlayerNotice(config),
-        });
-        if (config.premium && config.hasStreamingScope !== false) warmSpotifyWebPlayer(true);
+        await useSpotifyPlayerStore.getState().refreshPlayerConfig();
+        premium = useSpotifyPlayerStore.getState().premiumAvailable;
+        streamingScope = useSpotifyPlayerStore.getState().streamingScopeAvailable;
       } catch {
         premium = false;
         streamingScope = false;
       }
     } else if (premium && streamingScope !== false) {
       warmSpotifyWebPlayer(true);
+      void ensureSpotifyWebPlayer({ premiumHint: true });
     }
 
     if (trackId && premium && streamingScope !== false) {
-      if (wasPlayingFull) {
-        await pauseSpotifyWebPlayback();
-      }
       stopPreviewAudio();
       const ok = await playSpotifyFullTrack(trackId);
       if (ok) {
         useSpotifyPlayerStore.setState({ playing: true, playbackMode: "full", playerNotice: null });
-        return;
-      }
-      if (preview) {
-        const heard = await playPreview(track, restart);
-        if (heard) {
-          useSpotifyPlayerStore.setState({
-            playerNotice: hasFormaDesktop()
-              ? "DRM Electron : ./scripts/sign-electron-widevine.sh pour la lecture complète in-app. Extrait 30 s."
-              : "Lecture complète indisponible — extrait 30 s.",
-          });
-          return;
-        }
+        return true;
       }
       useSpotifyPlayerStore.setState({
         playerNotice: hasFormaDesktop()
           ? "Lecture Spotify in-app bloquée (DRM Widevine). Lance ./scripts/sign-electron-widevine.sh puis relance Hall."
           : "Lecture complète indisponible. Déconnecte puis reconnecte Spotify dans Settings → Plugins.",
       });
-    }
-
-    if (preview) {
-      if (wasPlayingFull) {
-        await pauseSpotifyWebPlayback();
-      }
-      const heard = await playPreview(track, restart);
-      if (heard) return;
     }
 
     useSpotifyPlayerStore.setState({
@@ -297,6 +364,7 @@ async function startPlayback(track: SpotifyTrackCard, restart = false): Promise<
         ? "Pas d'extrait disponible ici. Utilise le lien ↗ sur la piste pour ouvrir Spotify."
         : "Impossible de lire cette piste dans l'app.",
     });
+    return false;
   } finally {
     suppressTrackEnded = false;
   }
@@ -314,8 +382,8 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
   history: [],
   playing: false,
   playbackMode: null,
-  premiumAvailable: null,
-  streamingScopeAvailable: null,
+  premiumAvailable: storedPlayerConfig?.premiumAvailable ?? null,
+  streamingScopeAvailable: storedPlayerConfig?.streamingScopeAvailable ?? null,
   playerNotice: null,
   queueAddFlashAt: 0,
 
@@ -361,17 +429,42 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
 
   setSearchQuery: (query) => set({ searchQuery: query }),
 
-  refreshPlayerConfig: async () => {
+  refreshPlayerConfig: async (force = false) => {
+    const state = get();
+    if (
+      !force &&
+      state.premiumAvailable !== null &&
+      Date.now() - playerConfigRefreshedAt < PLAYER_CONFIG_TTL_MS
+    ) {
+      if (state.premiumAvailable && state.streamingScopeAvailable !== false) {
+        warmSpotifyWebPlayer(true);
+      }
+      return;
+    }
+    if (playerConfigInflight) {
+      await playerConfigInflight;
+      return;
+    }
+    playerConfigInflight = (async () => {
+      try {
+        const config = await fetchSpotifyPlayerConfig();
+        playerConfigRefreshedAt = Date.now();
+        const streamingScope = config.hasStreamingScope !== false;
+        writeStoredPlayerConfig(config.premium, streamingScope);
+        set({
+          premiumAvailable: config.premium,
+          streamingScopeAvailable: streamingScope,
+          playerNotice: spotifyPlayerNotice(config),
+        });
+        if (config.premium && config.hasStreamingScope !== false) warmSpotifyWebPlayer(true);
+      } catch {
+        set({ premiumAvailable: false, streamingScopeAvailable: false });
+      }
+    })();
     try {
-      const config = await fetchSpotifyPlayerConfig();
-      set({
-        premiumAvailable: config.premium,
-        streamingScopeAvailable: config.hasStreamingScope !== false,
-        playerNotice: spotifyPlayerNotice(config),
-      });
-      if (config.premium && config.hasStreamingScope !== false) warmSpotifyWebPlayer(true);
-    } catch {
-      set({ premiumAvailable: false, streamingScopeAvailable: false });
+      await playerConfigInflight;
+    } finally {
+      playerConfigInflight = null;
     }
   },
 
@@ -411,7 +504,7 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
         pausePreviewAudio();
       }
       set({ playing: false });
-      return;
+      return true;
     }
 
     if (!skipHistory && state.currentTrack && state.playing && !tracksEqual(state.currentTrack, track)) {
@@ -421,9 +514,10 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
       }));
     }
 
-    await startPlayback(track, restart);
+    const ok = await startPlayback(track, restart);
     recordHallDjPlay(track);
     set({ lastPlayedTrack: track });
+    return ok;
   },
 
   addToQueue: (track) => {

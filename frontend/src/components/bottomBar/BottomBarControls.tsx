@@ -50,6 +50,8 @@ export function BottomBarCapsule({ children }: { children: React.ReactNode }) {
 export function BottomBarButton({
   label,
   onClick,
+  onPointerEnter,
+  onFocus,
   disabled,
   active,
   danger,
@@ -62,6 +64,8 @@ export function BottomBarButton({
 }: {
   label: string;
   onClick?: () => void;
+  onPointerEnter?: () => void;
+  onFocus?: () => void;
   disabled?: boolean;
   active?: boolean;
   danger?: boolean;
@@ -87,6 +91,8 @@ export function BottomBarButton({
         className,
       )}
       onClick={onClick}
+      onPointerEnter={onPointerEnter}
+      onFocus={onFocus}
       disabled={disabled}
       aria-label={label}
       aria-pressed={active}

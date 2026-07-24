@@ -1,12 +1,11 @@
 import clsx from "clsx";
-import { Check, Trash2, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocalAiStroke, useRemoteAiStroke } from "../../hooks/useAiBlockStroke";
 import { isDraftOpenChannel, type OpenVoiceChannel } from "../../lib/calls";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
-import CallBlockCard from "./CallBlockCard";
-import DeleteVoiceChannelOverlay from "./DeleteVoiceChannelOverlay";
+import CallBlockCard, { CALL_BLOCK_AVATAR_SLOTS } from "./CallBlockCard";
 
 interface OpenVoiceChannelBlockProps {
   index?: number;
@@ -22,8 +21,6 @@ export default function OpenVoiceChannelBlock({ index = 0, channel }: OpenVoiceC
   const removeOpenChannel = useCallsStore((s) => s.removeOpenChannel);
 
   const [draftName, setDraftName] = useState("");
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [confirmText, setConfirmText] = useState("");
   const draftInputRef = useRef<HTMLInputElement>(null);
 
   const isDraft = isDraftOpenChannel(channel);
@@ -46,16 +43,6 @@ export default function OpenVoiceChannelBlock({ index = 0, channel }: OpenVoiceC
     const timer = window.setTimeout(() => draftInputRef.current?.focus(), 0);
     return () => window.clearTimeout(timer);
   }, [isDraft]);
-
-  const resetDelete = () => {
-    setConfirmingDelete(false);
-    setConfirmText("");
-  };
-
-  const handleDeleteConfirm = () => {
-    removeOpenChannel(activeRoomId, channel.id);
-    resetDelete();
-  };
 
   const handleDraftSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -95,13 +82,15 @@ export default function OpenVoiceChannelBlock({ index = 0, channel }: OpenVoiceC
               maxLength={48}
               aria-label="Nom du salon vocal"
               onKeyDown={(event) => {
-                if (event.key === "Escape") cancelDraft();
+                if (event.key !== "Escape") return;
+                cancelDraft();
               }}
             />
           </form>
         }
         participants={channel.participants}
-        participantLayout="tiles"
+        participantLayout="avatars"
+        fixedAvatarSlots={CALL_BLOCK_AVATAR_SLOTS}
         showHandRaise={false}
         showActivity={false}
         trailing={
@@ -134,56 +123,31 @@ export default function OpenVoiceChannelBlock({ index = 0, channel }: OpenVoiceC
   }
 
   return (
-    <>
-      <CallBlockCard
-        className={clsx(
-          "call-block",
-          "call-block--cascade",
-          "call-block--center-slot",
-          "call-block--open-channel",
-          canJoin && "call-block--clickable",
-          isHere && "call-block--local",
-          hasRemoteParticipants && "call-block--connected",
-        )}
-        style={{ animationDelay: `${index * 20}ms` }}
-        title={channel.name}
-        participants={channel.participants}
-        participantLayout="tiles"
-        showHandRaise
-        showActivity={hasRemoteParticipants}
-        activityUserId={remoteParticipant?.id ?? "local"}
-        activityIsLocal={false}
-        aiStroke={aiStroke}
-        trailing={
-          <button
-            type="button"
-            className="call-block__kick"
-            onClick={(event) => {
-              event.stopPropagation();
-              setConfirmingDelete(true);
-            }}
-            aria-label={`Supprimer ${channel.name}`}
-            title="Supprimer le salon"
-          >
-            <Trash2 size={12} strokeWidth={2.25} aria-hidden />
-          </button>
-        }
-        onMainClick={
-          canJoin ? () => void joinOpenChannel(activeRoomId, channel.id) : undefined
-        }
-        mainDisabled={!canJoin}
-        mainAriaLabel={`${statusLabel} — ${channel.name}`}
-      />
-
-      {confirmingDelete && (
-        <DeleteVoiceChannelOverlay
-          channelName={channel.name}
-          confirmText={confirmText}
-          onConfirmTextChange={setConfirmText}
-          onConfirm={handleDeleteConfirm}
-          onCancel={resetDelete}
-        />
+    <CallBlockCard
+      className={clsx(
+        "call-block",
+        "call-block--cascade",
+        "call-block--center-slot",
+        "call-block--open-channel",
+        canJoin && "call-block--clickable",
+        isHere && "call-block--local",
+        hasRemoteParticipants && "call-block--connected",
       )}
-    </>
+      style={{ animationDelay: `${index * 20}ms` }}
+      title={channel.name}
+      participants={channel.participants}
+      participantLayout="avatars"
+      fixedAvatarSlots={CALL_BLOCK_AVATAR_SLOTS}
+      showHandRaise
+      showActivity={hasRemoteParticipants}
+      activityUserId={remoteParticipant?.id ?? "local"}
+      activityIsLocal={false}
+      aiStroke={aiStroke}
+      onMainClick={
+        canJoin ? () => void joinOpenChannel(activeRoomId, channel.id) : undefined
+      }
+      mainDisabled={!canJoin}
+      mainAriaLabel={`${statusLabel} — ${channel.name}`}
+    />
   );
 }

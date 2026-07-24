@@ -7,9 +7,54 @@ export interface BillingConfig {
   onDemandAvailable: boolean;
   billingManaged: boolean;
   proPriceLabel: string;
+  proPriceUsdCents?: number;
   enterpriseEnabled: boolean;
   enterpriseMinMembers: number;
   enterpriseSeatPriceLabel: string;
+  enterpriseSeatUnitAmountCents?: number;
+  publishableKey?: string;
+}
+
+export interface LocalizedMoney {
+  currency: string;
+  amountCents: number;
+  amountLabel: string;
+  usdCents: number;
+  usdLabel: string;
+  fxRate: number;
+  converted: boolean;
+  frequencyLabel: string;
+}
+
+export interface ProCheckoutIntent {
+  clientSecret: string;
+  publishableKey: string;
+  subscriptionId: string;
+}
+
+export interface EnterpriseCheckoutIntent {
+  clientSecret: string;
+  publishableKey: string;
+  subscriptionId: string;
+  workspaceId: string;
+  workspaceName: string;
+  seatCount: number;
+  memberCount: number;
+  minSeats: number;
+  seatPriceLabel: string;
+  unitAmountCents: number;
+  totalAmountCents: number;
+  unitAmountLabel: string;
+  totalAmountLabel: string;
+  priceLabel: string;
+}
+
+export interface EnterpriseBillingStatus {
+  workspaceId: string;
+  subscriptionPlan: "free" | "enterprise" | string;
+  billingManaged: boolean;
+  stripeSubscriptionStatus: string | null;
+  seatCount: number;
 }
 
 export interface BillingStatus {
@@ -17,6 +62,7 @@ export interface BillingStatus {
   onDemandUsageEnabled: boolean;
   onDemandLimitUsd?: number | null;
   billingManaged: boolean;
+  stripeSubscriptionStatus: string | null;
 }
 
 export interface ModelRateItem {
@@ -71,6 +117,12 @@ export interface EnterpriseWorkspaceOption {
   minMembers: number;
   eligible: boolean;
   enterpriseActive: boolean;
+  /** Propriétaire = peut booster / gérer le billing ; membre = accès IA partagé seulement. */
+  isOwner?: boolean;
+  /** L'utilisateur a payé les sièges de ce workspace. */
+  paidByMe?: boolean;
+  cancelAtPeriodEnd?: boolean;
+  canCancel?: boolean;
 }
 
 export interface BillingTransaction {
@@ -90,6 +142,7 @@ export interface BillingSummary {
   workspaceName?: string | null;
   nextBillingDate?: string | null;
   cancelAtPeriodEnd: boolean;
+  stripeEnabled: boolean;
   transactions: BillingTransaction[];
 }
 
@@ -214,8 +267,41 @@ export const billingApi = {
     return jsonPost<{ url: string }>("/checkout/pro");
   },
 
+  checkoutProIntent() {
+    return jsonPost<ProCheckoutIntent>("/checkout/pro/intent");
+  },
+
   checkoutEnterprise(workspaceId: string) {
     return jsonPost<{ url: string }>("/checkout/enterprise", { workspaceId });
+  },
+
+  checkoutEnterpriseIntent(workspaceId: string, seatCount: number) {
+    return jsonPost<EnterpriseCheckoutIntent>("/checkout/enterprise/intent", {
+      workspaceId,
+      seatCount,
+    });
+  },
+
+  syncEnterprise(workspaceId: string) {
+    return jsonPost<EnterpriseBillingStatus>("/sync/enterprise", { workspaceId });
+  },
+
+  localizeAmount(opts: {
+    usdCents: number;
+    currency?: string;
+    country?: string | null;
+    locale?: string;
+    frequency?: string;
+  }) {
+    const params = new URLSearchParams({
+      usdCents: String(Math.max(0, Math.round(opts.usdCents))),
+    });
+    if (opts.currency) params.set("currency", opts.currency);
+    if (opts.country) params.set("country", opts.country);
+    if (opts.locale) params.set("locale", opts.locale);
+    if (opts.frequency) params.set("frequency", opts.frequency);
+    // Public endpoint — auth optional (works even if session is warming up).
+    return jsonGet<LocalizedMoney>(`/localize?${params.toString()}`, false);
   },
 
   enterprisePortal(workspaceId: string) {

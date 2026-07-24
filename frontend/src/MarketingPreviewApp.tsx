@@ -4,16 +4,17 @@ import AppChromeRow from "./components/AppChromeRow";
 import BottomHeader from "./components/BottomHeader";
 import CallsView from "./components/calls/CallsView";
 import ChatPanelShell from "./components/ChatPanelShell";
+import { useAccentColor } from "./hooks/useAccentColor";
 import { useColorTheme } from "./hooks/useColorTheme";
-import { useMarketingPreviewCycle } from "./hooks/useMarketingPreviewCycle";
 import { useStore } from "./store/useStore";
 
 export default function MarketingPreviewApp() {
   useColorTheme();
-  useMarketingPreviewCycle();
+  useAccentColor();
 
   const chatPanelOpen = useStore((s) => s.chatPanelOpen);
   const sidePanelSide = useStore((s) => s.sidePanelSide);
+  const panelOnLeft = sidePanelSide === "left";
 
   const layoutStyle = {
     "--app-chat-col": chatPanelOpen ? "var(--forma-chat-panel-width)" : "0px",
@@ -25,8 +26,7 @@ export default function MarketingPreviewApp() {
         className={clsx(
           "app-layout",
           chatPanelOpen && "app-layout--chat-open",
-          "app-layout--panel-right",
-          sidePanelSide === "left" && "app-layout--panel-left",
+          panelOnLeft ? "app-layout--panel-left" : "app-layout--panel-right",
         )}
         style={layoutStyle}
       >

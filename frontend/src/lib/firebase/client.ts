@@ -182,6 +182,7 @@ export function watchAuthState(onChange: (user: User | null) => void): () => voi
 }
 
 export async function getIdToken(forceRefresh = false): Promise<string | null> {
+  await auth.authStateReady();
   const user = auth.currentUser;
   if (!user) return null;
   return user.getIdToken(forceRefresh);

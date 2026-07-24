@@ -44,6 +44,7 @@ import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
 import { useHallDjStore } from "../store/useHallDjStore";
 import { isMarketingPreview } from "../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
+import { warmSpotifyWebPlayer, primeSpotifyWebAudioUnlock } from "../lib/spotifyWebPlayback";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
 import HallDjDiscoIcon from "./bottomBar/HallDjDiscoIcon";
 
@@ -153,6 +154,7 @@ export default function BottomHeader() {
   const stopSpotify = useSpotifyPlayerStore((s) => s.stop);
   const spotifyCurrentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
   const spotifyPlaying = useSpotifyPlayerStore((s) => s.playing);
+  const spotifyPlaybackMode = useSpotifyPlayerStore((s) => s.playbackMode);
   const queueAddFlashAt = useSpotifyPlayerStore((s) => s.queueAddFlashAt);
   const hallDjLoading = useHallDjStore((s) => s.loading);
   const hallDjActive = useHallDjStore((s) => s.active);
@@ -178,10 +180,11 @@ export default function BottomHeader() {
     return () => window.clearTimeout(timer);
   }, [queueAddFlashAt]);
 
-  useEffect(() => {
-    if (!spotifyConnected) return;
+  const primeSpotifyOnIntent = () => {
+    if (!spotifyConnected || connectingId === "spotify") return;
+    warmSpotifyWebPlayer(true);
     void refreshSpotifyPlayerConfig();
-  }, [spotifyConnected, refreshSpotifyPlayerConfig]);
+  };
 
   useEffect(() => {
     for (const item of notificationItems) {
@@ -227,7 +230,8 @@ export default function BottomHeader() {
   const spotifyStopLocked = isMarketingPreview() && spotifyPlaybackActive;
   const spotifyIconShimmerClass = queueShimmer ? "bottom-bar-btn__icon-shimmer" : undefined;
   const spotifyPulseLevel = useSpotifyAudioPulse();
-  const spotifyPulseActive = spotifyPlaybackActive && spotifyPlaying;
+  const spotifyPulseActive =
+    spotifyPlaybackActive && (spotifyPlaying || spotifyPlaybackMode !== null);
   const footerPulseStyle = spotifyPulseActive
     ? ({
         "--spotify-pulse": String(spotifyPulseLevel * 0.22),
@@ -304,6 +308,8 @@ export default function BottomHeader() {
               ? "Chanson suivante"
               : "Démarrer le Hall DJ"
       }
+      onPointerEnter={primeSpotifyOnIntent}
+      onFocus={primeSpotifyOnIntent}
       onClick={() => {
         if (!spotifyConnected) {
           void connect("spotify");
@@ -319,6 +325,7 @@ export default function BottomHeader() {
           });
           return;
         }
+        primeSpotifyWebAudioUnlock();
         void startHallDj();
       }}
       disabled={showHallDjLoading || connectingId === "spotify"}

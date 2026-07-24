@@ -1,5 +1,5 @@
 :root {
-  --bg: #0a0a0a;
+  --bg: #000000;
   --surface: #161616;
   --surface-elevated: #1e1e1e;
   --border: rgb(255 255 255 / 0.08);
@@ -10,15 +10,13 @@
   --shadow: 0 24px 80px -32px rgb(0 0 0 / 0.75);
   --radius: 0.625rem;
   --nav-height: 64px;
-  --footer-bg: #141414;
+  --footer-bg: #000000;
   --page-gutter: clamp(1rem, 8vw, 150px);
   --font: "SF Pro Text", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   --footer-control-bg: rgb(255 255 255 / 0.06);
   --footer-control-active: rgb(255 255 255 / 0.12);
   --footer-control-hover: rgb(255 255 255 / 0.08);
-  --page-background:
-    radial-gradient(ellipse 90% 60% at 50% -10%, rgb(255 255 255 / 0.06), transparent 70%),
-    var(--bg);
+  --page-background: #000000;
 }
 
 *,
@@ -2541,7 +2539,7 @@ body.resources-body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 7.5rem;
+    max-width: 11rem;
   }
 
   .hero {
@@ -2594,7 +2592,7 @@ body.resources-body {
 
 @media (max-width: 380px) {
   .nav__cta span {
-    max-width: 5.25rem;
+    max-width: 9.5rem;
   }
 
   .nav__cta svg {
@@ -2773,6 +2771,206 @@ body.resources-body {
 }
 
 /* ---------- Home (static landing v2) ---------- */
+
+/* Compact landing: same top hero as `/`, locked to the viewport (no scroll). */
+html.landing-locked-root,
+html.landing-locked-root body.landing-locked,
+body.landing-locked {
+  height: 100%;
+  max-height: 100dvh;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+html.landing-locked-root {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+body.landing-locked {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+body.landing-locked .nav {
+  position: relative;
+  z-index: 30;
+  flex-shrink: 0;
+}
+
+body.landing-locked .home-main {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* Compact: fit 1680×940 dashboard in the remaining viewport; text overlays middle-left. */
+body.landing-locked .home-main .hero {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 2.35rem var(--page-gutter) 0 !important;
+  overflow: hidden !important;
+}
+
+body.landing-locked .home-main .hero__shots {
+  position: relative !important;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0 !important;
+  display: flex;
+  align-items: flex-start;
+  overflow: hidden !important;
+  pointer-events: none;
+}
+
+body.landing-locked .hero__workspaces-section {
+  width: 100% !important;
+  margin-right: 0 !important;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: hidden !important;
+}
+
+body.landing-locked .hero__shot.hero__shot--dashboard {
+  position: relative;
+  flex: 0 0 auto;
+  width: auto;
+  height: auto;
+  min-height: 0 !important;
+  aspect-ratio: 1680 / 940;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Edge stroke: darker bottom-right, fades to clear elsewhere. */
+body.landing-locked .hero__shot.hero__shot--dashboard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    to top left,
+    rgb(90 90 90 / 0.85) 0%,
+    rgb(70 70 70 / 0.35) 32%,
+    rgb(0 0 0 / 0) 68%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+/* Soft left vignette so hero copy stays readable; right side stays clear. */
+body.landing-locked .hero__shot.hero__shot--dashboard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    to right,
+    rgb(0 0 0 / 0.75) 0%,
+    rgb(0 0 0 / 0) 100%
+  );
+}
+
+body.landing-locked .hero__dashboard-preview-frame,
+body.landing-locked .hero__shot-img {
+  pointer-events: none !important;
+}
+
+body.landing-locked .hero__shot-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: left top;
+  display: block;
+}
+
+body.landing-locked .home-main .hero__text {
+  position: absolute !important;
+  top: calc(53% - 24px);
+  left: calc(var(--page-gutter) + 24px);
+  z-index: 5;
+  width: min(34rem, calc(100% - (2 * var(--page-gutter)) - 24px));
+  max-width: none;
+  margin: 0 !important;
+  transform: translateY(-50%);
+  text-align: left;
+  pointer-events: none;
+}
+
+body.landing-locked .home-main .hero__text .btn,
+body.landing-locked .home-main .hero__text a {
+  pointer-events: auto;
+}
+
+body.landing-locked .hero__lead {
+  display: block !important;
+  margin: 0.9rem 0 0;
+  max-width: 28rem;
+  font-size: clamp(0.95rem, 1.6vw, 1.0625rem);
+  line-height: 1.55;
+  color: rgb(245 245 245 / 0.86);
+  text-shadow: 0 2px 24px rgb(0 0 0 / 0.75);
+}
+
+body.landing-locked .hero__title {
+  text-shadow: 0 2px 28px rgb(0 0 0 / 0.75);
+}
+
+body.landing-locked .hero__cta {
+  margin-top: 1.15rem;
+}
+
+@media (max-width: 767px) {
+  body.landing-locked .home-main .hero,
+  body.landing-locked .home-main .hero__shots,
+  body.landing-locked .home-main .hero .hero__workspaces-section {
+    overflow: hidden !important;
+  }
+
+  body.landing-locked .home-main .hero .hero__workspaces-section {
+    width: 100% !important;
+    margin-right: 0 !important;
+  }
+
+  body.landing-locked .hero__shot.hero__shot--dashboard {
+    border-radius: var(--radius);
+  }
+
+  body.landing-locked .home-main .hero__text {
+    width: min(100%, calc(100% - (2 * var(--page-gutter))));
+  }
+}
 
 .home-main {
   flex: 1 0 auto;
@@ -4305,7 +4503,7 @@ body.resources-body {
   margin-top: auto;
   padding-right: var(--page-gutter);
   padding-left: var(--page-gutter);
-  padding-top: clamp(1.25rem, 3vh, 2rem);
+  padding-top: 25px;
   padding-bottom: clamp(2.5rem, 6vh, 3.5rem);
   background-color: var(--footer-bg);
 }

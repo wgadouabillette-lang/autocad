@@ -13,7 +13,8 @@ import UserAvatar from "../UserAvatar";
 import PresenceActivityButton, { CallBlockMediaStatusIcons } from "./PresenceActivityButton";
 import VoiceParticipantTile from "./VoiceParticipantTile";
 
-export const CALL_BLOCK_AVATAR_SLOTS = 4;
+export const CALL_BLOCK_AVATAR_SLOTS = 5;
+export const CALL_BLOCK_PRIVATE_AVATAR_SLOTS = 2;
 export const CALL_BLOCK_TILE_SLOTS = 2;
 
 interface CallBlockCardProps {
@@ -25,6 +26,8 @@ interface CallBlockCardProps {
   showActivity?: boolean;
   trailing?: ReactNode;
   belowHeader?: ReactNode;
+  /** Remplace la section participants (ex. mini-preview Théâtre). */
+  body?: ReactNode;
   onMainClick?: () => void;
   mainDisabled?: boolean;
   mainAriaLabel?: string;
@@ -32,6 +35,8 @@ interface CallBlockCardProps {
   style?: React.CSSProperties;
   aiStroke?: AiStrokeVariant | null;
   participantLayout?: "avatars" | "tiles" | "theater";
+  /** Si défini, affiche toujours N cercles (vides ou avec pfp), max N participants. */
+  fixedAvatarSlots?: number;
   audienceParticipants?: CallUser[];
   showHandRaise?: boolean;
   standby?: boolean;
@@ -46,6 +51,7 @@ export default function CallBlockCard({
   showActivity = true,
   trailing,
   belowHeader,
+  body,
   onMainClick,
   mainDisabled = false,
   mainAriaLabel,
@@ -53,6 +59,7 @@ export default function CallBlockCard({
   style,
   aiStroke = null,
   participantLayout = "avatars",
+  fixedAvatarSlots,
   audienceParticipants = [],
   showHandRaise = false,
   standby = false,
@@ -71,7 +78,11 @@ export default function CallBlockCard({
   };
 
   const previewTiles = participants.slice(0, CALL_BLOCK_TILE_SLOTS);
-  const avatarParticipants = participants.slice(0, CALL_BLOCK_AVATAR_SLOTS);
+  const avatarSlotCount = fixedAvatarSlots && fixedAvatarSlots > 0 ? fixedAvatarSlots : 0;
+  const avatarParticipants = participants.slice(
+    0,
+    avatarSlotCount > 0 ? avatarSlotCount : CALL_BLOCK_AVATAR_SLOTS,
+  );
   const audiencePreview = audienceParticipants.slice(0, CALL_BLOCK_AVATAR_SLOTS);
   const blockClassName = clsx("forma-capsule", className, ...aiStrokeClasses(aiStroke));
 
@@ -120,6 +131,23 @@ export default function CallBlockCard({
     />
   );
 
+  const renderAvatarRow = (users: CallUser[], fixedSlots?: number) => {
+    if (!fixedSlots) {
+      return users.map((user) => renderAvatar(user));
+    }
+    return Array.from({ length: fixedSlots }, (_, index) => {
+      const user = users[index];
+      if (user) return renderAvatar(user);
+      return (
+        <span
+          key={`empty-avatar-${index}`}
+          className="call-block__avatar call-block__avatar--empty"
+          aria-hidden
+        />
+      );
+    });
+  };
+
   const participantSection =
     participantLayout === "theater" ? (
       <div className="call-block__row call-block__row--theater" aria-label="Participants">
@@ -141,13 +169,16 @@ export default function CallBlockCard({
           "call-block__row",
           participantLayout === "tiles"
             ? "call-block__row--participant-tiles"
-            : "call-block__row--avatars",
+            : clsx(
+                "call-block__row--avatars",
+                avatarSlotCount > 0 && "call-block__row--avatars-fixed",
+              ),
         )}
         aria-label="Participants"
       >
         {participantLayout === "tiles"
           ? previewTiles.map(renderPreviewTile)
-          : avatarParticipants.map((user) => renderAvatar(user))}
+          : renderAvatarRow(avatarParticipants, avatarSlotCount || undefined)}
       </div>
     );
 
@@ -208,7 +239,7 @@ export default function CallBlockCard({
 
             {belowHeader}
 
-            {participantSection}
+            {body ?? participantSection}
           </div>
         </div>
       </div>

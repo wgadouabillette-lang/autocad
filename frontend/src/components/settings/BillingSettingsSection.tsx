@@ -42,13 +42,21 @@ export default function BillingSettingsSection() {
     setCancelBusy(true);
     setActionError(null);
     try {
+      if (summary.stripeEnabled) {
+        await billingApi.cancelSubscription(
+          summary.currentPlan === "enterprise" ? summary.workspaceId : null,
+        );
+        setCancelRequested(true);
+        await reload();
+        return;
+      }
       if (summary.currentPlan === "pro") {
         setSubscriptionPlan("free");
         setCancelRequested(true);
         await reload();
         return;
       }
-      setActionError("L'annulation Entreprise n'est pas disponible pour le moment.");
+      setActionError("L'annulation Entreprise nécessite Stripe.");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Annulation impossible.");
     } finally {

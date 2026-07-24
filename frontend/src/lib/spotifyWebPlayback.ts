@@ -1,8 +1,9 @@
 import { fetchSpotifyPlayerConfig, fetchSpotifyPlayerToken } from "./connectorsApi";
-import { hasSpotifyWebView2Desktop } from "./formaDesktop";
+import { hasFormaDesktop, hasSpotifyWebView2Desktop } from "./formaDesktop";
 
 // #region agent log
 function dbgDj(hypothesisId: string, location: string, message: string, data: Record<string, unknown> = {}) {
+  if (import.meta.env.VITE_FORMA_AGENT_DEBUG !== "1") return;
   fetch("http://127.0.0.1:7941/ingest/bf77dbb7-04a4-446f-817c-db0d19c43744", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9c6d7b" },
@@ -76,6 +77,24 @@ declare global {
 
 const SDK_URL = "https://sdk.scdn.co/spotify-player.js";
 
+let cachedPlayerAccessToken: string | null = null;
+let cachedPlayerAccessTokenAt = 0;
+const PLAYER_ACCESS_TOKEN_TTL_MS = 50 * 60 * 1000;
+
+async function resolveSpotifyPlayerAccessToken(forceRefresh = false): Promise<string> {
+  if (
+    !forceRefresh &&
+    cachedPlayerAccessToken &&
+    Date.now() - cachedPlayerAccessTokenAt < PLAYER_ACCESS_TOKEN_TTL_MS
+  ) {
+    return cachedPlayerAccessToken;
+  }
+  const token = await fetchSpotifyPlayerToken();
+  cachedPlayerAccessToken = token;
+  cachedPlayerAccessTokenAt = Date.now();
+  return token;
+}
+
 let sdkPromise: Promise<void> | null = null;
 let player: SpotifyWebPlayer | null = null;
 let deviceId: string | null = null;
@@ -137,9 +156,9 @@ export function markSpotifyPlaybackStarted(): void {
 }
 
 async function putPlayOnDevice(trackId: string, activeDeviceId: string): Promise<boolean> {
-  const token = await fetchSpotifyPlayerToken();
+  const token = await resolveSpotifyPlayerAccessToken();
   const playController = new AbortController();
-  const playTimeout = window.setTimeout(() => playController.abort(), 15_000);
+  const playTimeout = window.setTimeout(() => playController.abort(), 8_000);
   try {
     const play = await fetch(
       `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(activeDeviceId)}`,
@@ -476,7 +495,7 @@ function loadSpotifySdk(): Promise<void> {
   return sdkPromise;
 }
 
-function waitForDeviceId(timeoutMs = 15_000): Promise<string> {
+function waitForDeviceId(timeoutMs = 6_000): Promise<string> {
   if (deviceId) return Promise.resolve(deviceId);
   if (!player) return Promise.reject(new Error("Lecteur Spotify non initialisé."));
   if (deviceReadyPromise) return deviceReadyPromise;
@@ -523,16 +542,17 @@ function waitForDeviceId(timeoutMs = 15_000): Promise<string> {
   return deviceReadyPromise;
 }
 
-async function ensureDeviceReady(timeoutMs = 15_000): Promise<string | null> {
+async function ensureDeviceReady(timeoutMs?: number): Promise<string | null> {
   if (deviceId) return deviceId;
   if (!player) return null;
+  const budget = timeoutMs ?? (deviceId ? 1_500 : 6_000);
   try {
-    return await waitForDeviceId(timeoutMs);
+    return await waitForDeviceId(budget);
   } catch {
     try {
       const reconnected = await player.connect();
       if (!reconnected) return null;
-      return await waitForDeviceId(Math.min(timeoutMs, 8_000));
+      return await waitForDeviceId(Math.min(budget, 3_000));
     } catch {
       return null;
     }
@@ -548,17 +568,21 @@ export async function ensureSpotifyWebPlayer(options?: { premiumHint?: boolean |
   }
   if (player) {
     if (!premiumAvailable) return null;
-    await ensureDeviceReady();
     return player;
+  }
+  if (options?.premiumHint === true) {
+    premiumAvailable = true;
   }
   if (options?.premiumHint === false) return null;
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
     try {
-      const config = await fetchSpotifyPlayerConfig();
-      premiumAvailable = config.premium;
-      if (!config.premium) return null;
+      if (!premiumAvailable) {
+        const config = await fetchSpotifyPlayerConfig();
+        premiumAvailable = config.premium;
+      }
+      if (!premiumAvailable) return null;
 
       await loadSpotifySdk();
       if (!window.Spotify?.Player) {
@@ -568,7 +592,7 @@ export async function ensureSpotifyWebPlayer(options?: { premiumHint?: boolean |
       player = new window.Spotify.Player({
         name: "Hall Web Player",
         getOAuthToken: (callback) => {
-          void fetchSpotifyPlayerToken()
+          void resolveSpotifyPlayerAccessToken()
             .then((token) => callback(token))
             .catch(() => callback(""));
         },
@@ -600,7 +624,9 @@ export async function ensureSpotifyWebPlayer(options?: { premiumHint?: boolean |
 
       const connected = await player.connect();
       if (!connected) return null;
-      await ensureDeviceReady();
+      // Device "ready" is resolved lazily in playSpotifyFullTrack — do not
+      // block warm/init on it (Electron often needs 5-15 s for Widevine).
+      void ensureDeviceReady().catch(() => undefined);
       return player;
     } catch (err) {
       console.warn("[spotify-web-playback] init failed", err);
@@ -731,6 +757,8 @@ export function resetSpotifyWebPlayer() {
   deviceReadyPromise = null;
   premiumAvailable = false;
   initPromise = null;
+  cachedPlayerAccessToken = null;
+  cachedPlayerAccessTokenAt = 0;
   cachedPositionMs = 0;
   cachedPositionAt = 0;
   cachedDurationMs = 0;

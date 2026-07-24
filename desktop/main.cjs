@@ -31,6 +31,7 @@ const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "forma-cad-dev";
 
 const OAUTH_POPUP_PREFIXES = [
   "https://accounts.google.com/",
+  "https://accounts.spotify.com/",
   "https://www.facebook.com/",
   "https://facebook.com/",
   "https://login.microsoftonline.com/",
@@ -111,6 +112,10 @@ function spawnBackend() {
     FORMA_PORT: String(BACKEND_PORT),
     FORMA_DATA_DIR: dataDir(),
     FIREBASE_PROJECT_ID,
+    // OAuth connecteurs (Spotify, etc.) : callback loopback sur le backend embarqué.
+    FORMA_OAUTH_REDIRECT_BASE: `http://${BACKEND_HOST}:${BACKEND_PORT}`,
+    FORMA_FRONTEND_ORIGIN: `http://${BACKEND_HOST}:${BACKEND_PORT}`,
+    FORMA_FRONTEND_BASE_PATH: "/",
     ...(firebaseCreds ? { GOOGLE_APPLICATION_CREDENTIALS: firebaseCreds } : {}),
     ...(DEV_URL ? {} : { FORMA_STATIC: frontendDist() }),
     PYTHONUNBUFFERED: "1",
@@ -192,6 +197,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 640,
     title: "Hall",
+    icon: path.join(__dirname, "build", "icon.png"),
     backgroundColor: "#121212",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),

@@ -42,6 +42,11 @@
   status = 301
 
 [[redirects]]
+  from = "/compact.html"
+  to = "/compact"
+  status = 301
+
+[[redirects]]
   from = "/auth"
   to = "/auth.html"
   status = 200
@@ -74,6 +79,11 @@
 [[redirects]]
   from = "/subprocessors"
   to = "/subprocessors.html"
+  status = 200
+
+[[redirects]]
+  from = "/compact"
+  to = "/compact.html"
   status = 200
 
 [[headers]]

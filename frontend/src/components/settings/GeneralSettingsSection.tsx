@@ -1,6 +1,7 @@
 import AccountSettingsSection from "./AccountSettingsSection";
 import AccentColorSettingsSection from "./AccentColorSettingsSection";
 import CalendarWorkingHoursSettingsSection from "./CalendarWorkingHoursSettingsSection";
+import DeleteAccountSettingsSection from "./DeleteAccountSettingsSection";
 
 export default function GeneralSettingsSection() {
   return (
@@ -9,6 +10,8 @@ export default function GeneralSettingsSection() {
       <div className="settings-field-list__divider" role="presentation" />
       <CalendarWorkingHoursSettingsSection />
       <AccentColorSettingsSection />
+      <div className="settings-field-list__divider" role="presentation" />
+      <DeleteAccountSettingsSection />
     </div>
   );
 }

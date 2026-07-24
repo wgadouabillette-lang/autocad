@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import {
+  isMarketingPreview,
+  MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC,
+} from "../lib/marketingPreview";
 import { getSpotifyPlaybackPositionSec } from "../lib/spotifyWebPlayback";
 import { getSpotifyPreviewAudioElement, useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 
@@ -13,9 +17,16 @@ export function useSpotifyTrackElapsed(): string {
   const playing = useSpotifyPlayerStore((s) => s.playing);
   const playbackMode = useSpotifyPlayerStore((s) => s.playbackMode);
   const currentTrackId = useSpotifyPlayerStore((s) => s.currentTrack?.id);
-  const [elapsedSec, setElapsedSec] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState(
+    isMarketingPreview() ? MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC : 0,
+  );
 
   useEffect(() => {
+    if (isMarketingPreview()) {
+      setElapsedSec(MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC);
+      return;
+    }
+
     if (!currentTrackId) {
       setElapsedSec(0);
       return;

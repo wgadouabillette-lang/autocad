@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import random
 import re
+import time
 from datetime import datetime, timezone
 from email import encoders
 from email.mime.base import MIMEBase
@@ -22,6 +23,9 @@ from app.core.auth_deps import require_firebase_user
 from app.core.firebase import FirebaseUser, firestore_available
 
 router = APIRouter(prefix="/api/connectors", tags=["connectors"])
+
+_SPOTIFY_ME_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_SPOTIFY_ME_TTL_SEC = 300.0
 
 GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
 MAX_GMAIL_ATTACHMENT_BYTES = 10 * 1024 * 1024
@@ -185,15 +189,23 @@ _SPOTIFY_GENRE_ARTIST_SEEDS: dict[str, tuple[str, ...]] = {
 }
 
 
+# Spotify Feb 2026: search limit max dropped from 50 → 10.
+_SPOTIFY_SEARCH_LIMIT_MAX = 10
+
+
 async def _spotify_search_tracks(
     token: str,
     query: str,
     *,
-    limit: int = 12,
+    limit: int = 8,
+    raise_on_error: bool = True,
 ) -> list[dict[str, Any]]:
     trimmed = query.strip()
     if not trimmed:
         return []
+    # Do not send market=from_token: country was removed from /me (Feb 2026) and
+    # that special value now fails or yields empty results. With a user token,
+    # Spotify still applies the account's market when market is omitted.
     async with httpx.AsyncClient(timeout=25) as client:
         search_r = await client.get(
             "https://api.spotify.com/v1/search",
@@ -201,11 +213,15 @@ async def _spotify_search_tracks(
             params={
                 "q": trimmed,
                 "type": "track",
-                "limit": max(1, min(limit, 20)),
-                "market": "from_token",
+                "limit": max(1, min(limit, _SPOTIFY_SEARCH_LIMIT_MAX)),
             },
         )
     if search_r.status_code != 200:
+        if raise_on_error:
+            raise HTTPException(
+                search_r.status_code,
+                _spotify_api_error_message(search_r.status_code, search_r.text),
+            )
         return []
     items = search_r.json().get("tracks", {}).get("items") or []
     return [_spotify_track_card(item) for item in items if isinstance(item, dict)]
@@ -259,7 +275,14 @@ async def _spotify_discovery_tracks(
         if artists and isinstance(artists[0], dict):
             artist_name = artists[0].get("name")
         if isinstance(artist_name, str) and artist_name.strip():
-            absorb(await _spotify_search_tracks(token, f'artist:"{artist_name.strip()}"', limit=6))
+            absorb(
+                await _spotify_search_tracks(
+                    token,
+                    f'artist:"{artist_name.strip()}"',
+                    limit=6,
+                    raise_on_error=False,
+                )
+            )
 
     async with httpx.AsyncClient(timeout=25) as client:
         top_artists_r = await client.get(
@@ -275,7 +298,14 @@ async def _spotify_discovery_tracks(
                 continue
             name = artist.get("name")
             if isinstance(name, str) and name.strip():
-                absorb(await _spotify_search_tracks(token, f'artist:"{name.strip()}"', limit=4))
+                absorb(
+                    await _spotify_search_tracks(
+                        token,
+                        f'artist:"{name.strip()}"',
+                        limit=4,
+                        raise_on_error=False,
+                    )
+                )
 
     async with httpx.AsyncClient(timeout=25) as client:
         top_tracks_r = await client.get(
@@ -294,11 +324,25 @@ async def _spotify_discovery_tracks(
         for artist_name in artist_pool[:3]:
             if len(collected) >= limit:
                 break
-            absorb(await _spotify_search_tracks(token, f'artist:"{artist_name}"', limit=5))
+            absorb(
+                await _spotify_search_tracks(
+                    token,
+                    f'artist:"{artist_name}"',
+                    limit=5,
+                    raise_on_error=False,
+                )
+            )
 
     if len(collected) < limit:
         year = datetime.now(timezone.utc).year
-        absorb(await _spotify_search_tracks(token, f"year:{year}", limit=limit))
+        absorb(
+            await _spotify_search_tracks(
+                token,
+                f"year:{year}",
+                limit=min(limit, _SPOTIFY_SEARCH_LIMIT_MAX),
+                raise_on_error=False,
+            )
+        )
 
     return collected[:limit]
 
@@ -506,8 +550,12 @@ async def spotify_me(user: FirebaseUser = Depends(require_firebase_user)):
             headers={"Authorization": f"Bearer {token}"},
         )
     if r.status_code != 200:
-        raise HTTPException(r.status_code, r.text or "Spotify API error.")
+        raise HTTPException(
+            r.status_code,
+            _spotify_api_error_message(r.status_code, r.text),
+        )
     data = r.json()
+    # email / product / country removed from /me in Spotify Feb 2026 API.
     return {
         "id": data.get("id"),
         "email": data.get("email"),
@@ -528,11 +576,35 @@ async def spotify_player_config(user: FirebaseUser = Depends(require_firebase_us
     client_id = os.getenv("SPOTIFY_CLIENT_ID", "").strip()
     if not client_id:
         raise HTTPException(400, "Spotify OAuth non configuré sur le backend.")
-    await _require_token(user.uid, "spotify")
+    token = await _require_token(user.uid, "spotify")
     entry = get_connection(user.uid, "spotify")
     has_streaming_scope = _spotify_has_streaming_scope(entry)
-    me = await spotify_me(user)
-    premium = me.get("product") == "premium"
+
+    now = time.time()
+    cached = _SPOTIFY_ME_CACHE.get(user.uid)
+    if cached and now - cached[0] < _SPOTIFY_ME_TTL_SEC:
+        me = cached[1]
+    else:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(
+                "https://api.spotify.com/v1/me",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        if r.status_code != 200:
+            raise HTTPException(
+                r.status_code,
+                _spotify_api_error_message(r.status_code, r.text),
+            )
+        me = r.json()
+        _SPOTIFY_ME_CACHE[user.uid] = (now, me)
+
+    # product was removed from /me (Feb 2026). When absent, treat streaming scope
+    # as Premium intent — Web Playback SDK still enforces Premium at play time.
+    product = me.get("product")
+    if isinstance(product, str) and product.strip():
+        premium = product.strip().lower() == "premium"
+    else:
+        premium = has_streaming_scope
     return {
         "clientId": client_id,
         "premium": premium,
@@ -574,7 +646,7 @@ def _spotify_track_card(track: dict[str, Any]) -> dict[str, Any]:
 @router.get("/spotify/search")
 async def spotify_search(
     q: str = Query(min_length=1, max_length=200),
-    limit: int = Query(default=8, ge=1, le=20),
+    limit: int = Query(default=8, ge=1, le=10),
     user: FirebaseUser = Depends(require_firebase_user),
 ):
     token = await _require_token(user.uid, "spotify")

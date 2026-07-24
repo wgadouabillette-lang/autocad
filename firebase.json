@@ -64,7 +64,8 @@
       { "source": "/ressources", "destination": "/ressources.html" },
       { "source": "/terms", "destination": "/terms.html" },
       { "source": "/privacy", "destination": "/privacy.html" },
-      { "source": "/subprocessors", "destination": "/subprocessors.html" }
+      { "source": "/subprocessors", "destination": "/subprocessors.html" },
+      { "source": "/compact", "destination": "/compact.html" }
     ],
     "redirects": [
       { "source": "/index.html", "destination": "/", "type": 301 },
@@ -75,6 +76,7 @@
       { "source": "/terms.html", "destination": "/terms", "type": 301 },
       { "source": "/privacy.html", "destination": "/privacy", "type": 301 },
       { "source": "/subprocessors.html", "destination": "/subprocessors", "type": 301 },
+      { "source": "/compact.html", "destination": "/compact", "type": 301 },
       {
         "source": "/downloads/Hall-windows.exe",
         "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-windows.exe?alt=media",

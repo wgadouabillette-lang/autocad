@@ -24,6 +24,8 @@ import { useWorkspaceOpenVoiceChannels } from "./hooks/useWorkspaceOpenVoiceChan
 import JoinKnockOverlay from "./components/calls/JoinKnockOverlay";
 import WorkspaceOverlay from "./components/workspace/WorkspaceOverlay";
 import WorkspaceQuickMenu from "./components/workspace/WorkspaceQuickMenu";
+import EnterpriseCheckoutOverlay from "./components/billing/EnterpriseCheckoutOverlay";
+import ProCheckoutOverlay from "./components/billing/ProCheckoutOverlay";
 import { useColorTheme } from "./hooks/useColorTheme";
 import { useAccentColor } from "./hooks/useAccentColor";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
@@ -46,6 +48,7 @@ import { tryFinishConnectorOAuthFromStorage } from "./lib/connectorOAuthResult";
 import { usePeopleStore } from "./store/usePeopleStore";
 import { useWorkspacePresenceStore } from "./store/useWorkspacePresenceStore";
 import { LOCAL_USER_ID } from "./lib/workspaces";
+import { billingApi } from "./lib/billingApi";
 import { debugLog } from "./lib/debugLog";
 
 let appRenderCount = 0;
@@ -62,7 +65,7 @@ export default function App() {
     );
   }
   // #endregion
-  const [bootStatus, setBootStatus] = useState<AppBootStatus>("loading");
+  const [bootStatus, setBootStatus] = useState<AppBootStatus>("ready");
   const isMobileLayout = useMobileLayout();
 
   useEffect(() => {
@@ -245,11 +248,24 @@ export default function App() {
   useEffect(() => {
     if (bootStatus !== "ready" || !isAuthenticated) return;
     const params = new URLSearchParams(window.location.search);
+    const checkout = params.get("checkout");
     const tab = params.get("tab");
-    if (!tab) return;
+    if (checkout !== "success" && checkout !== "cancel" && !tab) return;
 
-    useStore.getState().openSettingsTab(normalizeSettingsTab(tab));
+    useStore.getState().openSettingsTab(normalizeSettingsTab(tab ?? "usage"));
 
+    if (checkout === "success") {
+      void billingApi.sync().catch((err) => {
+        debugLog(
+          "App.tsx:checkout",
+          "post-checkout sync failed",
+          { error: err instanceof Error ? err.message : String(err) },
+          "billing",
+        );
+      });
+    }
+
+    params.delete("checkout");
     params.delete("tab");
     const next = params.toString();
     const url = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;
@@ -359,6 +375,8 @@ export default function App() {
       <VoiceRemoteAudioSink />
       <JoinKnockOverlay />
       <WorkspaceOverlay />
+      <ProCheckoutOverlay />
+      <EnterpriseCheckoutOverlay />
       <WorkspaceQuickMenu />
       {workspaceSwitching ? (
         <AppLoadingScreen connectionError={false} label="Loading workspace…" />

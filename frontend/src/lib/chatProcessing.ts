@@ -1,4 +1,4 @@
-export const CHAT_MIN_PROCESSING_MS = 2500;
+export const CHAT_MIN_PROCESSING_MS = 320;
 
 export function waitMinChatProcessing(
   startedAt: number,

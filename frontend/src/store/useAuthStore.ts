@@ -14,6 +14,10 @@ import {
 import { formatAuthError } from "../lib/firebase/authErrors";
 import { syncDevSubscriptionToFirestore } from "../lib/firebase/subscriptionSync";
 import {
+  effectiveOnDemandUsage,
+  effectiveSubscriptionPlan,
+} from "../lib/subscriptionPlans";
+import {
   loadChatSessionSummaries,
   loadLatestProjectSnapshot,
   loadUserProfile,
@@ -125,11 +129,16 @@ function resolveProfileSidePanelSide(profile: UserProfileDoc): SidePanelSide {
 
 function applyLocalProfile(profile: UserProfileDoc) {
   const sidePanelSide = resolveProfileSidePanelSide(profile);
-  // Stripe désactivé — on conserve le toggle local plutôt que d'écraser depuis Firestore.
   const currentState = useStore.getState();
-  const subscriptionPlan = currentState.subscriptionPlan;
-  const billingManaged = currentState.billingManaged;
-  const onDemandUsageEnabled = currentState.onDemandUsageEnabled;
+  // Webhook Stripe (Admin SDK) → billingManaged sur le profil ; sinon conserve le toggle local.
+  const cloudManaged = profile.billingManaged === true;
+  const subscriptionPlan = cloudManaged
+    ? effectiveSubscriptionPlan(profile.subscriptionPlan, true)
+    : currentState.subscriptionPlan;
+  const billingManaged = cloudManaged ? true : currentState.billingManaged;
+  const onDemandUsageEnabled = cloudManaged
+    ? effectiveOnDemandUsage(subscriptionPlan, profile.onDemandUsageEnabled, true)
+    : currentState.onDemandUsageEnabled;
   const calendarHours = resolveCalendarWorkingHours(
     profile.calendarWorkStartMinutes ?? currentState.calendarWorkStartMinutes,
     profile.calendarWorkEndMinutes ?? currentState.calendarWorkEndMinutes,
@@ -150,6 +159,9 @@ function applyLocalProfile(profile: UserProfileDoc) {
     sidePanelSide,
     colorTheme: "dark",
     accentColor: normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
+    subscriptionPlan,
+    billingManaged,
+    onDemandUsageEnabled,
     agentChatInstructions: profile.agentChatInstructions ?? "",
     agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
@@ -199,8 +211,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
 
 function profileFromStore(user: User): UserProfileDoc {
   const state = useStore.getState();
-  // Stripe désactivé: on n'envoie plus `subscriptionPlan`/`onDemandUsageEnabled` à Firestore
-  // (les rules ne laissent passer que le SDK Admin via webhook). Le toggle vit en localStorage.
+  // Billing (subscriptionPlan / billingManaged) : écrit uniquement via Admin SDK (webhook Stripe).
   const profile: UserProfileDoc = {
     email: user.email?.trim().toLowerCase() ?? state.userEmail,
     photoURL: state.photoURL ?? user.photoURL ?? undefined,

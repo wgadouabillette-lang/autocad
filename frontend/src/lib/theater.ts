@@ -160,6 +160,13 @@ export const THEATER_BENCH_SEAT_COUNT = 5;
 export const THEATER_BENCH_COUNT = THEATER_BENCH_ROW_COUNT * THEATER_BENCH_COLUMN_COUNT;
 export const THEATER_AUDIENCE_SEAT_COUNT = THEATER_BENCH_COUNT * THEATER_BENCH_SEAT_COUNT;
 
+/** Mini-preview du block Théâtre (grille 2×2). */
+export const THEATER_PREVIEW_BENCH_ROWS = 2;
+export const THEATER_PREVIEW_BENCH_COLS = 2;
+export const THEATER_PREVIEW_BENCH_COUNT =
+  THEATER_PREVIEW_BENCH_ROWS * THEATER_PREVIEW_BENCH_COLS;
+export const THEATER_PREVIEW_SPEAKER_SLOTS = 2;
+
 export function firstFreeAudienceSeatIndex(
   seats: Array<TheaterParticipant | null>,
 ): number | null {
@@ -207,6 +214,13 @@ export function theaterAudienceBenchesFromSeats(
     const start = benchIndex * THEATER_BENCH_SEAT_COUNT;
     return seats.slice(start, start + THEATER_BENCH_SEAT_COUNT);
   });
+}
+
+/** Premiers bancs pour la mini-preview 2×2 du block Théâtre. */
+export function theaterPreviewBenches(
+  seats: Array<TheaterParticipant | null>,
+): Array<Array<TheaterParticipant | null>> {
+  return theaterAudienceBenchesFromSeats(seats).slice(0, THEATER_PREVIEW_BENCH_COUNT);
 }
 
 export function assignAudienceSeat(

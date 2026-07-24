@@ -1,24 +1,22 @@
-import { useStore } from "../../store/useStore";
+import { ArrowUpRight } from "lucide-react";
+import { useBilling } from "../../hooks/useBilling";
 
 interface UpgradeProButtonProps {
   label: string;
 }
 
 export default function UpgradeProButton({ label }: UpgradeProButtonProps) {
-  const subscriptionPlan = useStore((s) => s.subscriptionPlan);
-  const billingManaged = useStore((s) => s.billingManaged);
-  const setSubscriptionPlan = useStore((s) => s.setSubscriptionPlan);
-  const isPro = subscriptionPlan === "pro" && billingManaged;
-
-  if (isPro) return null;
+  const { checkoutPro, loading } = useBilling();
 
   return (
     <button
       type="button"
-      onClick={() => setSubscriptionPlan("pro")}
+      onClick={() => void checkoutPro()}
+      disabled={loading}
       className="assistant-markdown__upgrade-button"
     >
       <span>{label}</span>
+      <ArrowUpRight size={12} aria-hidden />
     </button>
   );
 }

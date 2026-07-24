@@ -14,7 +14,7 @@ import { useUserAiStroke } from "../../hooks/useAiBlockStroke";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
-import CallBlockCard from "./CallBlockCard";
+import CallBlockCard, { CALL_BLOCK_PRIVATE_AVATAR_SLOTS } from "./CallBlockCard";
 
 interface CallBlockProps {
   index?: number;
@@ -90,6 +90,7 @@ export default function CallBlock({
       className={clsx(
         "call-block",
         "call-block--cascade",
+        "call-block--private",
         layout === "side" && "call-block--side",
         isLocal && blockActive && "call-block--local",
         isLocal && !blockActive && "call-block--idle",
@@ -103,8 +104,11 @@ export default function CallBlock({
       style={{ animationDelay: `${index * 20}ms` }}
       title={blockHeaderTitle(block)}
       participants={block.participants}
+      participantLayout="avatars"
+      fixedAvatarSlots={CALL_BLOCK_PRIVATE_AVATAR_SLOTS}
       activityUserId={activityUserId}
       activityIsLocal={activityIsLocal}
+      showActivity={!(isLocal && inOpenChannelOnly)}
       aiStroke={aiStroke}
       standby={isOffline}
       trailing={

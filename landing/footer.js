@@ -1,15 +1,5 @@
 // Shared footer injected on marketing pages via #site-footer placeholder.
 (function () {
-  function resolveAppHref() {
-    var hostname = window.location.hostname;
-    var port = window.location.port;
-    var isLocal = hostname === "127.0.0.1" || hostname === "localhost";
-    if (isLocal && (port === "5190" || port === "5191" || port === "5192" || port === "5193")) {
-      return "http://localhost:5173/app/";
-    }
-    return "/app/";
-  }
-
   function t(key, vars) {
     var locale = window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en";
     if (window.HallLandingI18n) return window.HallLandingI18n.t(key, locale, vars);
@@ -116,23 +106,19 @@
   }
 
   function buildFooterHtml() {
-    var appHref = resolveAppHref();
     var year = String(new Date().getFullYear());
+    var download =
+      typeof window.HallDownloadTarget === "function"
+        ? window.HallDownloadTarget()
+        : {
+            href: "/downloads/Hall-mac.dmg",
+            labelKey: "try.downloadMac",
+          };
     var columns = [
       column(
         "footer.product",
-        link(appHref, "footer.openApp") +
-          link("/tarifs", "footer.pricing") +
-          link(
-            (window.HallDownloadUrls && window.HallDownloadUrls.mac) ||
-              "/downloads/Hall-mac.dmg",
-            "footer.downloadMac",
-          ) +
-          link(
-            (window.HallDownloadUrls && window.HallDownloadUrls.windows) ||
-              "/downloads/Hall-windows.exe",
-            "footer.downloadWin",
-          ),
+        link(download.href, download.labelKey) +
+          link("/tarifs", "footer.pricing"),
       ),
       column(
         "footer.resources",

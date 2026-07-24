@@ -10,6 +10,9 @@ import { ensureFunctionsSecretsLoaded } from "./loadSecrets";
 import "./loadSecrets";
 import { FUNCTIONS_REGION } from "./region";
 
+/** Webhook Stripe (Checkout + abonnements Pro / Entreprise). */
+export { stripeWebhook } from "./billing/stripeWebhook";
+
 initializeApp();
 
 setGlobalOptions({ region: FUNCTIONS_REGION });

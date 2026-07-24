@@ -12,15 +12,61 @@ export interface ConnectorStatus {
 
 const BASE = "/api/connectors";
 
-async function authHeaders(json = false): Promise<HeadersInit> {
+let cachedAuthToken: string | null = null;
+let cachedAuthTokenAt = 0;
+const AUTH_TOKEN_TTL_MS = 4 * 60 * 1000;
+
+async function connectorAuthToken(forceRefresh = false): Promise<string | null> {
+  if (
+    !forceRefresh &&
+    cachedAuthToken &&
+    Date.now() - cachedAuthTokenAt < AUTH_TOKEN_TTL_MS
+  ) {
+    return cachedAuthToken;
+  }
+  const token = await getAuthIdToken(forceRefresh);
+  if (token) {
+    cachedAuthToken = token;
+    cachedAuthTokenAt = Date.now();
+  }
+  return token;
+}
+
+async function authHeaders(opts?: {
+  json?: boolean;
+  forceRefresh?: boolean;
+}): Promise<HeadersInit> {
   const headers: Record<string, string> = {};
-  if (json) headers["Content-Type"] = "application/json";
-  const token = await getAuthIdToken(true);
+  if (opts?.json) headers["Content-Type"] = "application/json";
+  const token = await connectorAuthToken(opts?.forceRefresh ?? false);
   if (!token) {
     throw new Error("Connectez-vous à l'app avant de lier un connecteur.");
   }
   headers.Authorization = `Bearer ${token}`;
   return headers;
+}
+
+async function fetchWithAuth(
+  path: string,
+  init: RequestInit = {},
+  authOpts?: { json?: boolean; forceRefresh?: boolean },
+): Promise<Response> {
+  const buildHeaders = async (forceRefresh: boolean) => ({
+    ...(init.headers as Record<string, string>),
+    ...(await authHeaders({
+      json: authOpts?.json,
+      forceRefresh: forceRefresh || authOpts?.forceRefresh,
+    })),
+  });
+  let r = await fetch(`${BASE}${path}`, { ...init, headers: await buildHeaders(false) });
+  if (r.status === 401) {
+    r = await fetch(`${BASE}${path}`, { ...init, headers: await buildHeaders(true) });
+  }
+  return r;
+}
+
+export function warmConnectorAuth(): void {
+  void connectorAuthToken(false);
 }
 
 async function readError(r: Response): Promise<string> {
@@ -34,7 +80,7 @@ async function readError(r: Response): Promise<string> {
 }
 
 export async function fetchConnectorStatuses(): Promise<ConnectorStatus[]> {
-  const r = await fetch(BASE, { headers: await authHeaders() });
+  const r = await fetchWithAuth("");
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { connectors: ConnectorStatus[] };
   return data.connectors;
@@ -45,17 +91,14 @@ export async function startConnectorOAuth(id: string): Promise<string> {
     return_origin: window.location.origin,
     return_path: import.meta.env.BASE_URL.replace(/\/$/, "") || "/app",
   });
-  const r = await fetch(`${BASE}/${id}/authorize?${params}`, { headers: await authHeaders() });
+  const r = await fetchWithAuth(`/${id}/authorize?${params}`);
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { url: string };
   return data.url;
 }
 
 export async function disconnectConnector(id: string): Promise<void> {
-  const r = await fetch(`${BASE}/${id}`, {
-    method: "DELETE",
-    headers: await authHeaders(),
-  });
+  const r = await fetchWithAuth(`/${id}`, { method: "DELETE" });
   if (!r.ok) throw new Error(await readError(r));
 }
 
@@ -81,9 +124,7 @@ export interface ConnectorPreviewMessage {
 }
 
 export async function fetchGmailPreview(limit = 5): Promise<ConnectorPreviewMessage[]> {
-  const r = await fetch(`${BASE}/gmail/messages?maxResults=${limit}`, {
-    headers: await authHeaders(),
-  });
+  const r = await fetchWithAuth(`/gmail/messages?maxResults=${limit}`);
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { messages?: ConnectorPreviewMessage[] };
   return data.messages ?? [];
@@ -98,7 +139,7 @@ export interface GmailStatus {
 }
 
 export async function fetchGmailStatus(): Promise<GmailStatus> {
-  const r = await fetch(`${BASE}/gmail/status`, { headers: await authHeaders() });
+  const r = await fetchWithAuth("/gmail/status");
   if (!r.ok) throw new Error(await readError(r));
   return (await r.json()) as GmailStatus;
 }
@@ -124,9 +165,10 @@ export interface GmailSendResult {
 }
 
 export async function sendGmailMessage(input: GmailSendInput): Promise<GmailSendResult> {
-  const r = await fetch(`${BASE}/gmail/send`, {
+  const r = await fetchWithAuth(
+    "/gmail/send",
+    {
     method: "POST",
-    headers: await authHeaders(true),
     body: JSON.stringify({
       to: input.to,
       subject: input.subject,
@@ -134,15 +176,15 @@ export async function sendGmailMessage(input: GmailSendInput): Promise<GmailSend
       bodyHtml: input.bodyHtml ?? false,
       attachments: input.attachments ?? [],
     }),
-  });
+    },
+    { json: true },
+  );
   if (!r.ok) throw new Error(await readError(r));
   return (await r.json()) as GmailSendResult;
 }
 
 export async function fetchOutlookPreview(limit = 5): Promise<ConnectorPreviewMessage[]> {
-  const r = await fetch(`${BASE}/outlook/messages?maxResults=${limit}`, {
-    headers: await authHeaders(),
-  });
+  const r = await fetchWithAuth(`/outlook/messages?maxResults=${limit}`);
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { messages?: ConnectorPreviewMessage[] };
   return data.messages ?? [];
@@ -198,9 +240,7 @@ export interface SpotifyPlayResult {
 }
 
 export async function fetchSpotifyPreview(): Promise<SpotifyPreviewResult> {
-  const r = await fetch(`${BASE}/spotify/playback`, {
-    headers: await authHeaders(),
-  });
+  const r = await fetchWithAuth("/spotify/playback");
   if (!r.ok) throw new Error(await readError(r));
   return (await r.json()) as SpotifyPreviewResult;
 }
@@ -210,11 +250,10 @@ export async function searchSpotifyTracks(
   limit = 8,
   signal?: AbortSignal,
 ): Promise<SpotifyTrackCard[]> {
-  const params = new URLSearchParams({ q: query.trim(), limit: String(limit) });
-  const r = await fetch(`${BASE}/spotify/search?${params}`, {
-    headers: await authHeaders(),
-    signal,
-  });
+  // Spotify Feb 2026: search limit max is 10.
+  const capped = Math.max(1, Math.min(limit, 10));
+  const params = new URLSearchParams({ q: query.trim(), limit: String(capped) });
+  const r = await fetchWithAuth(`/spotify/search?${params}`, { signal });
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { tracks?: SpotifyTrackCard[] };
   return data.tracks ?? [];
@@ -226,9 +265,7 @@ export async function fetchSpotifyRecentlyPlayed(
   limit = 50,
 ): Promise<SpotifyRecentlyPlayedTrack[]> {
   const params = new URLSearchParams({ limit: String(limit) });
-  const r = await fetch(`${BASE}/spotify/recently-played?${params}`, {
-    headers: await authHeaders(),
-  });
+  const r = await fetchWithAuth(`/spotify/recently-played?${params}`);
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { tracks?: SpotifyRecentlyPlayedTrack[] };
   return data.tracks ?? [];
@@ -246,9 +283,7 @@ export async function fetchSpotifyRecommendations(input: {
   if (input.seedTracks?.length) {
     params.set("seed_tracks", input.seedTracks.join(","));
   }
-  const r = await fetch(`${BASE}/spotify/recommendations?${params}`, {
-    headers: await authHeaders(),
-  });
+  const r = await fetchWithAuth(`/spotify/recommendations?${params}`);
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { tracks?: SpotifyTrackCard[] };
   return data.tracks ?? [];
@@ -260,7 +295,7 @@ export async function fetchSpotifyPlayerConfig(): Promise<{
   hasStreamingScope?: boolean;
   reconnectRequired?: boolean;
 }> {
-  const r = await fetch(`${BASE}/spotify/player-config`, { headers: await authHeaders() });
+  const r = await fetchWithAuth("/spotify/player-config");
   if (!r.ok) throw new Error(await readError(r));
   return (await r.json()) as {
     clientId: string;
@@ -271,7 +306,7 @@ export async function fetchSpotifyPlayerConfig(): Promise<{
 }
 
 export async function fetchSpotifyPlayerToken(): Promise<string> {
-  const r = await fetch(`${BASE}/spotify/player-token`, { headers: await authHeaders() });
+  const r = await fetchWithAuth("/spotify/player-token");
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { accessToken: string };
   return data.accessToken;
@@ -280,9 +315,7 @@ export async function fetchSpotifyPlayerToken(): Promise<string> {
 export async function fetchSpotifyBeatGrid(
   trackId: string,
 ): Promise<{ beats: number[]; tempo: number | null }> {
-  const r = await fetch(`${BASE}/spotify/tracks/${encodeURIComponent(trackId)}/beat-grid`, {
-    headers: await authHeaders(),
-  });
+  const r = await fetchWithAuth(`/spotify/tracks/${encodeURIComponent(trackId)}/beat-grid`);
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { beats?: number[]; tempo?: number | null };
   return {
@@ -295,12 +328,15 @@ export async function playSpotifyTrack(
   query: string,
   signal?: AbortSignal,
 ): Promise<SpotifyPlayResult> {
-  const r = await fetch(`${BASE}/spotify/play`, {
+  const r = await fetchWithAuth(
+    "/spotify/play",
+    {
     method: "POST",
-    headers: await authHeaders(true),
     body: JSON.stringify({ query }),
     signal,
-  });
+    },
+    { json: true },
+  );
   if (!r.ok) throw new Error(await readError(r));
   return (await r.json()) as SpotifyPlayResult;
 }
@@ -309,12 +345,15 @@ export async function playSpotifyTrackById(
   trackId: string,
   signal?: AbortSignal,
 ): Promise<SpotifyPlayResult> {
-  const r = await fetch(`${BASE}/spotify/play`, {
+  const r = await fetchWithAuth(
+    "/spotify/play",
+    {
     method: "POST",
-    headers: await authHeaders(true),
     body: JSON.stringify({ trackId }),
     signal,
-  });
+    },
+    { json: true },
+  );
   if (!r.ok) throw new Error(await readError(r));
   return (await r.json()) as SpotifyPlayResult;
 }

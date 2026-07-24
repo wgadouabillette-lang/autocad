@@ -11,6 +11,7 @@ import { callsGridColumnCount, type CallsGridColumnCount } from "../../lib/calls
 import type { TheaterState } from "../../lib/theater";
 import AddVoiceChannelButton from "./AddVoiceChannelButton";
 import CallBlock from "./CallBlock";
+import InviteMemberBlock from "./InviteMemberBlock";
 import OpenVoiceChannelBlock from "./OpenVoiceChannelBlock";
 import TheaterBlock from "./TheaterBlock";
 
@@ -41,14 +42,16 @@ function MemberColumn({
   requests,
   onRequestJoin,
   colIndex,
+  showInvite = false,
 }: {
   blocks: CallBlockType[];
   allBlocks: CallBlockType[];
   requests: JoinRequest[];
   onRequestJoin: (blockId: string) => void;
   colIndex: number;
+  showInvite?: boolean;
 }) {
-  if (blocks.length === 0) return null;
+  if (blocks.length === 0 && !showInvite) return null;
 
   return (
     <div className="calls-view__side-col calls-view__member-grid">
@@ -63,6 +66,7 @@ function MemberColumn({
           layout="side"
         />
       ))}
+      {showInvite ? <InviteMemberBlock index={colIndex * 10 + blocks.length} /> : null}
     </div>
   );
 }
@@ -76,6 +80,7 @@ function CenterColumn({
   onRequestJoin,
   onOpenTheater,
   onStartOpenChannelDraft,
+  showInvite = false,
 }: {
   memberBlocks: CallBlockType[];
   allBlocks: CallBlockType[];
@@ -85,6 +90,7 @@ function CenterColumn({
   onRequestJoin: (blockId: string) => void;
   onOpenTheater: () => void;
   onStartOpenChannelDraft: () => void;
+  showInvite?: boolean;
 }) {
   const hasDraftChannel = openChannels.some((channel) => channel.isDraft);
 
@@ -98,7 +104,7 @@ function CenterColumn({
         onStartDraft={onStartOpenChannelDraft}
         disabled={hasDraftChannel}
       />
-      {memberBlocks.length > 0 && (
+      {(memberBlocks.length > 0 || showInvite) && (
         <div className="calls-view__member-grid">
           {memberBlocks.map((block, i) => (
             <CallBlock
@@ -111,6 +117,9 @@ function CenterColumn({
               layout="side"
             />
           ))}
+          {showInvite ? (
+            <InviteMemberBlock index={memberBlocks.length + openChannels.length + 1} />
+          ) : null}
         </div>
       )}
     </div>
@@ -157,6 +166,7 @@ export default function CallsVoiceGrid({
 
   const slots = distributeMemberBlocksForGrid(gridBlocks, columnCount);
   const showRightSides = columnCount === 3 || columnCount === 4 || columnCount === 5;
+  const inviteInCenter = columnCount === 1;
 
   return (
     <div
@@ -175,6 +185,7 @@ export default function CallsVoiceGrid({
               requests={requests}
               onRequestJoin={onRequestJoin}
               colIndex={0}
+              showInvite
             />
           )}
           {columnCount === 5 && (
@@ -198,6 +209,7 @@ export default function CallsVoiceGrid({
         onRequestJoin={onRequestJoin}
         onOpenTheater={onOpenTheater}
         onStartOpenChannelDraft={onStartOpenChannelDraft}
+        showInvite={inviteInCenter}
       />
 
       {columnCount > 1 && showRightSides && (

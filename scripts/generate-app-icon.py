@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Génère l'icône Forma (fond noir) pour macOS / Windows / landing."""
+"""Génère l'icône Hall (Frame 11) pour macOS / Windows / landing."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,32 +9,28 @@ from PIL import Image, ImageDraw
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "desktop" / "build"
 LANDING_ICON = ROOT / "landing" / "icon.png"
+LANDING_PUBLIC_ICON = ROOT / "landing" / "public" / "icon.png"
+FRONTEND_FAVICON = ROOT / "frontend" / "public" / "favicon.png"
+FRONTEND_APPLE = ROOT / "frontend" / "public" / "apple-touch-icon.png"
 
-BG = (8, 8, 8, 255)
-PANEL = (14, 14, 14, 255)
-MARK = (235, 235, 235, 255)
+# Frame 11.svg: rounded dark tile + white stroke on a 100×100 canvas.
+FILL = (0x23, 0x23, 0x23, 255)
+STROKE = (255, 255, 255, 255)
 
 
 def draw_icon(size: int) -> Image.Image:
-    img = Image.new("RGBA", (size, size), BG)
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    margin = max(8, size // 16)
-    radius = max(12, size // 6)
-    draw.rounded_rectangle(
-        [margin, margin, size - margin, size - margin],
-        radius=radius,
-        fill=PANEL,
-    )
-
-    # Monogramme « F » minimal
-    bar = max(2, size // 26)
-    x0 = int(size * 0.36)
-    y0 = int(size * 0.27)
-    y1 = int(size * 0.73)
-    x_mid = int(size * 0.58)
-    draw.rectangle([x0, y0, x0 + bar, y1], fill=MARK)
-    draw.rectangle([x0, y0, x_mid, y0 + bar], fill=MARK)
-    draw.rectangle([x0, int(size * 0.47), int(size * 0.54), int(size * 0.47) + bar], fill=MARK)
+    scale = size / 100.0
+    x0 = 1.25 * scale
+    y0 = 1.25 * scale
+    x1 = (1.25 + 97.5) * scale
+    y1 = (1.25 + 97.5) * scale
+    radius = 23.75 * scale
+    stroke = max(1, round(2.5 * scale))
+    box = [x0, y0, x1, y1]
+    draw.rounded_rectangle(box, radius=radius, fill=FILL)
+    draw.rounded_rectangle(box, radius=radius, outline=STROKE, width=stroke)
     return img
 
 
@@ -44,7 +40,16 @@ def main() -> None:
     master.save(OUT_DIR / "icon.png")
     draw_icon(512).save(OUT_DIR / "icon-512.png")
     draw_icon(256).save(OUT_DIR / "icon-256.png")
-    draw_icon(128).save(LANDING_ICON)
+
+    landing = draw_icon(128)
+    LANDING_ICON.parent.mkdir(parents=True, exist_ok=True)
+    landing.save(LANDING_ICON)
+    LANDING_PUBLIC_ICON.parent.mkdir(parents=True, exist_ok=True)
+    landing.save(LANDING_PUBLIC_ICON)
+
+    FRONTEND_FAVICON.parent.mkdir(parents=True, exist_ok=True)
+    master.save(FRONTEND_FAVICON)
+    master.save(FRONTEND_APPLE)
     print(f"Icons generated in {OUT_DIR}")
 
 

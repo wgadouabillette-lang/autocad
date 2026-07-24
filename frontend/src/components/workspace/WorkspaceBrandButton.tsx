@@ -1,11 +1,11 @@
 import clsx from "clsx";
+import { Shuffle } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { useStore } from "../../store/useStore";
 import { useWorkspaceOverlayStore } from "../../store/useWorkspaceOverlayStore";
 import { workspaceLabel, useWorkspacesStore } from "../../store/useWorkspacesStore";
-import WorkspaceAddButton from "./WorkspaceAddButton";
-import WorkspaceIcon from "./WorkspaceIcon";
+import { useStore } from "../../store/useStore";
 
+/** Bouton workspace — icône double flèche, sélecteur à gauche du header. */
 export default function WorkspaceBrandButton() {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const activeRoomId = useStore((s) => s.activeRoomId);
@@ -14,12 +14,7 @@ export default function WorkspaceBrandButton() {
   const closeQuickMenu = useWorkspaceOverlayStore((s) => s.closeQuickMenu);
   const setAnchorEl = useWorkspaceOverlayStore((s) => s.setAnchorEl);
   const workspace = useWorkspacesStore((s) => s.findWorkspace(activeRoomId));
-  const workspaceName = workspaceLabel(activeRoomId);
-  const workspaceForIcon = workspace ?? {
-    name: workspaceName,
-    accent: "#404040",
-    iconURL: null,
-  };
+  const workspaceName = workspace?.name ?? workspaceLabel(activeRoomId);
 
   useEffect(() => {
     setAnchorEl(buttonRef.current);
@@ -36,23 +31,18 @@ export default function WorkspaceBrandButton() {
       <button
         ref={buttonRef}
         type="button"
-        className="app-chrome-row__workspace-brand"
+        className={clsx("workspace-switcher-capsule", "toolbar-btn", panelOpen && "is-active")}
         onClick={() => {
           closeQuickMenu();
           togglePanel();
         }}
-        title="Changer de serveur"
+        title={workspaceName}
         aria-label={`Serveur actif — ${workspaceName}`}
         aria-expanded={panelOpen}
         aria-haspopup="dialog"
       >
-        <WorkspaceIcon
-          workspace={workspaceForIcon}
-          className="app-chrome-row__workspace-brand__icon"
-        />
-        <span className="app-chrome-row__workspace-brand__name">{workspaceName}</span>
+        <Shuffle size={14} strokeWidth={2.25} aria-hidden />
       </button>
-      <WorkspaceAddButton />
     </div>
   );
 }

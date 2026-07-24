@@ -10,12 +10,12 @@ export function useSpotifyAudioPulse(): number {
 
   useEffect(() => {
     const trackId = currentTrack?.id?.trim();
-    if (!playing || !trackId) {
+    if ((!playing && playbackMode === null) || !trackId) {
       setPulseLevel(0);
       return;
     }
 
-    return startSpotifyPulseMonitor(trackId, playbackMode, setPulseLevel);
+    return startSpotifyPulseMonitor(trackId, playbackMode ?? "preview", setPulseLevel);
   }, [playing, playbackMode, currentTrack?.id]);
 
   return pulseLevel;

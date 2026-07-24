@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="description"
+      data-i18n-content="meta.description"
+      content="Hall — collaborative workspace with voice channels, AI chat, and screen recording."
+    />
+    <title data-i18n-title="meta.title">Hall — Collaborative workspace</title>
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <link rel="icon" type="image/png" href="icon.png" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="sitePrefs.js"></script>
+    <script>
+      document.documentElement.classList.add("landing-locked-root");
+    </script>
+  </head>
+  <body class="landing-locked">
+    <div id="site-nav" data-active=""></div>
+
+    <main class="home-main">
+      <section class="hero">
+        <div class="hero__text">
+          <h1 class="hero__title" data-i18n-html="hero.title">
+            Your team workspace,<br />in one app.
+          </h1>
+          <p class="hero__lead" data-i18n="hero.lead">
+            Voice channels, AI chat, calendar, screen recording, and connectors — Hall brings
+            everything your team needs day to day.
+          </p>
+          <div class="hero__cta">
+            <a
+              class="btn btn--primary"
+              id="hero-download"
+              href="/downloads/Hall-mac.dmg"
+              download
+            >
+              <span id="hero-download-label" data-i18n="try.downloadMac">Download for macOS</span>
+              <svg
+                class="hero__cta-icon"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            </a>
+          </div>
+        </div>
+
+        <div class="hero__shots">
+          <section id="workspaces" class="hero__workspaces-section" aria-label="Workspaces">
+            <div
+              class="hero__shot hero__shot--dashboard"
+              id="workspaces-preview"
+              aria-hidden="true"
+            ></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="footerIcons.js"></script>
+    <script src="i18n.js"></script>
+    <script src="download-urls.js"></script>
+    <script src="nav.js"></script>
+    <script src="dashboardPreview.js"></script>
+    <script src="home.js"></script>
+    <script src="compact-lock.js"></script>
+  </body>
+</html>

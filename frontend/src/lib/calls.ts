@@ -210,19 +210,21 @@ export function syncRoomCallsWithMembers(
     }),
   );
 
+  const normalizedOpenChannels =
+    openChannels.length > 0
+      ? openChannels.map((channel) => ({
+          ...channel,
+          participants: withoutLegacyMockUsers(channel.participants),
+          inCall:
+            channel.participants.some(
+              (participant) => !isLegacyMockMemberId(participant.id),
+            ) && channel.inCall,
+        }))
+      : mapOpenChannelsVacancy(fresh.openChannels);
+
   return {
     blocks: withoutLegacyMockBlocks(blocks),
-    openChannels:
-      openChannels.length > 0
-        ? openChannels.map((channel) => ({
-            ...channel,
-            participants: withoutLegacyMockUsers(channel.participants),
-            inCall:
-              channel.participants.some(
-                (participant) => !isLegacyMockMemberId(participant.id),
-              ) && channel.inCall,
-          }))
-        : mapOpenChannelsVacancy(fresh.openChannels),
+    openChannels: ensureDefaultOpenChannel(roomId, normalizedOpenChannels),
     requests: existing.requests.filter(
       (request) =>
         validBlockIds.has(request.fromBlockId) && validBlockIds.has(request.toBlockId),
@@ -348,7 +350,10 @@ export function applyRemoteVoiceFromPresence(
     };
   });
 
-  return { blocks: nextBlocks, openChannels: nextOpenChannels };
+  return {
+    blocks: nextBlocks,
+    openChannels: ensureDefaultOpenChannel(roomId, mapOpenChannelsVacancy(nextOpenChannels)),
+  };
 }
 
 function isDuplicateRemoteSelfBlock(
@@ -568,10 +573,30 @@ export function isOpenChannelIdleExpired(
   now = Date.now(),
 ): boolean {
   if (channel.isDraft) return false;
+  if (isDefaultOpenChannel(channel.roomId, channel.id)) return false;
   if (channel.participants.length > 0) return false;
   const vacantSince = channel.vacantSinceAt;
   if (vacantSince == null) return false;
   return now - vacantSince >= OPEN_CHANNEL_IDLE_TTL_MS;
+}
+
+/** Garantit la présence du salon vocal permanent (jamais auto-supprimé). */
+export function ensureDefaultOpenChannel(
+  roomId: string,
+  channels: OpenVoiceChannel[],
+): OpenVoiceChannel[] {
+  const defaultId = defaultOpenChannelId(roomId);
+  if (channels.some((channel) => channel.id === defaultId)) return channels;
+  return [
+    {
+      id: defaultId,
+      roomId,
+      name: "Salon vocal",
+      participants: [],
+      inCall: false,
+    },
+    ...channels,
+  ];
 }
 
 export function mapOpenChannelsVacancy(

@@ -11,6 +11,18 @@ export function getLocalPresenceActivityForSync(workspaceId: string): PresenceAc
   const stored =
     usePresenceActivityStore.getState().byKey[presenceActivityKey(workspaceId, "local")] ?? "none";
 
+  const { playing, currentTrack } = useSpotifyPlayerStore.getState();
+  const viewMode = useCallsStore.getState().getCallsViewMode(workspaceId);
+  const openChannelId = useCallsStore.getState().localOpenChannelByRoom[workspaceId];
+  const inTheater =
+    viewMode === "theater" || useCallsStore.getState().isLocalInTheaterCall(workspaceId);
+  // Spotify (play / DJ) uniquement dans le salon privé — prioritaire sur l'IA.
+  const inPrivateSalon = !openChannelId && !inTheater;
+
+  if (playing && currentTrack && inPrivateSalon) {
+    return "spotify";
+  }
+
   const aiComposerEngaged = useAiComposerStore.getState().engaged;
   const aiRun = useStore.getState().aiRun;
   const aiModel = useStore.getState().aiModel;
@@ -19,14 +31,6 @@ export function getLocalPresenceActivityForSync(workspaceId: string): PresenceAc
   if (aiComposerEngaged || aiGenerating) {
     const model = aiGenerating ? aiRun!.aiModel : aiModel;
     return presenceActivityFromModel(model);
-  }
-
-  const { playing, currentTrack } = useSpotifyPlayerStore.getState();
-  const viewMode = useCallsStore.getState().getCallsViewMode(workspaceId);
-  const inCall = useCallsStore.getState().isLocalInCall(workspaceId);
-
-  if (playing && currentTrack && viewMode !== "theater" && !inCall) {
-    return "spotify";
   }
 
   if (isManualPresenceActivity(stored)) return stored;

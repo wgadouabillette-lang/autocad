@@ -19,6 +19,7 @@ import MiniChatPopover from "../messages/MiniChatPopover";
 import OpenVoiceInCallView from "./OpenVoiceInCallView";
 import TheaterView from "./TheaterView";
 import CallsViewHexDecor from "./CallsViewHexDecor";
+import CallsWorkspacePromo from "./CallsWorkspacePromo";
 
 let callsViewRenderCount = 0;
 
@@ -112,6 +113,13 @@ export default function CallsView() {
     localOpenChannelId ?? null,
   );
 
+  const showWorkspacePromo =
+    viewMode === "blocks" &&
+    !inOpenChannel &&
+    !showPresentLayout &&
+    !showSoloInCallMedia &&
+    !workspaceSwitching;
+
   return (
     <div
       className={clsx(
@@ -128,51 +136,53 @@ export default function CallsView() {
       ) : null}
       {!workspaceSwitching ? (
         <>
-      <CallsViewHexDecor />
-      {viewMode === "theater" ? (
-        <div className="calls-view__stage calls-view__stage--theater">
-          <TheaterView workspaceId={activeRoomId} theater={theaterState} />
-        </div>
-      ) : showSoloInCallMedia ? (
-        <VoiceParticipantsInCallGrid
-          workspaceId={activeRoomId}
-          participants={soloInCallParticipants}
-        />
-      ) : showPresentLayout ? (
-        <CallPresentView blocks={blocks} />
-      ) : (
-        <div
-          ref={stageRef}
-          className={clsx(
-            "calls-view__stage",
-            inOpenChannel && "calls-view__stage--open-channel-only",
-          )}
-        >
-          {inOpenChannel && localOpenChannelId ? (
-            <div className="calls-view__open-channel-panel">
-              <OpenVoiceInCallView
-                channelId={localOpenChannelId}
-                openChannels={openChannels}
-              />
+          <CallsViewHexDecor />
+          {viewMode === "theater" ? (
+            <div className="calls-view__stage calls-view__stage--theater">
+              <TheaterView workspaceId={activeRoomId} theater={theaterState} />
             </div>
-          ) : (
-            <CallsVoiceGrid
-              key={activeRoomId}
-              measureRef={stageRef}
-              blocks={blocks}
-              openChannels={openChannels}
-              requests={requests}
-              theater={theaterState}
-              onRequestJoin={(blockId) => requestJoin(activeRoomId, blockId)}
-              onOpenTheater={() => openTheaterView(activeRoomId)}
-              onStartOpenChannelDraft={() => startOpenChannelDraft(activeRoomId)}
+          ) : showSoloInCallMedia ? (
+            <VoiceParticipantsInCallGrid
+              workspaceId={activeRoomId}
+              participants={soloInCallParticipants}
             />
+          ) : showPresentLayout ? (
+            <CallPresentView blocks={blocks} />
+          ) : (
+            <div
+              ref={stageRef}
+              className={clsx(
+                "calls-view__stage",
+                inOpenChannel && "calls-view__stage--open-channel-only",
+                showWorkspacePromo && "calls-view__stage--with-promo",
+              )}
+            >
+              {showWorkspacePromo ? <CallsWorkspacePromo /> : null}
+              {inOpenChannel && localOpenChannelId ? (
+                <div className="calls-view__open-channel-panel">
+                  <OpenVoiceInCallView
+                    channelId={localOpenChannelId}
+                    openChannels={openChannels}
+                  />
+                </div>
+              ) : (
+                <CallsVoiceGrid
+                  key={activeRoomId}
+                  measureRef={stageRef}
+                  blocks={blocks}
+                  openChannels={openChannels}
+                  requests={requests}
+                  theater={theaterState}
+                  onRequestJoin={(blockId) => requestJoin(activeRoomId, blockId)}
+                  onOpenTheater={() => openTheaterView(activeRoomId)}
+                  onStartOpenChannelDraft={() => startOpenChannelDraft(activeRoomId)}
+                />
+              )}
+            </div>
           )}
-        </div>
-      )}
 
-      {viewMode === "theater" && <HandRaiseOverlay theater={theaterState} />}
-      <MiniChatPopover />
+          {viewMode === "theater" && <HandRaiseOverlay theater={theaterState} />}
+          <MiniChatPopover />
         </>
       ) : null}
     </div>

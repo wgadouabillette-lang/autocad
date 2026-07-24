@@ -34,7 +34,14 @@ import ChatSkillsList from "./chat/ChatSkillsList";
 import ChatShortcutsHint from "./chat/ChatShortcutsHint";
 import HighlightedPromptInput from "./chat/HighlightedPromptInput";
 import { useConnectors } from "../hooks/useConnectors";
-import { isMarketingPreview, readMarketingPreviewConnectorsActiveParam, readMarketingPreviewSceneParam } from "../lib/marketingPreview";
+import {
+  isMarketingPreview,
+  readMarketingPreviewConnectorsActiveParam,
+  readMarketingPreviewSceneParam,
+  stripMarketingPlayDemoMessages,
+} from "../lib/marketingPreview";
+import { useMarketingPreviewNavCommands } from "../hooks/useMarketingPreviewNavCommands";
+import { pickMarketingPlayQuery } from "../lib/marketingPlayDemo";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { activeStepLabel } from "../lib/aiRun";
 import StructuredAssistantMessage, {
@@ -466,6 +473,8 @@ export default function ChatPanel() {
   const [scrollPadBottom] = useState(12);
   const [revealIdx, setRevealIdx] = useState<number | null>(null);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
+  const [connectorsAnimKey, setConnectorsAnimKey] = useState(0);
+  const [skillsAnimKey, setSkillsAnimKey] = useState(0);
   const [openaiKeyConfigured, setOpenaiKeyConfigured] = useState<boolean | null>(null);
   const chatPanelMode = useStore((s) => s.chatPanelMode);
   const pollComposerOpen = useVoicePollStore(
@@ -493,6 +502,7 @@ export default function ChatPanel() {
   const {
     connectedIds: connectedConnectors,
     statuses: connectorStatuses,
+    statusSource: connectorStatusSource,
     connect: connectConnector,
     connectingId,
     error: connectorError,
@@ -774,6 +784,59 @@ export default function ChatPanel() {
       window.clearInterval(intervalId);
     };
   }, []);
+
+  useMarketingPreviewNavCommands((action) => {
+    const clearPreviousNavDemo = () => {
+      setConnectorsOpen(false);
+      setSlashOpen(false);
+      setSlashFilter("");
+      setSlashIndex(0);
+      // Cancel an in-flight /play so its results cannot reappear after switching tabs.
+      useStore.getState().stopAiRequest();
+      useStore.setState((s) => {
+        const chat = stripMarketingPlayDemoMessages(s.chat);
+        return {
+          chatPanelOpen: true,
+          chatPanelMode: "agent" as const,
+          busy: false,
+          aiRun: null,
+          activeAiRequests: 0,
+          chat,
+          openChatTabs: updateActiveTabInTabs(s.openChatTabs, s.activeChatTabId, chat),
+        };
+      });
+    };
+
+    if (action === "show-dashboard") {
+      clearPreviousNavDemo();
+      return;
+    }
+
+    if (action === "open-connectors") {
+      clearPreviousNavDemo();
+      window.requestAnimationFrame(() => {
+        setConnectorsAnimKey((key) => key + 1);
+        setConnectorsOpen(true);
+      });
+      return;
+    }
+
+    if (action === "open-skills") {
+      clearPreviousNavDemo();
+      window.requestAnimationFrame(() => {
+        setSkillsAnimKey((key) => key + 1);
+        setSlashOpen(true);
+      });
+      return;
+    }
+
+    if (action === "play-music") {
+      clearPreviousNavDemo();
+      const query = pickMarketingPlayQuery();
+      const prompt = `/play ${query}`;
+      void useStore.getState().sendChat(prompt, prompt);
+    }
+  });
 
   useEffect(() => {
     if (!isMarketingPreview()) return;
@@ -2075,6 +2138,7 @@ export default function ChatPanel() {
             <>
               {slashOpen && slashOptions.length > 0 && (
                 <div
+                  key={`skills-${skillsAnimKey}`}
                   ref={skillsRef}
                   className="chat-connectors-stage chat-connectors-stage--footer chat-panel-rise-in"
                 >
@@ -2087,10 +2151,14 @@ export default function ChatPanel() {
                 </div>
               )}
               {!slashOpen && connectorsOpen && (
-                <div className="chat-connectors-stage chat-connectors-stage--footer chat-panel-rise-in">
+                <div
+                  key={`connectors-${connectorsAnimKey}`}
+                  className="chat-connectors-stage chat-connectors-stage--footer chat-panel-rise-in"
+                >
                   <ChatConnectorsList
                     connectedIds={connectedConnectors}
                     statuses={connectorStatuses}
+                    statusSource={connectorStatusSource}
                     connectingId={connectingId}
                     connectError={connectorError}
                     onConnect={connectConnector}

@@ -5,6 +5,7 @@ import SpotifyPluginSettingsExpand from "../settings/SpotifyPluginSettingsExpand
 
 export default function ChatConnectorsList({
   statuses,
+  statusSource = "none",
   connectedIds,
   connectingId = null,
   connectError = null,
@@ -15,6 +16,7 @@ export default function ChatConnectorsList({
   onInsertSlash,
 }: {
   statuses?: ConnectorStatus[];
+  statusSource?: "none" | "visual" | "api";
   connectedIds: ReadonlySet<ChatConnectorId>;
   connectingId?: ChatConnectorId | null;
   connectError?: string | null;
@@ -27,6 +29,26 @@ export default function ChatConnectorsList({
   const items = CHAT_CONNECTORS;
   const isSettings = variant === "settings";
   const statusById = new Map((statuses ?? []).map((status) => [status.id, status]));
+  const statusesFromApi = statusSource === "api";
+
+  const unavailableTitle = (configured: boolean, status: ConnectorStatus | undefined) => {
+    if (configured) return undefined;
+    if (statusesFromApi && status && !status.configured) {
+      return "Ajoutez les clés OAuth dans backend/.env";
+    }
+    if (statusSource === "visual") {
+      return isSettings
+        ? "Connectez-vous pour lier un connecteur"
+        : "Sign in to connect";
+    }
+    return undefined;
+  };
+
+  const unavailableLabel = (configured: boolean) => {
+    if (configured) return isSettings ? "Connecter" : "Connect";
+    if (statusesFromApi) return isSettings ? "Indisponible" : "Unavailable";
+    return isSettings ? "Chargement…" : "Loading…";
+  };
 
   return (
     <div
@@ -65,7 +87,7 @@ export default function ChatConnectorsList({
                   {isSettings ? "Bientôt disponible" : "Coming soon"}
                 </span>
               )}
-              {!comingSoon && !configured && isSettings && (
+              {!comingSoon && !configured && isSettings && statusesFromApi && (
                 <span className="chat-connectors-row__meta">Non configuré sur le serveur</span>
               )}
             </span>
@@ -95,10 +117,10 @@ export default function ChatConnectorsList({
               type="button"
               className="chat-connectors-row__connect"
               onClick={() => onConnect(id)}
-              disabled={connecting || !configured}
-              title={!configured ? "Ajoutez les clés OAuth dans backend/.env" : undefined}
+              disabled={connecting || !configured || !statusesFromApi}
+              title={unavailableTitle(configured, status)}
             >
-              {connecting ? "Connexion…" : configured ? "Connecter" : "Indisponible"}
+              {connecting ? "Connexion…" : unavailableLabel(configured)}
               {!connecting && configured && (
                 <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
               )}
@@ -120,10 +142,10 @@ export default function ChatConnectorsList({
             type="button"
             className="chat-connectors-row__connect"
             onClick={() => onConnect(id)}
-            disabled={connecting || !configured}
-            title={!configured ? "Ajoutez les clés OAuth dans backend/.env" : undefined}
+            disabled={connecting || !configured || !statusesFromApi}
+            title={unavailableTitle(configured, status)}
           >
-            {connecting ? "Connecting…" : configured ? "Connect" : "Unavailable"}
+            {connecting ? "Connecting…" : unavailableLabel(configured)}
             {!connecting && configured && (
               <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
             )}

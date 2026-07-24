@@ -146,5 +146,52 @@ class Settings:
     def has_llm(self) -> bool:
         return bool(self.xai_api_key or self.openai_api_key or self.anthropic_api_key)
 
+    # Stripe (abonnement Pro + add-on usage à la demande)
+    stripe_secret_key: str = field(default_factory=lambda: os.getenv("STRIPE_SECRET_KEY", ""))
+    stripe_publishable_key: str = field(
+        default_factory=lambda: os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+    )
+    stripe_webhook_secret: str = field(
+        default_factory=lambda: os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    )
+    stripe_pro_price_id: str = field(
+        default_factory=lambda: os.getenv("STRIPE_PRO_PRICE_ID", "")
+    )
+    stripe_payment_method_configuration: str = field(
+        default_factory=lambda: os.getenv("STRIPE_PAYMENT_METHOD_CONFIGURATION", "")
+    )
+    stripe_on_demand_price_id: str = field(
+        default_factory=lambda: os.getenv("STRIPE_ON_DEMAND_PRICE_ID", "")
+    )
+    stripe_on_demand_unit_cents: int = field(
+        default_factory=lambda: max(int(os.getenv("STRIPE_ON_DEMAND_UNIT_CENTS", "1")), 1)
+    )
+    stripe_enterprise_seat_price_id: str = field(
+        default_factory=lambda: os.getenv("STRIPE_ENTERPRISE_SEAT_PRICE_ID", "")
+    )
+    stripe_enterprise_min_members: int = field(
+        default_factory=lambda: int(os.getenv("STRIPE_ENTERPRISE_MIN_MEMBERS", "2"))
+    )
+
+    @property
+    def stripe_checkout_enabled(self) -> bool:
+        """Checkout Pro : clé secrète + price ID Pro (webhook non requis)."""
+        return bool(self.stripe_secret_key.strip() and self.stripe_pro_price_id.strip())
+
+    @property
+    def stripe_enterprise_enabled(self) -> bool:
+        return bool(
+            self.stripe_secret_key.strip()
+            and self.stripe_enterprise_seat_price_id.strip()
+        )
+
+    @property
+    def stripe_enabled(self) -> bool:
+        return self.stripe_checkout_enabled or self.stripe_enterprise_enabled
+
+    @property
+    def stripe_webhooks_enabled(self) -> bool:
+        return bool(self.stripe_webhook_secret.strip())
+
 
 settings = Settings()

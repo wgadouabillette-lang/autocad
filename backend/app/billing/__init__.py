@@ -1,1 +1,1 @@
-"""Facturation — usage et quotas (Stripe retiré temporairement)."""
+"""Facturation Stripe — abonnement Pro et usage à la demande."""

@@ -211,9 +211,9 @@ export default function PresenceActivityButton({
   const photoURL = useStore((s) => s.photoURL);
   const aiComposerEngaged = useAiComposerStore((s) => s.engaged);
   const aiRun = useStore((s) => s.aiRun);
-  useSpotifyPlayerStore((s) => s.playing && !!s.currentTrack);
-  useCallsStore((s) => s.isLocalInCall(roomId));
   useCallsStore((s) => s.getCallsViewMode(roomId));
+  useCallsStore((s) => s.localOpenChannelByRoom[roomId]);
+  useCallsStore((s) => s.isLocalInTheaterCall(roomId));
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);

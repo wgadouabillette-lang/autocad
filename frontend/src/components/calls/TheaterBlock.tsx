@@ -1,7 +1,9 @@
 import clsx from "clsx";
-import { Presentation, Users } from "lucide-react";
-import { stageParticipants, type TheaterState } from "../../lib/theater";
+import { Users } from "lucide-react";
+import { countTheaterParticipants, type TheaterState } from "../../lib/theater";
+import { useCallsStore } from "../../store/useCallsStore";
 import CallBlockCard from "./CallBlockCard";
+import TheaterBlockPreview from "./TheaterBlockPreview";
 
 interface TheaterBlockProps {
   index?: number;
@@ -10,14 +12,29 @@ interface TheaterBlockProps {
   layout?: "default" | "center";
 }
 
+function speakerIsSpeaking(
+  speakingByParticipant: Record<string, boolean>,
+  speakerId: string,
+  isLocal?: boolean,
+): boolean {
+  if (speakingByParticipant[speakerId]) return true;
+  if (isLocal && speakingByParticipant.local) return true;
+  return false;
+}
+
 export default function TheaterBlock({
   index = 0,
   theater,
   onOpen,
   layout = "default",
 }: TheaterBlockProps) {
-  const speakers = stageParticipants(theater);
-  const audienceCount = theater.audience.length;
+  const speakingByParticipant = useCallsStore((s) => s.speakingByParticipant);
+  const connected = countTheaterParticipants(theater);
+  const liveStroke =
+    theater.audience.length > 0 &&
+    theater.speakers.some((speaker) =>
+      speakerIsSpeaking(speakingByParticipant, speaker.id, speaker.isLocal),
+    );
 
   return (
     <CallBlockCard
@@ -26,22 +43,26 @@ export default function TheaterBlock({
         "call-block--cascade",
         "call-block--clickable",
         "call-block--theater",
+        liveStroke && "call-block--theater-live",
         layout === "center" && "call-block--center-slot",
       )}
       style={{ animationDelay: `${index * 20}ms` }}
       title="Théâtre"
-      participants={speakers}
-      participantLayout="theater"
-      audienceParticipants={theater.audience}
+      participants={[]}
       showActivity={false}
       trailing={
         <span className="call-block__hint call-block__hint--theater" aria-hidden>
           <Users size={14} />
-          <span className="call-block__hint-count">{audienceCount}</span>
+          <span className="call-block__hint-count">{connected}</span>
         </span>
       }
+      body={<TheaterBlockPreview theater={theater} />}
       onMainClick={onOpen}
-      mainAriaLabel="Ouvrir le théâtre vocal"
+      mainAriaLabel={
+        connected > 0
+          ? `Ouvrir le théâtre vocal — ${connected} personne${connected > 1 ? "s" : ""}`
+          : "Ouvrir le théâtre vocal"
+      }
     />
   );
 }

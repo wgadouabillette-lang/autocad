@@ -10,35 +10,28 @@
   function configureDownloadLink(link, labelEl, locale) {
     if (!link || !labelEl) return;
 
-    var ua = navigator.userAgent.toLowerCase();
-    var platform = (navigator.platform || "").toLowerCase();
-    var isWindows = ua.includes("windows") || platform.includes("win");
     var lang = locale === "fr" ? "fr" : "en";
+    var target =
+      typeof window.HallDownloadTarget === "function"
+        ? window.HallDownloadTarget()
+        : {
+            href: "/downloads/Hall-mac.dmg",
+            labelKey: "try.downloadMac",
+            ariaKey: "try.downloadMacAria",
+            fallbackLabel: "Download for macOS",
+            fallbackAria: "Download Hall for macOS",
+          };
 
-    var urls = window.HallDownloadUrls || {};
-    if (isWindows) {
-      link.href = urls.windows || "/downloads/Hall-windows.exe";
-      labelEl.textContent = window.HallLandingI18n
-        ? window.HallLandingI18n.t("try.downloadWin", lang)
-        : "Download for Windows";
-      link.setAttribute(
-        "aria-label",
-        window.HallLandingI18n
-          ? window.HallLandingI18n.t("try.downloadWinAria", lang)
-          : "Download Hall for Windows",
-      );
-    } else {
-      link.href = urls.mac || "/downloads/Hall-mac.dmg";
-      labelEl.textContent = window.HallLandingI18n
-        ? window.HallLandingI18n.t("try.downloadMac", lang)
-        : "Download for macOS";
-      link.setAttribute(
-        "aria-label",
-        window.HallLandingI18n
-          ? window.HallLandingI18n.t("try.downloadMacAria", lang)
-          : "Download Hall for macOS",
-      );
-    }
+    link.href = target.href;
+    labelEl.textContent = window.HallLandingI18n
+      ? window.HallLandingI18n.t(target.labelKey, lang)
+      : target.fallbackLabel;
+    link.setAttribute(
+      "aria-label",
+      window.HallLandingI18n
+        ? window.HallLandingI18n.t(target.ariaKey, lang)
+        : target.fallbackAria,
+    );
   }
 
   function refreshDownloadLabel(locale) {
@@ -50,6 +43,11 @@
     configureDownloadLink(
       document.getElementById("home-download"),
       document.getElementById("home-download-label"),
+      locale,
+    );
+    configureDownloadLink(
+      document.getElementById("nav-download"),
+      document.getElementById("nav-download-label"),
       locale,
     );
   }

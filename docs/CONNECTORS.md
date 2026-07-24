@@ -69,9 +69,10 @@ Le plugin Outlook couvre **mail + calendrier** (Microsoft Graph). Les événemen
 ## Spotify
 
 1. [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) → **Create app**
-2. **Settings → Redirect URIs** — ajoutez **les deux** :
-   - `http://127.0.0.1:8000/api/connectors/oauth/callback` (dev local)
-   - `https://autocad-blue.vercel.app/api/connectors/oauth/callback` (production)
+2. **Settings → Redirect URIs** — ajoutez **les deux** (dev + app installée) :
+   - `http://127.0.0.1:8000/api/connectors/oauth/callback` (dev local / `desktop-dev.sh`)
+   - `http://127.0.0.1:47831/api/connectors/oauth/callback` (app téléchargée `.dmg` / `.exe`)
+   - *(optionnel web)* `https://autocad-blue.vercel.app/api/connectors/oauth/callback`
 3. Copier **Client ID** et **Client Secret**
 
 ```env

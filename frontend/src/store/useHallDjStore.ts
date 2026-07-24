@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { buildHallDjBatch } from "../lib/hallDjEngine";
 import type { SpotifyTrackCard } from "../lib/connectorsApi";
-import { fetchSpotifyRecommendations } from "../lib/connectorsApi";
+import { fetchSpotifyRecommendations, searchSpotifyTracks } from "../lib/connectorsApi";
+import { DEFAULT_HALL_DJ_GENRE } from "../lib/hallDjGenres";
 import {
   filterTracksByDjFeedback,
   isHallDjTrackBlocked,
@@ -11,6 +12,9 @@ import {
 } from "../lib/hallDjTrackFeedback";
 import { useSpotifyPlayerStore } from "./useSpotifyPlayerStore";
 import { useStore } from "./useStore";
+import { ensureSpotifyWebPlayer, warmSpotifyWebPlayer } from "../lib/spotifyWebPlayback";
+import { hallDjPopularTracksLast7Days } from "../lib/hallDjPlayHistory";
+import { hasFormaDesktop } from "../lib/formaDesktop";
 
 interface HallDjState {
   active: boolean;
@@ -42,17 +46,20 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
-async function waitForPlaybackStarted(timeoutMs = 8_000): Promise<boolean> {
+async function waitForPlaybackStarted(timeoutMs = 800): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (trackIsPlaying()) return true;
-    await sleep(120);
+    await sleep(80);
   }
   return trackIsPlaying();
 }
 
-const MAX_START_ATTEMPTS = 4;
+const MAX_START_ATTEMPTS = 2;
 const START_DJ_TIMEOUT_MS = 55_000;
+
+/** Évite les double-clics ; récupère si loading reste bloqué après stop/refill. */
+let hallDjStartInFlight = false;
 
 function purgeTrackFromQueue(trackId: string) {
   useSpotifyPlayerStore.setState((state) => ({
@@ -85,16 +92,16 @@ async function startPlaylist(tracks: SpotifyTrackCard[]): Promise<boolean> {
   if (tracks.length === 0) return false;
 
   const player = useSpotifyPlayerStore.getState();
-  await player.refreshPlayerConfig();
-
   const attempts = Math.min(tracks.length, MAX_START_ATTEMPTS);
   for (let index = 0; index < attempts; index += 1) {
     const track = tracks[index]!;
     const rest = tracks.slice(index + 1);
     useSpotifyPlayerStore.setState({ queue: rest });
     recordHallDjServedTracks([track, ...rest]);
-    await player.playTrack(track, { skipHistory: true });
-    if (await waitForPlaybackStarted()) return true;
+    const started = await player.playTrack(track, { skipHistory: true });
+    if (started || trackIsPlaying()) return true;
+    const waitMs = hasFormaDesktop() ? 5_000 : 800;
+    if (await waitForPlaybackStarted(waitMs)) return true;
   }
 
   return false;
@@ -130,25 +137,64 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
   },
 
   startDj: async () => {
-    if (get().loading) return;
-    set({ loading: true, error: null });
+    if (get().loading || hallDjStartInFlight) return;
+    hallDjStartInFlight = true;
+    set({ loading: true, error: null, active: true, feedbackResolvedTrackId: null });
     const startedAt = Date.now();
     const timedOut = () => Date.now() - startedAt > START_DJ_TIMEOUT_MS;
     try {
       const playerStore = useSpotifyPlayerStore.getState();
-      if (playerStore.premiumAvailable == null) {
-        await playerStore.refreshPlayerConfig();
-      }
-      if (useSpotifyPlayerStore.getState().premiumAvailable === false) {
+      const preferredGenre = useStore.getState().hallDjPreferredGenre;
+      const seedGenre = preferredGenre || DEFAULT_HALL_DJ_GENRE;
+
+      warmSpotifyWebPlayer(true);
+      void ensureSpotifyWebPlayer({
+        premiumHint: playerStore.premiumAvailable !== false,
+      });
+      void playerStore.refreshPlayerConfig();
+
+      const batchPromise = buildHallDjBatch(preferredGenre);
+      const remoteTracksPromise = searchSpotifyTracks(`genre:${seedGenre}`, 8).catch(
+        () => [] as SpotifyTrackCard[],
+      );
+      const localTracks = filterTracksByDjFeedback(
+        hallDjPopularTracksLast7Days(6).map((entry) => entry.track),
+      );
+
+      if (playerStore.premiumAvailable === false) {
         const message =
           "Votre compte Spotify connecté doit être Premium pour utiliser le Hall DJ";
-        set({ loading: false, active: false, error: message });
+        set({ loading: false, active: false, error: message, feedbackResolvedTrackId: null });
         useSpotifyPlayerStore.setState({ playerNotice: message });
         return;
       }
 
-      const preferredGenre = useStore.getState().hallDjPreferredGenre;
-      const batch = await buildHallDjBatch(preferredGenre);
+      let quickTracks = localTracks;
+      if (quickTracks.length === 0) {
+        quickTracks = filterTracksByDjFeedback(await remoteTracksPromise);
+      }
+
+      if (quickTracks.length > 0) {
+        useSpotifyPlayerStore.setState({ queue: [] });
+        const started = await startPlaylist(quickTracks);
+        void batchPromise.then((batch) => {
+          if (batch.length > 0) queueFreshTracks(batch, "append");
+        });
+        if (timedOut()) {
+          set({
+            loading: false,
+            active: false,
+            error: "Le Hall DJ met trop de temps à démarrer. Réessayez.",
+          });
+          return;
+        }
+        if (started) {
+          set({ loading: false, error: null });
+          return;
+        }
+      }
+
+      const batch = await batchPromise;
       if (timedOut()) {
         set({
           loading: false,
@@ -166,7 +212,6 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
         return;
       }
 
-      // Always start a fresh DJ queue so reopen / genre preference take effect.
       useSpotifyPlayerStore.setState({ queue: [] });
       const started = await startPlaylist(batch);
       if (timedOut()) {
@@ -178,6 +223,10 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
         return;
       }
       if (!started) {
+        if (await waitForPlaybackStarted(hasFormaDesktop() ? 8_000 : 1_500)) {
+          set({ loading: false, error: null });
+          return;
+        }
         set({
           loading: false,
           active: false,
@@ -188,18 +237,15 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
         });
         return;
       }
-      set({
-        loading: false,
-        error: null,
-        active: true,
-        feedbackResolvedTrackId: null,
-      });
+      set({ loading: false, error: null });
     } catch (err) {
       set({
         loading: false,
         active: false,
         error: err instanceof Error ? err.message : "Impossible de démarrer le Hall DJ.",
       });
+    } finally {
+      hallDjStartInFlight = false;
     }
   },
 

@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.account import router as account_router
 from app.api.billing import router as billing_router
 from app.api.handoffs import router as handoffs_router
 from app.api.calendar_sync import router as calendar_sync_router
@@ -67,6 +68,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(account_router)
 app.include_router(handoffs_router)
 app.include_router(billing_router)
 app.include_router(connector_resources_router)
@@ -126,7 +128,7 @@ _mount_frontend()
 
 @app.on_event("startup")
 def _warmup_services() -> None:
-    """Évite le cold-start Firebase au premier appel authentifié."""
+    """Évite le cold-start (Firebase + Stripe) au premier appel authentifié."""
     import logging
 
     logger = logging.getLogger(__name__)
@@ -137,6 +139,14 @@ def _warmup_services() -> None:
         _ensure_db()
     except Exception as exc:
         logger.warning("Startup warmup skipped: %s", exc)
+
+    try:
+        from app.billing.stripe_service import _stripe
+
+        if settings.stripe_secret_key.strip():
+            _stripe()
+    except Exception as exc:
+        logger.warning("Stripe warmup skipped: %s", exc)
 
 
 @app.get("/api/app-meta")
