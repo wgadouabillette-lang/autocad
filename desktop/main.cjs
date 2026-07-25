@@ -190,6 +190,15 @@ async function ensureDesktopPlaybackReady() {
   console.log("[hall] Widevine CDM prêt:", getWidevineStatus());
 }
 
+function resolveAppIconPath() {
+  const ico = path.join(__dirname, "build", "icon.ico");
+  const png = path.join(__dirname, "build", "icon.png");
+  if (process.platform === "win32" && fs.existsSync(ico)) return ico;
+  if (fs.existsSync(png)) return png;
+  if (fs.existsSync(ico)) return ico;
+  return undefined;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -197,7 +206,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 640,
     title: "Hall",
-    icon: path.join(__dirname, "build", "icon.png"),
+    icon: resolveAppIconPath(),
     backgroundColor: "#121212",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),

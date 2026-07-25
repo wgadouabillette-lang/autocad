@@ -163,6 +163,8 @@ gh workflow run "Release Windows Desktop"
 
 Artefact : **Hall-windows-installer** → `Hall-windows.exe`
 
+> **Icône bureau Windows :** `win.signAndEditExecutable` doit rester `true` pour que `build/icon.ico` soit injecté dans `Hall.exe` (sinon le raccourci bureau garde l’icône Electron par défaut). La signature Azure continue via `azureSignOptions`.
+
 #### Build local signé (machine Windows)
 
 ```bat

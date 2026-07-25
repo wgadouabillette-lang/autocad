@@ -23,6 +23,8 @@
       "updater.cjs",
       "updater-state.cjs",
       "package.json",
+      "build/icon.png",
+      "build/icon.ico",
       "spotifyWebView2Manager.cjs",
       "spotify-webview2-host.cjs",
       "spotify-webview2/**"
@@ -74,13 +76,19 @@
       "target": [
         "nsis"
       ],
-      "icon": "build/icon.png",
-      "signAndEditExecutable": false,
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true,
       "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Hall",
       "artifactName": "Hall Setup ${version}.${ext}"
     },
     "dmg": {

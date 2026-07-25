@@ -27,7 +27,10 @@ module.exports = {
   ...base,
   win: {
     ...base.win,
-    signAndEditExecutable: false,
+    // Must stay true so Hall's icon/metadata are written into Hall.exe.
+    // Azure Trusted Signing still runs via azureSignOptions (not the default signtool cert).
+    // With this false, Windows desktop/taskbar shortcuts keep the Electron default icon.
+    signAndEditExecutable: true,
     signExecutable: azureSignOptions != null,
     azureSignOptions,
   },
