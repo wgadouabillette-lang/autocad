@@ -2297,7 +2297,7 @@ body {
     pointer-events: auto;
   }
   .calls-promo__dismiss:hover {
-    @apply text-muted-50;
+    @apply text-muted-100;
     background: rgb(42 42 42 / 0.98);
     transform: scale(1.06);
   }
