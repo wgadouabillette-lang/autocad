@@ -2281,10 +2281,40 @@ body {
   .calls-promo__link:disabled {
     @apply cursor-default opacity-60;
   }
+  .calls-promo__dismiss {
+    @apply absolute -right-1.5 -top-1.5 z-[2] inline-flex h-4 w-4 items-center justify-center
+      rounded-full border-0 text-muted-200 opacity-0 transition-[opacity,background-color,color,transform]
+      duration-150;
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgb(28 28 28 / 0.96);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.14), 0 4px 10px -6px rgb(0 0 0 / 0.7);
+    pointer-events: none;
+  }
+  .calls-promo:hover .calls-promo__dismiss,
+  .calls-promo:focus-within .calls-promo__dismiss {
+    @apply opacity-100;
+    pointer-events: auto;
+  }
+  .calls-promo__dismiss:hover {
+    @apply text-muted-50;
+    background: rgb(42 42 42 / 0.98);
+    transform: scale(1.06);
+  }
+  .calls-promo__dismiss:focus-visible {
+    @apply opacity-100 outline-none;
+    pointer-events: auto;
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.22),
+      0 0 0 3px rgb(var(--forma-brand-highlight) / 0.35);
+  }
   @media (prefers-reduced-motion: reduce) {
     .calls-promo__sheen,
     .calls-promo::after {
       animation: none;
+    }
+    .calls-promo__dismiss {
+      transition: none;
     }
   }
   .calls-view__stage--open-channel-only {

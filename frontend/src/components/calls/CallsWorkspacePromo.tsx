@@ -1,68 +1,58 @@
-import { ArrowUpRight, Sparkles, Zap } from "lucide-react";
+import { useState } from "react";
+import { X, Zap } from "lucide-react";
 import { useBilling } from "../../hooks/useBilling";
-import { hasPersonalAiAccess } from "../../lib/subscriptionPlans";
+import {
+  dismissCallsWorkspacePromo,
+  isCallsWorkspacePromoDismissed,
+} from "../../lib/callsWorkspacePromo";
 import { isMarketingPreview } from "../../lib/marketingPreview";
 import { useStore } from "../../store/useStore";
 
 /**
- * Bandeau promo au-dessus des salons vocaux.
- * Masqué si Pro personnel ou si le workspace est déjà boosté (Entreprise).
- *
- * `FORCE_SHOW_FOR_CUSTOMIZE` : laisser à `true` le temps de styler le bandeau,
- * puis remettre à `false` pour la logique payant / boosté.
+ * Bandeau promo Boost au-dessus des salons vocaux.
+ * Masqué si le workspace est déjà boosté, si Entreprise n'est pas dispo,
+ * ou pendant le cooldown après dismiss (X au hover).
  */
-const FORCE_SHOW_FOR_CUSTOMIZE = true;
-
 export default function CallsWorkspacePromo() {
-  const subscriptionPlan = useStore((s) => s.subscriptionPlan);
-  const billingManaged = useStore((s) => s.billingManaged);
   const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
-  const {
-    checkoutPro,
-    checkoutEnterprise,
-    prefetchCheckout,
-    enterpriseEnabled,
-    loading,
-  } = useBilling();
+  const { checkoutEnterprise, prefetchCheckout, enterpriseEnabled, loading } = useBilling();
+  const [dismissed, setDismissed] = useState(() => isCallsWorkspacePromoDismissed());
 
   if (isMarketingPreview()) return null;
-  if (!FORCE_SHOW_FOR_CUSTOMIZE) {
-    if (hasPersonalAiAccess(subscriptionPlan, billingManaged)) return null;
-    if (workspaceEnterpriseActive) return null;
-  }
+  if (dismissed) return null;
+  if (workspaceEnterpriseActive) return null;
+  if (!enterpriseEnabled) return null;
+
+  const handleDismiss = () => {
+    dismissCallsWorkspacePromo();
+    setDismissed(true);
+  };
 
   return (
-    <aside className="calls-promo" aria-label="Découvrir Hall Pro et Entreprise">
+    <aside className="calls-promo" aria-label="Booster le workspace">
       <span className="calls-promo__sheen" aria-hidden />
-      <Sparkles size={12} strokeWidth={2.25} className="calls-promo__icon" aria-hidden />
-      <p className="calls-promo__text">Débloquez l&apos;IA dans Hall</p>
+      <Zap size={12} strokeWidth={2.25} className="calls-promo__icon" aria-hidden />
+      <p className="calls-promo__text">Boostez ce workspace</p>
       <div className="calls-promo__actions">
         <button
           type="button"
           className="calls-promo__link"
           disabled={loading}
           onPointerEnter={prefetchCheckout}
-          onClick={() => void checkoutPro()}
+          onClick={() => void checkoutEnterprise()}
         >
-          <span>Pro</span>
-          <ArrowUpRight size={11} strokeWidth={2.25} aria-hidden />
+          <span>Boost</span>
         </button>
-        {enterpriseEnabled ? (
-          <>
-            <span className="calls-promo__sep" aria-hidden />
-            <button
-              type="button"
-              className="calls-promo__link"
-              disabled={loading}
-              onPointerEnter={prefetchCheckout}
-              onClick={() => void checkoutEnterprise()}
-            >
-              <Zap size={11} strokeWidth={2.25} aria-hidden />
-              <span>Booster</span>
-            </button>
-          </>
-        ) : null}
       </div>
+      <button
+        type="button"
+        className="calls-promo__dismiss"
+        aria-label="Masquer la promotion"
+        title="Masquer"
+        onClick={handleDismiss}
+      >
+        <X size={10} strokeWidth={2.5} aria-hidden />
+      </button>
     </aside>
   );
 }
