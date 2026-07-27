@@ -356,9 +356,18 @@
 
     if (window.HallHomePage && window.HallHomePage.refreshHighlightsMoreLabel) {
       window.HallHomePage.refreshHighlightsMoreLabel();
-    } else if (moreLabel && moreBtn) {
-      var expanded = moreBtn.getAttribute("aria-expanded") === "true";
-      moreLabel.textContent = t(expanded ? "highlights.less" : "highlights.more", lang);
+    } else {
+      var highlightsMoreBtn = document.getElementById("highlights-more");
+      var highlightsMoreLabel = highlightsMoreBtn
+        ? highlightsMoreBtn.querySelector(".home-highlights__more-label")
+        : null;
+      if (highlightsMoreBtn && highlightsMoreLabel) {
+        var expanded = highlightsMoreBtn.getAttribute("aria-expanded") === "true";
+        highlightsMoreLabel.textContent = t(
+          expanded ? "highlights.less" : "highlights.more",
+          lang,
+        );
+      }
     }
 
     if (window.HallHomePage) {

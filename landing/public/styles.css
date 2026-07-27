@@ -2858,10 +2858,12 @@ body.landing-locked .hero__shot.hero__shot--dashboard {
   min-height: 0 !important;
   aspect-ratio: auto;
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.1),
+    0 24px 64px -28px rgb(0 0 0 / 0.85);
   overflow: hidden;
   pointer-events: none;
-  background: #121212;
+  background: #161616;
 }
 
 body.landing-locked .hero__shot.hero__shot--dashboard .hero__dashboard-preview-scaler {
@@ -2896,7 +2898,7 @@ body.landing-locked .hero__shot.hero__shot--dashboard::before {
   mask-composite: exclude;
 }
 
-/* Soft left vignette so hero copy stays readable; right side stays clear. */
+/* Soft left vignette so hero copy stays readable; keep the dashboard visible. */
 body.landing-locked .hero__shot.hero__shot--dashboard::after {
   content: "";
   position: absolute;
@@ -2906,8 +2908,9 @@ body.landing-locked .hero__shot.hero__shot--dashboard::after {
   border-radius: inherit;
   background: linear-gradient(
     to right,
-    rgb(0 0 0 / 0.75) 0%,
-    rgb(0 0 0 / 0) 100%
+    rgb(0 0 0 / 0.42) 0%,
+    rgb(0 0 0 / 0.12) 34%,
+    rgb(0 0 0 / 0) 58%
   );
 }
 
