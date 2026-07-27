@@ -72,7 +72,7 @@ if (fs.existsSync(firebaseSecretSrc)) {
   );
 }
 
-console.log("→ Création venv portable pour l'app…");
+console.log("→ Création runtime Python portable pour l'app…");
 
 function resolveBasePython() {
   if (process.platform === "win32") {
@@ -87,16 +87,82 @@ function resolveBasePython() {
   return "python3";
 }
 
+function resolveBasePrefix(pythonExe) {
+  const result = spawnSync(
+    pythonExe,
+    ["-c", "import sys; print(sys.base_prefix)"],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) {
+    console.error("Impossible de résoudre sys.base_prefix:", result.stderr || result.error);
+    process.exit(1);
+  }
+  const prefix = (result.stdout || "").trim();
+  if (!prefix || !fs.existsSync(prefix)) {
+    console.error("base_prefix introuvable:", prefix);
+    process.exit(1);
+  }
+  return prefix;
+}
+
 const py = resolveBasePython();
 
-function createPortableVenv() {
-  const strategies =
-    process.platform === "darwin"
-      ? [["-m", "venv", venvOut], ["-m", "venv", "--copies", venvOut]]
-      : [
-          ["-m", "venv", venvOut],
-          ["-m", "venv", "--copies", venvOut],
-        ];
+function copyDirSync(src, dest, skip = []) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const name of fs.readdirSync(src)) {
+    if (skip.includes(name)) continue;
+    const s = path.join(src, name);
+    const d = path.join(dest, name);
+    const st = fs.lstatSync(s);
+    if (st.isSymbolicLink()) {
+      const target = fs.readlinkSync(s);
+      const resolved = path.isAbsolute(target) ? target : path.resolve(path.dirname(s), target);
+      if (!fs.existsSync(resolved)) continue;
+      const resolvedStat = fs.statSync(resolved);
+      if (resolvedStat.isDirectory()) copyDirSync(resolved, d, skip);
+      else {
+        fs.copyFileSync(resolved, d);
+        fs.chmodSync(d, resolvedStat.mode);
+      }
+      continue;
+    }
+    if (st.isDirectory()) copyDirSync(s, d, skip);
+    else fs.copyFileSync(s, d);
+  }
+}
+
+/** Windows venvs are not relocatable (pyvenv.cfg home → build machine). Copy the full prefix. */
+function createWindowsPortablePython() {
+  const basePrefix = resolveBasePrefix(py);
+  console.log(`→ Copie du runtime Python Windows depuis ${basePrefix}…`);
+  rmrf(venvOut);
+  copyDirSync(basePrefix, venvOut, [
+    "Doc",
+    "docs",
+    "include",
+    "libs",
+    "tcl",
+    "Tools",
+    "share",
+    "__pycache__",
+  ]);
+  const rootPy = path.join(venvOut, "python.exe");
+  if (!fs.existsSync(rootPy)) {
+    console.error("python.exe manquant après copie du runtime Windows.");
+    process.exit(1);
+  }
+  const cfgPath = path.join(venvOut, "pyvenv.cfg");
+  if (fs.existsSync(cfgPath)) {
+    fs.unlinkSync(cfgPath);
+    console.log("→ pyvenv.cfg retiré (runtime Windows autonome).");
+  }
+}
+
+function createUnixPortableVenv() {
+  const strategies = [
+    ["-m", "venv", venvOut],
+    ["-m", "venv", "--copies", venvOut],
+  ];
   for (const args of strategies) {
     rmrf(venvOut);
     const result = spawnSync(py, args, { stdio: "inherit" });
@@ -106,20 +172,11 @@ function createPortableVenv() {
   process.exit(1);
 }
 
-createPortableVenv();
-
-const pip =
-  process.platform === "win32"
-    ? path.join(venvOut, "Scripts", "pip.exe")
-    : path.join(venvOut, "bin", "pip");
-const python =
-  process.platform === "win32"
-    ? path.join(venvOut, "Scripts", "python.exe")
-    : path.join(venvOut, "bin", "python");
-
-run(python, ["-m", "pip", "install", "--upgrade", "pip"]);
-run(python, ["-m", "pip", "install", "-r", path.join(backendOut, "requirements.txt")]);
-run(python, ["-m", "pip", "install", "-r", path.join(backendOut, "requirements-cad.txt")]);
+if (process.platform === "win32") {
+  createWindowsPortablePython();
+} else {
+  createUnixPortableVenv();
+}
 
 function materializeSymlinks(dir) {
   if (!fs.existsSync(dir)) return;
@@ -146,19 +203,17 @@ function materializeSymlinks(dir) {
   }
 }
 
-console.log("→ Résolution des liens symboliques du venv…");
+console.log("→ Résolution des liens symboliques du runtime…");
 materializeSymlinks(venvOut);
 
-function copyDirSync(src, dest) {
-  fs.mkdirSync(dest, { recursive: true });
-  for (const name of fs.readdirSync(src)) {
-    const s = path.join(src, name);
-    const d = path.join(dest, name);
-    const st = fs.statSync(s);
-    if (st.isDirectory()) copyDirSync(s, d);
-    else fs.copyFileSync(s, d);
-  }
-}
+const python =
+  process.platform === "win32"
+    ? path.join(venvOut, "python.exe")
+    : path.join(venvOut, "bin", "python");
+
+run(python, ["-m", "pip", "install", "--upgrade", "pip"]);
+run(python, ["-m", "pip", "install", "-r", path.join(backendOut, "requirements.txt")]);
+run(python, ["-m", "pip", "install", "-r", path.join(backendOut, "requirements-cad.txt")]);
 
 function ensureDarwinPythonRuntime(venvDir) {
   if (process.platform !== "darwin") return;
@@ -212,7 +267,11 @@ ensureDarwinPythonRuntime(venvOut);
 console.log("→ Vérification backend…");
 run(python, ["-c", "import uvicorn; from app.main import app"], {
   cwd: backendOut,
-  env: { ...process.env, PYTHONPATH: backendOut },
+  env: {
+    ...process.env,
+    PYTHONPATH: backendOut,
+    ...(process.platform === "win32" ? { PYTHONHOME: venvOut } : {}),
+  },
 });
 
 console.log("Desktop resources ready in desktop/build-resources/");

@@ -82,6 +82,7 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": true,
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
@@ -97,7 +98,8 @@
   },
   "devDependencies": {
     "electron": "https://github.com/castlabs/electron-releases#v42.5.2+wvcus",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "rcedit": "^4.0.1"
   },
   "optionalDependencies": {
     "ewvjs": "^1.0.25"

@@ -22,6 +22,10 @@ const {
 const spotifyWebView2 = require("./spotifyWebView2Manager.cjs");
 
 app.setName("Hall");
+if (process.platform === "win32") {
+  // Keep taskbar / jump-list icons on Hall's AppUserModelID (not Electron's).
+  app.setAppUserModelId("com.forma.cad");
+}
 
 const BACKEND_HOST = "127.0.0.1";
 const BACKEND_PORT = Number(process.env.FORMA_PORT || 47831);
@@ -42,6 +46,7 @@ const OAUTH_POPUP_PREFIXES = [
 
 let backendProc = null;
 let mainWindow = null;
+let backendLogPath = null;
 
 function repoRoot() {
   return path.resolve(__dirname, "..");
@@ -56,10 +61,17 @@ function resourcesPath(...parts) {
 
 function pythonExecutable() {
   if (app.isPackaged) {
+    // Windows ships a full relocated CPython tree (python.exe at runtime root).
+    const winRoot = resourcesPath("backend-venv", "python.exe");
+    const winScripts = resourcesPath("backend-venv", "Scripts", "python.exe");
     const macLin = resourcesPath("backend-venv", "bin", "python");
-    const win = resourcesPath("backend-venv", "Scripts", "python.exe");
-    if (fs.existsSync(win)) return win;
+    if (process.platform === "win32") {
+      if (fs.existsSync(winRoot)) return winRoot;
+      if (fs.existsSync(winScripts)) return winScripts;
+    }
     if (fs.existsSync(macLin)) return macLin;
+    if (fs.existsSync(winRoot)) return winRoot;
+    if (fs.existsSync(winScripts)) return winScripts;
   }
   const devMac = path.join(repoRoot(), "backend", ".venv", "bin", "python");
   const devWin = path.join(repoRoot(), "backend", ".venv", "Scripts", "python.exe");
@@ -100,11 +112,32 @@ function ensureDataDir() {
   return dir;
 }
 
+function backendLogFile() {
+  if (backendLogPath) return backendLogPath;
+  backendLogPath = path.join(dataDir(), "backend.log");
+  return backendLogPath;
+}
+
+function appendBackendLog(chunk) {
+  try {
+    fs.appendFileSync(backendLogFile(), chunk);
+  } catch {
+    // ignore logging failures
+  }
+}
+
 function spawnBackend() {
   const py = pythonExecutable();
   const cwd = backendCwd();
   ensureDataDir();
+  if (!fs.existsSync(py)) {
+    throw new Error(`Runtime Python introuvable: ${py}`);
+  }
   const firebaseCreds = firebaseCredentialsPath();
+  const pythonHome =
+    app.isPackaged && process.platform === "win32"
+      ? resourcesPath("backend-venv")
+      : "";
   const env = {
     ...process.env,
     FORMA_DESKTOP: "1",
@@ -118,17 +151,43 @@ function spawnBackend() {
     FORMA_FRONTEND_BASE_PATH: "/",
     ...(firebaseCreds ? { GOOGLE_APPLICATION_CREDENTIALS: firebaseCreds } : {}),
     ...(DEV_URL ? {} : { FORMA_STATIC: frontendDist() }),
+    ...(pythonHome ? { PYTHONHOME: pythonHome } : {}),
+    PYTHONUTF8: "1",
     PYTHONUNBUFFERED: "1",
   };
+
+  try {
+    fs.writeFileSync(
+      backendLogFile(),
+      `[hall] starting backend\npython=${py}\ncwd=${cwd}\nport=${BACKEND_PORT}\n\n`,
+    );
+  } catch {
+    // ignore
+  }
 
   backendProc = spawn(
     py,
     ["-m", "uvicorn", "app.main:app", "--host", BACKEND_HOST, "--port", String(BACKEND_PORT)],
-    { cwd, env, stdio: app.isPackaged ? "ignore" : "inherit" },
+    {
+      cwd,
+      env,
+      windowsHide: true,
+      stdio: app.isPackaged ? ["ignore", "pipe", "pipe"] : "inherit",
+    },
   );
+
+  if (app.isPackaged) {
+    backendProc.stdout?.on("data", (buf) => appendBackendLog(buf));
+    backendProc.stderr?.on("data", (buf) => appendBackendLog(buf));
+  }
+
+  backendProc.on("error", (err) => {
+    appendBackendLog(`[hall] spawn error: ${err?.message || err}\n`);
+  });
 
   backendProc.on("exit", (code) => {
     backendProc = null;
+    appendBackendLog(`[hall] backend exited code=${code}\n`);
     if (code && code !== 0 && mainWindow) {
       mainWindow.loadURL(
         `data:text/html,<body style="font-family:system-ui;background:#121212;color:#e0e0e0;padding:2rem"><h1>Hall</h1><p>The backend engine stopped (code ${code}).</p><p>Restart the application.</p></body>`,
@@ -149,8 +208,17 @@ function backendHealthUrl() {
 function waitForBackend(maxMs = 90000) {
   const started = Date.now();
   const healthUrl = backendHealthUrl();
+  const expectLocalBackend = !DEV_URL;
   return new Promise((resolve, reject) => {
     const tick = () => {
+      if (expectLocalBackend && backendProc === null) {
+        reject(
+          new Error(
+            "Le backend s'est arrêté avant d'être prêt. Consultez forma-data/backend.log.",
+          ),
+        );
+        return;
+      }
       const req = http.get(healthUrl, (res) => {
         res.resume();
         if (res.statusCode && res.statusCode < 500) resolve();
@@ -465,18 +533,35 @@ app.whenReady().then(async () => {
     console.error(err);
     const message =
       err instanceof Error ? err.message : "Le backend Hall n'a pas répondu.";
-    const devHint = DEV_URL
-      ? "Vérifiez que le backend tourne sur le port 8000 (./scripts/desktop-dev.sh)."
-      : "Relancez depuis le dossier du projet : ./scripts/desktop-dev.sh — ou reconstruisez l'app : ./scripts/build-desktop-mac.sh";
+    let hint;
+    if (DEV_URL) {
+      hint =
+        "Vérifiez que le backend tourne sur le port 8000 (./scripts/desktop-dev.sh).";
+    } else if (app.isPackaged) {
+      const logHint = backendLogPath
+        ? `Journal : ${backendLogPath}`
+        : `Journal : ${path.join(app.getPath("userData"), "forma-data", "backend.log")}`;
+      hint =
+        process.platform === "win32"
+          ? `Réinstallez Hall depuis forma.app, puis relancez. ${logHint}`
+          : `Réinstallez Hall, puis relancez. ${logHint}`;
+    } else if (process.platform === "win32") {
+      hint =
+        "Relancez depuis le projet : scripts\\desktop-dev.sh — ou reconstruisez : scripts\\build-desktop-win.bat";
+    } else {
+      hint =
+        "Relancez depuis le dossier du projet : ./scripts/desktop-dev.sh — ou reconstruisez : ./scripts/build-desktop-mac.sh";
+    }
     const win = new BrowserWindow({
       width: 720,
       height: 420,
       title: "Hall",
+      icon: resolveAppIconPath(),
       backgroundColor: "#121212",
     });
     win.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(
-        `<body style="font-family:system-ui;background:#121212;color:#e0e0e0;padding:2rem;line-height:1.5"><h1 style="margin:0 0 1rem">Hall ne peut pas démarrer</h1><p>${message}</p><p>${devHint}</p></body>`,
+        `<body style="font-family:system-ui;background:#121212;color:#e0e0e0;padding:2rem;line-height:1.5"><h1 style="margin:0 0 1rem">Hall ne peut pas démarrer</h1><p>${message}</p><p>${hint}</p></body>`,
       )}`,
     );
   }

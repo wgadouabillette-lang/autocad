@@ -115,9 +115,10 @@ scripts\build-desktop-win.bat
 
 Fichier produit : `desktop/release/Hall Setup 0.1.0.exe`
 
-Double-cliquez pour installer (assistant NSIS), puis lancez **Hall** depuis le menu Démarrer.
+Double-cliquez pour installer (assistant NSIS — installation pour tous les utilisateurs, sans choix « moi seul / plusieurs personnes »), puis lancez **Hall** depuis le menu Démarrer.
 
-Config utilisateur : `%APPDATA%\forma-desktop\forma-data\.env`
+Config utilisateur : `%APPDATA%\forma-desktop\forma-data\.env`  
+Journal backend (si l’app ne démarre pas) : `%APPDATA%\forma-desktop\forma-data\backend.log`
 
 ### Installateur Windows signé (téléchargement utilisateurs)
 
@@ -163,7 +164,7 @@ gh workflow run "Release Windows Desktop"
 
 Artefact : **Hall-windows-installer** → `Hall-windows.exe`
 
-> **Icône bureau Windows :** `win.signAndEditExecutable` doit rester `true` pour que `build/icon.ico` soit injecté dans `Hall.exe` (sinon le raccourci bureau garde l’icône Electron par défaut). La signature Azure continue via `azureSignOptions`.
+> **Icône bureau / barre des tâches Windows :** `win.signAndEditExecutable` doit rester `true`, `build/icon.ico` doit être en BMP (pas PNG-in-ICO — `scripts/generate-app-icon.py`), et `afterPack.cjs` ré-injecte l’icône dans `Hall.exe` avant la signature Azure. La signature Azure continue via `azureSignOptions`.
 
 #### Build local signé (machine Windows)
 

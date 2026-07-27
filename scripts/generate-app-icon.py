@@ -42,10 +42,13 @@ def main() -> None:
     icon_256 = draw_icon(256)
     icon_256.save(OUT_DIR / "icon-256.png")
     # Multi-size .ico for Windows exe / desktop / Start Menu shortcuts.
+    # bitmap_format="bmp" is required: rcedit (electron-builder) silently ignores
+    # PNG-compressed ICO entries and leaves the default Electron icon embedded.
     icon_256.save(
         OUT_DIR / "icon.ico",
         format="ICO",
         sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
+        bitmap_format="bmp",
     )
 
     landing = draw_icon(128)
