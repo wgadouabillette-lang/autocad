@@ -49,22 +49,25 @@
       mount.style.width = "";
       mount.style.height = "";
       mount.style.maxWidth = "";
+      mount.style.maxHeight = "";
       mount.style.marginLeft = "";
-      return;
+      return true;
     }
 
     var frame = mount.closest(".hero__shots") || mount.parentElement;
-    if (!frame) return;
+    if (!frame) return false;
 
     var availW = frame.clientWidth;
     var availH = frame.clientHeight;
-    if (availW <= 0 || availH <= 0) return;
+    if (availW <= 0 || availH <= 0) return false;
 
     var scale = Math.min(availW / PREVIEW_WIDTH, availH / PREVIEW_HEIGHT);
     mount.style.width = Math.floor(PREVIEW_WIDTH * scale) + "px";
     mount.style.height = Math.floor(PREVIEW_HEIGHT * scale) + "px";
     mount.style.maxWidth = "100%";
+    mount.style.maxHeight = "100%";
     mount.style.marginLeft = "0";
+    return true;
   }
 
   function scalePreview(mount, wrapper, scaleLayer) {
@@ -72,7 +75,7 @@
 
     var width = mount.clientWidth;
     var height = mount.clientHeight;
-    if (width <= 0 || height <= 0) return;
+    if (width <= 0 || height <= 0) return false;
 
     if (isMobilePreview() && !isLockedLanding()) {
       var coverScale = Math.max(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT);
@@ -89,7 +92,7 @@
       scaleLayer.style.height = PREVIEW_HEIGHT + "px";
       scaleLayer.style.transform =
         "translate(" + offsetX + "px, " + offsetY + "px) scale(" + coverScale + ")";
-      return;
+      return true;
     }
 
     var scale = Math.min(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT);
@@ -98,13 +101,21 @@
 
     wrapper.style.width = scaledW + "px";
     wrapper.style.height = scaledH + "px";
-    wrapper.style.left = "50%";
-    wrapper.style.top = "50%";
-    wrapper.style.transform = "translate(-50%, -50%)";
+    if (isLockedLanding()) {
+      // Keep the product preview pinned top-left under the hero copy.
+      wrapper.style.left = "0";
+      wrapper.style.top = "0";
+      wrapper.style.transform = "none";
+    } else {
+      wrapper.style.left = "50%";
+      wrapper.style.top = "50%";
+      wrapper.style.transform = "translate(-50%, -50%)";
+    }
 
     scaleLayer.style.width = PREVIEW_WIDTH + "px";
     scaleLayer.style.height = PREVIEW_HEIGHT + "px";
     scaleLayer.style.transform = "scale(" + scale + ")";
+    return true;
   }
 
   function mountPreview() {
@@ -139,19 +150,24 @@
     }, LOAD_TIMEOUT_MS);
 
     var syncScale = function () {
-      scalePreview(mount, wrapper, scaleLayer);
+      return scalePreview(mount, wrapper, scaleLayer);
+    };
+
+    var ensureScale = function (attempt) {
+      if (syncScale()) return;
+      if (attempt >= 40) return;
+      window.requestAnimationFrame(function () {
+        ensureScale(attempt + 1);
+      });
     };
 
     iframe.addEventListener("load", function () {
       loaded = true;
       window.clearTimeout(fallbackTimer);
-      requestAnimationFrame(function () {
-        syncScale();
-        requestAnimationFrame(syncScale);
-      });
+      ensureScale(0);
     });
 
-    syncScale();
+    ensureScale(0);
     window.addEventListener("resize", syncScale);
 
     if ("ResizeObserver" in window) {
@@ -165,6 +181,14 @@
     iframe.src = href;
   }
 
-  mountPreview();
+  function bootPreview() {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", mountPreview, { once: true });
+      return;
+    }
+    mountPreview();
+  }
+
+  bootPreview();
   document.addEventListener("lyte-landing:theme", mountPreview);
 })();
