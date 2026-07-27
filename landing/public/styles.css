@@ -2898,20 +2898,9 @@ body.landing-locked .hero__shot.hero__shot--dashboard::before {
   mask-composite: exclude;
 }
 
-/* Soft left vignette so hero copy stays readable; keep the dashboard visible. */
+/* No dark overlay on the dashboard preview — hero copy keeps its own text-shadow. */
 body.landing-locked .hero__shot.hero__shot--dashboard::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  border-radius: inherit;
-  background: linear-gradient(
-    to right,
-    rgb(0 0 0 / 0.42) 0%,
-    rgb(0 0 0 / 0.12) 34%,
-    rgb(0 0 0 / 0) 58%
-  );
+  content: none;
 }
 
 body.landing-locked .hero__dashboard-preview-frame,
