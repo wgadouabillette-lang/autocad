@@ -17,6 +17,14 @@
     return currentPageSlug() === "compact";
   }
 
+  /** Compact / locked landing: nav drives the hero preview iframe, not page changes. */
+  function usesPreviewNav() {
+    return (
+      isCompactPage() ||
+      document.body.classList.contains("landing-locked")
+    );
+  }
+
   function detectActiveTab() {
     var mount = document.getElementById("site-nav");
     var fromAttr = mount ? mount.getAttribute("data-active") || "" : "";
@@ -73,7 +81,7 @@
   }
 
   function homeSectionHref(sectionId) {
-    if (isHomePage() || isCompactPage()) return "#" + sectionId;
+    if (isHomePage() || usesPreviewNav()) return "#" + sectionId;
     return "/#" + sectionId;
   }
 
@@ -148,7 +156,7 @@
       if (pathPart && pathPart !== "/" && pathPart !== "index.html") return;
 
       var sectionId = href.slice(hashIndex + 1);
-      if (isCompactPage()) {
+      if (usesPreviewNav()) {
         event.preventDefault();
         handleCompactNavSection(sectionId);
         return;
@@ -164,7 +172,7 @@
   function scrollToInitialHash() {
     var sectionId = (window.location.hash || "").replace(/^#/, "");
     if (!sectionId) return;
-    if (isCompactPage()) {
+    if (usesPreviewNav()) {
       window.requestAnimationFrame(function () {
         // Wait for the dashboard iframe helper to mount.
         window.setTimeout(function () {
@@ -186,7 +194,7 @@
 
     var ctaHtml = downloadCta();
 
-    var tabs = isCompactPage()
+    var tabs = usesPreviewNav()
       ? [
           { id: "music", labelKey: "nav.music", href: "#music" },
           { id: "skills", labelKey: "nav.skills", href: "#skills" },
