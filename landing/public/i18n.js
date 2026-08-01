@@ -21,7 +21,7 @@
       "nav.resources": "Resources",
       "nav.openApp": "Open on web",
       "nav.openAppDesktopOnly": "Hall is available on desktop only",
-      "hero.title": "Your team workspace,<br />in one app.",
+      "hero.title": "AI-powered collaborative<br />workspace for teams",
       "hero.lead":
         "A collaborative workspace application that helps teams communicate, organize meetings, manage tasks, and connect productivity tools.",
       "hero.cta.start": "Get started",
@@ -170,7 +170,7 @@
       "nav.resources": "Ressources",
       "nav.openApp": "Ouvrir le web",
       "nav.openAppDesktopOnly": "Hall est disponible sur ordinateur uniquement",
-      "hero.title": "L'espace de travail de votre équipe,<br />en une seule app.",
+      "hero.title": "Espace de travail collaboratif<br />propulsé par l'IA",
       "hero.lead":
         "Une application d'espace de travail collaboratif qui aide les équipes à communiquer, organiser des réunions, gérer des tâches et connecter leurs outils de productivité.",
       "hero.cta.start": "Commencer",
