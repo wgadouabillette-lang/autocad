@@ -13,16 +13,9 @@
     return currentPageSlug() === "home";
   }
 
-  function isCompactPage() {
-    return currentPageSlug() === "compact";
-  }
-
-  /** Compact / locked landing: nav drives the hero preview iframe, not page changes. */
+  /** Locked single-viewport home (legacy): nav drives the hero preview iframe. */
   function usesPreviewNav() {
-    return (
-      isCompactPage() ||
-      document.body.classList.contains("landing-locked")
-    );
+    return document.body.classList.contains("landing-locked");
   }
 
   function detectActiveTab() {

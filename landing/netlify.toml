@@ -43,7 +43,12 @@
 
 [[redirects]]
   from = "/compact.html"
-  to = "/compact"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/compact"
+  to = "/"
   status = 301
 
 [[redirects]]
@@ -79,11 +84,6 @@
 [[redirects]]
   from = "/subprocessors"
   to = "/subprocessors.html"
-  status = 200
-
-[[redirects]]
-  from = "/compact"
-  to = "/compact.html"
   status = 200
 
 [[headers]]

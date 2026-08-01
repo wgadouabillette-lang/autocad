@@ -8,7 +8,7 @@
     en: {
       "meta.title": "Hall — Collaborative workspace",
       "meta.description":
-        "Hall — collaborative workspace with voice channels, AI chat, and screen recording.",
+        "Hall is a desktop team workspace with voice channels, AI chat, calendar, screen recording, and Google/Spotify connectors — download the app to collaborate.",
       "nav.pricing": "Pricing",
       "nav.careers": "Careers",
       "nav.skills": "Skills",
@@ -157,7 +157,7 @@
     fr: {
       "meta.title": "Hall — Espace de travail collaboratif",
       "meta.description":
-        "Hall — espace de travail collaboratif avec salons vocaux, chat IA et enregistrement d'écran.",
+        "Hall est une app desktop d'espace de travail d'équipe : canaux vocaux, chat IA, calendrier, enregistrement d'écran et connecteurs Google/Spotify — téléchargez l'app pour collaborer.",
       "nav.pricing": "Tarifs",
       "nav.careers": "Careers",
       "nav.skills": "Skills",

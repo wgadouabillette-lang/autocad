@@ -20,7 +20,6 @@ export default defineConfig({
         terms: resolve(rootDir, "terms.html"),
         privacy: resolve(rootDir, "privacy.html"),
         subprocessors: resolve(rootDir, "subprocessors.html"),
-        compact: resolve(rootDir, "compact.html"),
       },
     },
   },

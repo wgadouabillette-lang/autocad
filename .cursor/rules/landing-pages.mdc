@@ -1,0 +1,25 @@
+---
+description: Hall marketing landing (single canonical home)
+globs: landing/**
+alwaysApply: false
+---
+
+# Landing pages
+
+There is **one** marketing home. Do not reintroduce a separate `/compact` page.
+
+## Canonical home
+
+- File: `landing/index.html`
+- URL: `/`
+- Full scrollable page: hero + workspaces preview + feature sections + highlights + try CTA + footer
+- This is what Google (and users) should see to understand what Hall is
+
+## Legacy URLs
+
+- `/compact` and `/compact.html` redirect to `/` (Firebase Hosting + Netlify)
+- Do not add a second homepage variant unless explicitly asked
+
+## Other pages
+
+Separate routes (`/tarifs`, `/privacy`, `/terms`, `/auth`, etc.) stay as their own HTML files — those are not alternate homes.
