@@ -23,7 +23,7 @@
       "nav.openAppDesktopOnly": "Hall is available on desktop only",
       "hero.title": "Your team workspace,<br />in one app.",
       "hero.lead":
-        "Voice channels, AI chat, calendar, screen recording, and connectors — Hall brings everything your team needs day to day.",
+        "A collaborative workspace application that helps teams communicate, organize meetings, manage tasks, and connect productivity tools.",
       "hero.cta.start": "Get started",
       "hero.cta.pricing": "View pricing",
       "hero.shots.trio.title": "From conversation to action",
@@ -172,7 +172,7 @@
       "nav.openAppDesktopOnly": "Hall est disponible sur ordinateur uniquement",
       "hero.title": "L'espace de travail de votre équipe,<br />en une seule app.",
       "hero.lead":
-        "Salons vocaux, chat IA, calendrier, enregistrement d'écran et connecteurs — Hall regroupe tout ce dont votre équipe a besoin au quotidien.",
+        "Une application d'espace de travail collaboratif qui aide les équipes à communiquer, organiser des réunions, gérer des tâches et connecter leurs outils de productivité.",
       "hero.cta.start": "Commencer",
       "hero.cta.pricing": "Voir les tarifs",
       "hero.shots.trio.title": "From conversation to action",
