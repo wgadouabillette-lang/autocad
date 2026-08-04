@@ -15,29 +15,43 @@
     );
   }
 
-  function isWindowsClient() {
+  function clientPlatform() {
     var ua = (navigator.userAgent || "").toLowerCase();
     var platform = (navigator.platform || "").toLowerCase();
     var uaDataPlatform =
       navigator.userAgentData && navigator.userAgentData.platform
         ? String(navigator.userAgentData.platform).toLowerCase()
         : "";
-    return (
+    if (
       ua.includes("windows") ||
       platform.includes("win") ||
       uaDataPlatform.includes("win")
-    );
+    ) {
+      return "windows";
+    }
+    if (
+      ua.includes("linux") ||
+      platform.includes("linux") ||
+      uaDataPlatform.includes("linux") ||
+      ua.includes("x11") ||
+      ua.includes("cros")
+    ) {
+      return "linux";
+    }
+    return "mac";
   }
 
   var urls = {
     windows: storageDownloadUrl("Hall-windows.exe"),
     mac: storageDownloadUrl("Hall-mac.dmg"),
+    linux: storageDownloadUrl("Hall-linux.AppImage"),
   };
 
   global.HallDownloadUrls = urls;
 
   global.HallDownloadTarget = function HallDownloadTarget() {
-    if (isWindowsClient()) {
+    var platform = clientPlatform();
+    if (platform === "windows") {
       return {
         href: urls.windows,
         labelKey: "try.downloadWin",
@@ -45,6 +59,16 @@
         fallbackLabel: "Download for Windows",
         fallbackAria: "Download Hall for Windows",
         platform: "windows",
+      };
+    }
+    if (platform === "linux") {
+      return {
+        href: urls.linux,
+        labelKey: "try.downloadLinux",
+        ariaKey: "try.downloadLinuxAria",
+        fallbackLabel: "Download for Linux",
+        fallbackAria: "Download Hall for Linux",
+        platform: "linux",
       };
     }
     return {

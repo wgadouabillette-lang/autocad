@@ -7,12 +7,14 @@ RELEASE_DIR="desktop/release"
 OUT_DIRS=("landing/downloads" "landing/public/downloads")
 MAC_NAME="Hall-mac.dmg"
 WIN_NAME="Hall-windows.exe"
+LINUX_NAME="Hall-linux.AppImage"
 
 if [[ ! -d "$RELEASE_DIR" ]]; then
   echo "Dossier $RELEASE_DIR introuvable."
   echo "Construisez d'abord les installateurs :"
   echo "  macOS  → ./scripts/build-desktop-mac.sh"
   echo "  Windows → scripts/build-desktop-win.bat (sur Windows)"
+  echo "  Linux  → ./scripts/build-desktop-linux.sh (ou GitHub Actions)"
   exit 1
 fi
 
@@ -20,15 +22,17 @@ mkdir -p "${OUT_DIRS[@]}"
 
 MAC_SRC="$(find "$RELEASE_DIR" -maxdepth 1 -name '*.dmg' -type f | head -1)"
 WIN_SRC="$(find "$RELEASE_DIR" -maxdepth 1 -name '*.exe' -type f | head -1)"
+LINUX_SRC="$(find "$RELEASE_DIR" -maxdepth 1 \( -name 'Hall-*-linux.AppImage' -o -name '*.AppImage' \) -type f | head -1)"
 
-if [[ -z "$MAC_SRC" && -z "$WIN_SRC" ]]; then
-  echo "Aucun .dmg ni .exe trouvé dans $RELEASE_DIR"
+if [[ -z "$MAC_SRC" && -z "$WIN_SRC" && -z "$LINUX_SRC" ]]; then
+  echo "Aucun .dmg / .exe / .AppImage trouvé dans $RELEASE_DIR"
   exit 1
 fi
 
 for OUT_DIR in "${OUT_DIRS[@]}"; do
   MAC_OUT="$OUT_DIR/$MAC_NAME"
   WIN_OUT="$OUT_DIR/$WIN_NAME"
+  LINUX_OUT="$OUT_DIR/$LINUX_NAME"
 
   if [[ -n "$MAC_SRC" ]]; then
     cp "$MAC_SRC" "$MAC_OUT"
@@ -46,6 +50,14 @@ for OUT_DIR in "${OUT_DIRS[@]}"; do
   else
     echo "Windows → aucun .exe trouvé (ignoré)"
   fi
+
+  if [[ -n "$LINUX_SRC" ]]; then
+    cp "$LINUX_SRC" "$LINUX_OUT"
+    chmod +x "$LINUX_OUT"
+    echo "Linux  → $LINUX_OUT (depuis $(basename "$LINUX_SRC"))"
+  else
+    echo "Linux  → aucun .AppImage trouvé (ignoré)"
+  fi
 done
 
 echo ""
@@ -53,3 +65,4 @@ echo "Déployez le dossier landing/ sur votre hébergeur (Netlify, Vercel, S3, n
 echo "URL de téléchargement :"
 echo "  https://votre-domaine.com/downloads/Hall-mac.dmg"
 echo "  https://votre-domaine.com/downloads/Hall-windows.exe"
+echo "  https://votre-domaine.com/downloads/Hall-linux.AppImage"

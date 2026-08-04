@@ -8,6 +8,7 @@ PROJECT_ID="${FIREBASE_PROJECT_ID:-forma-cad-dev}"
 BUCKET="${FIREBASE_STORAGE_BUCKET:-forma-cad-dev.firebasestorage.app}"
 MAC_SRC="${1:-landing/public/downloads/Hall-mac.dmg}"
 WIN_SRC="${2:-landing/public/downloads/Hall-windows.exe}"
+LINUX_SRC="${3:-landing/public/downloads/Hall-linux.AppImage}"
 
 upload_one() {
   local src="$1"
@@ -37,10 +38,13 @@ fi
 if upload_one "$WIN_SRC" "Hall-windows.exe"; then
   uploaded=1
 fi
+if upload_one "$LINUX_SRC" "Hall-linux.AppImage"; then
+  uploaded=1
+fi
 
 if [[ "$uploaded" -eq 0 ]]; then
   echo "Aucun installateur trouvé."
-  echo "Placez Hall-mac.dmg / Hall-windows.exe dans landing/public/downloads/"
-  echo "ou passez les chemins : $0 <mac.dmg> <win.exe>"
+  echo "Placez Hall-mac.dmg / Hall-windows.exe / Hall-linux.AppImage dans landing/public/downloads/"
+  echo "ou passez les chemins : $0 <mac.dmg> <win.exe> <linux.AppImage>"
   exit 1
 fi

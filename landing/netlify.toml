@@ -103,6 +103,12 @@
   status = 302
   force = true
 
+[[redirects]]
+  from = "/downloads/Hall-linux.AppImage"
+  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-linux.AppImage?alt=media"
+  status = 302
+  force = true
+
 [[headers]]
   for = "/downloads/*"
   [headers.values]

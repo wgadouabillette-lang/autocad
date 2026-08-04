@@ -2,14 +2,15 @@
   "name": "forma-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Hall — application bureau (macOS / Windows)",
+  "description": "Hall — application bureau (macOS / Windows / Linux)",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
     "prepare-resources": "node ../scripts/prepare-desktop-resources.cjs",
     "dist:mac": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --mac dmg",
     "dist:win": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --config electron-builder.config.cjs --win nsis",
-    "dist": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --mac dmg --win nsis"
+    "dist:linux": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --linux AppImage",
+    "dist": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --mac dmg --win nsis --linux AppImage"
   },
   "build": {
     "appId": "com.forma.cad",
@@ -20,6 +21,8 @@
     "files": [
       "main.cjs",
       "preload.cjs",
+      "recording-camera-preload.cjs",
+      "recording-camera-overlay.html",
       "updater.cjs",
       "updater-state.cjs",
       "package.json",
@@ -66,6 +69,7 @@
       "identity": null,
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
+      "artifactName": "Hall-${version}-mac.${ext}",
       "extendInfo": {
         "NSScreenCaptureUsageDescription": "Hall a besoin d'accéder à l'écran pour le partage d'écran et l'enregistrement.",
         "NSCameraUsageDescription": "Hall utilise la caméra pour les appels vidéo.",
@@ -80,6 +84,16 @@
       "signAndEditExecutable": true,
       "verifyUpdateCodeSignature": false
     },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Office",
+      "icon": "build/icon.png",
+      "synopsis": "AI-powered collaborative workspace",
+      "description": "Hall — AI-powered collaborative workspace for teams.",
+      "artifactName": "Hall-${version}-linux.${ext}"
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": true,
@@ -93,7 +107,20 @@
       "artifactName": "Hall Setup ${version}.${ext}"
     },
     "dmg": {
-      "title": "Hall"
+      "title": "Hall",
+      "artifactName": "Hall-${version}-mac.${ext}",
+      "contents": [
+        {
+          "x": 140,
+          "y": 200
+        },
+        {
+          "x": 400,
+          "y": 200,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     }
   },
   "devDependencies": {

@@ -86,6 +86,11 @@
         "source": "/downloads/Hall-mac.dmg",
         "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-mac.dmg?alt=media",
         "type": 302
+      },
+      {
+        "source": "/downloads/Hall-linux.AppImage",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-linux.AppImage?alt=media",
+        "type": 302
       }
     ],
     "headers": [

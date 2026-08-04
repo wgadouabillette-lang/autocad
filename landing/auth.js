@@ -73,6 +73,7 @@ function providerForId(id) {
 function appHint() {
   const normalized = (platform ?? "").toLowerCase();
   if (normalized.includes("win")) return "Windows";
+  if (normalized.includes("linux") || normalized.includes("x11")) return "Linux";
   if (normalized.includes("mac") || normalized.includes("darwin")) return "macOS";
   return "your computer";
 }

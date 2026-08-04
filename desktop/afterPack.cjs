@@ -1,6 +1,6 @@
 /**
  * afterPack:
- * - macOS: VMP-sign Electron Castlabs (before code-sign)
+ * - macOS / Linux: VMP-sign Electron Castlabs (Widevine / Spotify)
  * - Windows: ensure Hall icon is embedded in Hall.exe before Authenticode
  *   (rcedit must see a BMP-format .ico — see scripts/generate-app-icon.py)
  */
@@ -63,11 +63,19 @@ exports.default = async function afterPack(context) {
     return;
   }
 
-  if (context.electronPlatformName !== "darwin") return;
+  if (
+    context.electronPlatformName !== "darwin" &&
+    context.electronPlatformName !== "linux"
+  ) {
+    return;
+  }
 
   const appOutDir = context.appOutDir;
   const evsPython = resolveEvsPython();
-  console.log("[evs] VMP signing macOS (before code-sign):", appOutDir);
+  console.log(
+    `[evs] VMP signing ${context.electronPlatformName} (before packaging):`,
+    appOutDir,
+  );
   try {
     signVmpPackage(appOutDir, evsPython);
     console.log("[evs] VMP signature OK");

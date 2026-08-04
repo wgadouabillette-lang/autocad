@@ -1,13 +1,13 @@
-# Hall — application bureau (.dmg / Windows)
+# Hall — application bureau (.dmg / Windows / Linux)
 
 Hall peut tourner comme une **vraie application** (fenêtre native), sans ouvrir le terminal ni `localhost:5173`.
 
 ## Prérequis
 
-| Outil | macOS | Windows |
-|-------|-------|---------|
-| Python | 3.11+ | 3.11+ |
-| Node.js | 18+ | 18+ |
+| Outil | macOS | Windows | Linux |
+|-------|-------|---------|-------|
+| Python | 3.11+ | 3.11+ | 3.11+ |
+| Node.js | 18+ | 18+ | 18+ |
 
 ---
 
@@ -26,21 +26,56 @@ Une fenêtre **Hall** s’ouvre (Electron). Le backend tourne en arrière-plan s
 
 ## Option B — Installer comme une vraie app macOS (.dmg)
 
-**À construire sur un Mac** (une fois) :
+**À construire sur un Mac** (ou via GitHub Actions — voir ci-dessous) :
 
 ```bash
 chmod +x scripts/build-desktop-mac.sh
 ./scripts/build-desktop-mac.sh
 ```
 
-Fichier produit : `desktop/release/Hall-0.1.0.dmg`
+Fichiers produits :
+- `desktop/release/Hall-0.1.0-mac.dmg` (versionné)
+- `landing/public/downloads/Hall-mac.dmg` (nom stable pour le site)
+
+Build plus rapide (Apple Silicon seulement) :
+
+```bash
+FORMA_MAC_ARCH=arm64 ./scripts/build-desktop-mac.sh
+```
 
 1. Double-cliquez le `.dmg`
 2. Glissez **Hall** dans **Applications**
 3. Lancez depuis le Launchpad (comme n’importe quelle app Mac)
 
-> Au premier lancement, macOS peut afficher « développeur non identifié » :  
-> **Réglages Système → Confidentialité et sécurité → Ouvrir quand même**.
+> Au premier lancement, macOS peut afficher « développeur non identifié » (signature ad hoc, sans compte Apple Developer) :  
+> **Réglages Système → Confidentialité et sécurité → Ouvrir quand même**,  
+> ou clic droit sur Hall → **Ouvrir**.
+
+### Publier le .dmg (téléchargement utilisateurs)
+
+La landing pointe déjà vers `https://forma.app/downloads/Hall-mac.dmg` (Firebase Storage).
+
+Après un build local :
+
+```bash
+./scripts/upload-desktop-downloads.sh
+```
+
+#### CI GitHub Actions
+
+```bash
+gh workflow run "Release macOS Desktop"
+```
+
+Artefact : **Hall-mac-dmg** → `Hall-mac.dmg`  
+Secrets requis : `EVS_ACCOUNT_NAME`, `EVS_PASSWD` (Castlabs EVS / Widevine).
+
+Sur une release GitHub (`release` published), le workflow attache aussi le `.dmg` à la release. Ensuite :
+
+```bash
+# depuis l’artefact CI ou desktop/release/
+./scripts/upload-desktop-downloads.sh landing/public/downloads/Hall-mac.dmg
+```
 
 ### Spotify (lecture complète Premium)
 
@@ -201,6 +236,44 @@ Au premier lancement Windows, Hall démarre une fenêtre WebView2 cachée qui s�
 
 ---
 
+## Option D — Installateur Linux (.AppImage)
+
+**Pas besoin d’un PC Linux local** — construisez via GitHub Actions (comme Windows) :
+
+```bash
+gh workflow run "Release Linux Desktop"
+```
+
+Artefact : **Hall-linux-AppImage** → `Hall-linux.AppImage`  
+Secrets requis : `EVS_ACCOUNT_NAME`, `EVS_PASSWD` (Castlabs EVS / Widevine — mêmes que macOS).
+
+Sur une release GitHub (`release` published), le workflow attache aussi l’AppImage à la release. Ensuite :
+
+```bash
+# depuis l’artefact CI
+./scripts/upload-desktop-downloads.sh \
+  landing/public/downloads/Hall-mac.dmg \
+  landing/public/downloads/Hall-windows.exe \
+  landing/public/downloads/Hall-linux.AppImage
+```
+
+URL : `https://forma.app/downloads/Hall-linux.AppImage`
+
+Sur une machine Linux (optionnel) :
+
+```bash
+./scripts/build-desktop-linux.sh
+```
+
+Config utilisateur : `~/.config/forma-desktop/forma-data/.env`  
+L’AppImage est portable : `chmod +x Hall-linux.AppImage && ./Hall-linux.AppImage`
+
+### Spotify (Linux)
+
+Comme sur macOS, le build CI signe Widevine via Castlabs EVS (`afterPack`). Premium + connecteur Spotify requis.
+
+---
+
 ## Différences avec le mode développeur
 
 | | Dev (`start.sh`) | App bureau |
@@ -208,7 +281,7 @@ Au premier lancement Windows, Hall démarre une fenêtre WebView2 cachée qui s�
 | Interface | Navigateur :5173 | Fenêtre native |
 | Backend | Terminal visible | Arrière-plan |
 | Frontend | Vite hot-reload | Build statique embarqué |
-| Distribution | Non | .dmg / .exe |
+| Distribution | Non | .dmg / .exe / .AppImage |
 
 ---
 
@@ -223,4 +296,4 @@ Au premier lancement Windows, Hall démarre une fenêtre WebView2 cachée qui s�
 - **LLM déconnecté** → éditez le `.env` utilisateur (voir ci-dessus)
 - **Build .dmg échoue** → vérifiez `python3`, espace disque (~1 Go pour le venv embarqué)
 - **Spotify : lecture complète ne marche pas (Windows)** → Premium + reconnecter le connecteur ; installez [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) si absent ; relancez l’app
-- **Spotify : lecture complète ne marche pas (Mac)** → Premium + reconnecter le connecteur ; au 1er lancement attendez le téléchargement Widevine ; relancez si besoin (`cd desktop && npm install` installe Electron Castlabs)
+- **Spotify : lecture complète ne marche pas (Mac / Linux)** → Premium + reconnecter le connecteur ; au 1er lancement attendez le téléchargement Widevine ; relancez si besoin (`cd desktop && npm install` installe Electron Castlabs)
