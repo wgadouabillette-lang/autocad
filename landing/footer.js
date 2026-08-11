@@ -131,7 +131,8 @@
         "footer.legal",
         link("/privacy", "nav.privacy") +
           link("/terms", "footer.terms") +
-          link("/subprocessors", "footer.subprocessors"),
+          link("/subprocessors", "footer.subprocessors") +
+          link("/google-limited-use", "footer.googleLimitedUse"),
       ),
       column(
         "footer.connect",

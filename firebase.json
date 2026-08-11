@@ -64,7 +64,8 @@
       { "source": "/ressources", "destination": "/ressources.html" },
       { "source": "/terms", "destination": "/terms.html" },
       { "source": "/privacy", "destination": "/privacy.html" },
-      { "source": "/subprocessors", "destination": "/subprocessors.html" }
+      { "source": "/subprocessors", "destination": "/subprocessors.html" },
+      { "source": "/google-limited-use", "destination": "/google-limited-use.html" }
     ],
     "redirects": [
       { "source": "/index.html", "destination": "/", "type": 301 },
@@ -75,6 +76,7 @@
       { "source": "/terms.html", "destination": "/terms", "type": 301 },
       { "source": "/privacy.html", "destination": "/privacy", "type": 301 },
       { "source": "/subprocessors.html", "destination": "/subprocessors", "type": 301 },
+      { "source": "/google-limited-use.html", "destination": "/google-limited-use", "type": 301 },
       { "source": "/compact", "destination": "/", "type": 301 },
       { "source": "/compact.html", "destination": "/", "type": 301 },
       {

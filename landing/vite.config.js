@@ -20,6 +20,7 @@ export default defineConfig({
         terms: resolve(rootDir, "terms.html"),
         privacy: resolve(rootDir, "privacy.html"),
         subprocessors: resolve(rootDir, "subprocessors.html"),
+        googleLimitedUse: resolve(rootDir, "google-limited-use.html"),
       },
     },
   },

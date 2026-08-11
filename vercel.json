@@ -50,6 +50,10 @@
       "destination": "/subprocessors.html"
     },
     {
+      "source": "/google-limited-use",
+      "destination": "/google-limited-use.html"
+    },
+    {
       "source": "/app",
       "destination": "/app/"
     }

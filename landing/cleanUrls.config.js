@@ -7,6 +7,7 @@ export const CLEAN_URL_SLUGS = [
   "terms",
   "privacy",
   "subprocessors",
+  "google-limited-use",
 ];
 
 export const CLEAN_URL_SLUG_SET = new Set(CLEAN_URL_SLUGS);
