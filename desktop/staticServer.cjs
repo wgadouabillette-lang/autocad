@@ -36,6 +36,47 @@ function safeFile(root, requestPath) {
   return resolved;
 }
 
+const HOP_BY_HOP = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailers",
+  "transfer-encoding",
+  "upgrade",
+]);
+
+function proxyRequestHeaders(req, apiHost, apiPort) {
+  const headers = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value == null || HOP_BY_HOP.has(key.toLowerCase())) continue;
+    headers[key] = value;
+  }
+  // Keep the browser Host so redirects stay on the UI origin (47832), not 47831.
+  headers.host = req.headers.host || `${apiHost}:${apiPort}`;
+  headers["x-forwarded-host"] = req.headers.host || headers.host;
+  headers["x-forwarded-proto"] = "http";
+  headers["x-forwarded-for"] = req.socket?.remoteAddress || "127.0.0.1";
+  if (req.headers.authorization) {
+    headers.authorization = req.headers.authorization;
+  }
+  return headers;
+}
+
+function proxyResponseHeaders(incoming, apiOrigin, uiOrigin) {
+  const headers = { ...incoming };
+  for (const key of HOP_BY_HOP) {
+    delete headers[key];
+  }
+  for (const name of ["location", "Location"]) {
+    if (typeof headers[name] === "string" && apiOrigin) {
+      headers[name] = headers[name].replace(apiOrigin, uiOrigin);
+    }
+  }
+  return headers;
+}
+
 function sendFile(res, filePath) {
   const ext = path.extname(filePath).toLowerCase();
   res.writeHead(200, {
@@ -59,16 +100,21 @@ function createUiServer({ distDir, apiHost, apiPort, listenHost, listenPort }) {
     }
 
     if (url.pathname.startsWith("/api/")) {
+      const apiOrigin = `http://${apiHost}:${apiPort}`;
+      const uiOrigin = `http://${listenHost}:${listenPort}`;
       const proxy = http.request(
         {
           hostname: apiHost,
           port: apiPort,
           path: `${url.pathname}${url.search}`,
           method: req.method,
-          headers: { ...req.headers, host: `${apiHost}:${apiPort}` },
+          headers: proxyRequestHeaders(req, apiHost, apiPort),
         },
         (pres) => {
-          res.writeHead(pres.statusCode || 502, pres.headers);
+          res.writeHead(
+            pres.statusCode || 502,
+            proxyResponseHeaders(pres.headers, apiOrigin, uiOrigin),
+          );
           pres.pipe(res);
         },
       );

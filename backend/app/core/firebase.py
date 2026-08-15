@@ -55,6 +55,24 @@ def _credential_path() -> str:
     return ""
 
 
+def _configure_ssl_bundle() -> None:
+    """Point Python at certifi so Windows embedded runtimes can verify Google certs."""
+    try:
+        import certifi
+
+        bundle = certifi.where()
+    except Exception:
+        return
+    if not bundle or not os.path.isfile(bundle):
+        return
+    os.environ.setdefault("SSL_CERT_FILE", bundle)
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", bundle)
+    os.environ.setdefault("CURL_CA_BUNDLE", bundle)
+
+
+_configure_ssl_bundle()
+
+
 def _ensure_app():
     global _app
     if _app is not None:
@@ -69,6 +87,7 @@ def _ensure_app():
     if not firebase_admin._apps:
         sa_dict = _service_account_dict()
         cred_path = _credential_path()
+        desktop = (os.getenv("FORMA_DESKTOP") or "").strip() == "1"
         try:
             if sa_dict:
                 cred = credentials.Certificate(sa_dict)
@@ -76,6 +95,10 @@ def _ensure_app():
             elif cred_path:
                 cred = credentials.Certificate(cred_path)
                 _app = firebase_admin.initialize_app(cred, {"projectId": _project_id()})
+            elif desktop:
+                # Packaged apps inherit the host machine ADC, which often belongs
+                # to another GCP project and breaks ID-token verification.
+                _app = firebase_admin.initialize_app(options={"projectId": _project_id()})
             else:
                 try:
                     cred = credentials.ApplicationDefault()
@@ -151,16 +174,24 @@ def verify_bearer_token(token: str) -> Optional[FirebaseUser]:
             decoded = auth.verify_id_token(token, check_revoked=False)
             user = FirebaseUser(uid=str(decoded["uid"]), email=decoded.get("email"))
         except Exception as exc:
-            logger.debug("Firebase Admin token verification failed: %s", exc)
+            logger.warning("Firebase Admin token verification failed: %s", exc)
 
     if user is None:
         try:
+            import requests as req_lib
             from google.auth.transport import requests as google_requests
             from google.oauth2 import id_token as google_id_token
 
+            session = req_lib.Session()
+            try:
+                import certifi
+
+                session.verify = certifi.where()
+            except Exception:
+                pass
             decoded = google_id_token.verify_firebase_token(
                 token,
-                google_requests.Request(),
+                google_requests.Request(session=session),
                 audience=project_id,
             )
             uid = decoded.get("user_id") or decoded.get("sub")

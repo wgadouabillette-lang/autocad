@@ -183,6 +183,15 @@ function appendBackendLog(chunk) {
   }
 }
 
+function windowsCertifiPath(pythonHome) {
+  if (!pythonHome) return "";
+  const candidates = [
+    path.join(pythonHome, "Lib", "site-packages", "certifi", "cacert.pem"),
+    path.join(pythonHome, "lib", "site-packages", "certifi", "cacert.pem"),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) || "";
+}
+
 function windowsPathKey(env) {
   if (Object.prototype.hasOwnProperty.call(env, "Path")) return "Path";
   if (Object.prototype.hasOwnProperty.call(env, "PATH")) return "PATH";
@@ -268,13 +277,17 @@ function spawnBackend() {
     FORMA_CORS: [UI_ORIGIN, BACKEND_ORIGIN, "http://localhost:5173", "http://127.0.0.1:5173"].join(
       ",",
     ),
-    ...(firebaseCreds ? { GOOGLE_APPLICATION_CREDENTIALS: firebaseCreds } : {}),
     PYTHONUTF8: "1",
     PYTHONUNBUFFERED: "1",
     PYTHONNOUSERSITE: "1",
     PYTHONDONTWRITEBYTECODE: "1",
     PYTHONPATH: cwd,
   };
+  if (firebaseCreds) {
+    env.GOOGLE_APPLICATION_CREDENTIALS = firebaseCreds;
+  } else {
+    delete env.GOOGLE_APPLICATION_CREDENTIALS;
+  }
   if (pythonHome) {
     env.PYTHONHOME = pythonHome;
     const pathKey = windowsPathKey(env);
@@ -284,6 +297,12 @@ function spawnBackend() {
       path.join(pythonHome, "DLLs"),
       env[pathKey] || "",
     ].join(path.delimiter);
+    const certFile = windowsCertifiPath(pythonHome);
+    if (certFile) {
+      env.SSL_CERT_FILE = certFile;
+      env.REQUESTS_CA_BUNDLE = certFile;
+      env.CURL_CA_BUNDLE = certFile;
+    }
   }
 
   try {
