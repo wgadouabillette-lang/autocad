@@ -25,6 +25,7 @@ import {
   type WorkMode,
 } from "../lib/workModes";
 import {
+  normalizeHallDjVolume,
   normalizeSidePanelSide,
   readUserPreferences,
   resolveCalendarWorkingHours,
@@ -33,6 +34,7 @@ import {
   type UserPreferences,
 } from "../lib/userPreferences";
 import { normalizeHallDjGenre } from "../lib/hallDjGenres";
+import { setSpotifyPlaybackVolume } from "../lib/spotifyWebPlayback";
 import { hasAiAccess, type SubscriptionPlan } from "../lib/subscriptionPlans";
 import type { AnySettingsTab, SettingsTab } from "../lib/settingsSearchSuggestions";
 import { normalizeSettingsTab } from "../lib/settingsSearchSuggestions";
@@ -92,6 +94,7 @@ import { auth } from "../lib/firebase/client";
 import {
   deleteChatSession as fbDeleteChatSession,
   loadChatSessionById,
+  loadChatSessionSummaries,
   saveChatSession as fbSaveChatSession,
 } from "../lib/firebase/userData";
 import { deleteRecordingBlob } from "../lib/recordingsStorage";
@@ -403,6 +406,7 @@ interface State {
   recordingCameraMirrorPreview: boolean;
   audioInputDeviceId: string;
   audioOutputDeviceId: string;
+  videoInputDeviceId: string;
   audioEchoCancellation: boolean;
   audioNoiseSuppression: boolean;
   sidePanelSide: SidePanelSide;
@@ -418,6 +422,7 @@ interface State {
   calendarWorkStartMinutes: number;
   calendarWorkEndMinutes: number;
   hallDjPreferredGenre: string;
+  hallDjVolume: number;
   aiRun: AiRun | null;
   activePage: MainPageId | null;
   openPages: MainPageId[];
@@ -435,6 +440,7 @@ interface State {
   setRecordingCameraMirrorPreview: (enabled: boolean) => void;
   setAudioInputDeviceId: (deviceId: string) => void;
   setAudioOutputDeviceId: (deviceId: string) => void;
+  setVideoInputDeviceId: (deviceId: string) => void;
   setAudioEchoCancellation: (enabled: boolean) => void;
   setAudioNoiseSuppression: (enabled: boolean) => void;
   setSidePanelSide: (side: SidePanelSide) => void;
@@ -450,6 +456,7 @@ interface State {
   setAgentAiNotesInstructions: (value: string) => void;
   setCalendarWorkingHours: (startMinutes: number, endMinutes: number) => void;
   setHallDjPreferredGenre: (genre: string) => void;
+  setHallDjVolume: (volume: number) => void;
   clearSettingsScrollTarget: () => void;
   select: (id: string | null) => void;
   /** additive=true : ⌘/Ctrl+clic pour ajouter ou retirer une face de la sélection. */
@@ -516,6 +523,7 @@ interface State {
   goBackChat: () => void;
   canGoBackChat: () => boolean;
   toggleChatHistory: () => void;
+  ensureChatHistoryHydrated: () => void;
   openChatHistoryPanel: (options?: { highlightRecordingId?: string }) => void;
   clearChatHistoryHighlightRecording: () => void;
   setChatPanelMode: (
@@ -549,6 +557,8 @@ interface State {
   ) => Promise<void>;
   /** Pousse les blocs proposés par /manage dans le calendrier (déclenché par "Appliquer au calendrier"). */
   applyManageEventsForChatMessage: (chatIndex: number) => Promise<void>;
+  /** Après choix d'une piste /play : retire la liste de propositions du message. */
+  clearSpotifySearchResults: (chatIndex: number) => void;
   sendAgent: (
     prompt: string,
     imageFiles?: File[],
@@ -594,6 +604,15 @@ const EMPTY: CadDocument = {
 
 const AUTOSAVE_KEY = "forma-autosave";
 
+/** Historique chat cloud — lazy (pas de reads Firestore au boot). */
+let chatHistoryCloudHydrated = false;
+let chatHistoryCloudHydrating = false;
+
+export function resetChatHistoryCloudHydration(): void {
+  chatHistoryCloudHydrated = false;
+  chatHistoryCloudHydrating = false;
+}
+
 const bootUserPreferences = readUserPreferences();
 
 function userPreferencesSnapshot(state: {
@@ -606,6 +625,7 @@ function userPreferencesSnapshot(state: {
   recordingCameraMirrorPreview: boolean;
   audioInputDeviceId: string;
   audioOutputDeviceId: string;
+  videoInputDeviceId: string;
   audioEchoCancellation: boolean;
   audioNoiseSuppression: boolean;
   chatPanelOpen: boolean;
@@ -621,6 +641,7 @@ function userPreferencesSnapshot(state: {
   calendarWorkStartMinutes: number;
   calendarWorkEndMinutes: number;
   hallDjPreferredGenre: string;
+  hallDjVolume: number;
 }): UserPreferences {
   const calendarHours = resolveCalendarWorkingHours(
     state.calendarWorkStartMinutes,
@@ -636,6 +657,7 @@ function userPreferencesSnapshot(state: {
     recordingCameraMirrorPreview: state.recordingCameraMirrorPreview,
     audioInputDeviceId: state.audioInputDeviceId,
     audioOutputDeviceId: state.audioOutputDeviceId,
+    videoInputDeviceId: state.videoInputDeviceId,
     audioEchoCancellation: state.audioEchoCancellation,
     audioNoiseSuppression: state.audioNoiseSuppression,
     chatPanelOpen: state.chatPanelOpen,
@@ -652,6 +674,7 @@ function userPreferencesSnapshot(state: {
     calendarWorkStartMinutes: calendarHours.startMinutes,
     calendarWorkEndMinutes: calendarHours.endMinutes,
     hallDjPreferredGenre: state.hallDjPreferredGenre,
+    hallDjVolume: normalizeHallDjVolume(state.hallDjVolume),
   };
 }
 
@@ -766,6 +789,11 @@ export const useStore = create<State>((set, get) => ({
   setAudioOutputDeviceId: (deviceId) => {
     set({ audioOutputDeviceId: deviceId });
     writeUserPreferences(userPreferencesSnapshot({ ...get(), audioOutputDeviceId: deviceId }));
+  },
+
+  setVideoInputDeviceId: (deviceId) => {
+    set({ videoInputDeviceId: deviceId });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), videoInputDeviceId: deviceId }));
   },
 
   setAudioEchoCancellation: (enabled) => {
@@ -888,6 +916,13 @@ export const useStore = create<State>((set, get) => ({
     void import("./useHallDjStore").then(({ useHallDjStore }) => {
       void useHallDjStore.getState().applyPreferredGenre(normalized);
     });
+  },
+
+  setHallDjVolume: (volume) => {
+    const normalized = normalizeHallDjVolume(volume);
+    set({ hallDjVolume: normalized });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), hallDjVolume: normalized }));
+    void setSpotifyPlaybackVolume(normalized);
   },
 
   clearSettingsScrollTarget: () => set({ settingsScrollTarget: null }),
@@ -1354,17 +1389,23 @@ export const useStore = create<State>((set, get) => ({
           activeRoomId,
         );
         let manageEventsApplied = false;
+        let googleSyncNote = "";
         if (scheduleResult.events.length > 0) {
-          await applyManageScheduleEvents(scheduleResult.events);
+          const applied = await applyManageScheduleEvents(scheduleResult.events);
           manageEventsApplied = true;
+          if (applied.googleSynced === 0) {
+            googleSyncNote = applied.googleError
+              ? "\n\n⚠️ Sync Google Calendar échouée — reconnectez Google Calendar dans Paramètres → Plugins."
+              : "\n\n⚠️ Événements enregistrés dans Hall seulement — connectez Google Calendar dans Paramètres → Plugins pour les synchroniser.";
+          }
           if (scheduleResult.firstDateKey) {
             useCalendarOverlayStore.getState().setSelectedDate(scheduleResult.firstDateKey);
           }
         }
         await waitMinChatProcessing(processingStartedAt, signal);
         const assistantText =
-          scheduleResult.summary ||
-          "Je n'ai pas pu planifier les tâches. Vérifiez le bloc /manage.";
+          (scheduleResult.summary ||
+            "Je n'ai pas pu planifier les tâches. Vérifiez le bloc /manage.") + googleSyncNote;
         const summary =
           assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
         set((s) => ({
@@ -1655,6 +1696,21 @@ export const useStore = create<State>((set, get) => ({
     set((s) => {
       const nextChat = s.chat.map((m, i) =>
         i === chatIndex ? { ...m, manageEventsApplied: true } : m,
+      );
+      return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+    });
+    writeAutosave(get());
+  },
+
+  clearSpotifySearchResults: (chatIndex) => {
+    set((s) => {
+      const message = s.chat[chatIndex];
+      if (!message || message.role !== "assistant") return s;
+      if (!message.spotifySearch?.length) return s;
+      const nextChat = s.chat.map((m, i) =>
+        i === chatIndex
+          ? { ...m, spotifySearch: undefined, spotifySearchMode: undefined }
+          : m,
       );
       return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
     });
@@ -2679,13 +2735,41 @@ export const useStore = create<State>((set, get) => ({
     });
   },
 
-  toggleChatHistory: () =>
+  ensureChatHistoryHydrated: () => {
+    if (chatHistoryCloudHydrated || chatHistoryCloudHydrating) return;
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    chatHistoryCloudHydrating = true;
+    void loadChatSessionSummaries(uid)
+      .then((sessions) => {
+        chatHistoryCloudHydrated = true;
+        if (!sessions.length) return;
+        set((state) => {
+          const localIds = new Set(state.chatSessions.map((session) => session.id));
+          const merged = [
+            ...state.chatSessions,
+            ...sessions.filter((session) => !localIds.has(session.id)),
+          ].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+          return { chatSessions: merged };
+        });
+      })
+      .catch(() => {})
+      .finally(() => {
+        chatHistoryCloudHydrating = false;
+      });
+  },
+
+  toggleChatHistory: () => {
+    const nextOpen = !get().showChatHistory;
+    if (nextOpen) get().ensureChatHistoryHydrated();
     set((s) => ({
       showChatHistory: !s.showChatHistory,
       chatPanelMode: s.chatPanelMode === "ai-notes" ? "ai-notes" : "agent",
-    })),
+    }));
+  },
 
   openChatHistoryPanel: (options) => {
+    get().ensureChatHistoryHydrated();
     set({
       chatPanelOpen: true,
       chatPanelMode: "agent",
@@ -2841,3 +2925,5 @@ export const useStore = create<State>((set, get) => ({
     openLoadedSession(session);
   },
 }));
+
+void setSpotifyPlaybackVolume(useStore.getState().hallDjVolume);

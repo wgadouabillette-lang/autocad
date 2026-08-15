@@ -679,8 +679,15 @@ async function resolveHallWindowSource() {
 }
 
 function getScreenCaptureAccessStatus() {
-  if (process.platform === "darwin") {
-    return systemPreferences.getMediaAccessStatus("screen");
+  if (typeof systemPreferences.getMediaAccessStatus !== "function") {
+    return "unknown";
+  }
+  try {
+    if (process.platform === "darwin" || process.platform === "win32") {
+      return systemPreferences.getMediaAccessStatus("screen");
+    }
+  } catch {
+    // Older Electron builds may not expose screen status on Windows.
   }
   return "unknown";
 }
@@ -709,7 +716,13 @@ async function openScreenCaptureSettings() {
   }
 
   if (process.platform === "win32") {
+    try {
+      await listDisplayMediaSources();
+    } catch {
+      // Registers Hall in Windows privacy lists when possible.
+    }
     const urls = [
+      "ms-settings:privacy-graphicscaptureprogrammatic",
       "ms-settings:privacy-screenrecording",
       "ms-settings:privacy",
     ];
@@ -827,7 +840,8 @@ app.whenReady().then(async () => {
         }
         /** @type {{ video: Electron.DesktopCapturerSource; audio?: string }} */
         const grant = { video: source };
-        if (request.audioRequested) {
+        // Windows loopback often fails the whole capture; mic is mixed separately.
+        if (request.audioRequested && process.platform !== "win32") {
           grant.audio = "loopback";
         }
         callback(grant);
@@ -836,7 +850,7 @@ app.whenReady().then(async () => {
         callback({});
       }
     },
-    { useSystemPicker: false },
+    { useSystemPicker: process.platform === "win32" },
   );
 
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {

@@ -13,6 +13,11 @@ const DEFAULT_OUTPUT: MediaDeviceOption = {
   label: "Sortie par défaut du système",
 };
 
+const DEFAULT_VIDEO: MediaDeviceOption = {
+  deviceId: "",
+  label: "Caméra par défaut du système",
+};
+
 function normalizeLabel(device: MediaDeviceInfo, fallback: string): string {
   const label = device.label?.trim();
   return label || fallback;
@@ -50,6 +55,42 @@ export async function listAudioInputDevices(): Promise<MediaDeviceOption[]> {
       label: normalizeLabel(device, `Micro ${index + 1}`),
     }));
   return [DEFAULT_INPUT, ...inputs];
+}
+
+/** Request camera permission so device labels are populated. */
+export async function ensureVideoDevicePermission(): Promise<void> {
+  if (!navigator.mediaDevices?.getUserMedia) return;
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  stream.getTracks().forEach((track) => track.stop());
+}
+
+export async function videoDeviceLabelsHidden(): Promise<boolean> {
+  if (!navigator.mediaDevices?.enumerateDevices) return false;
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const video = devices.filter((device) => device.kind === "videoinput");
+  if (video.length === 0) return false;
+  return video.every((device) => !device.label?.trim());
+}
+
+export async function listVideoInputDevices(): Promise<MediaDeviceOption[]> {
+  if (!navigator.mediaDevices?.enumerateDevices) return [DEFAULT_VIDEO];
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const inputs = devices
+    .filter((device) => device.kind === "videoinput")
+    .map((device, index) => ({
+      deviceId: device.deviceId,
+      label: normalizeLabel(device, `Caméra ${index + 1}`),
+    }));
+  return [DEFAULT_VIDEO, ...inputs];
+}
+
+export function buildVideoInputConstraints(prefs: {
+  videoInputDeviceId: string;
+}): MediaTrackConstraints {
+  if (prefs.videoInputDeviceId) {
+    return { deviceId: { exact: prefs.videoInputDeviceId } };
+  }
+  return {};
 }
 
 export async function listAudioOutputDevices(): Promise<MediaDeviceOption[]> {

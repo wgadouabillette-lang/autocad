@@ -1,4 +1,4 @@
-import { buildAudioInputConstraints } from "./audioDevices";
+import { buildAudioInputConstraints, buildVideoInputConstraints } from "./audioDevices";
 import { readUserPreferences } from "./userPreferences";
 
 let stream: MediaStream | null = null;
@@ -76,7 +76,7 @@ export async function acquireLocalMedia(options: { audio: boolean; video: boolea
   if (!stream) {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: options.video,
+      video: options.video ? buildVideoInputConstraints(readUserPreferences()) : false,
     });
     return stream;
   }
@@ -99,10 +99,12 @@ export function setMicrophoneEnabled(enabled: boolean) {
 export async function enableCamera(): Promise<MediaStream> {
   requireMediaDevices();
 
+  const videoConstraints = buildVideoInputConstraints(readUserPreferences());
+
   if (!stream) {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: buildAudioInputConstraints(readUserPreferences()),
-      video: true,
+      video: videoConstraints,
     });
     stream.getAudioTracks().forEach(bindAudioTrackRecovery);
     return stream;
@@ -114,8 +116,27 @@ export async function enableCamera(): Promise<MediaStream> {
     return stream;
   }
 
-  const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+  const videoStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
   videoStream.getVideoTracks().forEach((track) => stream!.addTrack(track));
+  return stream;
+}
+
+/** Swap the live camera to the preferred device and return a new stream reference. */
+export async function replaceCameraTrack(): Promise<MediaStream> {
+  requireMediaDevices();
+  const videoStream = await navigator.mediaDevices.getUserMedia({
+    video: buildVideoInputConstraints(readUserPreferences()),
+  });
+  if (!stream) {
+    stream = videoStream;
+    return stream;
+  }
+  stream.getVideoTracks().forEach((track) => {
+    track.stop();
+    stream!.removeTrack(track);
+  });
+  videoStream.getVideoTracks().forEach((track) => stream!.addTrack(track));
+  stream = new MediaStream(stream.getTracks());
   return stream;
 }
 

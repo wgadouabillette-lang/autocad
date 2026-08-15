@@ -55,6 +55,7 @@ import {
   disableCamera,
   enableCamera,
   ensureLiveAudioTrack,
+  replaceCameraTrack,
   getLocalMediaStream,
   hasLiveAudioTrack,
   hasLocalMediaStream,
@@ -189,13 +190,13 @@ interface CallsState extends CallControls {
   stopLocalMediaTracks: () => void;
   toggleMuted: () => Promise<void>;
   toggleCamera: () => Promise<void>;
+  applyPreferredCameraDevice: () => Promise<void>;
   toggleScreenShare: () => Promise<void>;
   toggleRecording: () => Promise<void>;
   handleRecordingStreamEnded: () => Promise<void>;
   handleRecordingCaptureLost: () => Promise<void>;
   getRoomCalls: (roomId: string) => RoomCallsState;
   markParticipantVoiceActivity: (participantId: string, speaking: boolean) => void;
-  pushLocalSpeakingPresence: (workspaceId: string, speaking: boolean) => void;
   setRemoteParticipantMedia: (uid: string, media: RemoteParticipantStreams) => void;
   removeRemoteParticipantMedia: (uid: string) => void;
   clearAllRemoteMedia: () => void;
@@ -222,16 +223,11 @@ function localVoicePresence(get: () => CallsState, workspaceId: string): Workspa
   const room = get().callsByRoom[workspaceId];
   const localBlock = room ? findLocalBlock(room.blocks) : undefined;
   const inPrivateCall = inCall && !!localBlock?.inCall && !openChannelId && !inTheater;
-  const firebaseUid = useAuthStore.getState().firebaseUid;
-  const speaking = firebaseUid
-    ? !!(get().speakingByParticipant[firebaseUid] || get().speakingByParticipant.local)
-    : get().speakingByParticipant.local === true;
   const inVoice = inCall || inTheater;
   return {
     inPrivateCall,
     openChannelId: inCall && openChannelId ? openChannelId : null,
     inTheaterCall: inTheater,
-    speaking,
     muted: inVoice ? get().muted : false,
     handRaised: inVoice ? get().raiseHand : false,
   };
@@ -248,8 +244,6 @@ function voiceProfile() {
   const photoURL = useStore.getState().photoURL;
   return { displayName, photoURL };
 }
-
-const speakingPresenceCache = new Map<string, { value: boolean; at: number }>();
 
 function pushVoicePresence(get: () => CallsState, workspaceId: string) {
   const firebaseUid = useAuthStore.getState().firebaseUid;
@@ -370,24 +364,6 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
       return { speakingByParticipant, lastSpokeAtByParticipant };
     });
-  },
-
-  pushLocalSpeakingPresence: (workspaceId, speaking) => {
-    const firebaseUid = useAuthStore.getState().firebaseUid;
-    if (!firebaseUid || !workspaceId || !get().isLocalInCall(workspaceId)) return;
-    const key = `${workspaceId}:${firebaseUid}`;
-    const prev = speakingPresenceCache.get(key);
-    const now = Date.now();
-    if (prev && prev.value === speaking && now - prev.at < 450) return;
-    speakingPresenceCache.set(key, { value: speaking, at: now });
-    const activity = getLocalPresenceActivityForSync(workspaceId);
-    void touchWorkspacePresence(
-      workspaceId,
-      firebaseUid,
-      voiceProfile(),
-      { ...localVoicePresence(get, workspaceId), speaking },
-      activity,
-    ).catch(() => {});
   },
 
   setRemoteParticipantMedia: (uid, media) => {
@@ -1782,6 +1758,17 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         cameraOn: false,
         mediaError: mediaMessage(error, "Impossible d'accéder à la caméra."),
       });
+    }
+  },
+
+  applyPreferredCameraDevice: async () => {
+    if (!get().cameraOn) return;
+    try {
+      await replaceCameraTrack();
+      syncStreamState(set);
+      set({ mediaError: null });
+    } catch (error) {
+      set({ mediaError: mediaMessage(error, "Impossible de changer de caméra.") });
     }
   },
 

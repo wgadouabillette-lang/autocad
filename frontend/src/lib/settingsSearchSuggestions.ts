@@ -122,6 +122,13 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     keywords: "audio video recording enregistrement camera preview aperçu caméra salon vocal",
   },
   {
+    id: "screen-capture-permission",
+    tab: "audio",
+    label: "Partage d'écran",
+    hint: "Autorisation Windows pour capturer l'écran",
+    keywords: "écran screen share partage enregistrement windows autorisation permission capture",
+  },
+  {
     id: "recording",
     tab: "audio",
     label: "Enregistrement",

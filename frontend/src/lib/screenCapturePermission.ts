@@ -64,7 +64,10 @@ export function screenCaptureSettingsHint(platform: DesktopPlatform | string): s
     return "Ouvrez Réglages système → Confidentialité et sécurité → Enregistrement de l'écran, puis activez Hall. En développement, autorisez aussi Electron si Hall n'apparaît pas.";
   }
   if (platform === "win32") {
-    return "Ouvrez Paramètres → Confidentialité → Enregistrement d'écran, puis autorisez Hall ou Electron.";
+    return "Ouvrez Paramètres → Confidentialité et sécurité → Enregistrement d'écran, autorisez Hall, puis relancez l'app.";
+  }
+  if (platform === "linux") {
+    return "Sur Linux, autorisez le partage d'écran dans la boîte de dialogue du système (PipeWire / portail XDG) lorsque Hall le demande.";
   }
   return "Autorisez l'enregistrement d'écran pour Hall dans les réglages de confidentialité de votre système.";
 }

@@ -38,6 +38,7 @@ export interface UserPreferences {
   recordingCameraMirrorPreview: boolean;
   audioInputDeviceId: string;
   audioOutputDeviceId: string;
+  videoInputDeviceId: string;
   audioEchoCancellation: boolean;
   audioNoiseSuppression: boolean;
   chatPanelOpen: boolean;
@@ -57,6 +58,15 @@ export interface UserPreferences {
   calendarWorkEndMinutes: number;
   /** Spotify Hall DJ default genre seed (e.g. pop, country). */
   hallDjPreferredGenre: string;
+  /** Hall DJ / Spotify in-app playback volume (0–1). */
+  hallDjVolume: number;
+}
+
+export const DEFAULT_HALL_DJ_VOLUME = 0.85;
+
+export function normalizeHallDjVolume(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_HALL_DJ_VOLUME;
+  return Math.min(1, Math.max(0, value));
 }
 
 const DEFAULTS: UserPreferences = {
@@ -70,6 +80,7 @@ const DEFAULTS: UserPreferences = {
   recordingCameraMirrorPreview: true,
   audioInputDeviceId: "",
   audioOutputDeviceId: "",
+  videoInputDeviceId: "",
   audioEchoCancellation: true,
   audioNoiseSuppression: true,
   chatPanelOpen: true,
@@ -83,6 +94,7 @@ const DEFAULTS: UserPreferences = {
   calendarWorkStartMinutes: DEFAULT_CALENDAR_WORK_START_MINUTES,
   calendarWorkEndMinutes: DEFAULT_CALENDAR_WORK_END_MINUTES,
   hallDjPreferredGenre: DEFAULT_HALL_DJ_GENRE,
+  hallDjVolume: DEFAULT_HALL_DJ_VOLUME,
 };
 
 function clampMinutes(value: number, min: number, max: number): number {
@@ -163,6 +175,8 @@ export function readUserPreferences(): UserPreferences {
         typeof data.audioInputDeviceId === "string" ? data.audioInputDeviceId : "",
       audioOutputDeviceId:
         typeof data.audioOutputDeviceId === "string" ? data.audioOutputDeviceId : "",
+      videoInputDeviceId:
+        typeof data.videoInputDeviceId === "string" ? data.videoInputDeviceId : "",
       audioEchoCancellation: data.audioEchoCancellation !== false,
       audioNoiseSuppression: data.audioNoiseSuppression !== false,
       chatPanelOpen: data.chatPanelOpen !== false,
@@ -180,6 +194,7 @@ export function readUserPreferences(): UserPreferences {
       calendarWorkStartMinutes: calendarHours.startMinutes,
       calendarWorkEndMinutes: calendarHours.endMinutes,
       hallDjPreferredGenre: normalizeHallDjGenre(data.hallDjPreferredGenre),
+      hallDjVolume: normalizeHallDjVolume(data.hallDjVolume),
     };
   } catch {
     return { ...DEFAULTS };

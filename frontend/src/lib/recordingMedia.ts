@@ -1,3 +1,6 @@
+import { buildVideoInputConstraints } from "./audioDevices";
+import { readUserPreferences } from "./userPreferences";
+
 let recordingCameraStream: MediaStream | null = null;
 
 function requireMediaDevices() {
@@ -15,7 +18,7 @@ export async function startRecordingCamera(): Promise<MediaStream> {
   if (recordingCameraStream) return recordingCameraStream;
 
   recordingCameraStream = await navigator.mediaDevices.getUserMedia({
-    video: true,
+    video: buildVideoInputConstraints(readUserPreferences()),
     audio: false,
   });
   return recordingCameraStream;

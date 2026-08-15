@@ -2,11 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import {
   audioDeviceLabelsHidden,
   ensureAudioDevicePermission,
+  ensureVideoDevicePermission,
   listAudioInputDevices,
   listAudioOutputDevices,
+  listVideoInputDevices,
   supportsAudioOutputSelection,
+  videoDeviceLabelsHidden,
   type MediaDeviceOption,
 } from "../../lib/audioDevices";
+import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 import HallDjSettingsSection from "./HallDjSettingsSection";
 import RecordingSettingsSection from "./RecordingSettingsSection";
@@ -17,19 +21,24 @@ import SettingsPicker from "./SettingsControls";
 export default function AudioSettingsSection() {
   const audioInputDeviceId = useStore((s) => s.audioInputDeviceId);
   const audioOutputDeviceId = useStore((s) => s.audioOutputDeviceId);
+  const videoInputDeviceId = useStore((s) => s.videoInputDeviceId);
   const audioEchoCancellation = useStore((s) => s.audioEchoCancellation);
   const audioNoiseSuppression = useStore((s) => s.audioNoiseSuppression);
   const setAudioInputDeviceId = useStore((s) => s.setAudioInputDeviceId);
   const setAudioOutputDeviceId = useStore((s) => s.setAudioOutputDeviceId);
+  const setVideoInputDeviceId = useStore((s) => s.setVideoInputDeviceId);
   const setAudioEchoCancellation = useStore((s) => s.setAudioEchoCancellation);
   const setAudioNoiseSuppression = useStore((s) => s.setAudioNoiseSuppression);
 
   const [inputs, setInputs] = useState<MediaDeviceOption[]>([]);
   const [outputs, setOutputs] = useState<MediaDeviceOption[]>([]);
+  const [cameras, setCameras] = useState<MediaDeviceOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [labelsHidden, setLabelsHidden] = useState(false);
+  const [cameraLabelsHidden, setCameraLabelsHidden] = useState(false);
   const [requestingPermission, setRequestingPermission] = useState(false);
+  const [requestingCameraPermission, setRequestingCameraPermission] = useState(false);
   const outputSupported = supportsAudioOutputSelection();
 
   const refreshDevices = useCallback(async (requestPermission = false) => {
@@ -43,14 +52,19 @@ export default function AudioSettingsSection() {
       if (requestPermission) {
         await ensureAudioDevicePermission();
       }
-      const [inputDevices, outputDevices, hiddenLabels] = await Promise.all([
-        listAudioInputDevices(),
-        listAudioOutputDevices(),
-        audioDeviceLabelsHidden(),
-      ]);
+      const [inputDevices, outputDevices, cameraDevices, hiddenLabels, hiddenCameras] =
+        await Promise.all([
+          listAudioInputDevices(),
+          listAudioOutputDevices(),
+          listVideoInputDevices(),
+          audioDeviceLabelsHidden(),
+          videoDeviceLabelsHidden(),
+        ]);
       setInputs(inputDevices);
       setOutputs(outputDevices);
+      setCameras(cameraDevices);
       setLabelsHidden(hiddenLabels);
+      setCameraLabelsHidden(hiddenCameras);
     } catch (err) {
       setError(
         err instanceof Error
@@ -98,6 +112,29 @@ export default function AudioSettingsSection() {
       </SettingsFieldRow>
 
       <SettingsFieldRow
+        label="Caméra"
+        description="Caméra utilisée pour les appels et l'aperçu d'enregistrement."
+      >
+        <SettingsPicker
+          value={videoInputDeviceId}
+          ariaLabel="Caméra"
+          disabled={loading || cameras.length === 0}
+          options={
+            loading
+              ? [{ value: videoInputDeviceId, label: "Chargement…" }]
+              : cameras.map((device) => ({
+                  value: device.deviceId,
+                  label: device.label,
+                }))
+          }
+          onChange={(deviceId) => {
+            setVideoInputDeviceId(deviceId);
+            void useCallsStore.getState().applyPreferredCameraDevice();
+          }}
+        />
+      </SettingsFieldRow>
+
+      <SettingsFieldRow
         label="Sortie audio"
         description={
           outputSupported
@@ -133,6 +170,34 @@ export default function AudioSettingsSection() {
             onClick={() => void refreshDevices(true)}
           >
             {requestingPermission ? "Autorisation…" : "Autoriser"}
+          </button>
+        </SettingsFieldRow>
+      )}
+
+      {cameraLabelsHidden && !loading && !error && (
+        <SettingsFieldRow
+          label="Autorisation caméra"
+          description="Requis pour lister et utiliser une caméra sous Windows."
+        >
+          <button
+            type="button"
+            className="btn w-full"
+            disabled={requestingCameraPermission}
+            onClick={() => {
+              setRequestingCameraPermission(true);
+              void ensureVideoDevicePermission()
+                .then(() => refreshDevices())
+                .catch((err) => {
+                  setError(
+                    err instanceof Error
+                      ? err.message
+                      : "Impossible d'autoriser la caméra.",
+                  );
+                })
+                .finally(() => setRequestingCameraPermission(false));
+            }}
+          >
+            {requestingCameraPermission ? "Autorisation…" : "Autoriser"}
           </button>
         </SettingsFieldRow>
       )}

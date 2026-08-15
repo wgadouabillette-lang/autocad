@@ -18,15 +18,19 @@ import {
   effectiveSubscriptionPlan,
 } from "../lib/subscriptionPlans";
 import {
-  loadChatSessionSummaries,
   loadLatestProjectSnapshot,
   loadUserProfile,
   loadUserWorkspaces,
   saveUserDirectoryProfile,
   saveUserProfile,
-  saveUserWorkspaces,
   type UserProfileDoc,
 } from "../lib/firebase/userData";
+import {
+  clearUserWorkspacesSyncMarker,
+  markUserWorkspacesSynced,
+  syncWorkspacesToCloudNow,
+  withWorkspaceCloudSyncSuppressed,
+} from "../lib/firebase/workspaceCloudSync";
 import { removeProfilePhoto, uploadProfilePhoto } from "../lib/firebase/profilePhoto";
 import { pushProfileToJoinedWorkspaces } from "../lib/firebase/workspacePresence";
 import {
@@ -37,12 +41,14 @@ import {
   type UserPreferences,
 } from "../lib/userPreferences";
 import { normalizeHallDjGenre } from "../lib/hallDjGenres";
+import { normalizeHallDjVolume } from "../lib/userPreferences";
+import { setSpotifyPlaybackVolume } from "../lib/spotifyWebPlayback";
 import { applyDocumentAccentColor, normalizeAccentColorPreference } from "../lib/accentColor";
 import type { AiModel } from "../lib/aiModels";
 import { isValidAiModel } from "../lib/aiModels";
 import { isLegacyPublicWorkspaceId } from "../lib/workspaces";
 import { resolveActiveWorkspaceId } from "../lib/lastActiveWorkspace";
-import { useStore, type AutosavePayload } from "./useStore";
+import { resetChatHistoryCloudHydration, useStore, type AutosavePayload } from "./useStore";
 import { useWorkspacesStore } from "./useWorkspacesStore";
 import { useCallsStore } from "./useCallsStore";
 import {
@@ -153,6 +159,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
     recordingCameraMirrorPreview: profile.recordingCameraMirrorPreview !== false,
     audioInputDeviceId: profile.audioInputDeviceId ?? "",
     audioOutputDeviceId: profile.audioOutputDeviceId ?? "",
+    videoInputDeviceId: profile.videoInputDeviceId ?? "",
     audioEchoCancellation: profile.audioEchoCancellation !== false,
     audioNoiseSuppression: profile.audioNoiseSuppression !== false,
     chatPanelOpen: profile.chatPanelOpen,
@@ -170,10 +177,16 @@ function applyLocalProfile(profile: UserProfileDoc) {
     hallDjPreferredGenre: normalizeHallDjGenre(
       profile.hallDjPreferredGenre ?? currentState.hallDjPreferredGenre,
     ),
+    hallDjVolume: normalizeHallDjVolume(
+      profile.hallDjVolume ?? currentState.hallDjVolume,
+    ),
     aiModel: isAiModel(profile.aiModel) ? profile.aiModel : useStore.getState().aiModel,
   });
   applyDocumentAccentColor(
     normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
+  );
+  void setSpotifyPlaybackVolume(
+    normalizeHallDjVolume(profile.hallDjVolume ?? currentState.hallDjVolume),
   );
   writeUserPreferences({
     chatWorkMode: profile.chatWorkMode,
@@ -185,6 +198,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
     recordingCameraMirrorPreview: profile.recordingCameraMirrorPreview !== false,
     audioInputDeviceId: profile.audioInputDeviceId ?? "",
     audioOutputDeviceId: profile.audioOutputDeviceId ?? "",
+    videoInputDeviceId: profile.videoInputDeviceId ?? "",
     audioEchoCancellation: profile.audioEchoCancellation !== false,
     audioNoiseSuppression: profile.audioNoiseSuppression !== false,
     chatPanelOpen: profile.chatPanelOpen,
@@ -201,6 +215,9 @@ function applyLocalProfile(profile: UserProfileDoc) {
     calendarWorkEndMinutes: calendarHours.endMinutes,
     hallDjPreferredGenre: normalizeHallDjGenre(
       profile.hallDjPreferredGenre ?? currentState.hallDjPreferredGenre,
+    ),
+    hallDjVolume: normalizeHallDjVolume(
+      profile.hallDjVolume ?? currentState.hallDjVolume,
     ),
   });
   useCallsStore.getState().syncLocalParticipantProfile({
@@ -223,6 +240,7 @@ function profileFromStore(user: User): UserProfileDoc {
     recordingCameraMirrorPreview: state.recordingCameraMirrorPreview,
     audioInputDeviceId: state.audioInputDeviceId,
     audioOutputDeviceId: state.audioOutputDeviceId,
+    videoInputDeviceId: state.videoInputDeviceId,
     audioEchoCancellation: state.audioEchoCancellation,
     audioNoiseSuppression: state.audioNoiseSuppression,
     chatPanelOpen: state.chatPanelOpen,
@@ -235,6 +253,7 @@ function profileFromStore(user: User): UserProfileDoc {
     calendarWorkStartMinutes: state.calendarWorkStartMinutes,
     calendarWorkEndMinutes: state.calendarWorkEndMinutes,
     hallDjPreferredGenre: state.hallDjPreferredGenre,
+    hallDjVolume: state.hallDjVolume,
   };
   return profile;
 }
@@ -336,10 +355,10 @@ function startProfileAutosync(
 }
 
 async function hydrateRemoteData(uid: string): Promise<boolean> {
-  const [profile, workspaces, chatSessions, project] = await Promise.all([
+  // chatSessions: chargé à la demande (historique) — évite N reads au boot.
+  const [profile, workspaces, project] = await Promise.all([
     loadUserProfile(uid),
     loadUserWorkspaces(uid),
-    loadChatSessionSummaries(uid),
     loadLatestProjectSnapshot(uid),
   ]);
 
@@ -358,59 +377,55 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
   const hasCloudWorkspaces =
     workspaces.customServers.length > 0 || workspaces.memberships.length > 0;
 
-  useWorkspacesStore.getState().stripLegacyPublicWorkspaces();
-
   const ownerUid = uid;
   const displayName = useStore.getState().userDisplayName;
 
-  if (hasCloudWorkspaces) {
-    useWorkspacesStore.getState().applyCloudWorkspaces(workspaces);
-    const joined = useWorkspacesStore.getState().joinedWorkspaces(ownerUid);
-    for (const workspace of joined) {
-      useCallsStore.getState().ensureRoom(workspace.id);
-    }
-    const target = resolveActiveWorkspaceId(
-      joined.map((workspace) => workspace.id),
-      { currentId: useStore.getState().activeRoomId, userId: ownerUid },
-    );
-    if (target) {
-      useStore.getState().setActiveRoom(target);
-    }
-    if (joined.length === 0) {
-      const id = useWorkspacesStore.getState().createPersonalWorkspace(displayName, ownerUid);
-      useStore.getState().setActiveRoom(id);
-      void saveUserWorkspaces(uid, {
+  withWorkspaceCloudSyncSuppressed(() => {
+    useWorkspacesStore.getState().stripLegacyPublicWorkspaces();
+
+    if (hasCloudWorkspaces) {
+      useWorkspacesStore.getState().applyCloudWorkspaces(workspaces);
+      markUserWorkspacesSynced({
         customServers: useWorkspacesStore.getState().customServers,
         memberships: useWorkspacesStore.getState().memberships,
-      }).catch(() => {});
-    }
-    if (profile && !profile.workspaceSetupCompleted) {
+      });
+      const joined = useWorkspacesStore.getState().joinedWorkspaces(ownerUid);
+      for (const workspace of joined) {
+        useCallsStore.getState().ensureRoom(workspace.id);
+      }
+      const target = resolveActiveWorkspaceId(
+        joined.map((workspace) => workspace.id),
+        { currentId: useStore.getState().activeRoomId, userId: ownerUid },
+      );
+      if (target) {
+        useStore.getState().setActiveRoom(target);
+      }
+      if (joined.length === 0) {
+        const id = useWorkspacesStore.getState().createPersonalWorkspace(displayName, ownerUid);
+        useStore.getState().setActiveRoom(id);
+      }
+      if (profile && !profile.workspaceSetupCompleted) {
+        void saveUserAccountProfile(uid, {
+          ...profileFromStore(auth.currentUser!),
+          workspaceSetupCompleted: true,
+        }).catch(() => {});
+      }
+    } else {
+      useWorkspacesStore.getState().resetLocalMemberships();
+      const id = useWorkspacesStore.getState().createPersonalWorkspace(displayName, ownerUid);
+      useStore.getState().setActiveRoom(id);
       void saveUserAccountProfile(uid, {
         ...profileFromStore(auth.currentUser!),
         workspaceSetupCompleted: true,
       }).catch(() => {});
     }
-  } else {
-    useWorkspacesStore.getState().resetLocalMemberships();
-    const id = useWorkspacesStore.getState().createPersonalWorkspace(displayName, ownerUid);
-    useStore.getState().setActiveRoom(id);
-    void saveUserWorkspaces(uid, {
-      customServers: useWorkspacesStore.getState().customServers,
-      memberships: useWorkspacesStore.getState().memberships,
-    }).catch(() => {});
-    void saveUserAccountProfile(uid, {
-      ...profileFromStore(auth.currentUser!),
-      workspaceSetupCompleted: true,
-    }).catch(() => {});
-  }
 
-  void useWorkspacesStore.getState().reconcilePendingJoinRequests(uid);
-  useWorkspacesStore.getState().reconcileOwnedWorkspacesForAuth(uid);
+    void useWorkspacesStore.getState().reconcilePendingJoinRequests(uid);
+    useWorkspacesStore.getState().reconcileOwnedWorkspacesForAuth(uid);
+  });
+
+  // Une seule passe après hydrate ; no-op si fingerprint identique au cloud.
   void useAuthStore.getState().syncWorkspacesToCloud();
-
-  if (chatSessions.length) {
-    useStore.setState({ chatSessions });
-  }
 
   if (project && typeof project === "object" && "document" in project) {
     useStore.setState({
@@ -708,6 +723,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     await signOutUser();
+    clearUserWorkspacesSyncMarker();
+    resetChatHistoryCloudHydration();
+    useStore.setState({ chatSessions: [] });
     useStore.getState().setPhotoURL(null);
     useStore.setState({
       subscriptionPlan: "free",
@@ -734,7 +752,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const uid = get().firebaseUid;
     if (!uid) return;
     const { customServers, memberships } = useWorkspacesStore.getState();
-    await saveUserWorkspaces(uid, { customServers, memberships });
+    await syncWorkspacesToCloudNow(uid, { customServers, memberships });
   },
 
   markWorkspaceSetupCompleted: async () => {
@@ -802,6 +820,7 @@ export function currentUserPreferencesSnapshot(): UserPreferences {
     recordingCameraMirrorPreview: state.recordingCameraMirrorPreview,
     audioInputDeviceId: state.audioInputDeviceId,
     audioOutputDeviceId: state.audioOutputDeviceId,
+    videoInputDeviceId: state.videoInputDeviceId,
     audioEchoCancellation: state.audioEchoCancellation,
     audioNoiseSuppression: state.audioNoiseSuppression,
     chatPanelOpen: state.chatPanelOpen,
@@ -817,5 +836,6 @@ export function currentUserPreferencesSnapshot(): UserPreferences {
     calendarWorkStartMinutes: state.calendarWorkStartMinutes,
     calendarWorkEndMinutes: state.calendarWorkEndMinutes,
     hallDjPreferredGenre: state.hallDjPreferredGenre,
+    hallDjVolume: state.hallDjVolume,
   };
 }
