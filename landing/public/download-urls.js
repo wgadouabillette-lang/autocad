@@ -42,7 +42,7 @@
   }
 
   var urls = {
-    windows: storageDownloadUrl("Hall-windows.exe"),
+    windows: storageDownloadUrl("Hall.exe"),
     mac: storageDownloadUrl("Hall-mac.dmg"),
     linux: storageDownloadUrl("Hall-linux.AppImage"),
   };

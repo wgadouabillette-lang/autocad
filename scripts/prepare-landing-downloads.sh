@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 RELEASE_DIR="desktop/release"
 OUT_DIRS=("landing/downloads" "landing/public/downloads")
 MAC_NAME="Hall-mac.dmg"
-WIN_NAME="Hall-windows.exe"
+WIN_NAME="Hall.exe"
 LINUX_NAME="Hall-linux.AppImage"
 
 if [[ ! -d "$RELEASE_DIR" ]]; then
@@ -64,5 +64,5 @@ echo ""
 echo "Déployez le dossier landing/ sur votre hébergeur (Netlify, Vercel, S3, nginx…)."
 echo "URL de téléchargement :"
 echo "  https://votre-domaine.com/downloads/Hall-mac.dmg"
-echo "  https://votre-domaine.com/downloads/Hall-windows.exe"
+echo "  https://votre-domaine.com/downloads/Hall.exe"
 echo "  https://votre-domaine.com/downloads/Hall-linux.AppImage"

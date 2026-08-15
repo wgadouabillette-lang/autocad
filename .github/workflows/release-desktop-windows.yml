@@ -129,9 +129,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path landing/downloads, landing/public/downloads | Out-Null
           $exe = Get-ChildItem desktop/release/*.exe | Select-Object -First 1
           if (-not $exe) { throw "No .exe found in desktop/release" }
-          Copy-Item $exe.FullName landing/public/downloads/Hall-windows.exe -Force
-          Copy-Item $exe.FullName landing/downloads/Hall-windows.exe -Force
-          Write-Host "Stable artifact: landing/public/downloads/Hall-windows.exe"
+          Copy-Item $exe.FullName landing/public/downloads/Hall.exe -Force
+          Copy-Item $exe.FullName landing/downloads/Hall.exe -Force
+          Write-Host "Stable artifact: landing/public/downloads/Hall.exe"
 
       - name: Upload installer to GitHub Release
         if: github.event_name == 'release'
@@ -139,7 +139,7 @@ jobs:
         with:
           files: |
             desktop/release/*.exe
-            landing/public/downloads/Hall-windows.exe
+            landing/public/downloads/Hall.exe
           fail_on_unmatched_files: true
 
       - name: Upload workflow artifact
@@ -148,6 +148,6 @@ jobs:
           name: Hall-windows-installer
           path: |
             desktop/release/*.exe
-            landing/public/downloads/Hall-windows.exe
+            landing/public/downloads/Hall.exe
           if-no-files-found: error
           retention-days: 30

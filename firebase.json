@@ -80,8 +80,13 @@
       { "source": "/compact", "destination": "/", "type": 301 },
       { "source": "/compact.html", "destination": "/", "type": 301 },
       {
+        "source": "/downloads/Hall.exe",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall.exe?alt=media",
+        "type": 302
+      },
+      {
         "source": "/downloads/Hall-windows.exe",
-        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-windows.exe?alt=media",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall.exe?alt=media",
         "type": 302
       },
       {

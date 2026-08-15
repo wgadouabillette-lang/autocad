@@ -102,8 +102,14 @@
     Cross-Origin-Opener-Policy = "same-origin-allow-popups"
 
 [[redirects]]
+  from = "/downloads/Hall.exe"
+  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall.exe?alt=media"
+  status = 302
+  force = true
+
+[[redirects]]
   from = "/downloads/Hall-windows.exe"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-windows.exe?alt=media"
+  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall.exe?alt=media"
   status = 302
   force = true
 
