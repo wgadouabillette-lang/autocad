@@ -1,12 +1,14 @@
 const {
   app,
   BrowserWindow,
+  Menu,
   shell,
   session,
   ipcMain,
   desktopCapturer,
   systemPreferences,
   components,
+  screen,
 } = require("electron");
 const { spawn } = require("child_process");
 const http = require("http");
@@ -25,27 +27,75 @@ app.setName("Hall");
 if (process.platform === "win32") {
   // Keep taskbar / jump-list icons on Hall's AppUserModelID (not Electron's).
   app.setAppUserModelId("com.forma.cad");
+  // Chromium may stop painting when it thinks the window is occluded
+  // (native chrome + File/Edit menus, gray content). Common on NVIDIA / G-SYNC.
+  app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
+  app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
 }
 
 const BACKEND_HOST = "127.0.0.1";
 const BACKEND_PORT = Number(process.env.FORMA_PORT || 47831);
 const DEV_URL = process.env.FORMA_DEV_URL?.trim() || "";
-const START_URL = DEV_URL || `http://${BACKEND_HOST}:${BACKEND_PORT}/`;
+const BACKEND_ORIGIN = `http://${BACKEND_HOST}:${BACKEND_PORT}`;
+const START_URL = DEV_URL || `${BACKEND_ORIGIN}/app/`;
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "forma-cad-dev";
 
 const OAUTH_POPUP_PREFIXES = [
   "https://accounts.google.com/",
   "https://accounts.spotify.com/",
+  "https://www.spotify.com/",
+  "https://spotify.com/",
+  "https://appleid.apple.com/",
+  "https://appleid.cdn-apple.com/",
   "https://www.facebook.com/",
   "https://facebook.com/",
   "https://login.microsoftonline.com/",
+  "https://login.live.com/",
   "https://forma-cad-dev.firebaseapp.com/",
   "https://checkout.stripe.com/",
   "https://billing.stripe.com/",
 ];
 
+/** Shared cookie jar so Spotify can silently re-approve after the first login. */
+const OAUTH_PARTITION = "persist:forma-oauth";
+
+function isOAuthPopupUrl(url) {
+  return typeof url === "string" && OAUTH_POPUP_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
+function oauthPopupBrowserOptions() {
+  return {
+    width: 520,
+    height: 720,
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      partition: OAUTH_PARTITION,
+    },
+  };
+}
+
+function attachOAuthPopupNavigation(win) {
+  if (!win || win.isDestroyed()) return;
+  const contents = win.webContents;
+  contents.setWindowOpenHandler(({ url }) => {
+    if (isOAuthPopupUrl(url)) {
+      void contents.loadURL(url);
+      return { action: "deny" };
+    }
+    shell.openExternal(url);
+    return { action: "deny" };
+  });
+  contents.on("did-create-window", (childWindow) => {
+    attachOAuthPopupNavigation(childWindow);
+  });
+}
+
 let backendProc = null;
 let mainWindow = null;
+/** @type {Electron.BrowserWindow | null} */
+let recordingCameraWindow = null;
 let backendLogPath = null;
 
 function repoRoot() {
@@ -190,7 +240,11 @@ function spawnBackend() {
     appendBackendLog(`[hall] backend exited code=${code}\n`);
     if (code && code !== 0 && mainWindow) {
       mainWindow.loadURL(
-        `data:text/html,<body style="font-family:system-ui;background:#121212;color:#e0e0e0;padding:2rem"><h1>Hall</h1><p>The backend engine stopped (code ${code}).</p><p>Restart the application.</p></body>`,
+        loadErrorHtml(
+          "Hall",
+          `The backend engine stopped (code ${code}).`,
+          "Restart the application.",
+        ),
       );
     }
   });
@@ -201,8 +255,80 @@ function backendHealthUrl() {
     const port = process.env.FORMA_BACKEND_PORT || "8000";
     return `http://${BACKEND_HOST}:${port}/api/health`;
   }
-  const base = START_URL.endsWith("/") ? START_URL : `${START_URL}/`;
-  return `${base}api/health`;
+  return `${BACKEND_ORIGIN}/api/health`;
+}
+
+function applyDesktopUserAgent(contents) {
+  try {
+    const chromeMajor = process.versions.chrome?.split(".")[0] || "132";
+    const ua =
+      process.platform === "win32"
+        ? `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`
+        : process.platform === "linux"
+          ? `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`
+          : `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`;
+    contents.setUserAgent(ua);
+  } catch {
+    // ignore
+  }
+}
+
+function loadErrorHtml(title, message, hint) {
+  return `data:text/html;charset=utf-8,${encodeURIComponent(
+    `<body style="font-family:system-ui;background:#121212;color:#e0e0e0;padding:2rem;line-height:1.5">
+      <h1 style="margin:0 0 1rem">${title}</h1>
+      <p>${message}</p>
+      ${hint ? `<p>${hint}</p>` : ""}
+    </body>`,
+  )}`;
+}
+
+function attachRendererDiagnostics(win) {
+  const contents = win.webContents;
+  let rendererRestarts = 0;
+  contents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame) return;
+    if (errorCode === -3) return; // ERR_ABORTED (in-page navigation)
+    appendBackendLog(
+      `[hall] did-fail-load code=${errorCode} desc=${errorDescription} url=${validatedURL}\n`,
+    );
+    win.loadURL(
+      loadErrorHtml(
+        "Hall ne peut pas afficher l'interface",
+        `${errorDescription} (${errorCode}).`,
+        validatedURL ? `URL : ${validatedURL}` : "",
+      ),
+    );
+  });
+  contents.on("render-process-gone", (_event, details) => {
+    appendBackendLog(`[hall] renderer gone reason=${details?.reason} exit=${details?.exitCode}\n`);
+    if (details?.reason === "clean-exit") return;
+    rendererRestarts += 1;
+    if (rendererRestarts > 2) {
+      win.loadURL(
+        loadErrorHtml(
+          "Hall ne peut pas afficher l'interface",
+          "Le moteur d'affichage s'est arrêté plusieurs fois.",
+          "Relancez Hall. Si le problème continue, mettez à jour le pilote graphique.",
+        ),
+      );
+      return;
+    }
+    setTimeout(() => {
+      if (!win.isDestroyed()) win.loadURL(START_URL);
+    }, 400);
+  });
+  contents.on("did-finish-load", () => {
+    if (process.platform !== "win32" || win.isDestroyed()) return;
+    // Force a compositor pass — some NVIDIA / G-SYNC setups stay on backgroundColor
+    // until the window is resized or invalidated.
+    const [width, height] = win.getSize();
+    win.setSize(width, height + 1);
+    win.setSize(width, height);
+  });
+  contents.on("console-message", (_event, level, message) => {
+    if (level >= 2) appendBackendLog(`[renderer] ${message}\n`);
+  });
 }
 
 function waitForBackend(maxMs = 90000) {
@@ -268,6 +394,10 @@ function resolveAppIconPath() {
 }
 
 function createWindow() {
+  if (process.platform === "win32") {
+    Menu.setApplicationMenu(null);
+  }
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -276,51 +406,46 @@ function createWindow() {
     title: "Hall",
     icon: resolveAppIconPath(),
     backgroundColor: "#121212",
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      // Castlabs Widevine / Spotify Web Playback SDK
-      plugins: true,
+      backgroundThrottling: false,
+      // Castlabs Widevine is used on macOS; Windows plays Spotify via WebView2.
+      plugins: process.platform === "darwin",
     },
   });
 
-  // Spotify licence Widevine : UA proche de Chrome (évite certains rejets anti-bot).
-  try {
-    const chromeMajor = process.versions.chrome?.split(".")[0] || "132";
-    mainWindow.webContents.setUserAgent(
-      `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`,
-    );
-  } catch {
-    // ignore
-  }
+  applyDesktopUserAgent(mainWindow.webContents);
+  attachRendererDiagnostics(mainWindow);
 
   mainWindow.loadURL(START_URL);
   spotifyWebView2.setMainWindow(mainWindow);
-  if (spotifyWebView2.isSupported()) {
-    void spotifyWebView2.startHost();
-  }
+  mainWindow.webContents.once("did-finish-load", () => {
+    if (spotifyWebView2.isSupported()) {
+      void spotifyWebView2.startHost();
+    }
+  });
   mainWindow.on("closed", () => {
     spotifyWebView2.setMainWindow(null);
+    hideRecordingCameraOverlay();
     mainWindow = null;
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (OAUTH_POPUP_PREFIXES.some((prefix) => url.startsWith(prefix))) {
+    if (isOAuthPopupUrl(url)) {
       return {
         action: "allow",
-        overrideBrowserWindowOptions: {
-          width: 520,
-          height: 720,
-          autoHideMenuBar: true,
-          webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
-          },
-        },
+        overrideBrowserWindowOptions: oauthPopupBrowserOptions(),
       };
     }
     shell.openExternal(url);
     return { action: "deny" };
+  });
+  mainWindow.webContents.on("did-create-window", (childWindow, details) => {
+    if (isOAuthPopupUrl(details.url) || isOAuthPopupUrl(childWindow.webContents.getURL())) {
+      attachOAuthPopupNavigation(childWindow);
+    }
   });
 }
 
@@ -358,6 +483,102 @@ async function resolvePreferredScreenSource() {
     sources[0] ??
     null
   );
+}
+
+const RECORDING_CAMERA_SIZE = 140;
+const RECORDING_CAMERA_MARGIN = 35;
+
+function hideRecordingCameraOverlay() {
+  if (recordingCameraWindow && !recordingCameraWindow.isDestroyed()) {
+    recordingCameraWindow.destroy();
+  }
+  recordingCameraWindow = null;
+}
+
+/**
+ * Floating always-on-top camera bubble so it stays visible over Chrome / other apps
+ * while the full desktop is being recorded.
+ * @param {{ mirror?: boolean }} [opts]
+ */
+function showRecordingCameraOverlay(opts = {}) {
+  const mirror = opts.mirror !== false;
+  const display = screen.getPrimaryDisplay();
+  const work = display.workArea;
+  const x = Math.round(work.x + RECORDING_CAMERA_MARGIN);
+  const y = Math.round(work.y + work.height - RECORDING_CAMERA_SIZE - RECORDING_CAMERA_MARGIN);
+
+  if (recordingCameraWindow && !recordingCameraWindow.isDestroyed()) {
+    recordingCameraWindow.setBounds({
+      x,
+      y,
+      width: RECORDING_CAMERA_SIZE,
+      height: RECORDING_CAMERA_SIZE,
+    });
+    recordingCameraWindow.webContents.send("forma:recording-camera-mirror", { mirror });
+    if (!recordingCameraWindow.isVisible()) {
+      recordingCameraWindow.showInactive();
+    }
+    return;
+  }
+
+  recordingCameraWindow = new BrowserWindow({
+    width: RECORDING_CAMERA_SIZE,
+    height: RECORDING_CAMERA_SIZE,
+    x,
+    y,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    focusable: false,
+    skipTaskbar: true,
+    hasShadow: true,
+    show: false,
+    backgroundColor: "#00000000",
+    // Linux: panel helps keep the bubble above other apps (X11 / some compositors).
+    ...(process.platform === "linux" ? { type: "panel" } : {}),
+    webPreferences: {
+      preload: path.join(__dirname, "recording-camera-preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  try {
+    recordingCameraWindow.setAlwaysOnTop(true, "screen-saver");
+  } catch {
+    recordingCameraWindow.setAlwaysOnTop(true);
+  }
+  try {
+    recordingCameraWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  } catch {
+    try {
+      recordingCameraWindow.setVisibleOnAllWorkspaces(true);
+    } catch {
+      // Wayland may ignore this — still show the overlay on the current desktop.
+    }
+  }
+  try {
+    recordingCameraWindow.setIgnoreMouseEvents(true, { forward: true });
+  } catch {
+    recordingCameraWindow.setIgnoreMouseEvents(true);
+  }
+
+  recordingCameraWindow.on("closed", () => {
+    recordingCameraWindow = null;
+  });
+
+  const overlayPath = path.join(__dirname, "recording-camera-overlay.html");
+  void recordingCameraWindow.loadFile(overlayPath, {
+    query: { mirror: mirror ? "1" : "0" },
+  });
+  recordingCameraWindow.once("ready-to-show", () => {
+    if (!recordingCameraWindow || recordingCameraWindow.isDestroyed()) return;
+    recordingCameraWindow.showInactive();
+  });
 }
 
 async function resolveHallWindowSource() {
@@ -432,6 +653,26 @@ async function openScreenCaptureSettings() {
     return false;
   }
 
+  if (process.platform === "linux") {
+    // No OS-wide gate like macOS TCC — PipeWire/XDG portal prompts per capture.
+    // Open common privacy / settings surfaces when available.
+    const candidates = [
+      ["gnome-control-center", "privacy"],
+      ["systemsettings5", "kcm_privacy"],
+    ];
+    for (const [bin, ...args] of candidates) {
+      try {
+        const child = spawn(bin, args, { detached: true, stdio: "ignore" });
+        child.on("error", () => {});
+        child.unref();
+        return true;
+      } catch {
+        // essayer la suivante
+      }
+    }
+    return false;
+  }
+
   return false;
 }
 
@@ -445,6 +686,31 @@ ipcMain.handle("forma:open-external", async (_event, url) => {
 ipcMain.handle("forma:get-app-window-source-id", async () => {
   const source = await resolveHallWindowSource();
   return source?.id ?? null;
+});
+
+ipcMain.handle("forma:get-preferred-screen-source-id", async () => {
+  const source = await resolvePreferredScreenSource();
+  return source?.id ?? null;
+});
+
+ipcMain.handle("forma:show-recording-camera-overlay", (_event, payload) => {
+  showRecordingCameraOverlay({
+    mirror: payload?.mirror !== false,
+  });
+  return true;
+});
+
+ipcMain.handle("forma:hide-recording-camera-overlay", () => {
+  hideRecordingCameraOverlay();
+  return true;
+});
+
+ipcMain.handle("forma:update-recording-camera-overlay", (_event, payload) => {
+  if (!recordingCameraWindow || recordingCameraWindow.isDestroyed()) return false;
+  recordingCameraWindow.webContents.send("forma:recording-camera-mirror", {
+    mirror: payload?.mirror !== false,
+  });
+  return true;
 });
 
 ipcMain.handle("forma:get-screen-capture-access-status", () => ({
@@ -465,7 +731,11 @@ ipcMain.handle("forma:spotify-webview2-play", (_event, trackId) => spotifyWebVie
 ipcMain.handle("forma:spotify-webview2-pause", () => spotifyWebView2.pause());
 ipcMain.handle("forma:spotify-webview2-resume", () => spotifyWebView2.resume());
 ipcMain.handle("forma:spotify-webview2-toggle", () => spotifyWebView2.toggle());
+ipcMain.handle("forma:spotify-webview2-set-volume", (_event, volume) =>
+  spotifyWebView2.setVolume(volume),
+);
 ipcMain.handle("forma:spotify-webview2-reset", () => spotifyWebView2.reset());
+ipcMain.handle("forma:spotify-webview2-playback-clock", () => spotifyWebView2.getPlaybackClock());
 ipcMain.handle("forma:spotify-token-response", (_event, payload) => {
   if (!payload || typeof payload.id !== "string") return;
   spotifyWebView2.respondToken(payload.id, typeof payload.token === "string" ? payload.token : "");
@@ -473,8 +743,8 @@ ipcMain.handle("forma:spotify-token-response", (_event, payload) => {
 ipcMain.handle("forma:spotify-widevine-status", () => getWidevineStatus());
 
 app.whenReady().then(async () => {
-  // Screen share / recording: prefer OS picker when available (macOS 15+).
-  // Fallback grants the primary display — not only the Hall window.
+  // Screen share / recording: always grant the primary display (full desktop),
+  // not just the Hall window — so Chrome/Google etc. appear in the recording.
   session.defaultSession.setDisplayMediaRequestHandler(
     async (request, callback) => {
       try {
@@ -495,7 +765,7 @@ app.whenReady().then(async () => {
         callback({});
       }
     },
-    { useSystemPicker: true },
+    { useSystemPicker: false },
   );
 
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
@@ -552,22 +822,23 @@ app.whenReady().then(async () => {
       hint =
         "Relancez depuis le dossier du projet : ./scripts/desktop-dev.sh — ou reconstruisez : ./scripts/build-desktop-mac.sh";
     }
+    if (process.platform === "win32") {
+      Menu.setApplicationMenu(null);
+    }
     const win = new BrowserWindow({
       width: 720,
       height: 420,
       title: "Hall",
       icon: resolveAppIconPath(),
       backgroundColor: "#121212",
+      autoHideMenuBar: true,
     });
-    win.loadURL(
-      `data:text/html;charset=utf-8,${encodeURIComponent(
-        `<body style="font-family:system-ui;background:#121212;color:#e0e0e0;padding:2rem;line-height:1.5"><h1 style="margin:0 0 1rem">Hall ne peut pas démarrer</h1><p>${message}</p><p>${hint}</p></body>`,
-      )}`,
-    );
+    win.loadURL(loadErrorHtml("Hall ne peut pas démarrer", message, hint));
   }
 });
 
 app.on("window-all-closed", () => {
+  hideRecordingCameraOverlay();
   stopBackend();
   if (process.platform !== "darwin") app.quit();
 });

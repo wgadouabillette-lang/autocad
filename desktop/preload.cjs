@@ -11,6 +11,13 @@ contextBridge.exposeInMainWorld("formaDesktop", {
   platform: process.platform,
   openExternal: (url) => ipcRenderer.invoke("forma:open-external", url),
   getAppWindowSourceId: () => ipcRenderer.invoke("forma:get-app-window-source-id"),
+  getPreferredScreenSourceId: () =>
+    ipcRenderer.invoke("forma:get-preferred-screen-source-id"),
+  showRecordingCameraOverlay: (opts) =>
+    ipcRenderer.invoke("forma:show-recording-camera-overlay", opts ?? {}),
+  hideRecordingCameraOverlay: () => ipcRenderer.invoke("forma:hide-recording-camera-overlay"),
+  updateRecordingCameraOverlay: (opts) =>
+    ipcRenderer.invoke("forma:update-recording-camera-overlay", opts ?? {}),
   getScreenCaptureAccessStatus: () =>
     ipcRenderer.invoke("forma:get-screen-capture-access-status"),
   openScreenCaptureSettings: () => ipcRenderer.invoke("forma:open-screen-capture-settings"),
@@ -28,7 +35,11 @@ contextBridge.exposeInMainWorld("formaDesktop", {
   pauseSpotifyWebView2: () => ipcRenderer.invoke("forma:spotify-webview2-pause"),
   resumeSpotifyWebView2: () => ipcRenderer.invoke("forma:spotify-webview2-resume"),
   toggleSpotifyWebView2: () => ipcRenderer.invoke("forma:spotify-webview2-toggle"),
+  setSpotifyWebView2Volume: (volume) =>
+    ipcRenderer.invoke("forma:spotify-webview2-set-volume", volume),
   resetSpotifyWebView2: () => ipcRenderer.invoke("forma:spotify-webview2-reset"),
+  getSpotifyWebView2PlaybackClock: () =>
+    ipcRenderer.invoke("forma:spotify-webview2-playback-clock"),
   respondSpotifyToken: (payload) => ipcRenderer.invoke("forma:spotify-token-response", payload),
   onSpotifyTokenRequest: (handler) => subscribe("forma:spotify-token-request", handler),
   onSpotifyPlaybackState: (handler) => subscribe("forma:spotify-playback-state", handler),
