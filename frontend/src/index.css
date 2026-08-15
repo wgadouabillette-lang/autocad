@@ -11,7 +11,7 @@
   --forma-shell-bg: #0a0a0a;
   --forma-content-bg: #1a1a1a;
   --forma-calls-bg: #171717;
-  --forma-content-radius: 1.25rem;
+  --forma-content-radius: 0;
   --forma-panel: #1e1e1e;
   --forma-elevated: #242424;
   --forma-border: #333333;
@@ -892,7 +892,7 @@ body {
       minmax(0, var(--app-chat-col, 0px));
     overflow: hidden;
     background-color: var(--forma-content-bg);
-    border-radius: var(--forma-content-radius) var(--forma-content-radius) 0 0;
+    border-radius: 0;
     border: var(--forma-divider-width) solid var(--forma-divider);
     border-bottom: none;
     transition: grid-template-columns 0.35s cubic-bezier(0.32, 0.72, 0, 1);
