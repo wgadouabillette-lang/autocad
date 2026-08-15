@@ -20,6 +20,7 @@
     },
     "files": [
       "main.cjs",
+      "staticServer.cjs",
       "preload.cjs",
       "recording-camera-preload.cjs",
       "recording-camera-overlay.html",

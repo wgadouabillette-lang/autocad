@@ -2,6 +2,7 @@ const {
   app,
   BrowserWindow,
   Menu,
+  dialog,
   shell,
   session,
   ipcMain,
@@ -10,10 +11,11 @@ const {
   components,
   screen,
 } = require("electron");
-const { spawn } = require("child_process");
+const { spawn, exec } = require("child_process");
 const http = require("http");
 const path = require("path");
 const fs = require("fs");
+const { createUiServer } = require("./staticServer.cjs");
 const {
   initUpdater,
   handleInstallNow,
@@ -31,13 +33,16 @@ if (process.platform === "win32") {
   // (native chrome + File/Edit menus, gray content). Common on NVIDIA / G-SYNC.
   app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
   app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
+  app.disableHardwareAcceleration();
 }
 
 const BACKEND_HOST = "127.0.0.1";
 const BACKEND_PORT = Number(process.env.FORMA_PORT || 47831);
+const UI_PORT = Number(process.env.FORMA_UI_PORT || 47832);
 const DEV_URL = process.env.FORMA_DEV_URL?.trim() || "";
 const BACKEND_ORIGIN = `http://${BACKEND_HOST}:${BACKEND_PORT}`;
-const START_URL = DEV_URL || `${BACKEND_ORIGIN}/app/`;
+const UI_ORIGIN = `http://${BACKEND_HOST}:${UI_PORT}`;
+const START_URL = DEV_URL || `${UI_ORIGIN}/app/`;
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "forma-cad-dev";
 
 const OAUTH_POPUP_PREFIXES = [
@@ -93,6 +98,8 @@ function attachOAuthPopupNavigation(win) {
 }
 
 let backendProc = null;
+/** @type {import("http").Server | null} */
+let uiServer = null;
 let mainWindow = null;
 /** @type {Electron.BrowserWindow | null} */
 let recordingCameraWindow = null;
@@ -176,6 +183,65 @@ function appendBackendLog(chunk) {
   }
 }
 
+function windowsPathKey(env) {
+  if (Object.prototype.hasOwnProperty.call(env, "Path")) return "Path";
+  if (Object.prototype.hasOwnProperty.call(env, "PATH")) return "PATH";
+  return process.platform === "win32" ? "Path" : "PATH";
+}
+
+function freeListenPort(port) {
+  if (process.platform !== "win32") return Promise.resolve();
+  return new Promise((resolve) => {
+    exec(`netstat -ano | findstr :${port}`, { windowsHide: true }, (err, stdout) => {
+      if (err || !stdout) {
+        resolve();
+        return;
+      }
+      const pids = new Set();
+      for (const line of stdout.split(/\r?\n/)) {
+        if (!/LISTENING/i.test(line)) continue;
+        const pid = line.trim().split(/\s+/).pop();
+        if (pid && /^\d+$/.test(pid) && pid !== "0") pids.add(pid);
+      }
+      if (pids.size === 0) {
+        resolve();
+        return;
+      }
+      exec(
+        `taskkill /F ${[...pids].map((pid) => `/PID ${pid}`).join(" ")}`,
+        { windowsHide: true },
+        () => resolve(),
+      );
+    });
+  });
+}
+
+async function startUiServer() {
+  if (DEV_URL || uiServer) return;
+  const distDir = frontendDist();
+  if (!fs.existsSync(path.join(distDir, "index.html"))) {
+    throw new Error("Build frontend manquant. Lancez: cd frontend && npm run build");
+  }
+  uiServer = await createUiServer({
+    distDir,
+    apiHost: BACKEND_HOST,
+    apiPort: BACKEND_PORT,
+    listenHost: BACKEND_HOST,
+    listenPort: UI_PORT,
+  });
+  appendBackendLog(`[hall] UI server ${UI_ORIGIN} → ${distDir}\n`);
+}
+
+function stopUiServer() {
+  if (!uiServer) return;
+  try {
+    uiServer.close();
+  } catch {
+    // ignore
+  }
+  uiServer = null;
+}
+
 function spawnBackend() {
   const py = pythonExecutable();
   const cwd = backendCwd();
@@ -196,20 +262,34 @@ function spawnBackend() {
     FORMA_DATA_DIR: dataDir(),
     FIREBASE_PROJECT_ID,
     // OAuth connecteurs (Spotify, etc.) : callback loopback sur le backend embarqué.
-    FORMA_OAUTH_REDIRECT_BASE: `http://${BACKEND_HOST}:${BACKEND_PORT}`,
-    FORMA_FRONTEND_ORIGIN: `http://${BACKEND_HOST}:${BACKEND_PORT}`,
+    FORMA_OAUTH_REDIRECT_BASE: BACKEND_ORIGIN,
+    FORMA_FRONTEND_ORIGIN: UI_ORIGIN,
     FORMA_FRONTEND_BASE_PATH: "/",
+    FORMA_CORS: [UI_ORIGIN, BACKEND_ORIGIN, "http://localhost:5173", "http://127.0.0.1:5173"].join(
+      ",",
+    ),
     ...(firebaseCreds ? { GOOGLE_APPLICATION_CREDENTIALS: firebaseCreds } : {}),
-    ...(DEV_URL ? {} : { FORMA_STATIC: frontendDist() }),
-    ...(pythonHome ? { PYTHONHOME: pythonHome } : {}),
     PYTHONUTF8: "1",
     PYTHONUNBUFFERED: "1",
+    PYTHONNOUSERSITE: "1",
+    PYTHONDONTWRITEBYTECODE: "1",
+    PYTHONPATH: cwd,
   };
+  if (pythonHome) {
+    env.PYTHONHOME = pythonHome;
+    const pathKey = windowsPathKey(env);
+    env[pathKey] = [
+      pythonHome,
+      path.join(pythonHome, "Scripts"),
+      path.join(pythonHome, "DLLs"),
+      env[pathKey] || "",
+    ].join(path.delimiter);
+  }
 
   try {
     fs.writeFileSync(
       backendLogFile(),
-      `[hall] starting backend\npython=${py}\ncwd=${cwd}\nport=${BACKEND_PORT}\n\n`,
+      `[hall] starting backend\npython=${py}\ncwd=${cwd}\nport=${BACKEND_PORT}\nui=${UI_ORIGIN}\n\n`,
     );
   } catch {
     // ignore
@@ -238,15 +318,6 @@ function spawnBackend() {
   backendProc.on("exit", (code) => {
     backendProc = null;
     appendBackendLog(`[hall] backend exited code=${code}\n`);
-    if (code && code !== 0 && mainWindow) {
-      mainWindow.loadURL(
-        loadErrorHtml(
-          "Hall",
-          `The backend engine stopped (code ${code}).`,
-          "Restart the application.",
-        ),
-      );
-    }
   });
 }
 
@@ -794,11 +865,18 @@ app.whenReady().then(async () => {
     }
     await ensureDesktopPlaybackReady();
     if (!DEV_URL) {
+      await freeListenPort(UI_PORT);
+      await startUiServer();
+      await freeListenPort(BACKEND_PORT);
       spawnBackend();
     }
-    await waitForBackend();
     createWindow();
     initUpdater({ getMainWindow: () => mainWindow });
+    if (!DEV_URL) {
+      void waitForBackend().catch((err) => {
+        appendBackendLog(`[hall] backend not ready: ${err instanceof Error ? err.message : err}\n`);
+      });
+    }
   } catch (err) {
     console.error(err);
     const message =
@@ -834,12 +912,16 @@ app.whenReady().then(async () => {
       autoHideMenuBar: true,
     });
     win.loadURL(loadErrorHtml("Hall ne peut pas démarrer", message, hint));
+    if (process.platform === "win32") {
+      dialog.showErrorBox("Hall ne peut pas démarrer", `${message}\n\n${hint}`);
+    }
   }
 });
 
 app.on("window-all-closed", () => {
   hideRecordingCameraOverlay();
   stopBackend();
+  stopUiServer();
   if (process.platform !== "darwin") app.quit();
 });
 
@@ -850,4 +932,5 @@ app.on("activate", () => {
 app.on("before-quit", () => {
   spotifyWebView2.stopHost();
   stopBackend();
+  stopUiServer();
 });

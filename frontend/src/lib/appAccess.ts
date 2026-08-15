@@ -1,18 +1,18 @@
 import { hasFormaDesktop } from "./formaDesktop";
 
 export const DESKTOP_VIEWPORT_QUERY = "(min-width: 768px)";
-const DESKTOP_BACKEND_PORT = "47831";
+const DESKTOP_LOOPBACK_PORTS = new Set(["47831", "47832"]);
 
 export function isDesktopViewport(): boolean {
   return typeof window !== "undefined" && window.matchMedia(DESKTOP_VIEWPORT_QUERY).matches;
 }
 
-/** Packaged Hall serves the UI from the embedded backend on loopback. */
+/** Packaged Hall serves the UI from the embedded desktop server on loopback. */
 export function isLocalDesktopBackend(): boolean {
   if (typeof window === "undefined") return false;
   const { hostname, port } = window.location;
   const loopback = hostname === "127.0.0.1" || hostname === "localhost";
-  return loopback && port === DESKTOP_BACKEND_PORT;
+  return loopback && DESKTOP_LOOPBACK_PORTS.has(port);
 }
 
 /** Web app and auth are desktop-only unless running inside the native Hall app. */
