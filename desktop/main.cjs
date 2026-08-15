@@ -266,6 +266,7 @@ function spawnBackend() {
   const env = {
     ...process.env,
     FORMA_DESKTOP: "1",
+    FORMA_USE_LOCAL_ENV: "1",
     FORMA_HOST: BACKEND_HOST,
     FORMA_PORT: String(BACKEND_PORT),
     FORMA_DATA_DIR: dataDir(),

@@ -92,6 +92,7 @@ jobs:
 
       - name: Prepare desktop resources
         env:
+          FORMA_BACKEND_ENV: ${{ secrets.FORMA_BACKEND_ENV }}
           VITE_FIREBASE_API_KEY: AIzaSyCEgeoE7cOh8OA1l2rQSF0VTJ0pY1GYgx4
           VITE_FIREBASE_AUTH_DOMAIN: forma-cad-dev.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: forma-cad-dev

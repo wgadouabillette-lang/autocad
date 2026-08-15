@@ -72,6 +72,27 @@ if (fs.existsSync(firebaseSecretSrc)) {
   );
 }
 
+function writePackagedBackendEnv() {
+  const dest = path.join(backendOut, ".env");
+  const fromSecret = (process.env.FORMA_BACKEND_ENV || "").replace(/\r\n/g, "\n").trim();
+  if (fromSecret) {
+    fs.writeFileSync(dest, fromSecret.endsWith("\n") ? fromSecret : `${fromSecret}\n`);
+    console.log("→ backend/.env embarqué (secrets de build).");
+    return;
+  }
+  const localEnv = path.join(backendSrc, ".env");
+  if (fs.existsSync(localEnv)) {
+    fs.copyFileSync(localEnv, dest);
+    console.log("→ backend/.env local copié dans le package.");
+  } else {
+    console.warn(
+      "→ backend/.env absent — paiements et OAuth connecteurs seront indisponibles dans ce build.",
+    );
+  }
+}
+writePackagedBackendEnv();
+
+
 console.log("→ Création runtime Python portable pour l'app…");
 
 function resolveBasePython() {
