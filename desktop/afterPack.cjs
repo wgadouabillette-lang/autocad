@@ -112,10 +112,14 @@ exports.default = async function afterPack(context) {
     return;
   }
 
-  if (
-    context.electronPlatformName !== "darwin" &&
-    context.electronPlatformName !== "linux"
-  ) {
+  // Castlabs EVS only signs Windows/macOS binaries. Linux ELF builds have no
+  // VMP .sig; Widevine typically does not enforce VMP on Linux.
+  if (context.electronPlatformName === "linux") {
+    console.log("[evs] skip VMP on Linux (EVS does not sign ELF binaries)");
+    return;
+  }
+
+  if (context.electronPlatformName !== "darwin") {
     return;
   }
 

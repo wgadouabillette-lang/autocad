@@ -112,7 +112,7 @@ jobs:
       - name: Prepare stable download filename
         run: |
           mkdir -p landing/downloads landing/public/downloads
-          APPIMAGE="$(ls -1t desktop/release/Hall-*-linux.AppImage desktop/release/*.AppImage 2>/dev/null | head -1 || true)"
+          APPIMAGE="$(ls -1t desktop/release/Meetra-*-linux.AppImage desktop/release/Hall-*-linux.AppImage desktop/release/*.AppImage 2>/dev/null | head -1 || true)"
           if [[ -z "$APPIMAGE" || ! -f "$APPIMAGE" ]]; then
             echo "AppImage introuvable dans desktop/release/"
             ls -la desktop/release || true

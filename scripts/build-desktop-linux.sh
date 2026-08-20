@@ -39,7 +39,7 @@ echo "[4/5] Construction de l'AppImage…"
 
 echo "[5/5] Copie vers landing/downloads (nom stable Hall-linux.AppImage)…"
 mkdir -p landing/public/downloads landing/downloads
-APPIMAGE="$(ls -1t desktop/release/Hall-*-linux.AppImage 2>/dev/null | head -1 || true)"
+APPIMAGE="$(ls -1t desktop/release/Meetra-*-linux.AppImage desktop/release/Hall-*-linux.AppImage desktop/release/*.AppImage 2>/dev/null | head -1 || true)"
 if [[ -z "$APPIMAGE" || ! -f "$APPIMAGE" ]]; then
   echo "AppImage introuvable dans desktop/release/"
   exit 1
