@@ -1,20 +1,20 @@
 {
   "name": "forma-desktop",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
-  "description": "Hall",
+  "description": "Meetra",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
     "prepare-resources": "node ../scripts/prepare-desktop-resources.cjs",
-    "dist:mac": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --mac dmg",
-    "dist:win": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --config electron-builder.config.cjs --win nsis",
-    "dist:linux": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --linux AppImage",
-    "dist": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --mac dmg --win nsis --linux AppImage"
+    "dist:mac": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --mac dmg zip --publish never",
+    "dist:win": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --config electron-builder.config.cjs --win nsis --publish never",
+    "dist:linux": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --linux AppImage --publish never",
+    "dist": "FORMA_PROD_BUILD=1 npm run prepare-resources && electron-builder --mac dmg zip --win nsis --linux AppImage --publish never"
   },
   "build": {
     "appId": "com.forma.cad",
-    "productName": "Hall",
+    "productName": "Meetra",
     "directories": {
       "output": "release"
     },
@@ -24,6 +24,7 @@
       "preload.cjs",
       "recording-camera-preload.cjs",
       "recording-camera-overlay.html",
+      "splash.html",
       "updater.cjs",
       "updater-state.cjs",
       "package.json",
@@ -31,13 +32,24 @@
       "build/icon.ico",
       "spotifyWebView2Manager.cjs",
       "spotify-webview2-host.cjs",
-      "spotify-webview2/**"
+      "spotify-webview2/**",
+      "node_modules/**/*",
+      "!node_modules/electron/**",
+      "!node_modules/electron-builder/**",
+      "!node_modules/app-builder-bin/**",
+      "!node_modules/rcedit/**"
     ],
     "asarUnpack": [
       "**/node_modules/ewvjs/**"
     ],
     "afterPack": "./afterPack.cjs",
     "afterSign": "./afterSign.cjs",
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://meetra.cc/desktop-updates"
+      }
+    ],
     "electronDownload": {
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
     },
@@ -63,18 +75,20 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
+      "x64ArchFiles": "**",
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
       "icon": "build/icon.png",
       "identity": null,
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
-      "artifactName": "Hall-${version}-mac.${ext}",
+      "artifactName": "Meetra-${version}-mac.${ext}",
       "extendInfo": {
-        "NSScreenCaptureUsageDescription": "Hall a besoin d'accéder à l'écran pour le partage d'écran et l'enregistrement.",
-        "NSCameraUsageDescription": "Hall utilise la caméra pour les appels vidéo.",
-        "NSMicrophoneUsageDescription": "Hall utilise le micro pour les appels vocaux."
+        "NSScreenCaptureUsageDescription": "Meetra a besoin d'accéder à l'écran pour le partage d'écran et l'enregistrement.",
+        "NSCameraUsageDescription": "Meetra utilise la caméra pour les appels vidéo.",
+        "NSMicrophoneUsageDescription": "Meetra utilise le micro pour les appels vocaux."
       }
     },
     "win": {
@@ -92,8 +106,8 @@
       "category": "Office",
       "icon": "build/icon.png",
       "synopsis": "AI-powered collaborative workspace",
-      "description": "Hall — AI-powered collaborative workspace for teams.",
-      "artifactName": "Hall-${version}-linux.${ext}"
+      "description": "Meetra — AI-powered collaborative workspace for teams.",
+      "artifactName": "Meetra-${version}-linux.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -104,12 +118,12 @@
       "installerHeaderIcon": "build/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Hall",
-      "artifactName": "Hall.${ext}"
+      "shortcutName": "Meetra",
+      "artifactName": "Meetra.${ext}"
     },
     "dmg": {
-      "title": "Hall",
-      "artifactName": "Hall-${version}-mac.${ext}",
+      "title": "Meetra",
+      "artifactName": "Meetra-${version}-mac.${ext}",
       "contents": [
         {
           "x": 140,
@@ -123,6 +137,9 @@
         }
       ]
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.4"
   },
   "devDependencies": {
     "electron": "https://github.com/castlabs/electron-releases#v42.5.2+wvcus",

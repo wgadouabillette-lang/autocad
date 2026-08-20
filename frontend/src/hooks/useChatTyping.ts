@@ -71,7 +71,8 @@ export function useChatTyping(
     };
 
     pushTyping();
-    syncTimerRef.current = window.setInterval(pushTyping, 2_000);
+    // Refresh before TYPING_STALE_MS (5s) so remote peers keep seeing us as typing.
+    syncTimerRef.current = window.setInterval(pushTyping, 4_000);
 
     return () => {
       if (syncTimerRef.current !== null) {

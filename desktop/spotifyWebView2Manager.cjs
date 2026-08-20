@@ -15,7 +15,7 @@ const tokenWaiters = new Map();
 let hostReady = false;
 let hostReadyWaiters = [];
 let startPromise = null;
-/** @type {Map<string, { resolve: (ok: boolean) => void, reject: (err: Error) => void, timer: NodeJS.Timeout }>} */
+/** @type {Map<string, { resolve: (payload: Record<string, unknown>) => void, reject: (err: Error) => void, timer: NodeJS.Timeout }>} */
 const commandWaiters = new Map();
 
 function isSupported() {
@@ -83,7 +83,7 @@ function handleHostEvent(payload) {
     if (!pending) return;
     clearTimeout(pending.timer);
     commandWaiters.delete(payload.id);
-    if (payload.ok) pending.resolve(true);
+    if (payload.ok) pending.resolve(payload);
     else pending.reject(new Error(payload.message || "Commande Spotify échouée."));
     return;
   }
@@ -178,19 +178,19 @@ async function sendCommand(cmd, extra = {}, options = {}) {
   const id = expectResult ? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : null;
 
   if (id) {
-    await new Promise((resolve, reject) => {
+    const payload = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         commandWaiters.delete(id);
         reject(new Error("Commande Spotify timeout."));
       }, 20_000);
       commandWaiters.set(id, {
-        resolve: () => resolve(true),
+        resolve,
         reject,
         timer,
       });
       writeHost({ cmd, id, ...extra });
     });
-    return true;
+    return payload;
   }
 
   writeHost({ cmd, ...extra });
@@ -222,9 +222,24 @@ async function toggle() {
   await sendCommand("toggle");
 }
 
+async function setVolume(volume) {
+  await sendCommand("setVolume", { volume });
+}
+
 async function reset() {
   if (!hostProc) return;
   await sendCommand("reset");
+}
+
+async function getPlaybackClock() {
+  const payload = await sendCommand("getPosition", {}, { expectResult: true });
+  const sec =
+    payload && typeof payload.sec === "number" && Number.isFinite(payload.sec) ? payload.sec : null;
+  const durationSec =
+    payload && typeof payload.durationSec === "number" && Number.isFinite(payload.durationSec)
+      ? payload.durationSec
+      : null;
+  return { sec, durationSec };
 }
 
 function getAvailability() {
@@ -244,7 +259,9 @@ module.exports = {
   pause,
   resume,
   toggle,
+  setVolume,
   reset,
+  getPlaybackClock,
   respondToken,
   getAvailability,
 };

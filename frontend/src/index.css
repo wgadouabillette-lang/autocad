@@ -4,7 +4,6 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
   /* Palette grise neutre (R=G=B) — sans teinte turquoise */
   --forma-bg: #1a1a1a;
   --forma-main-bg: #121212;
@@ -163,13 +162,19 @@
 }
 
 html[data-theme="dark"] {
-  color-scheme: dark;
   --forma-surface-hover: var(--forma-tint-08);
   --forma-surface-active: var(--forma-tint-16);
   --forma-glass-border: var(--forma-tint-06);
   --forma-glass-bg: var(--forma-tint-04);
   --forma-scrim: rgb(0 0 0 / 0.55);
   --forma-scrim-strong: var(--forma-drop-88);
+}
+html[data-theme="dark"]:not(.app-loading-splash) {
+  color-scheme: dark;
+}
+
+html:not(.app-loading-splash) {
+  color-scheme: dark;
 }
 
 html,
@@ -179,11 +184,23 @@ body,
   margin: 0;
 }
 
+html.app-loading-splash,
+html.app-loading-splash[data-theme="dark"],
+html.app-loading-splash body,
+html.app-loading-splash #root {
+  background: transparent !important;
+  color-scheme: only light !important;
+}
+
 body {
-  @apply bg-ink-900 text-muted-200 font-sans antialiased;
-  background-color: var(--forma-shell-bg);
+  @apply text-muted-200 font-sans antialiased;
   color: var(--forma-text);
   overflow: hidden;
+}
+
+html:not(.app-loading-splash) body,
+html:not(.app-loading-splash) #root {
+  background-color: var(--forma-shell-bg);
 }
 
 ::-webkit-scrollbar {
@@ -318,22 +335,42 @@ body {
     animation: bottom-bar-queue-icon-shimmer 1.2s ease-in-out 1;
   }
   .hall-dj-loading-icon {
-    @apply relative inline-flex items-center justify-center;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    /* Outer box stays fixed in the button — only the ring spins. */
+    overflow: visible;
+    transform: none !important;
+    animation: none !important;
   }
   .hall-dj-loading-icon__ring {
-    width: 100%;
-    height: 100%;
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
     border-radius: 999px;
     border: 2px solid currentColor;
     border-top-color: transparent;
+    transform-origin: 50% 50%;
     animation: hall-dj-loading-spin 0.75s linear infinite;
   }
   .hall-dj-disco-icon {
     @apply relative z-0 h-6 w-6 object-contain shrink-0;
   }
   @keyframes hall-dj-loading-spin {
+    from {
+      transform: rotate(0deg);
+    }
     to {
       transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hall-dj-loading-icon__ring {
+      animation: none;
+      border-top-color: currentColor;
+      opacity: 0.55;
     }
   }
   .header-chrome-control {
@@ -434,11 +471,21 @@ body {
   }
 
   .app-loading-screen {
-    @apply fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden;
-    background-color: var(--forma-shell-bg);
+    @apply fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden;
+    background: transparent;
+  }
+  .app-loading-screen__window {
+    @apply relative flex shrink-0 flex-col items-center justify-center overflow-hidden;
+    width: 300px;
+    height: 425px;
+    background-color: var(--forma-content-bg);
+    border: 1px solid var(--forma-border);
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
+    -webkit-app-region: drag;
   }
   .app-loading-screen__brand {
-    @apply absolute left-0 top-0 z-[1] flex items-center px-6 py-5;
+    @apply absolute left-0 top-0 z-[1] flex items-center px-4 py-3;
   }
   .app-loading-screen__brand-mark {
     @apply select-none text-sm font-semibold tracking-wide text-muted-200;
@@ -458,7 +505,7 @@ body {
     }
   }
   .app-loading-screen__error {
-    @apply flex max-w-[16rem] flex-col items-center gap-2 text-center;
+    @apply flex max-w-[13rem] flex-col items-center gap-2 px-2 text-center;
   }
   .app-loading-screen__error-title {
     @apply text-sm font-medium text-muted-200;
@@ -470,13 +517,14 @@ body {
     @apply mt-1 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-200 transition-colors;
     border-color: var(--forma-border);
     background-color: var(--forma-control-bg);
+    -webkit-app-region: no-drag;
   }
   .app-loading-screen__retry:hover {
     background-color: var(--forma-control-hover-bg);
     border-color: var(--forma-border-strong);
   }
   .app-loading-screen__footer {
-    @apply absolute bottom-0 left-0 right-0 pb-6 text-center text-[11px] text-muted-500;
+    @apply absolute bottom-0 left-0 right-0 px-3 pb-4 text-center text-[10px] text-muted-500;
   }
   .app-error-screen {
     @apply fixed inset-0 z-[9999] flex items-center justify-center overflow-auto p-6;
@@ -722,6 +770,11 @@ body {
     border-radius: 0;
     border: none;
   }
+  .marketing-preview-shell--notes .chat-panel--expanded .chat-panel-header {
+    width: 100%;
+    max-width: var(--forma-chat-fullscreen-width);
+    margin-inline: auto;
+  }
   .marketing-preview-shell .calls-view {
     justify-content: center;
     overflow-x: clip;
@@ -733,7 +786,7 @@ body {
     min-height: 0;
     padding: 0.5rem 0 0.75rem;
   }
-  .marketing-preview-shell .calls-view__grid--cascade {
+  .marketing-preview-shell .calls-view__grid {
     transform: scale(0.9);
     transform-origin: center center;
   }
@@ -807,11 +860,9 @@ body {
       inset 0 0 0 1px rgb(250 204 21 / 0.35),
       inset 0 0 28px rgb(250 204 21 / 0.07);
   }
-  .marketing-preview-shell--recording-static .call-block--cascade,
   .marketing-preview-shell--recording-static
     .open-voice-in-call__grid
-    > .voice-participant-tile,
-  .marketing-preview-shell--recording-static .calls-view__grid--cascade .call-block--cascade {
+    > .voice-participant-tile {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
@@ -989,7 +1040,8 @@ body {
     transform: translateX(-50%);
   }
   .app-chrome-row__brand-logo {
-    @apply h-4 w-4 shrink-0 rounded-sm object-contain;
+    @apply h-[18px] w-auto shrink-0 object-contain;
+    max-width: 6.5rem;
   }
   .app-chrome-row__workspace-brand-group {
     @apply inline-flex h-6 max-w-full min-w-0 items-center;
@@ -1529,6 +1581,136 @@ body {
   }
   .settings-field-row:last-child {
     @apply pb-0;
+  }
+  @keyframes ui-cascade-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 6px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+  .settings-view--cascade .settings-view__profile-wrap,
+  .settings-view--cascade .settings-view__tabs > li:not(.settings-view__tabs-separator),
+  .settings-view--cascade .settings-view__panel-header,
+  .settings-view--cascade .settings-field-list > *:not(.settings-field-list__divider),
+  .settings-view--cascade .settings-agents > .settings-section,
+  .settings-view--cascade .settings-workspaces > .settings-section,
+  .settings-view--cascade .settings-view__panel-slot > .settings-section:not(:has(.chat-connectors-list)),
+  .settings-view--cascade .settings-plan-grid > *,
+  .settings-view--cascade .chat-connectors-list--settings > .chat-connectors-row {
+    opacity: 0;
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    animation: ui-cascade-in 220ms ease-out both;
+    animation-delay: calc(min(var(--cascade-i, 0), 12) * 40ms);
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(1),
+  .settings-view--cascade .settings-field-list > *:nth-child(1),
+  .settings-view--cascade .settings-agents > *:nth-child(1),
+  .settings-view--cascade .settings-workspaces > *:nth-child(1),
+  .settings-view--cascade .settings-view__panel-slot > *:nth-child(1),
+  .settings-view--cascade .settings-plan-grid > *:nth-child(1),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(1) {
+    --cascade-i: 0;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(2),
+  .settings-view--cascade .settings-field-list > *:nth-child(2),
+  .settings-view--cascade .settings-agents > *:nth-child(2),
+  .settings-view--cascade .settings-workspaces > *:nth-child(2),
+  .settings-view--cascade .settings-view__panel-slot > *:nth-child(2),
+  .settings-view--cascade .settings-plan-grid > *:nth-child(2),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(2) {
+    --cascade-i: 1;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(3),
+  .settings-view--cascade .settings-field-list > *:nth-child(3),
+  .settings-view--cascade .settings-agents > *:nth-child(3),
+  .settings-view--cascade .settings-workspaces > *:nth-child(3),
+  .settings-view--cascade .settings-view__panel-slot > *:nth-child(3),
+  .settings-view--cascade .settings-plan-grid > *:nth-child(3),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(3) {
+    --cascade-i: 2;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(4),
+  .settings-view--cascade .settings-field-list > *:nth-child(4),
+  .settings-view--cascade .settings-agents > *:nth-child(4),
+  .settings-view--cascade .settings-workspaces > *:nth-child(4),
+  .settings-view--cascade .settings-view__panel-slot > *:nth-child(4),
+  .settings-view--cascade .settings-plan-grid > *:nth-child(4),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(4) {
+    --cascade-i: 3;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(5),
+  .settings-view--cascade .settings-field-list > *:nth-child(5),
+  .settings-view--cascade .settings-agents > *:nth-child(5),
+  .settings-view--cascade .settings-workspaces > *:nth-child(5),
+  .settings-view--cascade .settings-view__panel-slot > *:nth-child(5),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(5) {
+    --cascade-i: 4;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(6),
+  .settings-view--cascade .settings-field-list > *:nth-child(6),
+  .settings-view--cascade .settings-agents > *:nth-child(6),
+  .settings-view--cascade .settings-workspaces > *:nth-child(6),
+  .settings-view--cascade .settings-view__panel-slot > *:nth-child(6),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(6) {
+    --cascade-i: 5;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(7),
+  .settings-view--cascade .settings-field-list > *:nth-child(7),
+  .settings-view--cascade .settings-workspaces > *:nth-child(7),
+  .settings-view--cascade .settings-view__panel-slot > *:nth-child(7),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(7) {
+    --cascade-i: 6;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(8),
+  .settings-view--cascade .settings-field-list > *:nth-child(8),
+  .settings-view--cascade .settings-workspaces > *:nth-child(8),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(8) {
+    --cascade-i: 7;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(9),
+  .settings-view--cascade .settings-field-list > *:nth-child(9),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(9) {
+    --cascade-i: 8;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(10),
+  .settings-view--cascade .settings-field-list > *:nth-child(10),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(10) {
+    --cascade-i: 9;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(11),
+  .settings-view--cascade .settings-field-list > *:nth-child(11),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(11) {
+    --cascade-i: 10;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(12),
+  .settings-view--cascade .settings-field-list > *:nth-child(12),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(12) {
+    --cascade-i: 11;
+  }
+  .settings-view--cascade .settings-view__tabs > li:nth-child(n + 13),
+  .settings-view--cascade .settings-field-list > *:nth-child(n + 13),
+  .settings-view--cascade .chat-connectors-list--settings > *:nth-child(n + 13) {
+    --cascade-i: 12;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .settings-view--cascade .settings-view__profile-wrap,
+    .settings-view--cascade .settings-view__tabs > li:not(.settings-view__tabs-separator),
+    .settings-view--cascade .settings-view__panel-header,
+    .settings-view--cascade .settings-field-list > *:not(.settings-field-list__divider),
+    .settings-view--cascade .settings-agents > .settings-section,
+    .settings-view--cascade .settings-workspaces > .settings-section,
+    .settings-view--cascade .settings-view__panel-slot > .settings-section:not(:has(.chat-connectors-list)),
+    .settings-view--cascade .settings-plan-grid > *,
+    .settings-view--cascade .chat-connectors-list--settings > .chat-connectors-row {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
   }
   .settings-field-row__info {
     @apply min-w-0 flex-1 pr-4;
@@ -2139,7 +2321,7 @@ body {
   }
   .calls-view__hex-mesh {
     fill: none;
-    stroke: var(--forma-tint-055);
+    stroke: var(--forma-tint-025);
     stroke-width: 1;
     stroke-linecap: butt;
     stroke-linejoin: miter;
@@ -2164,158 +2346,6 @@ body {
       calc(14rem - var(--forma-calls-lift))
     );
     padding: var(--calls-stage-pad-top) 0 12px;
-  }
-  /*
-   * Promo centrée dans le padding haut (entre header et salons).
-   * Absolute → hors flux → l’emplacement des salons ne bouge pas.
-   */
-  .calls-view__stage--with-promo .calls-promo {
-    @apply absolute left-1/2 z-[1] w-[min(32rem,calc(100%-1rem))];
-    top: calc(var(--calls-stage-pad-top) * 0.5 + 14px);
-    transform: translate(-50%, -50%);
-  }
-  .calls-promo {
-    @apply relative isolate flex shrink-0 flex-row items-center gap-2 overflow-hidden rounded-lg px-2.5 py-1.5;
-    border: 1px solid rgb(var(--forma-brand-border) / 0.32);
-    background:
-      linear-gradient(
-        135deg,
-        rgb(var(--forma-brand-chrome-deep) / 0.92) 0%,
-        rgb(var(--forma-brand-chrome-mid) / 0.88) 55%,
-        rgb(var(--forma-brand-chrome-base) / 0.9) 100%
-      );
-    box-shadow: 0 8px 20px -16px rgb(0 0 0 / 0.5);
-  }
-  .calls-promo__sheen {
-    @apply pointer-events-none absolute inset-0 z-0;
-    border-radius: inherit;
-    background: linear-gradient(
-      105deg,
-      transparent 0%,
-      transparent 38%,
-      rgb(255 255 255 / 0.055) 48%,
-      rgb(191 219 254 / 0.08) 50%,
-      rgb(255 255 255 / 0.04) 52%,
-      transparent 62%,
-      transparent 100%
-    );
-    background-size: 220% 100%;
-    animation: calls-promo-sheen 9.5s ease-in-out infinite;
-  }
-  .calls-promo::after {
-    content: "";
-    @apply pointer-events-none absolute inset-0 z-0;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(
-      115deg,
-      rgb(var(--forma-brand-border) / 0.15) 0%,
-      rgb(var(--forma-brand-highlight) / 0.42) 45%,
-      rgb(255 255 255 / 0.22) 52%,
-      rgb(var(--forma-brand-border) / 0.18) 100%
-    );
-    background-size: 220% 100%;
-    animation: calls-promo-stroke 9.5s ease-in-out infinite;
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-  }
-  @keyframes calls-promo-sheen {
-    0%,
-    18% {
-      background-position: 120% 0;
-      opacity: 0.35;
-    }
-    42% {
-      opacity: 0.7;
-    }
-    55%,
-    100% {
-      background-position: -120% 0;
-      opacity: 0.35;
-    }
-  }
-  @keyframes calls-promo-stroke {
-    0%,
-    18% {
-      background-position: 120% 0;
-      opacity: 0.45;
-    }
-    42% {
-      opacity: 0.85;
-    }
-    55%,
-    100% {
-      background-position: -120% 0;
-      opacity: 0.45;
-    }
-  }
-  .calls-promo__icon {
-    @apply relative z-[1] shrink-0;
-    color: rgb(var(--forma-brand-highlight));
-  }
-  .calls-promo__text {
-    @apply relative z-[1] m-0 min-w-0 flex-1 truncate text-left text-[12px] font-medium leading-none text-muted-100;
-  }
-  .calls-promo__actions {
-    @apply relative z-[1] flex shrink-0 items-center gap-1.5;
-  }
-  .calls-promo__sep {
-    @apply h-3 w-px shrink-0;
-    background: rgb(255 255 255 / 0.16);
-  }
-  .calls-promo__link {
-    @apply inline-flex h-6 items-center gap-0.5 border-0 bg-transparent px-0.5 text-[10px] font-semibold
-      leading-none text-muted-300 transition-colors;
-    appearance: none;
-    -webkit-appearance: none;
-  }
-  .calls-promo__link:hover:not(:disabled) {
-    @apply text-muted-100;
-  }
-  .calls-promo__link:disabled {
-    @apply cursor-default opacity-60;
-  }
-  .calls-promo__dismiss {
-    @apply absolute -right-1.5 -top-1.5 z-[2] inline-flex h-4 w-4 items-center justify-center
-      rounded-full border-0 text-muted-200 opacity-0 transition-[opacity,background-color,color,transform]
-      duration-150;
-    appearance: none;
-    -webkit-appearance: none;
-    background: rgb(28 28 28 / 0.96);
-    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.14), 0 4px 10px -6px rgb(0 0 0 / 0.7);
-    pointer-events: none;
-  }
-  .calls-promo:hover .calls-promo__dismiss,
-  .calls-promo:focus-within .calls-promo__dismiss {
-    @apply opacity-100;
-    pointer-events: auto;
-  }
-  .calls-promo__dismiss:hover {
-    @apply text-muted-100;
-    background: rgb(42 42 42 / 0.98);
-    transform: scale(1.06);
-  }
-  .calls-promo__dismiss:focus-visible {
-    @apply opacity-100 outline-none;
-    pointer-events: auto;
-    box-shadow:
-      0 0 0 1px rgb(255 255 255 / 0.22),
-      0 0 0 3px rgb(var(--forma-brand-highlight) / 0.35);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .calls-promo__sheen,
-    .calls-promo::after {
-      animation: none;
-    }
-    .calls-promo__dismiss {
-      transition: none;
-    }
   }
   .calls-view__stage--open-channel-only {
     @apply min-h-0 flex-1 flex-col items-stretch justify-center;
@@ -2654,12 +2684,6 @@ body {
   .call-block__avatar--empty {
     @apply text-muted-500;
     background-color: var(--forma-tint-06);
-  }
-  .calls-view__grid--cascade .call-block--cascade .call-block__main {
-    opacity: 0;
-    will-change: transform, opacity;
-    backface-visibility: hidden;
-    animation: call-block-cascade-in 0.14s cubic-bezier(0.19, 1, 0.22, 1) forwards;
   }
   @keyframes call-block-cascade-in {
     from {
@@ -3142,9 +3166,26 @@ body {
   }
   .call-block--open-channel .call-block__row--header,
   .call-block--draft .call-block__row--header {
+    height: var(--forma-calls-open-header-h);
     min-height: var(--forma-calls-open-header-h);
+    max-height: var(--forma-calls-open-header-h);
     align-items: center;
     padding-right: 1.35rem;
+  }
+  .call-block--open-channel .call-block__header-trailing,
+  .call-block--draft .call-block__header-trailing {
+    max-height: var(--forma-calls-open-header-h);
+  }
+  .call-block--open-channel .call-block__media-status-item,
+  .call-block--draft .call-block__media-status-item {
+    height: 1rem;
+    width: 1rem;
+    border-radius: 0.25rem;
+  }
+  .call-block--open-channel .call-block__media-status-item svg,
+  .call-block--draft .call-block__media-status-item svg {
+    height: 0.7rem;
+    width: 0.7rem;
   }
   .call-block--open-channel .call-block__title {
     @apply text-[12px] leading-none;
@@ -3284,9 +3325,24 @@ body {
     gap: 0.35rem;
   }
   .call-block--private .call-block__row--header {
+    height: var(--forma-calls-private-header-h);
     min-height: var(--forma-calls-private-header-h);
+    max-height: var(--forma-calls-private-header-h);
     align-items: center;
     padding-right: 1.35rem;
+  }
+  .call-block--private .call-block__header-trailing {
+    /* Keep mute/camera badges in-flow without growing the private capsule. */
+    max-height: var(--forma-calls-private-header-h);
+  }
+  .call-block--private .call-block__media-status-item {
+    height: 1rem;
+    width: 1rem;
+    border-radius: 0.25rem;
+  }
+  .call-block--private .call-block__media-status-item svg {
+    height: 0.7rem;
+    width: 0.7rem;
   }
   .call-block--private .call-block__title {
     @apply text-[12px] leading-none;
@@ -4792,6 +4848,11 @@ body {
   }
   .recording-playback__video {
     box-shadow: var(--forma-composer-shadow);
+  }
+  .recording-playback__download {
+    @apply mt-3 inline-flex items-center justify-center gap-1.5 rounded-md border border-ink-700
+      bg-ink-850 px-3 py-2 text-[12px] font-medium text-muted-100 transition-colors
+      hover:border-ink-600 hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .recording-playback__confirm {
     @apply absolute inset-x-4 bottom-4 z-10 rounded-xl border border-ink-700 bg-ink-850 p-4 shadow-lg;
@@ -6921,6 +6982,161 @@ body {
     background: transparent;
     cursor: pointer;
   }
+  .workspace-edge-overlay {
+    @apply fixed inset-0 z-[120];
+    pointer-events: none;
+  }
+  .workspace-edge-overlay__backdrop {
+    @apply absolute inset-0 cursor-default border-0 p-0;
+    /* Visual only — must not steal hover from the left stroke (causes open/close flicker). */
+    pointer-events: none;
+    background-color: rgba(7, 9, 13, 0.22);
+    animation: workspace-edge-backdrop-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .workspace-edge-overlay__card {
+    @apply absolute flex min-h-0 flex-col overflow-hidden rounded-2xl;
+    pointer-events: auto;
+    width: min(16.5rem, calc(100vw - 2rem));
+    max-height: min(28rem, calc(100vh - 3rem));
+    transform-origin: top left;
+    border: 1px solid var(--forma-overlay-border);
+    background-color: var(--forma-panel);
+    box-shadow: var(--forma-overlay-shadow);
+    animation: workspace-edge-overlay-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .workspace-edge-overlay__card > * {
+    animation: workspace-edge-overlay-content-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: 40ms;
+  }
+  @keyframes workspace-edge-backdrop-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes workspace-edge-overlay-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes workspace-edge-overlay-content-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .workspace-edge-overlay__backdrop,
+    .workspace-edge-overlay__card,
+    .workspace-edge-overlay__card > * {
+      animation: none;
+    }
+  }
+  .workspace-edge-overlay__close {
+    @apply absolute right-2.5 top-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-400
+      transition-colors hover:text-muted-100;
+    background: transparent;
+    border: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    z-index: 1;
+  }
+  .workspace-edge-overlay__close:hover {
+    background-color: var(--forma-control-hover-bg);
+  }
+  .workspace-edge-overlay__header {
+    @apply flex shrink-0 items-center gap-2 px-3.5 pt-4 pb-2;
+  }
+  .workspace-edge-overlay__header--with-back {
+    @apply flex-col items-start gap-1.5;
+  }
+  .workspace-edge-overlay__title {
+    @apply text-[13px] font-semibold text-muted-100;
+  }
+  .workspace-edge-overlay__back {
+    @apply inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-300
+      transition-colors hover:text-muted-100;
+    background: transparent;
+    border: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+  }
+  .workspace-edge-overlay__back:hover {
+    background-color: var(--forma-control-hover-bg);
+  }
+  .workspace-edge-overlay__scroll {
+    @apply min-h-0 flex-1 overflow-y-auto px-2.5 py-1.5;
+  }
+  .workspace-edge-overlay__scroll--form {
+    @apply px-3.5 py-2.5;
+  }
+  .workspace-edge-overlay__empty {
+    @apply px-2 py-5 text-center text-[12px] leading-relaxed text-muted-500;
+  }
+  .workspace-edge-overlay__footer {
+    @apply flex shrink-0 gap-2 border-t px-3.5 py-3;
+    border-color: var(--forma-divider);
+  }
+  .workspace-edge-overlay__cta {
+    @apply inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-[12px]
+      font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    border: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+  }
+  .workspace-edge-overlay__cta--secondary {
+    color: var(--forma-text-100);
+    background-color: var(--forma-chat-composer-bg);
+  }
+  .workspace-edge-overlay__cta--secondary:hover:not(:disabled) {
+    background-color: var(--forma-tint-12);
+  }
+  .workspace-edge-overlay__cta--primary {
+    color: var(--forma-text-100);
+    background-color: var(--forma-tint-16);
+  }
+  .workspace-edge-overlay__cta--primary:hover:not(:disabled) {
+    background-color: var(--forma-tint-24, var(--forma-tint-16));
+    filter: brightness(1.08);
+  }
+  .workspace-edge-overlay__form {
+    @apply flex flex-col gap-2.5;
+  }
+  .workspace-edge-overlay__input {
+    @apply w-full rounded-lg border-0 px-2.5 py-2 text-[12px] text-muted-100 outline-none
+      placeholder:text-muted-500;
+    background-color: var(--forma-chat-composer-bg);
+  }
+  .workspace-edge-overlay__input:focus {
+    box-shadow: 0 0 0 1px var(--forma-tint-16) inset;
+  }
+  .workspace-edge-overlay__error {
+    @apply text-[11px] text-red-400;
+  }
+  .workspace-edge-overlay__success {
+    @apply text-[11px] text-emerald-400;
+  }
+  .workspace-edge-overlay__upgrade {
+    @apply inline-flex items-center gap-1 self-start text-[11px] font-medium text-muted-300 transition-colors
+      hover:text-muted-100;
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+  }
   .workspace-quick-menu {
     @apply fixed z-[80] flex flex-col overflow-hidden rounded-xl p-1;
     border: 1px solid var(--forma-overlay-border);
@@ -7089,6 +7305,43 @@ body {
   }
   .group-chat-create-overlay__submit:disabled {
     @apply cursor-not-allowed opacity-50;
+  }
+  .support-ticket-overlay {
+    @apply w-[min(24rem,calc(100vw-2rem))] items-stretch text-left;
+  }
+  .support-ticket-overlay .join-knock__title,
+  .support-ticket-overlay .join-knock__hint {
+    text-align: center;
+  }
+  .support-ticket-overlay__reasons {
+    @apply mt-4 flex w-full flex-col gap-1.5;
+  }
+  .support-ticket-overlay__reason {
+    @apply w-full rounded-xl border px-3 py-2.5 text-left text-[13px] font-medium text-muted-100
+      transition-colors;
+    border-color: var(--forma-overlay-border);
+    background-color: var(--forma-chat-composer-bg);
+  }
+  .support-ticket-overlay__reason:hover {
+    background-color: var(--forma-tint-08);
+    border-color: var(--forma-tint-12);
+  }
+  .support-ticket-overlay__form {
+    @apply mt-1 flex w-full flex-col gap-3;
+  }
+  .support-ticket-overlay__back {
+    @apply inline-flex items-center gap-1 self-start rounded-md border-0 bg-transparent px-0 py-0.5
+      text-[12px] font-medium text-muted-400 transition-colors hover:text-muted-200;
+  }
+  .support-ticket-overlay__textarea {
+    @apply w-full resize-none rounded-xl border px-3 py-2 text-[13px] leading-relaxed text-muted-100
+      outline-none;
+    border-color: var(--forma-overlay-border);
+    background-color: var(--forma-chat-composer-bg);
+    min-height: 7.5rem;
+  }
+  .support-ticket-overlay__textarea:focus {
+    border-color: var(--forma-tint-24);
   }
   .join-knock__actions {
     @apply mt-5 flex w-full justify-center;
@@ -7791,17 +8044,28 @@ body {
     @apply flex w-full flex-col gap-2 pt-0.5 pb-2.5;
   }
   .chat-composer-cluster--dj-feedback {
-    @apply relative overflow-visible;
+    @apply relative;
+    overflow: hidden;
+    border-radius: 0.75rem;
   }
   .chat-composer-cluster-stroke {
-    @apply pointer-events-none absolute inset-0 z-0 rounded-xl;
-    border: 1px solid rgb(255 255 255 / 0.14);
+    @apply pointer-events-none absolute inset-0 rounded-xl;
+    /* Last in DOM + high z so the rim covers the green progress at the corners. */
+    z-index: 30;
+    border: none;
+    /* Visible rim on top; opaque underlay beneath hides green at the edge. */
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.18),
+      inset 0 0 0 2.5px var(--forma-chat-composer-bg);
   }
   .chat-composer-cluster--dj-feedback .hall-dj-track-feedback {
     --dj-feedback-inset: 0.375rem;
-    @apply relative z-[1];
-    padding: var(--dj-feedback-inset);
+    @apply relative z-[2];
+    padding: var(--dj-feedback-inset) var(--dj-feedback-inset) 0;
     animation: chat-panel-rise-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .chat-composer-cluster--dj-feedback .hall-dj-track-feedback__row {
+    padding-inline: 0;
   }
   .chat-composer-cluster--dj-feedback .chat-composer-cluster-stroke {
     animation: chat-panel-fade-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -7813,10 +8077,33 @@ body {
     }
   }
   .chat-composer-cluster--dj-feedback .chat-composer {
-    @apply relative z-[1];
+    @apply relative z-[2];
   }
   .hall-dj-track-feedback {
+    @apply flex w-full min-w-0 flex-col;
+  }
+  .hall-dj-track-feedback__row {
     @apply flex w-full min-w-0 items-center gap-2.5;
+  }
+  .hall-dj-track-feedback__progress-rail {
+    @apply relative w-full shrink-0;
+    z-index: 1;
+    height: 12px;
+    margin-top: 0.375rem;
+    margin-bottom: -12px;
+    line-height: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .hall-dj-track-feedback__progress-svg {
+    @apply block;
+  }
+  .hall-dj-track-feedback__progress-track {
+    stroke: rgb(255 255 255 / 0.12);
+  }
+  .hall-dj-track-feedback__progress-fill {
+    stroke: rgb(29 185 84 / 0.92);
+    transition: stroke-dasharray 180ms linear;
   }
   .hall-dj-track-feedback__art {
     @apply h-9 w-9 shrink-0 overflow-hidden rounded-md bg-ink-800;
@@ -8120,6 +8407,19 @@ body {
   .bottom-bar-screen-volume input[type="range"] {
     @apply h-1 w-[4.5rem] cursor-pointer appearance-none rounded-full bg-ink-700;
     accent-color: rgb(var(--forma-brand-focus));
+  }
+  .settings-hall-dj-volume {
+    @apply flex w-full items-center gap-2.5;
+  }
+  .settings-hall-dj-volume__icon {
+    @apply shrink-0 text-muted-400;
+  }
+  .settings-hall-dj-volume input[type="range"] {
+    @apply h-1.5 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-ink-700;
+    accent-color: rgb(var(--forma-brand-focus));
+  }
+  .settings-hall-dj-volume__value {
+    @apply w-10 shrink-0 text-right text-[12px] tabular-nums text-muted-300;
   }
   .app-bottom-header__divider {
     @apply mx-0.5 shrink-0 self-stretch;

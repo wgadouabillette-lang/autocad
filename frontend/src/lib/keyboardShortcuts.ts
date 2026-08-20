@@ -18,7 +18,7 @@ export const APP_SHORTCUTS: AppShortcut[] = [
 
 export const HALL_DJ_SKIP_SHORTCUT: AppShortcut = {
   id: "djSkip",
-  label: "Skip Hall DJ track",
+  label: "Skip Meetra DJ track",
   key: HALL_DJ_SKIP_SHORTCUT_KEY,
 };
 

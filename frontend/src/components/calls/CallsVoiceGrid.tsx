@@ -41,24 +41,21 @@ function MemberColumn({
   allBlocks,
   requests,
   onRequestJoin,
-  colIndex,
   showInvite = false,
 }: {
   blocks: CallBlockType[];
   allBlocks: CallBlockType[];
   requests: JoinRequest[];
   onRequestJoin: (blockId: string) => void;
-  colIndex: number;
   showInvite?: boolean;
 }) {
   if (blocks.length === 0 && !showInvite) return null;
 
   return (
     <div className="calls-view__side-col calls-view__member-grid">
-      {blocks.map((block, i) => (
+      {blocks.map((block) => (
         <CallBlock
           key={block.id}
-          index={colIndex * 10 + i}
           block={block}
           blocks={allBlocks}
           requests={requests}
@@ -66,7 +63,7 @@ function MemberColumn({
           layout="side"
         />
       ))}
-      {showInvite ? <InviteMemberBlock index={colIndex * 10 + blocks.length} /> : null}
+      {showInvite ? <InviteMemberBlock /> : null}
     </div>
   );
 }
@@ -96,9 +93,9 @@ function CenterColumn({
 
   return (
     <div className="calls-view__center calls-view__grid-slot--center">
-      <TheaterBlock index={0} theater={theater} onOpen={onOpenTheater} layout="center" />
-      {openChannels.map((channel, index) => (
-        <OpenVoiceChannelBlock key={channel.id} index={index + 1} channel={channel} />
+      <TheaterBlock theater={theater} onOpen={onOpenTheater} layout="center" />
+      {openChannels.map((channel) => (
+        <OpenVoiceChannelBlock key={channel.id} channel={channel} />
       ))}
       <AddVoiceChannelButton
         onStartDraft={onStartOpenChannelDraft}
@@ -106,10 +103,9 @@ function CenterColumn({
       />
       {(memberBlocks.length > 0 || showInvite) && (
         <div className="calls-view__member-grid">
-          {memberBlocks.map((block, i) => (
+          {memberBlocks.map((block) => (
             <CallBlock
               key={block.id}
-              index={i + openChannels.length + 1}
               block={block}
               blocks={allBlocks}
               requests={requests}
@@ -117,9 +113,7 @@ function CenterColumn({
               layout="side"
             />
           ))}
-          {showInvite ? (
-            <InviteMemberBlock index={memberBlocks.length + openChannels.length + 1} />
-          ) : null}
+          {showInvite ? <InviteMemberBlock /> : null}
         </div>
       )}
     </div>
@@ -172,7 +166,7 @@ export default function CallsVoiceGrid({
     <div
       ref={gridRef}
       className={clsx(
-        "calls-view__grid calls-view__grid--cascade",
+        "calls-view__grid",
         `calls-view__grid--cols-${columnCount}`,
       )}
     >
@@ -184,7 +178,6 @@ export default function CallsVoiceGrid({
               allBlocks={blocks}
               requests={requests}
               onRequestJoin={onRequestJoin}
-              colIndex={0}
               showInvite
             />
           )}
@@ -194,7 +187,6 @@ export default function CallsVoiceGrid({
               allBlocks={blocks}
               requests={requests}
               onRequestJoin={onRequestJoin}
-              colIndex={1}
             />
           )}
         </div>
@@ -220,7 +212,6 @@ export default function CallsVoiceGrid({
               allBlocks={blocks}
               requests={requests}
               onRequestJoin={onRequestJoin}
-              colIndex={2}
             />
           )}
           {(columnCount === 4 || columnCount === 5) && (
@@ -229,7 +220,6 @@ export default function CallsVoiceGrid({
               allBlocks={blocks}
               requests={requests}
               onRequestJoin={onRequestJoin}
-              colIndex={3}
             />
           )}
         </div>

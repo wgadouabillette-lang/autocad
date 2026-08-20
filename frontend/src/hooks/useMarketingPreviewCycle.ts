@@ -1,7 +1,10 @@
 import { useEffect } from "react";
 import { chatPanelModeTabs } from "../lib/chatPanelModes";
 import {
+  isMarketingHandoffPreviewScene,
+  isMarketingNotesPreviewScene,
   isMarketingPreview,
+  isMarketingSpotifyPreviewScene,
   MARKETING_PREVIEW_NOTE_ID,
 } from "../lib/marketingPreview";
 import type { ChatPanelMode } from "../lib/voiceAssistPanel";
@@ -47,6 +50,13 @@ export function useMarketingPreviewCycle() {
 
   useEffect(() => {
     if (!isMarketingPreview()) return;
+    if (
+      isMarketingNotesPreviewScene() ||
+      isMarketingHandoffPreviewScene() ||
+      isMarketingSpotifyPreviewScene()
+    ) {
+      return;
+    }
 
     const modes = chatPanelModeTabs(
       subscriptionPlan,

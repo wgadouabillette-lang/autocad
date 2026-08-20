@@ -25,9 +25,14 @@ function ensureBridgeListeners() {
     await api.respondSpotifyToken?.({ id, token });
   });
   api.onSpotifyPlaybackState(({ playing }) => {
+    cachedPlaying = playing;
+    if (!playing) cachedPositionAt = performance.now();
     onPlayingChange?.(playing);
   });
   api.onSpotifyPlaybackEnded(() => {
+    cachedPlaying = false;
+    if (cachedDurationSec > 0) cachedPositionSec = cachedDurationSec;
+    cachedPositionAt = performance.now();
     onPlaybackEnded?.();
   });
   bridgeReady = true;
@@ -90,10 +95,15 @@ export function isSpotifyPremiumAvailable(): boolean {
 export async function playSpotifyFullTrack(trackId: string): Promise<boolean> {
   if (!(await ensureBridge())) return false;
   try {
+    cachedPositionSec = 0;
+    cachedPositionAt = performance.now();
+    cachedDurationSec = 0;
+    cachedPlaying = true;
     await desktop()?.playSpotifyWebView2?.(trackId);
     return true;
   } catch (err) {
     console.warn("[spotify-webview2] play failed", err);
+    cachedPlaying = false;
     return false;
   }
 }
@@ -101,6 +111,15 @@ export async function playSpotifyFullTrack(trackId: string): Promise<boolean> {
 export async function toggleSpotifyWebPlayback(): Promise<void> {
   if (!(await ensureBridge())) return;
   await desktop()?.toggleSpotifyWebView2?.();
+}
+
+export async function setSpotifyPlaybackVolume(volume: number): Promise<void> {
+  if (!(await ensureBridge())) return;
+  const next =
+    typeof volume === "number" && Number.isFinite(volume)
+      ? Math.min(1, Math.max(0, volume))
+      : 0.85;
+  await desktop()?.setSpotifyWebView2Volume?.(next);
 }
 
 export async function pauseSpotifyWebPlayback(): Promise<void> {
@@ -117,10 +136,39 @@ export function resetSpotifyWebPlayer() {
   void desktop()?.resetSpotifyWebView2?.();
 }
 
+let cachedPositionSec = 0;
+let cachedPositionAt = 0;
+let cachedDurationSec = 0;
+let cachedPlaying = false;
+
 export function getSpotifyPlaybackPositionSecSync(): number | null {
-  return null;
+  if (cachedPositionAt <= 0) return null;
+  if (!cachedPlaying) return cachedPositionSec;
+  const sec = cachedPositionSec + (performance.now() - cachedPositionAt) / 1000;
+  if (cachedDurationSec > 0) return Math.min(sec, cachedDurationSec);
+  return sec;
+}
+
+export function getSpotifyPlaybackDurationSecSync(): number | null {
+  return cachedDurationSec > 0 ? cachedDurationSec : null;
 }
 
 export async function getSpotifyPlaybackPositionSec(): Promise<number | null> {
-  return null;
+  if (!(await ensureBridge())) return getSpotifyPlaybackPositionSecSync();
+  try {
+    const clock = await desktop()?.getSpotifyWebView2PlaybackClock?.();
+    if (!clock) return getSpotifyPlaybackPositionSecSync();
+    if (typeof clock.durationSec === "number" && clock.durationSec > 0) {
+      cachedDurationSec = clock.durationSec;
+    }
+    if (typeof clock.sec === "number" && Number.isFinite(clock.sec)) {
+      cachedPositionSec = Math.max(0, clock.sec);
+      cachedPositionAt = performance.now();
+      cachedPlaying = true;
+      return cachedPositionSec;
+    }
+  } catch {
+    // fall through to cached extrapolation
+  }
+  return getSpotifyPlaybackPositionSecSync();
 }

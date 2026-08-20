@@ -10,6 +10,7 @@
   let playbackStartedAt = 0;
   let cachedPositionMs = 0;
   let cachedPositionAt = 0;
+  let cachedDurationMs = 0;
 
   function post(msg) {
     if (window.ewvjs?.api?.postMessage) {
@@ -57,6 +58,9 @@
     const playing = !state.paused;
     cachedPositionMs = state.position;
     cachedPositionAt = performance.now();
+    if (typeof state.duration === "number" && state.duration > 0) {
+      cachedDurationMs = state.duration;
+    }
     const finished = isTrackFinished(state);
     if (playing !== cachedPlaying) {
       cachedPlaying = playing;
@@ -72,14 +76,19 @@
     await loadSdk();
     if (!window.Spotify?.Player) throw new Error("SDK Spotify indisponible.");
 
+    const initialVolume =
+      typeof window.__hallSpotifyVolume === "number" && Number.isFinite(window.__hallSpotifyVolume)
+        ? Math.min(1, Math.max(0, window.__hallSpotifyVolume))
+        : 0.85;
+
     player = new window.Spotify.Player({
-      name: "Hall WebView2 Player",
+      name: "Meetra WebView2 Player",
       getOAuthToken: (callback) => {
         void fetchToken()
           .then((token) => callback(token))
           .catch(() => callback(""));
       },
-      volume: 0.85,
+      volume: initialVolume,
     });
 
     player.addListener("ready", ({ device_id }) => {
@@ -166,6 +175,9 @@
         throw new Error(`Spotify play HTTP ${response.status}`);
       }
       playbackStartedAt = performance.now();
+      cachedPositionMs = 0;
+      cachedPositionAt = performance.now();
+      cachedDurationMs = 0;
       try {
         syncPosition(await webPlayer.getCurrentState());
       } catch {
@@ -189,21 +201,54 @@
       await player.togglePlay();
     },
 
-    async getPositionSec() {
-      if (!player) return null;
-      if (cachedPlaying && cachedPositionAt > 0) {
-        return (cachedPositionMs + (performance.now() - cachedPositionAt)) / 1000;
+    async setVolume(volume) {
+      const next =
+        typeof volume === "number" && Number.isFinite(volume)
+          ? Math.min(1, Math.max(0, volume))
+          : 0.85;
+      window.__hallSpotifyVolume = next;
+      if (!player) return;
+      await player.setVolume(next);
+    },
+
+    async getPlaybackClock() {
+      if (!player) {
+        return {
+          sec: cachedPositionAt > 0 ? cachedPositionMs / 1000 : null,
+          durationSec: cachedDurationMs > 0 ? cachedDurationMs / 1000 : null,
+        };
       }
       try {
         const state = await player.getCurrentState();
-        if (!state || typeof state.position !== "number") return null;
-        cachedPositionMs = state.position;
-        cachedPositionAt = performance.now();
-        cachedPlaying = !state.paused;
-        return state.position / 1000;
+        if (state && typeof state.position === "number") {
+          cachedPositionMs = state.position;
+          cachedPositionAt = performance.now();
+          cachedPlaying = !state.paused;
+          if (typeof state.duration === "number" && state.duration > 0) {
+            cachedDurationMs = state.duration;
+          }
+        }
       } catch {
-        return cachedPositionAt > 0 ? cachedPositionMs / 1000 : null;
+        // keep cached clock
       }
+      let sec = null;
+      if (cachedPositionAt > 0) {
+        sec = cachedPlaying
+          ? (cachedPositionMs + (performance.now() - cachedPositionAt)) / 1000
+          : cachedPositionMs / 1000;
+        if (cachedDurationMs > 0) {
+          sec = Math.min(sec, cachedDurationMs / 1000);
+        }
+      }
+      return {
+        sec,
+        durationSec: cachedDurationMs > 0 ? cachedDurationMs / 1000 : null,
+      };
+    },
+
+    async getPositionSec() {
+      const clock = await window.hallSpotifyPlayer.getPlaybackClock();
+      return clock?.sec ?? null;
     },
 
     async reset() {
@@ -219,6 +264,7 @@
       cachedPlaying = false;
       cachedPositionMs = 0;
       cachedPositionAt = 0;
+      cachedDurationMs = 0;
     },
   };
 

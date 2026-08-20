@@ -38,6 +38,7 @@ type SpotifyWebPlayer = {
   pause(): Promise<void>;
   resume(): Promise<void>;
   activateElement(): Promise<void>;
+  setVolume(volume: number): Promise<void>;
   getCurrentState(): Promise<{
     position: number;
     paused: boolean;
@@ -59,7 +60,7 @@ type SpotifyWebPlayer = {
     event: "playback_error",
     callback: (data: { message: string }) => void,
   ): void;
-  removeListener(event: string): void;
+  removeListener(event: string, callback?: (...args: never[]) => void): void;
 };
 
 declare global {
@@ -121,6 +122,13 @@ let fullPlaybackDisabled = false;
 /** True once position enters the last ~5s — used when Spotify resets to position 0 on end. */
 let approachedTrackEnd = false;
 const PLAYBACK_END_GRACE_MS = 8_000;
+const DEFAULT_PLAYBACK_VOLUME = 0.85;
+let preferredPlaybackVolume = DEFAULT_PLAYBACK_VOLUME;
+
+export function normalizeSpotifyPlaybackVolume(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_PLAYBACK_VOLUME;
+  return Math.min(1, Math.max(0, value));
+}
 
 type PlaybackErrorListener = (message: string) => void;
 let onPlaybackError: PlaybackErrorListener | null = null;
@@ -144,6 +152,10 @@ export function setSpotifyWebPlaybackErrorListener(listener: PlaybackErrorListen
 function markPlaybackStarted(trackId?: string) {
   playbackStartedAt = performance.now();
   approachedTrackEnd = false;
+  // Reset clock so the progress bar does not keep the previous track's position
+  // (or a stale duration) while the next track is transferring.
+  cachedPositionMs = 0;
+  cachedPositionAt = performance.now();
   cachedDurationMs = 0;
   lastPolledPositionMs = -1;
   stalledPollCount = 0;
@@ -178,15 +190,52 @@ async function putPlayOnDevice(trackId: string, activeDeviceId: string): Promise
   }
 }
 
+async function transferToDevice(activeDeviceId: string): Promise<boolean> {
+  try {
+    const token = await resolveSpotifyPlayerAccessToken();
+    const res = await fetch("https://api.spotify.com/v1/me/player", {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ device_ids: [activeDeviceId], play: false }),
+    });
+    return res.ok || res.status === 204;
+  } catch {
+    return false;
+  }
+}
+
+function looksLikeDrmFailure(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("drm") ||
+    lower.includes("widevine") ||
+    lower.includes("license") ||
+    lower.includes("encryption") ||
+    lower.includes("e_media") ||
+    lower.includes("playback_error")
+  );
+}
+
 function handlePlaybackError(message: string) {
-  if (fullPlaybackDisabled) return;
-  fullPlaybackDisabled = true;
+  const text = message || "Playback error";
+  // Only permanently lock full playback on clear DRM signals.
+  // Transient Spotify pauses/transfers must not kill Meetra DJ for the session.
+  if (looksLikeDrmFailure(text) && !fullPlaybackDisabled) {
+    fullPlaybackDisabled = true;
+  }
   cachedPlaying = false;
   stopPlaybackProgressWatch();
   cancelSpotifyPlaybackEnded();
-  void player?.pause().catch(() => undefined);
   onPlayingChange?.(false);
-  onPlaybackError?.(message || "Playback error");
+  onPlaybackError?.(text);
+}
+
+/** Allow a fresh DJ / play attempt after a transient failure. */
+export function clearSpotifyFullPlaybackLock(): void {
+  fullPlaybackDisabled = false;
 }
 
 export function cancelSpotifyPlaybackEnded() {
@@ -226,6 +275,11 @@ function startPlaybackProgressWatch() {
         }
         if (typeof state.duration === "number" && state.duration > 0) {
           cachedDurationMs = state.duration;
+        }
+        if (typeof state.position === "number") {
+          cachedPositionMs = state.position;
+          cachedPositionAt = performance.now();
+          cachedPlaying = !state.paused;
         }
         if (cachedPlaying && !state.paused) {
           if (state.position === lastPolledPositionMs) {
@@ -378,7 +432,7 @@ function syncPlaybackPosition(state: SpotifyPlayerSnapshot) {
 
   if (playing) {
     // Near the end while still "playing": arm end — do NOT cancel pending end timers
-    // (that race was dropping Hall DJ auto-next).
+    // (that race was dropping Meetra DJ auto-next).
     if (isTrackFinished(state)) {
       cachedPlaying = true;
       onPlayingChange?.(true);
@@ -398,9 +452,10 @@ function syncPlaybackPosition(state: SpotifyPlayerSnapshot) {
     return;
   }
 
-  // Early pause after start without playback_error yet — treat as DRM failure once.
-  if (wasPlaying && withinPlaybackGrace() && state.position < 5_000 && !fullPlaybackDisabled) {
-    handlePlaybackError("Early pause (likely DRM)");
+  // Startup: Spotify often emits pause while transferring to the Web Playback
+  // device. Flipping UI/audio to "stopped" here makes /play flash then die.
+  if (withinPlaybackGrace() && state.position < 5_000) {
+    void player?.resume().catch(() => undefined);
     return;
   }
 
@@ -502,17 +557,17 @@ function waitForDeviceId(timeoutMs = 6_000): Promise<string> {
 
   deviceReadyPromise = new Promise((resolve, reject) => {
     let settled = false;
+    const onReady = ({ device_id }: { device_id: string }) => {
+      deviceId = device_id;
+      finish(() => resolve(device_id));
+    };
+
     const finish = (fn: () => void) => {
       if (settled) return;
       settled = true;
       cleanup();
       deviceReadyPromise = null;
       fn();
-    };
-
-    const onReady = ({ device_id }: { device_id: string }) => {
-      deviceId = device_id;
-      finish(() => resolve(device_id));
     };
 
     const poll = window.setInterval(() => {
@@ -528,7 +583,9 @@ function waitForDeviceId(timeoutMs = 6_000): Promise<string> {
       window.clearInterval(poll);
       window.clearTimeout(timer);
       try {
-        player?.removeListener("ready");
+        // IMPORTANT: pass the callback — removeListener("ready") alone wipes the
+        // permanent init listener and permanently breaks Meetra DJ device ready.
+        player?.removeListener("ready", onReady as (...args: never[]) => void);
       } catch {
         // ignore
       }
@@ -542,17 +599,22 @@ function waitForDeviceId(timeoutMs = 6_000): Promise<string> {
   return deviceReadyPromise;
 }
 
+function defaultDeviceReadyTimeoutMs(): number {
+  // Castlabs Widevine on Electron often needs longer than the browser SDK.
+  return hasFormaDesktop() ? 18_000 : 6_000;
+}
+
 async function ensureDeviceReady(timeoutMs?: number): Promise<string | null> {
   if (deviceId) return deviceId;
   if (!player) return null;
-  const budget = timeoutMs ?? (deviceId ? 1_500 : 6_000);
+  const budget = timeoutMs ?? defaultDeviceReadyTimeoutMs();
   try {
     return await waitForDeviceId(budget);
   } catch {
     try {
       const reconnected = await player.connect();
       if (!reconnected) return null;
-      return await waitForDeviceId(Math.min(budget, 3_000));
+      return await waitForDeviceId(Math.min(budget, hasFormaDesktop() ? 10_000 : 3_000));
     } catch {
       return null;
     }
@@ -566,14 +628,14 @@ export async function ensureSpotifyWebPlayer(options?: { premiumHint?: boolean |
     await m.ensureSpotifyWebPlayer();
     return {} as SpotifyWebPlayer;
   }
-  if (player) {
-    if (!premiumAvailable) return null;
-    return player;
-  }
   if (options?.premiumHint === true) {
     premiumAvailable = true;
   }
   if (options?.premiumHint === false) return null;
+  if (player) {
+    if (!premiumAvailable) return null;
+    return player;
+  }
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
@@ -590,13 +652,13 @@ export async function ensureSpotifyWebPlayer(options?: { premiumHint?: boolean |
       }
 
       player = new window.Spotify.Player({
-        name: "Hall Web Player",
+        name: "Meetra Web Player",
         getOAuthToken: (callback) => {
           void resolveSpotifyPlayerAccessToken()
             .then((token) => callback(token))
             .catch(() => callback(""));
         },
-        volume: 0.85,
+        volume: preferredPlaybackVolume,
       });
 
       player.addListener("ready", ({ device_id }) => {
@@ -623,13 +685,32 @@ export async function ensureSpotifyWebPlayer(options?: { premiumHint?: boolean |
       });
 
       const connected = await player.connect();
-      if (!connected) return null;
+      if (!connected) {
+        try {
+          await player.disconnect();
+        } catch {
+          // ignore
+        }
+        player = null;
+        deviceId = null;
+        return null;
+      }
+      void applyPreferredVolumeToPlayer();
       // Device "ready" is resolved lazily in playSpotifyFullTrack — do not
       // block warm/init on it (Electron often needs 5-15 s for Widevine).
       void ensureDeviceReady().catch(() => undefined);
       return player;
     } catch (err) {
       console.warn("[spotify-web-playback] init failed", err);
+      if (player) {
+        try {
+          await player.disconnect();
+        } catch {
+          // ignore
+        }
+      }
+      player = null;
+      deviceId = null;
       return null;
     } finally {
       initPromise = null;
@@ -653,6 +734,27 @@ export function primeSpotifyWebAudioUnlock(): void {
   if (player) void player.activateElement().catch(() => undefined);
 }
 
+/**
+ * Call from a click/tap handler before starting Meetra DJ so Spotify's
+ * activateElement still runs inside the user-gesture chain.
+ */
+export async function activateSpotifyPlaybackFromUserGesture(): Promise<void> {
+  const desktop = loadDesktopPlayback();
+  if (desktop) {
+    const m = await desktop;
+    m.primeSpotifyWebAudioUnlock();
+    await m.ensureSpotifyWebPlayer();
+    return;
+  }
+  const webPlayer = await ensureSpotifyWebPlayer({ premiumHint: true });
+  if (!webPlayer) return;
+  try {
+    await webPlayer.activateElement();
+  } catch {
+    // Play may still work after device transfer.
+  }
+}
+
 /** Prépare le SDK + device en arrière-plan pour réduire le délai au premier ▶. */
 export function warmSpotifyWebPlayer(premiumHint?: boolean | null): void {
   const desktop = loadDesktopPlayback();
@@ -664,50 +766,98 @@ export function warmSpotifyWebPlayer(premiumHint?: boolean | null): void {
   void ensureSpotifyWebPlayer({ premiumHint });
 }
 
+async function playSpotifyFullTrackOnce(trackId: string): Promise<boolean> {
+  primeSpotifyWebAudioUnlock();
+  const webPlayer = await ensureSpotifyWebPlayer({ premiumHint: true });
+  if (!webPlayer || !premiumAvailable) return false;
+
+  try {
+    await webPlayer.activateElement();
+  } catch {
+    // continue — play may still work
+  }
+
+  const activeDeviceId = await ensureDeviceReady(defaultDeviceReadyTimeoutMs());
+  if (!activeDeviceId) return false;
+
+  markPlaybackStarted(trackId);
+  void applyPreferredVolumeToPlayer();
+  let ok = await putPlayOnDevice(trackId, activeDeviceId);
+  if (!ok) {
+    // Spotify often needs a beat after "ready" before PUT /me/player/play accepts.
+    await new Promise((resolve) => window.setTimeout(resolve, 450));
+    ok = await putPlayOnDevice(trackId, activeDeviceId);
+  }
+  if (!ok) {
+    // Cold Meetra DJ start: transfer to the Web Playback device then retry once.
+    const transferred = await transferToDevice(activeDeviceId);
+    if (transferred) {
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+      ok = await putPlayOnDevice(trackId, activeDeviceId);
+    }
+  }
+  if (ok) {
+    try {
+      await webPlayer.activateElement();
+      await webPlayer.resume();
+    } catch {
+      // player_state_changed will sync shortly
+    }
+    try {
+      const state = await webPlayer.getCurrentState();
+      syncPlaybackPosition(state);
+    } catch {
+      // player_state_changed will sync shortly
+    }
+  }
+  return ok;
+}
+
 export async function playSpotifyFullTrack(trackId: string): Promise<boolean> {
   const desktop = loadDesktopPlayback();
   if (desktop) {
     const m = await desktop;
+    void m.setSpotifyPlaybackVolume?.(preferredPlaybackVolume);
     return m.playSpotifyFullTrack(trackId);
   }
   if (fullPlaybackDisabled) {
     return false;
   }
   try {
-    primeSpotifyWebAudioUnlock();
-    const webPlayer = await ensureSpotifyWebPlayer();
-    if (!webPlayer || !premiumAvailable) return false;
-
-    try {
-      await webPlayer.activateElement();
-    } catch {
-      // continue — play may still work
-    }
-
-    const activeDeviceId = await ensureDeviceReady();
-    if (!activeDeviceId) return false;
-
-    markPlaybackStarted(trackId);
-    const ok = await putPlayOnDevice(trackId, activeDeviceId);
-    if (ok) {
-      try {
-        await webPlayer.activateElement();
-        await webPlayer.resume();
-      } catch {
-        // player_state_changed will sync shortly
-      }
-      try {
-        const state = await webPlayer.getCurrentState();
-        syncPlaybackPosition(state);
-      } catch {
-        // player_state_changed will sync shortly
-      }
-    }
-    return ok;
+    const ok = await playSpotifyFullTrackOnce(trackId);
+    if (ok) return true;
+    // Stale SDK / wiped ready listener — hard reset once then retry.
+    resetSpotifyWebPlayer();
+    premiumAvailable = true;
+    return await playSpotifyFullTrackOnce(trackId);
   } catch (err) {
     console.warn("[spotify-web-playback] play failed", err);
     return false;
   }
+}
+
+async function applyPreferredVolumeToPlayer(): Promise<void> {
+  const desktop = loadDesktopPlayback();
+  if (desktop) {
+    const m = await desktop;
+    await m.setSpotifyPlaybackVolume?.(preferredPlaybackVolume);
+    return;
+  }
+  if (!player) return;
+  try {
+    await player.setVolume(preferredPlaybackVolume);
+  } catch {
+    // ignore — volume applies on next successful play
+  }
+}
+
+export function getSpotifyPlaybackVolume(): number {
+  return preferredPlaybackVolume;
+}
+
+export async function setSpotifyPlaybackVolume(volume: number): Promise<void> {
+  preferredPlaybackVolume = normalizeSpotifyPlaybackVolume(volume);
+  await applyPreferredVolumeToPlayer();
 }
 
 export async function toggleSpotifyWebPlayback(): Promise<void> {
@@ -721,6 +871,28 @@ export async function toggleSpotifyWebPlayback(): Promise<void> {
   await player.togglePlay();
 }
 
+async function putPauseOnDevice(): Promise<void> {
+  try {
+    const token = await resolveSpotifyPlayerAccessToken();
+    const url = deviceId
+      ? `https://api.spotify.com/v1/me/player/pause?device_id=${encodeURIComponent(deviceId)}`
+      : "https://api.spotify.com/v1/me/player/pause";
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 5_000);
+    try {
+      await fetch(url, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+    } finally {
+      window.clearTimeout(timer);
+    }
+  } catch {
+    // Best-effort — SDK pause may still have worked.
+  }
+}
+
 export async function pauseSpotifyWebPlayback(): Promise<void> {
   const desktop = loadDesktopPlayback();
   if (desktop) {
@@ -730,6 +902,32 @@ export async function pauseSpotifyWebPlayback(): Promise<void> {
   }
   if (!player) return;
   await player.pause();
+}
+
+/** Hard stop for Meetra DJ / Stop button — SDK pause + Spotify Web API pause. */
+export async function stopSpotifyWebPlayback(): Promise<void> {
+  const desktop = loadDesktopPlayback();
+  cancelSpotifyPlaybackEnded();
+  stopPlaybackProgressWatch();
+  playbackStartedAt = 0;
+  approachedTrackEnd = false;
+  cachedPlaying = false;
+  cachedPositionAt = 0;
+  onPlayingChange?.(false);
+
+  if (desktop) {
+    const m = await desktop;
+    await m.pauseSpotifyWebPlayback();
+    await putPauseOnDevice();
+    return;
+  }
+
+  try {
+    await player?.pause();
+  } catch {
+    // continue with API pause
+  }
+  await putPauseOnDevice();
 }
 
 export async function resumeSpotifyWebPlayback(): Promise<void> {
@@ -794,19 +992,29 @@ export function getSpotifyPlaybackPositionSecSync(): number | null {
   return extrapolatedPositionSec();
 }
 
+/** Known track duration from the last SDK state (seconds), if available. */
+export function getSpotifyPlaybackDurationSecSync(): number | null {
+  if (cachedDurationMs > 0) return cachedDurationMs / 1000;
+  return null;
+}
+
 export async function getSpotifyPlaybackPositionSec(): Promise<number | null> {
   const desktop = loadDesktopPlayback();
   if (desktop) {
     const m = await desktop;
-    return m.getSpotifyPlaybackPositionSec();
+    const position = await m.getSpotifyPlaybackPositionSec();
+    const duration = m.getSpotifyPlaybackDurationSecSync?.();
+    if (typeof duration === "number" && duration > 0) {
+      cachedDurationMs = duration * 1000;
+    }
+    return position;
   }
-  if (!player) return null;
-  if (cachedPlaying && cachedPositionAt > 0) {
-    return extrapolatedPositionSec();
-  }
+  if (!player) return extrapolatedPositionSec();
   try {
     const state = await player.getCurrentState();
-    if (!state || typeof state.position !== "number") return null;
+    if (!state || typeof state.position !== "number") {
+      return extrapolatedPositionSec();
+    }
     cachedPositionMs = state.position;
     cachedPositionAt = performance.now();
     cachedPlaying = !state.paused;
@@ -816,8 +1024,18 @@ export async function getSpotifyPlaybackPositionSec(): Promise<number | null> {
     if (isTrackFinished(state) || nearCachedDuration(state.position)) {
       schedulePlaybackEnded();
     }
-    return state.position / 1000;
+    // Fresh SDK sample, then extrapolate from this tick so the UI stays smooth
+    // between polls without drifting across track changes.
+    return cachedPlaying ? extrapolatedPositionSec() ?? state.position / 1000 : state.position / 1000;
   } catch {
-    return cachedPositionAt > 0 ? cachedPositionMs / 1000 : null;
+    return extrapolatedPositionSec();
+  }
+}
+
+/** Seed known track duration (ms) when SDK state has not reported it yet. */
+export function seedSpotifyPlaybackDurationMs(durationMs: number | null | undefined): void {
+  if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0) return;
+  if (cachedDurationMs <= 0) {
+    cachedDurationMs = durationMs;
   }
 }

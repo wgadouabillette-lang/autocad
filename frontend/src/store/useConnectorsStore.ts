@@ -134,6 +134,15 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
         const { resetSpotifyWebPlayer } = await import("../lib/spotifyWebPlayback");
         resetSpotifyWebPlayer();
       }
+      // Optimistic UI — don't wait on refresh if the DELETE already succeeded.
+      set((state) => ({
+        statuses: state.statuses.map((s) =>
+          s.id === id
+            ? { ...s, connected: false, accountLabel: null, canSend: false }
+            : s,
+        ),
+        error: null,
+      }));
       await get().refresh(true);
       window.dispatchEvent(
         new CustomEvent("forma-connector-disconnect-done", { detail: { connectorId: id } }),

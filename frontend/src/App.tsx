@@ -35,6 +35,7 @@ import { useSpotifyVoiceMix } from "./hooks/useSpotifyVoiceMix";
 import { useMobileLayout } from "./hooks/useMobileLayout";
 import { canAccessApp, DESKTOP_VIEWPORT_QUERY, getLandingUrl } from "./lib/appAccess";
 import { runAppBoot, type AppBootStatus } from "./lib/appBoot";
+import { applyDocumentTheme } from "./lib/theme";
 import { runDashboardOnboardingIfNeeded } from "./lib/dashboardOnboarding";
 import { normalizeSettingsTab } from "./lib/settingsSearchSuggestions";
 import { readUserPreferences } from "./lib/userPreferences";
@@ -47,6 +48,7 @@ import { useConnectorsStore } from "./store/useConnectorsStore";
 import { tryFinishConnectorOAuthFromStorage } from "./lib/connectorOAuthResult";
 import { usePeopleStore } from "./store/usePeopleStore";
 import { useWorkspacePresenceStore } from "./store/useWorkspacePresenceStore";
+import { scheduleSyncWorkspacesToCloud } from "./lib/firebase/workspaceCloudSync";
 import { LOCAL_USER_ID } from "./lib/workspaces";
 import { billingApi } from "./lib/billingApi";
 import { debugLog } from "./lib/debugLog";
@@ -65,7 +67,7 @@ export default function App() {
     );
   }
   // #endregion
-  const [bootStatus, setBootStatus] = useState<AppBootStatus>("ready");
+  const [bootStatus, setBootStatus] = useState<AppBootStatus>("loading");
   const isMobileLayout = useMobileLayout();
 
   useEffect(() => {
@@ -102,7 +104,6 @@ export default function App() {
   const authEmail = useAuthStore((s) => s.authEmail);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const hydrateAuth = useAuthStore((s) => s.hydrate);
-  const syncWorkspacesToCloud = useAuthStore((s) => s.syncWorkspacesToCloud);
   const workspaceSwitching = useStore((s) => s.workspaceSwitching);
   const finishWorkspaceSwitch = useStore((s) => s.finishWorkspaceSwitch);
   const presenceLoaded = useWorkspacePresenceStore((s) =>
@@ -114,6 +115,20 @@ export default function App() {
     const status = await runAppBoot();
     setBootStatus(status);
   }, []);
+
+  const desktopSplashWindow = !authReady || (isAuthenticated && bootStatus !== "ready");
+  useEffect(() => {
+    const root = document.documentElement;
+    if (desktopSplashWindow) {
+      root.classList.add("app-loading-splash");
+    } else {
+      root.classList.remove("app-loading-splash");
+    }
+    applyDocumentTheme();
+    const setWindowMode = window.formaDesktop?.setWindowMode;
+    if (!setWindowMode) return;
+    void setWindowMode(desktopSplashWindow ? "splash" : "app");
+  }, [desktopSplashWindow]);
 
   useAppKeyboardShortcuts();
   useColorTheme();
@@ -182,9 +197,13 @@ export default function App() {
         return;
       }
       ensureAllRooms();
-      if (useAuthStore.getState().firebaseUid) {
-        void syncWorkspacesToCloud();
-      }
+      const uid = useAuthStore.getState().firebaseUid;
+      if (!uid) return;
+      // Debounce + fingerprint : évite les rafales delete/rewrite Firestore.
+      scheduleSyncWorkspacesToCloud(uid, () => {
+        const { customServers, memberships } = useWorkspacesStore.getState();
+        return { customServers, memberships };
+      });
     });
 
     const prefs = readUserPreferences();
@@ -199,7 +218,7 @@ export default function App() {
       stopWorkspaceSync();
       stopAuth();
     };
-  }, [hydrateAuth, runBoot, syncWorkspacesToCloud]);
+  }, [hydrateAuth, runBoot]);
 
   useEffect(() => {
     if (!isAuthenticated || !authEmail) return;

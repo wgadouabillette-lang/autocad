@@ -4,7 +4,10 @@ import { LOCAL_USER_ID } from "../lib/workspaces";
 import { useAuthStore } from "../store/useAuthStore";
 import { usePeopleStore } from "../store/usePeopleStore";
 import { useWorkspaceTextChannelsStore } from "../store/useWorkspaceTextChannelsStore";
-import { useWorkspacesStore } from "../store/useWorkspacesStore";
+import {
+  useWorkspaceListenTargetIds,
+  workspaceListenTargetsKey,
+} from "./useWorkspaceListenTargetIds";
 
 function workspaceIdsFromKey(key: string): string[] {
   return key ? key.split("\n") : [];
@@ -14,16 +17,12 @@ export function useWorkspaceTextChannels() {
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const ownerUserId = firebaseUid ?? LOCAL_USER_ID;
-  const workspaceIdsKey = useWorkspacesStore((s) =>
-    s
-      .joinedWorkspaces(ownerUserId)
-      .map((workspace) => workspace.id)
-      .sort()
-      .join("\n"),
+  const listenTargetsKey = workspaceListenTargetsKey(
+    useWorkspaceListenTargetIds(ownerUserId),
   );
 
   useEffect(() => {
-    const workspaceIds = workspaceIdsFromKey(workspaceIdsKey);
+    const workspaceIds = workspaceIdsFromKey(listenTargetsKey);
     if (!isAuthenticated || !firebaseUid || workspaceIds.length === 0) return;
 
     const unsubs = workspaceIds.map((workspaceId) =>
@@ -40,5 +39,5 @@ export function useWorkspaceTextChannels() {
     return () => {
       for (const unsub of unsubs) unsub();
     };
-  }, [firebaseUid, isAuthenticated, workspaceIdsKey]);
+  }, [firebaseUid, isAuthenticated, listenTargetsKey]);
 }

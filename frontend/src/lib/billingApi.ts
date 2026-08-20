@@ -1,6 +1,7 @@
 import { getAuthIdToken } from "./firebase/authToken";
 
 const BASE = "/api/billing";
+const FETCH_TIMEOUT_MS = 15000;
 
 export interface BillingConfig {
   enabled: boolean;
@@ -187,16 +188,20 @@ async function readError(r: Response): Promise<string> {
 }
 
 async function fetchWithAuth(path: string, init: RequestInit, auth = true): Promise<Response> {
+  const requestInit: RequestInit = {
+    ...init,
+    signal: init.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  };
   if (!auth) {
-    return fetch(`${BASE}${path}`, init);
+    return fetch(`${BASE}${path}`, requestInit);
   }
   let r = await fetch(`${BASE}${path}`, {
-    ...init,
+    ...requestInit,
     headers: { ...(init.headers as Record<string, string>), ...(await authHeaders(false)) },
   });
   if (r.status === 401) {
     r = await fetch(`${BASE}${path}`, {
-      ...init,
+      ...requestInit,
       headers: { ...(init.headers as Record<string, string>), ...(await authHeaders(true)) },
     });
   }

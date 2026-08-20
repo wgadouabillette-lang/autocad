@@ -11,6 +11,7 @@ export interface ConnectorStatus {
 }
 
 const BASE = "/api/connectors";
+const FETCH_TIMEOUT_MS = 15000;
 
 let cachedAuthToken: string | null = null;
 let cachedAuthTokenAt = 0;
@@ -58,9 +59,17 @@ async function fetchWithAuth(
       forceRefresh: forceRefresh || authOpts?.forceRefresh,
     })),
   });
-  let r = await fetch(`${BASE}${path}`, { ...init, headers: await buildHeaders(false) });
+  let r = await fetch(`${BASE}${path}`, {
+    ...init,
+    signal: init.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    headers: await buildHeaders(false),
+  });
   if (r.status === 401) {
-    r = await fetch(`${BASE}${path}`, { ...init, headers: await buildHeaders(true) });
+    r = await fetch(`${BASE}${path}`, {
+      ...init,
+      signal: init.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: await buildHeaders(true),
+    });
   }
   return r;
 }
@@ -221,6 +230,8 @@ export interface SpotifyTrackCard {
   url: string;
   /** Extrait MP3 ~30 s — jouable dans l'app sans Premium Spotify. */
   previewUrl?: string | null;
+  /** Full track duration from Spotify metadata (ms). */
+  durationMs?: number | null;
 }
 
 export interface SpotifyPlayState {

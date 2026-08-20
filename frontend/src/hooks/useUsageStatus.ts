@@ -47,15 +47,47 @@ function useUsageLoader(
 
   useEffect(() => {
     if (!enabled || pollMs <= 0) return;
-    const timer = window.setInterval(() => {
-      void refresh();
-    }, pollMs);
-    return () => window.clearInterval(timer);
+
+    let timer: number | null = null;
+
+    const stop = () => {
+      if (timer !== null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const start = () => {
+      stop();
+      if (document.visibilityState !== "visible") return;
+      timer = window.setInterval(() => {
+        void refresh();
+      }, pollMs);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void refresh();
+        start();
+        return;
+      }
+      stop();
+    };
+
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [enabled, pollMs, refresh]);
 
   useEffect(() => {
     if (!enabled) return;
-    const onFocus = () => void refresh();
+    const onFocus = () => {
+      if (document.visibilityState !== "visible") return;
+      void refresh();
+    };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [enabled, refresh]);

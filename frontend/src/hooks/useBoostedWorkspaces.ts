@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
 import type { EnterpriseWorkspaceOption } from "../lib/billingApi";
-import { db } from "../lib/firebase/client";
+import { watchSharedWorkspaceDoc } from "../lib/firebase/workspaceRegistry";
 import { effectiveWorkspaceEnterprise } from "../lib/subscriptionPlans";
 import { useAuthStore } from "../store/useAuthStore";
 import { useWorkspacesStore } from "../store/useWorkspacesStore";
@@ -74,20 +73,19 @@ export function useBoostedWorkspaces(
 
     const active = new Map<string, string>();
     const unsubs = candidateIds.map((workspaceId) =>
-      onSnapshot(
-        doc(db, "workspacesShared", workspaceId),
-        (snap) => {
-          if (!snap.exists()) {
+      watchSharedWorkspaceDoc(
+        workspaceId,
+        (data) => {
+          if (!data) {
             active.delete(workspaceId);
           } else {
-            const data = snap.data();
             const boosted = effectiveWorkspaceEnterprise(
-              data?.enterpriseSubscriptionPlan,
-              data?.enterpriseBillingManaged,
+              data.enterpriseSubscriptionPlan,
+              data.enterpriseBillingManaged,
             );
             if (boosted) {
               const name =
-                String(data?.name || "").trim() ||
+                String(data.name || "").trim() ||
                 nameHints.get(workspaceId) ||
                 workspaceId;
               active.set(workspaceId, name);

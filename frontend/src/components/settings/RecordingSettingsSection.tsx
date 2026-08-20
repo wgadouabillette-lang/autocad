@@ -39,12 +39,12 @@ export default function RecordingSettingsSection() {
   const screenDescription = !isDesktop
     ? "Le navigateur demandera l'autorisation au moment du partage."
     : screenGranted
-      ? "Hall peut capturer l'écran pour le partage et l'enregistrement."
+      ? "Meetra peut capturer l'écran pour le partage et l'enregistrement."
       : screenDenied && platform === "win32"
-        ? "Windows bloque Hall. Autorisez l'app dans Confidentialité → Enregistrement d'écran, puis relancez Hall."
+        ? "Windows bloque Meetra. Autorisez l'app dans Confidentialité → Enregistrement d'écran, puis relancez Meetra."
         : platform === "win32"
-          ? "Autorisez Hall dans Windows (Confidentialité → Enregistrement d'écran) pour le partage et l'enregistrement."
-          : "Autorisez l'enregistrement d'écran pour Hall dans les réglages de confidentialité.";
+          ? "Autorisez Meetra dans Windows (Confidentialité → Enregistrement d'écran) pour le partage et l'enregistrement."
+          : "Autorisez l'enregistrement d'écran pour Meetra dans les réglages de confidentialité.";
   const screenButtonLabel =
     platform === "darwin"
       ? "Ouvrir les réglages macOS"

@@ -126,7 +126,7 @@ def _fetch_usd_rates() -> Dict[str, float]:
         "https://open.er-api.com/v6/latest/USD",
     ):
         try:
-            req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "HallBilling/1"})
+            req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "MeetraBilling/1"})
             with urllib.request.urlopen(req, timeout=6) as resp:
                 import json
 

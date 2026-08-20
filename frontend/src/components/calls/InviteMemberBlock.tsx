@@ -1,14 +1,13 @@
 import { Plus, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { usePeopleStore } from "../../store/usePeopleStore";
+import { useStore } from "../../store/useStore";
+import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 
-interface InviteMemberBlockProps {
-  index?: number;
-}
-
-export default function InviteMemberBlock({ index = 0 }: InviteMemberBlockProps) {
-  const sendFriendRequest = usePeopleStore((s) => s.sendFriendRequest);
+export default function InviteMemberBlock() {
+  const activeRoomId = useStore((s) => s.activeRoomId);
+  const inviteMemberByEmail = useWorkspacesStore((s) => s.inviteMemberByEmail);
+  const canManageInvites = useWorkspacesStore((s) => s.canManageWorkspaceInvites(activeRoomId));
   const [open, setOpen] = useState(false);
   const [handle, setHandle] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +30,8 @@ export default function InviteMemberBlock({ index = 0 }: InviteMemberBlockProps)
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
+  if (!canManageInvites) return null;
+
   const close = () => {
     setOpen(false);
     setError(null);
@@ -43,7 +44,7 @@ export default function InviteMemberBlock({ index = 0 }: InviteMemberBlockProps)
     setSent(false);
     setSending(true);
     try {
-      const result = await sendFriendRequest(handle);
+      const result = await inviteMemberByEmail(activeRoomId, handle);
       if (!result.ok) {
         setError(result.error ?? "Impossible d'envoyer l'invitation.");
         return;
@@ -68,10 +69,10 @@ export default function InviteMemberBlock({ index = 0 }: InviteMemberBlockProps)
             className="invite-member-overlay__panel"
             role="dialog"
             aria-modal="true"
-            aria-label="Inviter un membre"
+            aria-label="Inviter au workspace"
           >
             <div className="invite-member-overlay__header">
-              <p className="invite-member-overlay__title">Inviter un membre</p>
+              <p className="invite-member-overlay__title">Inviter au workspace</p>
               <button
                 type="button"
                 className="invite-member-overlay__close"
@@ -83,7 +84,8 @@ export default function InviteMemberBlock({ index = 0 }: InviteMemberBlockProps)
             </div>
             <div className="invite-member-overlay__body">
               <p className="invite-member-overlay__hint">
-                Entrez l&apos;adresse email pour envoyer une invitation.
+                Entrez l&apos;adresse email d&apos;un compte Meetra. La personne recevra une
+                invitation à accepter pour rejoindre ce workspace.
               </p>
               <form className="invite-member-overlay__form" onSubmit={onSubmit}>
                 <input
@@ -125,18 +127,17 @@ export default function InviteMemberBlock({ index = 0 }: InviteMemberBlockProps)
   return (
     <>
       <article
-        className="forma-capsule call-block call-block--cascade call-block--private call-block--side call-block--invite"
-        style={{ animationDelay: `${index * 20}ms` }}
+        className="forma-capsule call-block call-block--private call-block--side call-block--invite"
       >
         <div className="call-block__clip">
           <button
             type="button"
             className="call-block__main call-block__main--invite"
             onClick={() => setOpen(true)}
-            aria-label="Inviter un membre"
+            aria-label="Inviter au workspace"
             aria-haspopup="dialog"
             aria-expanded={open}
-            title="Inviter un membre"
+            title="Inviter au workspace"
           >
             <span className="call-block-invite__icon-wrap" aria-hidden>
               <UserRound size={28} strokeWidth={1.75} className="call-block-invite__icon" />

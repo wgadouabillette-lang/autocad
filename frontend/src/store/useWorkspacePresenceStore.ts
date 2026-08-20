@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { usePeopleStore } from "./usePeopleStore";
 
-export const PRESENCE_OFFLINE_AFTER_MS = 90_000;
+/** Au-delà de ce délai sans lastSeen, on considère le membre offline (doit rester > heartbeat idle). */
+export const PRESENCE_OFFLINE_AFTER_MS = 210_000;
 
 export interface WorkspacePresenceVoice {
   inPrivateCall: boolean;

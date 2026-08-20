@@ -13,7 +13,7 @@ from typing import List
 
 from dotenv import load_dotenv
 
-from app.core.secrets import load_backend_secrets_or_raise, use_local_env_only, use_secret_manager
+from app.core.secrets import load_backend_secrets_or_raise, use_secret_manager
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -53,6 +53,17 @@ def _has_llm_env() -> bool:
     )
 
 
+def _packaged_env_candidates() -> List[Path]:
+    backend_root = Path(__file__).resolve().parents[2]
+    paths: List[Path] = []
+    explicit = (os.getenv("FORMA_ENV_FILE") or "").strip()
+    if explicit:
+        paths.append(Path(explicit))
+    paths.append(backend_root / "forma-backend.env")
+    paths.append(backend_root / ".env")
+    return paths
+
+
 def _load_env() -> None:
     if use_secret_manager():
         try:
@@ -67,12 +78,33 @@ def _load_env() -> None:
                 exc,
             )
 
-    primary = _env_file()
+    loaded: set[Path] = set()
+    packaged_loaded = False
+    for candidate in _packaged_env_candidates():
+        if not candidate.is_file():
+            continue
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        if resolved in loaded:
+            continue
+        load_dotenv(candidate, override=not packaged_loaded)
+        loaded.add(resolved)
+        packaged_loaded = True
+
+    if _env_bool("FORMA_DESKTOP", False):
+        user_env = _data_dir() / ".env"
+        if user_env.is_file():
+            try:
+                resolved = user_env.resolve()
+            except OSError:
+                resolved = user_env
+            if resolved not in loaded:
+                # Never let an empty user .env blank out packaged Stripe/OAuth keys.
+                load_dotenv(user_env, override=False)
+
     fallback = _backend_env_file()
-    if primary.exists():
-        load_dotenv(primary, override=use_local_env_only())
-    if fallback.exists() and fallback.resolve() != primary.resolve():
-        load_dotenv(fallback, override=False)
     if not _has_llm_env() and fallback.exists():
         load_dotenv(fallback, override=True)
 
@@ -90,7 +122,7 @@ _load_env()
 
 @dataclass
 class Settings:
-    app_name: str = "Hall"
+    app_name: str = "Meetra"
     version: str = "0.1.0"
 
     # Serveur

@@ -2,14 +2,20 @@ const { app, dialog } = require("electron");
 const path = require("path");
 const { readState, writeState } = require("./updater-state.cjs");
 
+const UPDATE_FEED_URL = "https://meetra.cc/desktop-updates";
 const NIGHT_START_HOUR = 2;
 const NIGHT_END_HOUR = 5;
-const CHECK_INTERVAL_MS = 60_000;
+const TONIGHT_TICK_MS = 60_000;
+const UPDATE_POLL_MS = 4 * 60 * 60 * 1000;
+const STARTUP_CHECK_DELAY_MS = 8_000;
 
 let getMainWindow = () => null;
 let schedulerTimer = null;
-let mockAvailable = null;
+let pollTimer = null;
+let pendingInfo = null;
 let installing = false;
+let downloaded = false;
+let autoUpdaterRef = null;
 
 function packageVersion() {
   try {
@@ -31,6 +37,10 @@ function isNightWindow(date = new Date()) {
   return hour >= NIGHT_START_HOUR && hour < NIGHT_END_HOUR;
 }
 
+function isDevMode() {
+  return Boolean(process.env.FORMA_DEV_URL) || !app.isPackaged;
+}
+
 function sendToRenderer(channel, payload) {
   const win = getMainWindow();
   if (!win || win.isDestroyed()) return;
@@ -38,52 +48,156 @@ function sendToRenderer(channel, payload) {
 }
 
 function emitUpdateAvailable(info) {
-  mockAvailable = info;
+  pendingInfo = info;
   sendToRenderer("forma:update-available", info);
 }
 
 function clearPending() {
-  mockAvailable = null;
+  pendingInfo = null;
   writeState(null);
 }
 
-async function runInstallNow(info) {
-  if (installing) return { ok: false, reason: "busy" };
-  installing = true;
-  clearPending();
+function releaseNotesFrom(info) {
+  if (!info) return "";
+  if (typeof info.releaseNotes === "string") return info.releaseNotes;
+  if (Array.isArray(info.releaseNotes)) {
+    return info.releaseNotes
+      .map((note) => (typeof note === "string" ? note : note?.note || ""))
+      .filter(Boolean)
+      .join("\n");
+  }
+  return "";
+}
 
+function loadAutoUpdater() {
+  if (autoUpdaterRef) return autoUpdaterRef;
+  let autoUpdater;
+  try {
+    ({ autoUpdater } = require("electron-updater"));
+  } catch (err) {
+    console.error("[forma-updater] electron-updater introuvable:", err);
+    return null;
+  }
+
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.allowDowngrade = false;
+  autoUpdater.disableDifferentialDownload = true;
+  autoUpdater.logger = console;
+  if ("verifyUpdateCodeSignature" in autoUpdater) {
+    autoUpdater.verifyUpdateCodeSignature = false;
+  }
+
+  try {
+    autoUpdater.setFeedURL({
+      provider: "generic",
+      url: UPDATE_FEED_URL,
+    });
+  } catch (err) {
+    console.warn("[forma-updater] setFeedURL:", err);
+  }
+
+  autoUpdater.on("update-available", (info) => {
+    emitUpdateAvailable({
+      version: info.version,
+      releaseNotes: releaseNotesFrom(info),
+      currentVersion: packageVersion(),
+    });
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    console.info("[forma-updater] déjà à jour", packageVersion());
+  });
+
+  autoUpdater.on("error", (err) => {
+    console.error("[forma-updater]", err);
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    sendToRenderer("forma:update-progress", {
+      percent: Math.round(progress.percent || 0),
+      version: pendingInfo?.version || "",
+    });
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    downloaded = true;
+    sendToRenderer("forma:update-progress", {
+      percent: 100,
+      version: info.version,
+    });
+  });
+
+  autoUpdaterRef = autoUpdater;
+  return autoUpdaterRef;
+}
+
+async function checkForUpdates() {
+  if (isDevMode()) return;
+  const updater = loadAutoUpdater();
+  if (!updater) return;
+  try {
+    await updater.checkForUpdates();
+  } catch (err) {
+    console.error("[forma-updater] check failed:", err);
+  }
+}
+
+async function runMockInstall(info) {
   sendToRenderer("forma:update-progress", { percent: 0, version: info.version });
-
   const steps = [15, 40, 65, 85, 100];
   for (const percent of steps) {
     await new Promise((r) => setTimeout(r, 350));
     sendToRenderer("forma:update-progress", { percent, version: info.version });
   }
-
-  installing = false;
-
-  if (process.env.FORMA_DEV_URL) {
-    sendToRenderer("forma:update-installed", {
-      version: info.version,
-      dev: true,
+  sendToRenderer("forma:update-installed", {
+    version: info.version,
+    dev: true,
+  });
+  const win = getMainWindow();
+  if (win && !win.isDestroyed()) {
+    await dialog.showMessageBox(win, {
+      type: "info",
+      title: "Meetra — test mise à jour",
+      message: `Mise à jour ${info.version} simulée (mode dev).`,
+      detail: "En production, l'app redémarrerait maintenant.",
+      buttons: ["OK"],
     });
-    const win = getMainWindow();
-    if (win && !win.isDestroyed()) {
-      await dialog.showMessageBox(win, {
-        type: "info",
-        title: "Hall — test mise à jour",
-        message: `Mise à jour ${info.version} simulée (mode dev).`,
-        detail: "En production, l'app redémarrerait maintenant.",
-        buttons: ["OK"],
-      });
-    }
-    return { ok: true, dev: true };
+  }
+  return { ok: true, dev: true };
+}
+
+async function runInstallNow(info) {
+  if (installing) return { ok: false, reason: "busy" };
+  installing = true;
+
+  if (isDevMode()) {
+    clearPending();
+    const result = await runMockInstall(info);
+    installing = false;
+    return result;
   }
 
-  sendToRenderer("forma:update-installed", { version: info.version });
-  app.relaunch();
-  app.exit(0);
-  return { ok: true };
+  const updater = loadAutoUpdater();
+  if (!updater) {
+    installing = false;
+    return { ok: false, reason: "no_updater" };
+  }
+
+  try {
+    sendToRenderer("forma:update-progress", { percent: 0, version: info.version });
+    if (!downloaded) {
+      await updater.downloadUpdate();
+    }
+    clearPending();
+    sendToRenderer("forma:update-installed", { version: info.version });
+    updater.quitAndInstall(false, true);
+    return { ok: true };
+  } catch (err) {
+    installing = false;
+    console.error("[forma-updater] install failed:", err);
+    return { ok: false, reason: "install_failed" };
+  }
 }
 
 function scheduleTonight(info) {
@@ -97,6 +211,16 @@ function scheduleTonight(info) {
     version: info.version,
     window: `${NIGHT_START_HOUR}h–${NIGHT_END_HOUR}h`,
   });
+
+  if (!isDevMode()) {
+    const updater = loadAutoUpdater();
+    if (updater && !downloaded) {
+      void updater.downloadUpdate().catch((err) => {
+        console.error("[forma-updater] pré-téléchargement échoué:", err);
+      });
+    }
+  }
+
   return { ok: true };
 }
 
@@ -117,7 +241,7 @@ function startScheduler() {
   if (schedulerTimer) return;
   schedulerTimer = setInterval(() => {
     void tryTonightInstall();
-  }, CHECK_INTERVAL_MS);
+  }, TONIGHT_TICK_MS);
 }
 
 function scheduleDevMockUpdate(delayMs = 4000) {
@@ -136,7 +260,7 @@ function initUpdater(options) {
   getMainWindow = options.getMainWindow;
   startScheduler();
 
-  const devMode = Boolean(process.env.FORMA_DEV_URL);
+  const devMode = isDevMode();
   const shouldMock =
     devMode &&
     (process.env.FORMA_MOCK_UPDATE !== "0" || process.env.FORMA_TRIGGER_UPDATE === "1");
@@ -149,14 +273,25 @@ function initUpdater(options) {
 
   if (devMode) {
     console.info(
-      "[forma-updater] dev mock actif — notification de test dans quelques secondes.",
+      "[forma-updater] mode dev — notification de test dans quelques secondes.",
     );
+    return;
+  }
+
+  loadAutoUpdater();
+  setTimeout(() => {
+    void checkForUpdates();
+  }, STARTUP_CHECK_DELAY_MS);
+  if (!pollTimer) {
+    pollTimer = setInterval(() => {
+      void checkForUpdates();
+    }, UPDATE_POLL_MS);
   }
 }
 
 async function handleInstallNow() {
   const info =
-    mockAvailable ??
+    pendingInfo ??
     (() => {
       const pending = readState();
       if (!pending) return null;
@@ -173,16 +308,16 @@ async function handleInstallNow() {
 }
 
 function handleScheduleTonight() {
-  if (!mockAvailable) {
+  if (!pendingInfo) {
     return { ok: false, reason: "no_update" };
   }
-  return scheduleTonight(mockAvailable);
+  return scheduleTonight(pendingInfo);
 }
 
 function handleGetState() {
   const pending = readState();
   return {
-    available: mockAvailable,
+    available: pendingInfo,
     pendingTonight: pending?.schedule === "tonight" ? pending : null,
     installing,
     nightWindow: `${NIGHT_START_HOUR}:00–${NIGHT_END_HOUR}:00`,

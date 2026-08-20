@@ -119,9 +119,11 @@ export default function CalendarEventComposer() {
       ],
       "user",
     )
-      .then(async (saved) => {
-        let events = saved;
-        let googleSynced = saved.some((event) => Boolean(event.googleEventId));
+      .then(async (created) => {
+        let events = created.events;
+        let googleSynced =
+          created.googleSynced > 0 ||
+          created.events.some((event) => Boolean(event.googleEventId));
         const googleStatus = await fetchGoogleCalendarStatus();
 
         if (googleStatus.connected && !googleSynced) {

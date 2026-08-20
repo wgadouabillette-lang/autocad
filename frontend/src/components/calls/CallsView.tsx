@@ -19,8 +19,6 @@ import MiniChatPopover from "../messages/MiniChatPopover";
 import OpenVoiceInCallView from "./OpenVoiceInCallView";
 import TheaterView from "./TheaterView";
 import CallsViewHexDecor from "./CallsViewHexDecor";
-import CallsWorkspacePromo from "./CallsWorkspacePromo";
-
 let callsViewRenderCount = 0;
 
 export default function CallsView() {
@@ -113,13 +111,6 @@ export default function CallsView() {
     localOpenChannelId ?? null,
   );
 
-  const showWorkspacePromo =
-    viewMode === "blocks" &&
-    !inOpenChannel &&
-    !showPresentLayout &&
-    !showSoloInCallMedia &&
-    !workspaceSwitching;
-
   return (
     <div
       className={clsx(
@@ -154,10 +145,8 @@ export default function CallsView() {
               className={clsx(
                 "calls-view__stage",
                 inOpenChannel && "calls-view__stage--open-channel-only",
-                showWorkspacePromo && "calls-view__stage--with-promo",
               )}
             >
-              {showWorkspacePromo ? <CallsWorkspacePromo /> : null}
               {inOpenChannel && localOpenChannelId ? (
                 <div className="calls-view__open-channel-panel">
                   <OpenVoiceInCallView

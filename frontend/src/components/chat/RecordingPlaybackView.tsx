@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Trash2 } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { loadRecordingBlob } from "../../lib/recordingsStorage";
 import { useStore } from "../../store/useStore";
@@ -9,6 +9,22 @@ function formatDuration(ms: number): string {
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
   return `${min}:${sec.toString().padStart(2, "0")}`;
+}
+
+function extensionForBlob(blob: Blob): string {
+  const type = blob.type.toLowerCase();
+  if (type.includes("mp4")) return "mp4";
+  if (type.includes("quicktime") || type.includes("mov")) return "mov";
+  return "webm";
+}
+
+function safeFilename(title: string | undefined, ext: string): string {
+  const base = (title || "Meetra-recording")
+    .replace(/[^\w\s\-().]+/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 80);
+  return `${base || "Meetra-recording"}.${ext}`;
 }
 
 export default function RecordingPlaybackView() {
@@ -24,6 +40,7 @@ export default function RecordingPlaybackView() {
   const recordingId = session?.recordingId;
   const sessionId = session?.id;
   const [url, setUrl] = useState<string | null>(null);
+  const [blob, setBlob] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -31,6 +48,7 @@ export default function RecordingPlaybackView() {
   useEffect(() => {
     if (!recordingId) {
       setUrl(null);
+      setBlob(null);
       setError("Enregistrement introuvable.");
       return;
     }
@@ -39,14 +57,18 @@ export default function RecordingPlaybackView() {
     let cancelled = false;
 
     void loadRecordingBlob(recordingId)
-      .then((blob) => {
+      .then((loaded) => {
         if (cancelled) return;
-        if (!blob) {
-          setError("Fichier vidéo introuvable. Réenregistrez si l'enregistrement date d'avant la synchronisation cloud.");
+        if (!loaded) {
+          setError(
+            "Fichier vidéo introuvable. Réenregistrez si l'enregistrement date d'avant la synchronisation cloud.",
+          );
           setUrl(null);
+          setBlob(null);
           return;
         }
-        objectUrl = URL.createObjectURL(blob);
+        objectUrl = URL.createObjectURL(loaded);
+        setBlob(loaded);
         setUrl(objectUrl);
         setError(null);
       })
@@ -69,6 +91,17 @@ export default function RecordingPlaybackView() {
       setDeleting(false);
       setConfirmDelete(false);
     }
+  };
+
+  const handleDownload = () => {
+    if (!blob || !url) return;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = safeFilename(session?.title, extensionForBlob(blob));
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
   return (
@@ -102,12 +135,23 @@ export default function RecordingPlaybackView() {
           <p className="text-xs text-muted-500">Loading recording…</p>
         )}
         {url && (
-          <video
-            className="recording-playback__video w-full rounded-xl bg-ink-900"
-            src={url}
-            controls
-            playsInline
-          />
+          <>
+            <video
+              className="recording-playback__video w-full rounded-xl bg-ink-900"
+              src={url}
+              controls
+              playsInline
+            />
+            <button
+              type="button"
+              className="recording-playback__download"
+              onClick={handleDownload}
+              disabled={!blob}
+            >
+              <Download size={14} strokeWidth={2.25} aria-hidden />
+              Download
+            </button>
+          </>
         )}
       </div>
 

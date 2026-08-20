@@ -95,7 +95,9 @@ import HandoffPreviewBanner from "./chat/HandoffPreviewBanner";
 import { useHandoffStore } from "../store/useHandoffStore";
 import { useHallDjStore } from "../store/useHallDjStore";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
-import HallDjTrackFeedbackBar from "./chat/HallDjTrackFeedbackBar";
+import HallDjTrackFeedbackBar, {
+  HallDjTrackProgressRail,
+} from "./chat/HallDjTrackFeedbackBar";
 import {
   buildEligibleGroupChatMembers,
   collectAllWorkspaceMembers,
@@ -304,6 +306,7 @@ function ChatBubble({
           tracks={message.spotifySearch}
           compact
           mode={message.spotifySearchMode ?? "play"}
+          chatIndex={chatIndex}
         />
       ) : null}
       {message.spotifyTrack ? (
@@ -489,15 +492,22 @@ export default function ChatPanel() {
   const hallDjActive = useHallDjStore((s) => s.active);
   const hallDjFeedbackResolvedTrackId = useHallDjStore((s) => s.feedbackResolvedTrackId);
   const hallDjFeedbackBusy = useHallDjStore((s) => s.feedbackBusy);
-  const rateHallDjTrack = useHallDjStore((s) => s.rateCurrentTrack);
+  const engageHallDjFromNowPlaying = useHallDjStore((s) => s.engageFromNowPlaying);
   const spotifyCurrentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
-  const showHallDjTrackFeedback = Boolean(
-    hallDjActive &&
-      !pollMorphActive &&
+  const spotifyPlaying = useSpotifyPlayerStore((s) => s.playing);
+  const spotifyPlaybackMode = useSpotifyPlayerStore((s) => s.playbackMode);
+  const spotifyNowPlaying =
+    Boolean(spotifyCurrentTrack?.id) &&
+    (spotifyPlaying || spotifyPlaybackMode !== null);
+  const feedbackResolvedForCurrent =
+    !!spotifyCurrentTrack?.id &&
+    hallDjFeedbackResolvedTrackId === spotifyCurrentTrack.id.trim();
+  const showComposerNowPlaying = Boolean(
+    !pollMorphActive &&
       !handoffPreview &&
       !handoffSelectionMode &&
-      spotifyCurrentTrack?.id &&
-      hallDjFeedbackResolvedTrackId !== spotifyCurrentTrack.id.trim(),
+      spotifyNowPlaying &&
+      !feedbackResolvedForCurrent,
   );
   const {
     connectedIds: connectedConnectors,
@@ -1585,22 +1595,21 @@ export default function ChatPanel() {
       <div
         className={clsx(
           "relative",
-          showHallDjTrackFeedback && "chat-composer-cluster--dj-feedback",
+          showComposerNowPlaying && "chat-composer-cluster--dj-feedback",
         )}
       >
-        {showHallDjTrackFeedback ? (
-          <div className="chat-composer-cluster-stroke" aria-hidden />
-        ) : null}
-        {showHallDjTrackFeedback && spotifyCurrentTrack ? (
+        {showComposerNowPlaying && spotifyCurrentTrack ? (
           <HallDjTrackFeedbackBar
             track={spotifyCurrentTrack}
             busy={hallDjFeedbackBusy}
-            onApprove={() => void rateHallDjTrack("approve")}
-            onReject={() => void rateHallDjTrack("reject")}
+            showFeedback
+            onApprove={() => void engageHallDjFromNowPlaying("approve")}
+            onReject={() => void engageHallDjFromNowPlaying("reject")}
           />
         ) : null}
+        {showComposerNowPlaying ? <HallDjTrackProgressRail /> : null}
         <div
-          className="chat-composer relative z-10 flex flex-col gap-1 rounded-xl px-2 py-1.5"
+          className="chat-composer relative z-[1] flex flex-col gap-1 rounded-xl px-2 py-1.5"
           style={CHAT_COMPOSER_SURFACE_STYLE}
         >
           {attachments.length > 0 && (
@@ -1965,6 +1974,9 @@ export default function ChatPanel() {
             </div>
           </div>
         </div>
+        {showComposerNowPlaying ? (
+          <div className="chat-composer-cluster-stroke" aria-hidden />
+        ) : null}
       </div>
     </div>
   );
@@ -2120,7 +2132,7 @@ export default function ChatPanel() {
         className={clsx(
           "chat-panel-footer pointer-events-none shrink-0 px-3 pb-3 pt-0",
           pollMorphActive && "chat-panel-footer--poll-morph",
-          showHallDjTrackFeedback && "chat-panel-footer--dj-feedback",
+          showComposerNowPlaying && "chat-panel-footer--dj-feedback",
         )}
       >
         <div

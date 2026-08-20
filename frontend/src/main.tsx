@@ -22,7 +22,7 @@ if (redirectToLandingIfNeeded()) {
 } else {
   const rootEl = document.getElementById("root");
   if (!rootEl) {
-    document.body.textContent = "Hall: #root introuvable.";
+    document.body.textContent = "Meetra: #root introuvable.";
   } else {
     try {
       ReactDOM.createRoot(rootEl).render(
@@ -34,7 +34,7 @@ if (redirectToLandingIfNeeded()) {
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      rootEl.innerHTML = `<div style="font-family:system-ui;color:#e0e0e0;padding:2rem;line-height:1.5"><h1 style="margin:0 0 1rem">Hall</h1><p>L'interface n'a pas pu démarrer.</p><pre style="white-space:pre-wrap">${message}</pre></div>`;
+      rootEl.innerHTML = `<div style="font-family:system-ui;color:#e0e0e0;padding:2rem;line-height:1.5"><h1 style="margin:0 0 1rem">Meetra</h1><p>L'interface n'a pas pu démarrer.</p><pre style="white-space:pre-wrap">${message}</pre></div>`;
     }
   }
 }

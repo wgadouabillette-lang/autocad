@@ -117,10 +117,16 @@ export const useFollowUpsStore = create<FollowUpsState>((set, get) => ({
 
     let syncNote = "Ajouté au calendrier in-app.";
     try {
-      await createUserCalendarEvents(calendarPayload, "follow-up");
+      const created = await createUserCalendarEvents(calendarPayload, "follow-up");
       useCalendarStore.getState().setUserEvents(await fetchUserCalendarEvents());
       notifyCalendarEventsChanged();
-      syncNote = `${calendarPayload.length} événement(s) enregistré(s) et synchronisé(s) avec votre calendrier.`;
+      syncNote =
+        created.googleSynced > 0
+          ? `${calendarPayload.length} événement(s) enregistré(s) et synchronisé(s) avec Google Calendar.`
+          : `${calendarPayload.length} événement(s) enregistré(s) dans Meetra` +
+            (created.googleError
+              ? " (sync Google échouée — reconnectez Google Calendar dans Plugins)."
+              : " (connectez Google Calendar dans Plugins pour synchroniser).");
     } catch {
       syncNote = "Impossible d'enregistrer les événements dans le calendrier.";
     }

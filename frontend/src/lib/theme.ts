@@ -80,13 +80,14 @@ export function getThemePalette(): ThemePalette {
 export function applyDocumentTheme(): void {
   const root = document.documentElement;
   root.dataset.theme = "dark";
-  root.style.colorScheme = "dark";
+  const splash = root.classList.contains("app-loading-splash");
+  root.style.colorScheme = splash ? "normal" : "dark";
 
   const metaTheme = document.querySelector('meta[name="theme-color"]');
-  metaTheme?.setAttribute("content", "#121212");
+  metaTheme?.setAttribute("content", splash ? "#00000000" : "#121212");
 
   const metaScheme = document.querySelector('meta[name="color-scheme"]');
-  metaScheme?.setAttribute("content", "dark");
+  metaScheme?.setAttribute("content", splash ? "only light" : "dark");
 }
 
 export function bootstrapDocumentTheme(_prefs?: Pick<UserPreferences, "colorTheme">): void {

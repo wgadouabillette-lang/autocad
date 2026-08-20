@@ -3,6 +3,7 @@ import { memberBlockId } from "./calls";
 import {
   MARKETING_PREVIEW_BLINDING_LIGHTS_COVER_URL,
   MARKETING_PREVIEW_NOTE_ID,
+  MARKETING_PREVIEW_STARBOY_COVER_URL,
   MARKETING_PREVIEW_USER_ID,
   MARKETING_PREVIEW_WORKSPACE_ID,
   readMarketingPreviewRecordingActiveParam,
@@ -16,6 +17,7 @@ import { useCallsStore } from "../store/useCallsStore";
 import { useConnectorsStore } from "../store/useConnectorsStore";
 import { useFollowUpsStore } from "../store/useFollowUpsStore";
 import { useHallDjStore } from "../store/useHallDjStore";
+import { useHandoffStore } from "../store/useHandoffStore";
 import { useStore } from "../store/useStore";
 import {
   PRESENCE_OFFLINE_AFTER_MS,
@@ -117,17 +119,20 @@ const THEATER_AUDIENCE_SIZE = 7;
 const THEATER_PREVIEW_AUDIENCE_SIZE = 48;
 
 const PREVIEW_NOTE_BODY_HTML = [
-  "<h1>Design review — key decisions</h1>",
-  "<h2>Voice &amp; dashboard</h2>",
-  "<p>Team aligned on the <strong>voice channel grid</strong> and using the live workspace shell on the landing page.</p>",
+  "<h1>Q3 planning — wrap-up</h1>",
+  "<p>Call ended 2 min ago · 32 min · Alex, Jordan, Sam, Riley</p>",
+  "<h2>Decisions</h2>",
   "<ul>",
-  "<li>Finalize navigation layout and hero spacing</li>",
-  "<li>Ship connector sync (Gmail, Calendar, Spotify)</li>",
-  "<li>QA mobile breakpoints and chat panel tabs</li>",
+  "<li>Ship <strong>calendar two-way sync</strong> in sprint 14</li>",
+  "<li>Keep the voice lounge as the default workspace home</li>",
+  "<li>Defer Theater recording until September</li>",
   "</ul>",
   "<h2>Action items</h2>",
-  "<p><mark>Jordan</mark> owns connector wiring. <mark>Sam</mark> validates voice lounge UX by Friday.</p>",
-  "<p>Riley prepares onboarding copy for the next sprint demo.</p>",
+  "<p><mark>Jordan</mark> — Gmail connector QA by Wednesday.</p>",
+  "<p><mark>Sam</mark> — polish the Notes empty state before Friday’s demo.</p>",
+  "<p><mark>Riley</mark> — send this recap to leadership and book the follow-up.</p>",
+  "<h2>Next</h2>",
+  "<p>Thursday 10:00 — standup in Salon vocal. Lock the sprint 14 board before then.</p>",
 ].join("");
 
 function memberBlock(userId: string, name: string, inCall = false): CallBlock {
@@ -273,7 +278,7 @@ function buildAgentChatTabs(): {
         { role: "user", text: "Write a one-liner for the settings page." },
         {
           role: "assistant",
-          text: "Connect your tools once — play music, schedule meetings, and draft emails without leaving Hall.",
+          text: "Connect your tools once — play music, schedule meetings, and draft emails without leaving Meetra.",
         },
       ],
       2 * 3600_000,
@@ -316,11 +321,11 @@ function buildAgentChatTabs(): {
 function buildManualNoteSession(): ChatSession {
   return {
     id: MARKETING_PREVIEW_NOTE_ID,
-    title: "Design review notes",
+    title: "Q3 planning — 17 Aug",
     messages: [{ role: "user", text: PREVIEW_NOTE_BODY_HTML }],
-    updatedAt: Date.now() - 20 * 60_000,
+    updatedAt: Date.now() - 2 * 60_000,
     kind: "note",
-    manualNoteTitle: "Design review notes",
+    manualNoteTitle: "Q3 planning — 17 Aug",
     manualNoteBody: PREVIEW_NOTE_BODY_HTML,
   };
 }
@@ -829,5 +834,195 @@ export function seedMarketingTheaterPreview(): void {
       jordan: true,
       sam: false,
     },
+  });
+}
+
+/** Full app chrome with the Notes tab open on a just-finished meeting. */
+export function seedMarketingNotesPreview(): void {
+  seedMarketingPreview();
+
+  const people = usePeopleStore.getState();
+  const clearUnread = <T extends { unread: number }>(threads: T[]): T[] =>
+    threads.map((thread) => ({ ...thread, unread: 0 }));
+
+  usePeopleStore.setState({
+    friendThreads: clearUnread(people.friendThreads),
+    groupThreads: clearUnread(people.groupThreads),
+    colleagueThreadsByWorkspace: Object.fromEntries(
+      Object.entries(people.colleagueThreadsByWorkspace).map(([id, threads]) => [
+        id,
+        clearUnread(threads),
+      ]),
+    ),
+    friendsTabSeenAt: Date.now(),
+  });
+
+  useStore.setState({
+    chatPanelOpen: true,
+    chatPanelMode: "ai-notes",
+    chatPanelExpanded: true,
+    chatPanelLeaveAnimating: false,
+    activeManualNoteId: MARKETING_PREVIEW_NOTE_ID,
+    showChatHistory: false,
+    busy: false,
+    activeAiRequests: 0,
+    aiRun: null,
+  });
+}
+
+const HANDOFF_PREVIEW_CHAT_ID = "preview-chat-handoff";
+const HANDOFF_PREVIEW_MESSAGES: ChatMessage[] = [
+  {
+    role: "user",
+    text: "Create a one-pager I can hand off to Jordan for the Q3 launch.",
+  },
+  {
+    role: "assistant",
+    text: [
+      "# Q3 launch one-pager",
+      "",
+      "File ready — calendar sync, voice lounge, and the Thursday review.",
+      "",
+      "## Goal",
+      "Ship **calendar two-way sync** in sprint 14. Keep the voice lounge as the default workspace home.",
+      "",
+      "## Owners",
+      "- Jordan — Gmail connector QA by Wednesday",
+      "- Sam — Notes empty state before Friday’s demo",
+      "- Riley — recap to leadership and book the follow-up",
+      "",
+      "## Next",
+      "Thursday 10:00 standup in Salon vocal. Lock the sprint 14 board before then.",
+    ].join("\n"),
+  },
+];
+
+/** Agent tab with an AI-written file selected, handing it off to Jordan. */
+export function seedMarketingHandoffPreview(): void {
+  seedMarketingPreview();
+
+  const handoffTab = buildDiscussionTab(
+    HANDOFF_PREVIEW_CHAT_ID,
+    "Q3 launch one-pager",
+    HANDOFF_PREVIEW_MESSAGES,
+    90_000,
+  );
+  const { tabs } = buildAgentChatTabs();
+  const openChatTabs = [handoffTab, ...tabs.filter((tab) => tab.id !== "preview-chat-design")];
+
+  const people = usePeopleStore.getState();
+  const clearUnread = <T extends { unread: number }>(threads: T[]): T[] =>
+    threads.map((thread) => ({ ...thread, unread: 0 }));
+
+  usePeopleStore.setState({
+    friendThreads: clearUnread(people.friendThreads),
+    groupThreads: clearUnread(people.groupThreads),
+    colleagueThreadsByWorkspace: Object.fromEntries(
+      Object.entries(people.colleagueThreadsByWorkspace).map(([id, threads]) => [
+        id,
+        clearUnread(threads),
+      ]),
+    ),
+    friendsTabSeenAt: Date.now(),
+  });
+
+  const now = Date.now();
+  const handoffMembers = [
+    { id: "jordan", name: "Jordan" },
+    { id: "sam", name: "Sam" },
+    { id: "riley", name: "Riley" },
+    { id: "clara", name: "Clara" },
+  ];
+  useWorkspacePresenceStore.setState({
+    loadedByWorkspace: { [MARKETING_PREVIEW_WORKSPACE_ID]: true },
+    membersByWorkspace: {
+      [MARKETING_PREVIEW_WORKSPACE_ID]: Object.fromEntries(
+        handoffMembers.map((member) => [
+          member.id,
+          {
+            displayName: member.name,
+            lastSeenMs: now,
+            online: true,
+            voice: { inPrivateCall: false, openChannelId: null },
+          },
+        ]),
+      ),
+    },
+  });
+
+  useStore.setState({
+    chatPanelOpen: true,
+    chatPanelMode: "agent",
+    chatPanelExpanded: true,
+    chatPanelLeaveAnimating: false,
+    showChatHistory: false,
+    busy: false,
+    activeAiRequests: 0,
+    aiRun: null,
+    chat: structuredClone(HANDOFF_PREVIEW_MESSAGES),
+    openChatTabs,
+    activeChatTabId: HANDOFF_PREVIEW_CHAT_ID,
+    chatNavStack: openChatTabs.map((tab) => tab.id),
+    chatNavPointer: 0,
+    chatSessions: [
+      ...(useStore.getState().chatSessions.filter((session) => session.kind === "note") ?? []),
+      ...openChatTabs,
+    ],
+  });
+
+  useHandoffStore.setState({
+    selectionMode: true,
+    selectionSource: "ai",
+    peopleThreadId: null,
+    selectedIndices: new Set([0, 1]),
+    target: {
+      targetType: "dm",
+      recipientUid: "jordan",
+      displayName: "Jordan",
+    },
+    submitting: false,
+    error: null,
+    preview: null,
+    noteHandoffOpen: false,
+  });
+}
+
+const SPOTIFY_PREVIEW_STARBOY = {
+  id: "7MXVkk9YMctZqd1Srtv4MB",
+  name: "Starboy (feat. Daft Punk)",
+  artists: "The Weeknd",
+  album: "Starboy",
+  url: "https://open.spotify.com/track/7MXVkk9YMctZqd1Srtv4MB",
+  imageUrl: MARKETING_PREVIEW_STARBOY_COVER_URL,
+  durationMs: 230453,
+};
+
+/** Same workspace as the hero, with Starboy in the composer now-playing bar. */
+export function seedMarketingSpotifyPreview(): void {
+  seedMarketingPreview();
+
+  const { chat, openChatTabs, activeChatTabId } = useStore.getState();
+  const dropPendingPrompt = <T extends { role: string }>(messages: T[]): T[] => {
+    const last = messages[messages.length - 1];
+    return last?.role === "user" ? messages.slice(0, -1) : messages;
+  };
+  const nextChat = dropPendingPrompt(chat);
+  const nextTabs = openChatTabs.map((tab) =>
+    tab.id === activeChatTabId ? { ...tab, messages: dropPendingPrompt(tab.messages) } : tab,
+  );
+
+  useSpotifyPlayerStore.setState({
+    currentTrack: SPOTIFY_PREVIEW_STARBOY,
+    lastPlayedTrack: null,
+    playing: true,
+    playbackMode: "full",
+  });
+
+  useStore.setState({
+    busy: false,
+    activeAiRequests: 0,
+    aiRun: null,
+    chat: nextChat,
+    openChatTabs: nextTabs,
   });
 }

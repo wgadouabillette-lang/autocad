@@ -73,6 +73,10 @@ def _configure_ssl_bundle() -> None:
 _configure_ssl_bundle()
 
 
+def _has_google_credentials() -> bool:
+    return bool(_service_account_dict() or _credential_path())
+
+
 def _ensure_app():
     global _app
     if _app is not None:
@@ -114,6 +118,12 @@ def _ensure_app():
 
 def _ensure_db():
     global _db, _db_unavailable
+    if _db is not None or _db_unavailable:
+        return
+    if not _has_google_credentials():
+        _db_unavailable = True
+        logger.warning("Firestore skipped: no Firebase service account in the packaged backend.")
+        return
     _ensure_app()
     if _db is not None or _db_unavailable or _app is None:
         return
@@ -181,8 +191,16 @@ def verify_bearer_token(token: str) -> Optional[FirebaseUser]:
             import requests as req_lib
             from google.auth.transport import requests as google_requests
             from google.oauth2 import id_token as google_id_token
+            from requests.adapters import HTTPAdapter
+
+            class _TimeoutAdapter(HTTPAdapter):
+                def send(self, request, **kwargs):  # type: ignore[no-untyped-def]
+                    kwargs.setdefault("timeout", 8)
+                    return super().send(request, **kwargs)
 
             session = req_lib.Session()
+            session.mount("https://", _TimeoutAdapter())
+            session.mount("http://", _TimeoutAdapter())
             try:
                 import certifi
 

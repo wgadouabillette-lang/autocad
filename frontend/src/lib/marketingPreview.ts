@@ -24,6 +24,10 @@ export const MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC = 32;
 export const MARKETING_PREVIEW_BLINDING_LIGHTS_COVER_URL =
   "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/6f/bc/e6/6fbce6c4-c38c-72d8-4fd0-66cfff32f679/20UMGIM12176.rgb.jpg/600x600bb.jpg";
 
+/** Starboy album art (The Weeknd feat. Daft Punk). */
+export const MARKETING_PREVIEW_STARBOY_COVER_URL =
+  "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b5/92/bb/b592bb72-52e3-e756-9b26-9f56d08f47ab/16UMGIM67864.rgb.jpg/600x600bb.jpg";
+
 export function markMarketingPreview(): void {
   window.__LYTE_MARKETING_PREVIEW__ = true;
 }
@@ -71,13 +75,23 @@ export function stripMarketingPlayDemoMessages<T extends {
   return chat.filter((message) => !isMarketingPlayDemoMessage(message));
 }
 
-export type MarketingPreviewScene = "dashboard" | "connectors" | "recording" | "theater";
+export type MarketingPreviewScene =
+  | "dashboard"
+  | "connectors"
+  | "recording"
+  | "theater"
+  | "notes"
+  | "handoff"
+  | "spotify";
 
 export function readMarketingPreviewSceneParam(): MarketingPreviewScene {
   const raw = new URLSearchParams(window.location.search).get("scene");
   if (raw === "connectors") return "connectors";
   if (raw === "recording") return "recording";
   if (raw === "theater") return "theater";
+  if (raw === "notes") return "notes";
+  if (raw === "handoff") return "handoff";
+  if (raw === "spotify") return "spotify";
   return "dashboard";
 }
 
@@ -97,6 +111,18 @@ export function readMarketingPreviewConnectorsActiveParam(): boolean {
 
 export function isMarketingTheaterPreviewScene(): boolean {
   return isMarketingPreview() && readMarketingPreviewSceneParam() === "theater";
+}
+
+export function isMarketingNotesPreviewScene(): boolean {
+  return isMarketingPreview() && readMarketingPreviewSceneParam() === "notes";
+}
+
+export function isMarketingHandoffPreviewScene(): boolean {
+  return isMarketingPreview() && readMarketingPreviewSceneParam() === "handoff";
+}
+
+export function isMarketingSpotifyPreviewScene(): boolean {
+  return isMarketingPreview() && readMarketingPreviewSceneParam() === "spotify";
 }
 
 export function applyMarketingPreviewThemeFromUrl(): void {

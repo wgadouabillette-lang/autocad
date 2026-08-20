@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { ArrowLeft, ArrowUpRight, Check, Crown, Plus, UsersRound, X } from "lucide-react";
@@ -16,6 +16,17 @@ import { useWorkspaceOverlayStore } from "../../store/useWorkspaceOverlayStore";
 import WorkspaceIcon from "./WorkspaceIcon";
 
 type OverlayView = "list" | "create" | "join";
+
+const PANEL_GAP_PX = 8;
+
+function panelStyleFromAnchor(anchor: HTMLElement | null): CSSProperties | undefined {
+  if (!anchor) return undefined;
+  const rect = anchor.getBoundingClientRect();
+  return {
+    left: Math.round(rect.left),
+    top: Math.round(rect.bottom + PANEL_GAP_PX),
+  };
+}
 
 function WorkspaceRow({
   workspace,
@@ -60,6 +71,11 @@ function WorkspaceRow({
 export default function WorkspaceOverlay() {
   const panelOpen = useWorkspaceOverlayStore((s) => s.panelOpen);
   const closePanel = useWorkspaceOverlayStore((s) => s.closePanel);
+  const anchorEl = useWorkspaceOverlayStore((s) => s.anchorEl);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [panelStyle, setPanelStyle] = useState<CSSProperties | undefined>(() =>
+    panelStyleFromAnchor(useWorkspaceOverlayStore.getState().anchorEl),
+  );
   const activeRoomId = useStore((s) => s.activeRoomId);
   const userDisplayName = useStore((s) => s.userDisplayName);
   const userEmail = useStore((s) => s.userEmail);
@@ -122,6 +138,32 @@ export default function WorkspaceOverlay() {
     setJoinSent(false);
     setCreateError(null);
   }, [panelOpen]);
+
+  useLayoutEffect(() => {
+    if (!panelOpen) return;
+    const update = () => setPanelStyle(panelStyleFromAnchor(anchorEl));
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [panelOpen, anchorEl]);
+
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      const anchor = useWorkspaceOverlayStore.getState().anchorEl;
+      if (anchor?.contains(target)) return;
+      if (cardRef.current?.contains(target)) return;
+      closePanel();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [panelOpen, closePanel]);
 
   if (!panelOpen) return null;
 
@@ -199,30 +241,29 @@ export default function WorkspaceOverlay() {
     roleIn(activeRoomId, ownerUserId) === "owner" && incomingJoinRequests.length > 0;
 
   return createPortal(
-    <div className="workspace-modal" role="dialog" aria-modal="true" aria-label="Choisir un serveur">
-      <button
-        type="button"
-        className="workspace-modal__backdrop"
-        aria-label="Fermer la sélection de serveur"
-        onClick={closePanel}
-      />
-      <div className="workspace-modal__card">
+    <div className="workspace-edge-overlay" role="dialog" aria-modal="true" aria-label="Choisir un serveur">
+      <div className="workspace-edge-overlay__backdrop" aria-hidden />
+      <div
+        ref={cardRef}
+        className="workspace-edge-overlay__card"
+        style={panelStyle ?? panelStyleFromAnchor(anchorEl)}
+      >
         <button
           type="button"
-          className="workspace-modal__close"
+          className="workspace-edge-overlay__close"
           onClick={closePanel}
           aria-label="Fermer"
         >
-          <X size={18} aria-hidden />
+          <X size={16} aria-hidden />
         </button>
 
         {view === "list" ? (
           <>
-            <header className="workspace-modal__header">
-              <h2 className="workspace-modal__title">Serveurs</h2>
+            <header className="workspace-edge-overlay__header">
+              <h2 className="workspace-edge-overlay__title">Serveurs</h2>
             </header>
 
-            <div className="workspace-modal__scroll">
+            <div className="workspace-edge-overlay__scroll">
               {joined.length > 0 ? (
                 <ul className="workspace-overlay__list">
                   {joined.map((workspace) => {
@@ -240,7 +281,7 @@ export default function WorkspaceOverlay() {
                   })}
                 </ul>
               ) : (
-                <p className="workspace-modal__empty">
+                <p className="workspace-edge-overlay__empty">
                   Vous n'avez encore rejoint aucun serveur.
                 </p>
               )}
@@ -293,10 +334,10 @@ export default function WorkspaceOverlay() {
               )}
             </div>
 
-            <div className="workspace-modal__footer">
+            <div className="workspace-edge-overlay__footer">
               <button
                 type="button"
-                className="workspace-modal__cta workspace-modal__cta--secondary"
+                className="workspace-edge-overlay__cta workspace-edge-overlay__cta--secondary"
                 onClick={() => setView("join")}
                 aria-label="Rejoindre un serveur"
               >
@@ -305,7 +346,7 @@ export default function WorkspaceOverlay() {
               </button>
               <button
                 type="button"
-                className="workspace-modal__cta workspace-modal__cta--primary"
+                className="workspace-edge-overlay__cta workspace-edge-overlay__cta--primary"
                 onClick={() => setView("create")}
                 aria-label="Créer un serveur"
               >
@@ -316,27 +357,27 @@ export default function WorkspaceOverlay() {
           </>
         ) : (
           <>
-            <header className="workspace-modal__header workspace-modal__header--with-back">
+            <header className="workspace-edge-overlay__header workspace-edge-overlay__header--with-back">
               <button
                 type="button"
-                className="workspace-modal__back"
+                className="workspace-edge-overlay__back"
                 onClick={() => setView("list")}
               >
                 <ArrowLeft size={16} aria-hidden />
                 Retour
               </button>
-              <h2 className="workspace-modal__title">
+              <h2 className="workspace-edge-overlay__title">
                 {view === "create" ? "Créer un serveur" : "Rejoindre un serveur"}
               </h2>
             </header>
 
-            <div className={clsx("workspace-modal__scroll", "workspace-modal__scroll--form")}>
+            <div className={clsx("workspace-edge-overlay__scroll", "workspace-edge-overlay__scroll--form")}>
               {view === "create" ? (
-                <form className="workspace-modal__form" onSubmit={onCreate}>
+                <form className="workspace-edge-overlay__form" onSubmit={onCreate}>
                   <input
                     id="workspace-create-name"
                     type="text"
-                    className="workspace-modal__input"
+                    className="workspace-edge-overlay__input"
                     placeholder="Nom du serveur…"
                     value={draftName}
                     disabled={!canCreate}
@@ -347,12 +388,12 @@ export default function WorkspaceOverlay() {
                     }}
                   />
                   {createError ? (
-                    <p className="workspace-modal__error">{createError}</p>
+                    <p className="workspace-edge-overlay__error">{createError}</p>
                   ) : null}
                   {!canCreate ? (
                     <button
                       type="button"
-                      className="workspace-modal__upgrade"
+                      className="workspace-edge-overlay__upgrade"
                       onClick={() => {
                         closePanel();
                         setSettingsTab("usage");
@@ -366,7 +407,7 @@ export default function WorkspaceOverlay() {
                   ) : null}
                   <button
                     type="submit"
-                    className="workspace-modal__cta workspace-modal__cta--primary"
+                    className="workspace-edge-overlay__cta workspace-edge-overlay__cta--primary"
                     disabled={!canCreate || !draftName.trim()}
                   >
                     <Plus size={16} aria-hidden />
@@ -375,12 +416,12 @@ export default function WorkspaceOverlay() {
                 </form>
               ) : (
                 <form
-                  className="workspace-modal__form"
+                  className="workspace-edge-overlay__form"
                   onSubmit={(e) => void onRequestJoin(e)}
                 >
                   <input
                     type="text"
-                    className="workspace-modal__input"
+                    className="workspace-edge-overlay__input"
                     placeholder="Lien ou identifiant du serveur…"
                     value={joinId}
                     disabled={joinBusy}
@@ -392,14 +433,14 @@ export default function WorkspaceOverlay() {
                     }}
                   />
                   {joinError ? (
-                    <p className="workspace-modal__error">{joinError}</p>
+                    <p className="workspace-edge-overlay__error">{joinError}</p>
                   ) : null}
                   {joinSent ? (
-                    <p className="workspace-modal__success">Demande envoyée.</p>
+                    <p className="workspace-edge-overlay__success">Demande envoyée.</p>
                   ) : null}
                   <button
                     type="submit"
-                    className="workspace-modal__cta workspace-modal__cta--primary"
+                    className="workspace-edge-overlay__cta workspace-edge-overlay__cta--primary"
                     disabled={joinBusy || !joinId.trim()}
                   >
                     <UsersRound size={16} aria-hidden />

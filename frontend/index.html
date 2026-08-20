@@ -1,17 +1,92 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="app-loading-splash">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#121212" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#00000000" />
+    <meta name="color-scheme" content="only light" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <title>Hall</title>
+    <title>Meetra</title>
+    <style>
+      html.app-loading-splash,
+      html.app-loading-splash body,
+      html.app-loading-splash #root {
+        background: transparent !important;
+        color-scheme: only light !important;
+        height: 100%;
+        margin: 0;
+      }
+      html.app-loading-splash body {
+        overflow: hidden;
+      }
+      .app-loading-screen {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+      }
+      .app-loading-screen__window {
+        position: relative;
+        display: flex;
+        width: 300px;
+        height: 425px;
+        flex-shrink: 0;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: #1a1a1a;
+        border: 1px solid #333;
+        border-radius: 12px;
+        box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
+        -webkit-app-region: drag;
+      }
+      .app-loading-screen__brand {
+        position: absolute;
+        left: 0;
+        top: 0;
+        padding: 12px 16px;
+        color: #c8c8c8;
+        font: 600 14px/1.2 system-ui, sans-serif;
+        letter-spacing: 0.025em;
+      }
+      .app-loading-screen__spinner {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 2px solid #2a2a2a;
+        border-top-color: rgb(200 200 200 / 0.85);
+        animation: app-loading-spin 0.75s linear infinite;
+      }
+      .app-loading-screen__footer {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        padding-bottom: 16px;
+        text-align: center;
+        color: #737373;
+        font: 400 10px/1.2 system-ui, sans-serif;
+      }
+      @keyframes app-loading-spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="app-loading-screen" role="status">
+        <div class="app-loading-screen__window">
+          <header class="app-loading-screen__brand">Meetra</header>
+          <div class="app-loading-screen__spinner" role="progressbar" aria-label="Loading…" aria-busy="true"></div>
+          <footer class="app-loading-screen__footer">Powered by GB Studio</footer>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

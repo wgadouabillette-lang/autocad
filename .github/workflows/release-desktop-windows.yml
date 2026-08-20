@@ -119,7 +119,7 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           EVS_ACCOUNT_NAME: ${{ secrets.EVS_ACCOUNT_NAME }}
           EVS_PASSWD: ${{ secrets.EVS_PASSWD }}
-        run: npx electron-builder --config electron-builder.config.cjs --win nsis
+        run: npx electron-builder --config electron-builder.config.cjs --win nsis --publish never
 
       - name: List build output
         run: dir desktop\release
@@ -140,8 +140,10 @@ jobs:
         with:
           files: |
             desktop/release/*.exe
+            desktop/release/*.yml
+            desktop/release/*.blockmap
             landing/public/downloads/Hall.exe
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -149,6 +151,8 @@ jobs:
           name: Hall-windows-installer
           path: |
             desktop/release/*.exe
+            desktop/release/latest.yml
+            desktop/release/*.blockmap
             landing/public/downloads/Hall.exe
           if-no-files-found: error
           retention-days: 30

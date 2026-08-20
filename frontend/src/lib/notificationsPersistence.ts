@@ -81,7 +81,9 @@ export function activeNotifications(
   return items.filter(
     (item) =>
       !DISABLED_NOTIFICATION_KINDS.has(item.kind) &&
-      (item.kind === "friend_request" || (!item.read && !seen.has(item.id))),
+      (item.kind === "friend_request" ||
+        item.kind === "workspace_invite" ||
+        (!item.read && !seen.has(item.id))),
   );
 }
 

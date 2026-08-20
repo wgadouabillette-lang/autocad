@@ -8,11 +8,10 @@ import { useStore } from "../../store/useStore";
 import CallBlockCard, { CALL_BLOCK_AVATAR_SLOTS } from "./CallBlockCard";
 
 interface OpenVoiceChannelBlockProps {
-  index?: number;
   channel: OpenVoiceChannel;
 }
 
-export default function OpenVoiceChannelBlock({ index = 0, channel }: OpenVoiceChannelBlockProps) {
+export default function OpenVoiceChannelBlock({ channel }: OpenVoiceChannelBlockProps) {
   const activeRoomId = useStore((s) => s.activeRoomId);
   const inCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
   const localChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
@@ -64,11 +63,9 @@ export default function OpenVoiceChannelBlock({ index = 0, channel }: OpenVoiceC
       <CallBlockCard
         className={clsx(
           "call-block",
-          "call-block--cascade",
           "call-block--center-slot",
           "call-block--draft",
         )}
-        style={{ animationDelay: `${index * 20}ms` }}
         title=""
         titleContent={
           <form className="open-channel-draft-form" onSubmit={handleDraftSubmit}>
@@ -126,14 +123,12 @@ export default function OpenVoiceChannelBlock({ index = 0, channel }: OpenVoiceC
     <CallBlockCard
       className={clsx(
         "call-block",
-        "call-block--cascade",
         "call-block--center-slot",
         "call-block--open-channel",
         canJoin && "call-block--clickable",
         isHere && "call-block--local",
         hasRemoteParticipants && "call-block--connected",
       )}
-      style={{ animationDelay: `${index * 20}ms` }}
       title={channel.name}
       participants={channel.participants}
       participantLayout="avatars"

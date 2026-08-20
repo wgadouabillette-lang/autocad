@@ -17,7 +17,6 @@ import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore
 import CallBlockCard, { CALL_BLOCK_PRIVATE_AVATAR_SLOTS } from "./CallBlockCard";
 
 interface CallBlockProps {
-  index?: number;
   block: CallBlockType;
   blocks: CallBlockType[];
   requests: JoinRequest[];
@@ -26,7 +25,6 @@ interface CallBlockProps {
 }
 
 export default function CallBlock({
-  index = 0,
   block,
   blocks,
   requests,
@@ -89,7 +87,6 @@ export default function CallBlock({
     <CallBlockCard
       className={clsx(
         "call-block",
-        "call-block--cascade",
         "call-block--private",
         layout === "side" && "call-block--side",
         isLocal && blockActive && "call-block--local",
@@ -101,7 +98,6 @@ export default function CallBlock({
         isActionable && !isOffline && "call-block--clickable",
         (incoming || outgoing) && "call-block--pending",
       )}
-      style={{ animationDelay: `${index * 20}ms` }}
       title={blockHeaderTitle(block)}
       participants={block.participants}
       participantLayout="avatars"

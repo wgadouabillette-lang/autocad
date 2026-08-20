@@ -21,7 +21,7 @@ export const NOTIFICATION_PREVIEW_FIXTURES: AppNotification[] = [
     kind: "meeting",
     category: "Calendar",
     title: "Connect your Calendar",
-    body: "Sync Google Calendar or Outlook to see meetings in Hall.",
+    body: "Sync Google Calendar or Outlook to see meetings in Meetra.",
   }),
   fixture("recording-saved", {
     kind: "recording",

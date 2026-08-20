@@ -8,6 +8,7 @@ import {
   type NotificationKind,
 } from "../../store/useNotificationsStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
+import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import { useVoicePollStore } from "../../store/useVoicePollStore";
 import { hasFormaDesktop } from "../../lib/formaDesktop";
 import { shouldShowPollToUser } from "../../lib/voicePoll";
@@ -31,6 +32,7 @@ const DEFAULT_CATEGORY: Record<NotificationKind, string> = {
   new_feature: "Update available",
   app_update: "Mise à jour",
   friend_request: "Team",
+  workspace_invite: "Workspace",
   message: "Messages",
   subscription: "Billing",
   renewal: "Renewal",
@@ -53,6 +55,7 @@ const VISUAL_BY_KIND: Record<NotificationKind, string> = {
   new_feature: "notifications-panel__visual--feature",
   app_update: "notifications-panel__visual--feature",
   friend_request: "notifications-panel__visual--friend",
+  workspace_invite: "notifications-panel__visual--friend",
   message: "notifications-panel__visual--friend",
   subscription: "notifications-panel__visual--subscription",
   renewal: "notifications-panel__visual--renewal",
@@ -111,6 +114,8 @@ export default function NotificationsPanel({
   const nextNotification = useNotificationsStore((s) => s.nextNotification);
   const acceptFriendRequest = usePeopleStore((s) => s.acceptFriendRequest);
   const declineFriendRequest = usePeopleStore((s) => s.declineFriendRequest);
+  const acceptWorkspaceInvite = useWorkspacesStore((s) => s.acceptWorkspaceInvite);
+  const declineWorkspaceInvite = useWorkspacesStore((s) => s.declineWorkspaceInvite);
   const openMessageFromNotification = usePeopleStore((s) => s.openMessageFromNotification);
   const workspaceId = useStore((s) => s.activeRoomId);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
@@ -120,6 +125,7 @@ export default function NotificationsPanel({
   const [panelPos, setPanelPos] = useState<PanelPosition | null>(null);
   const [updateBusy, setUpdateBusy] = useState(false);
   const [friendActionBusy, setFriendActionBusy] = useState(false);
+  const [workspaceInviteBusy, setWorkspaceInviteBusy] = useState(false);
 
   const updatePanelPosition = useCallback(() => {
     const anchor = anchorRef.current;
@@ -213,6 +219,28 @@ export default function NotificationsPanel({
       removeNotification(item.id);
     } finally {
       setFriendActionBusy(false);
+    }
+  };
+
+  const handleWorkspaceInviteAccept = async () => {
+    if (!item?.workspaceInviteId || workspaceInviteBusy) return;
+    setWorkspaceInviteBusy(true);
+    try {
+      await acceptWorkspaceInvite(item.workspaceInviteId);
+      removeNotification(item.id);
+    } finally {
+      setWorkspaceInviteBusy(false);
+    }
+  };
+
+  const handleWorkspaceInviteDecline = async () => {
+    if (!item?.workspaceInviteId || workspaceInviteBusy) return;
+    setWorkspaceInviteBusy(true);
+    try {
+      await declineWorkspaceInvite(item.workspaceInviteId);
+      removeNotification(item.id);
+    } finally {
+      setWorkspaceInviteBusy(false);
     }
   };
 
@@ -314,6 +342,7 @@ export default function NotificationsPanel({
                 className={clsx(
                   "notifications-panel__actions",
                   (item.kind === "friend_request" ||
+                    item.kind === "workspace_invite" ||
                     item.kind === "app_update" ||
                     isRecordingSavedNotification(item)) &&
                     "notifications-panel__actions--split",
@@ -354,6 +383,26 @@ export default function NotificationsPanel({
                       className="chat-connectors-row__connect"
                       disabled={friendActionBusy}
                       onClick={() => void handleFriendRequestAccept()}
+                    >
+                      Accept
+                      <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
+                    </button>
+                  </>
+                ) : item.kind === "workspace_invite" && item.workspaceInviteId ? (
+                  <>
+                    <button
+                      type="button"
+                      className="chat-connectors-row__connect"
+                      disabled={workspaceInviteBusy}
+                      onClick={() => void handleWorkspaceInviteDecline()}
+                    >
+                      Decline
+                    </button>
+                    <button
+                      type="button"
+                      className="chat-connectors-row__connect"
+                      disabled={workspaceInviteBusy}
+                      onClick={() => void handleWorkspaceInviteAccept()}
                     >
                       Accept
                       <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />

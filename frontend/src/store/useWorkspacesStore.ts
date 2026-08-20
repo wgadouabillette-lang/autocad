@@ -15,6 +15,7 @@ import { auth } from "../lib/firebase/client";
 import {
   fetchJoinRequestForUser,
   fetchSharedWorkspace,
+  fetchWorkspaceMember,
   deleteSharedWorkspace,
   grantWorkspaceMember,
   publishSharedWorkspace,
@@ -32,7 +33,13 @@ import {
   canCreateOwnedWorkspace,
   FREE_OWNED_WORKSPACE_LIMIT,
 } from "../lib/subscriptionPlans";
-import { saveUserWorkspaces } from "../lib/firebase/userData";
+import {
+  createIncomingWorkspaceInvite,
+  deleteIncomingWorkspaceInvite,
+  fetchIncomingWorkspaceInvite,
+  findUserDirectoryByEmail,
+} from "../lib/firebase/userData";
+import { syncWorkspacesToCloudNow } from "../lib/firebase/workspaceCloudSync";
 import { resolveActiveWorkspaceId } from "../lib/lastActiveWorkspace";
 import { useCallsStore } from "./useCallsStore";
 import { useStore } from "./useStore";
@@ -133,6 +140,12 @@ interface WorkspacesState extends PersistedState {
     workspaceId: string,
     profile: { uid: string; displayName: string; email: string },
   ) => Promise<void>;
+  inviteMemberByEmail: (
+    workspaceId: string,
+    email: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  acceptWorkspaceInvite: (workspaceId: string) => Promise<void>;
+  declineWorkspaceInvite: (workspaceId: string) => Promise<void>;
   respondJoinRequest: (
     workspaceId: string,
     requesterUid: string,
@@ -473,11 +486,33 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   applySharedWorkspaceSettings: (workspaceId, patch) => {
     const normalized = normalizeWorkspaceId(workspaceId);
     set((state) => {
-      const inCustom = state.customServers.some((server) => server.id === normalized);
-      if (!inCustom) return state;
+      const server = state.customServers.find((entry) => entry.id === normalized);
+      if (!server) return state;
 
-      const customServers = state.customServers.map((server) =>
-        server.id === normalized ? { ...server, ...patch } : server,
+      const nextName = patch.name !== undefined ? patch.name : server.name;
+      const nextIconURL = patch.iconURL !== undefined ? patch.iconURL : server.iconURL;
+      const nextMembersCanInvite =
+        patch.membersCanInvite !== undefined ? patch.membersCanInvite : server.membersCanInvite;
+
+      if (
+        nextName === server.name &&
+        nextIconURL === server.iconURL &&
+        nextMembersCanInvite === server.membersCanInvite
+      ) {
+        return state;
+      }
+
+      const customServers = state.customServers.map((entry) =>
+        entry.id === normalized
+          ? {
+              ...entry,
+              ...(patch.name !== undefined ? { name: patch.name } : {}),
+              ...(patch.iconURL !== undefined ? { iconURL: patch.iconURL } : {}),
+              ...(patch.membersCanInvite !== undefined
+                ? { membersCanInvite: patch.membersCanInvite }
+                : {}),
+            }
+          : entry,
       );
       writePersisted({ customServers, memberships: state.memberships });
       return { customServers };
@@ -495,6 +530,119 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     }
     await requestWorkspaceJoin(normalized, profile);
     get().addPendingJoinRequest(normalized);
+  },
+
+  inviteMemberByEmail: async (workspaceId, email) => {
+    const normalized = normalizeWorkspaceId(workspaceId);
+    const actorUid = currentMembershipUserId();
+    if (!get().canManageWorkspaceInvites(normalized, actorUid)) {
+      return { ok: false, error: "Vous n'avez pas la permission d'inviter des membres." };
+    }
+    const currentUser = auth.currentUser;
+    if (!currentUser?.uid) {
+      return { ok: false, error: "Connectez-vous pour inviter un membre." };
+    }
+
+    const emailNorm = email.trim().toLowerCase();
+    if (!emailNorm.includes("@") || emailNorm.length < 5) {
+      return { ok: false, error: "Adresse email invalide." };
+    }
+    if (currentUser.email?.trim().toLowerCase() === emailNorm) {
+      return { ok: false, error: "Vous ne pouvez pas vous inviter vous-même." };
+    }
+
+    const directoryUser = await findUserDirectoryByEmail(emailNorm).catch(() => null);
+    if (!directoryUser?.uid) {
+      return {
+        ok: false,
+        error: "Aucun compte Meetra avec cette adresse. La personne doit d'abord créer un compte.",
+      };
+    }
+    if (directoryUser.uid === actorUid || directoryUser.uid === currentUser.uid) {
+      return { ok: false, error: "Vous ne pouvez pas vous inviter vous-même." };
+    }
+
+    const workspace = get().findWorkspace(normalized);
+    if (workspace) {
+      try {
+        await ensureSharedWorkspacePublished(workspace, actorUid);
+      } catch {
+        // L'invitation échouera clairement si le workspace cloud n'existe pas.
+      }
+    }
+
+    const existing = await fetchWorkspaceMember(normalized, directoryUser.uid).catch(() => null);
+    if (existing) {
+      return { ok: false, error: "Cette personne est déjà membre du workspace." };
+    }
+
+    const pendingInvite = await fetchIncomingWorkspaceInvite(directoryUser.uid, normalized).catch(
+      () => null,
+    );
+    if (pendingInvite) {
+      return { ok: false, error: "Une invitation est déjà en attente pour cette personne." };
+    }
+
+    try {
+      await createIncomingWorkspaceInvite(directoryUser.uid, {
+        workspaceId: normalized,
+        workspaceName: workspace?.name?.trim() || "Workspace",
+        invitedByUid: currentUser.uid,
+        invitedByName: useStore.getState().userDisplayName.trim() || "Membre",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Impossible d'envoyer l'invitation.";
+      return { ok: false, error: message };
+    }
+    return { ok: true };
+  },
+
+  acceptWorkspaceInvite: async (workspaceId) => {
+    const normalized = normalizeWorkspaceId(workspaceId);
+    const currentUser = auth.currentUser;
+    if (!currentUser?.uid) {
+      throw new Error("Connectez-vous pour accepter l'invitation.");
+    }
+    const invite = await fetchIncomingWorkspaceInvite(currentUser.uid, normalized);
+    if (!invite) {
+      throw new Error("Invitation introuvable ou déjà traitée.");
+    }
+
+    const displayName =
+      useStore.getState().userDisplayName.trim() ||
+      currentUser.displayName?.trim() ||
+      currentUser.email?.split("@")[0] ||
+      "Membre";
+    const email = currentUser.email?.trim().toLowerCase() || "";
+
+    // Must grant while the invite doc still exists (Firestore rules).
+    await grantWorkspaceMember(normalized, {
+      uid: currentUser.uid,
+      displayName,
+      email,
+    });
+    const added = await acceptSharedWorkspaceJoin(normalized, currentUser.uid);
+    const isMember = Boolean(get().membershipIn(normalized, currentUser.uid));
+    if (!isMember) {
+      throw new Error("Impossible de rejoindre le workspace.");
+    }
+    await deleteIncomingWorkspaceInvite(currentUser.uid, normalized);
+    if (added) {
+      const { useAuthStore } = await import("./useAuthStore");
+      await useAuthStore.getState().syncWorkspacesToCloud();
+    }
+  },
+
+  declineWorkspaceInvite: async (workspaceId) => {
+    const normalized = normalizeWorkspaceId(workspaceId);
+    const currentUser = auth.currentUser;
+    if (!currentUser?.uid) {
+      throw new Error("Connectez-vous pour refuser l'invitation.");
+    }
+    await deleteIncomingWorkspaceInvite(currentUser.uid, normalized);
   },
 
   respondJoinRequest: async (workspaceId, requesterUid, accept, requester) => {
@@ -576,13 +724,13 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       if (!isOwner) continue;
 
       const nextOwnerId = firebaseUid;
-      const nextServer =
-        server.ownerId === nextOwnerId ? server : { ...server, ownerId: nextOwnerId };
-      if (nextServer !== server) {
-        changed = true;
-        customServers = [...customServers];
-        customServers[index] = nextServer;
-      }
+      if (server.ownerId === nextOwnerId) continue;
+
+      changed = true;
+      const nextServer = { ...server, ownerId: nextOwnerId };
+      customServers = [...customServers];
+      customServers[index] = nextServer;
+      // Republier seulement quand le ownerId local change (plus à chaque login).
       void publishSharedWorkspace(nextServer).catch(() => {});
     }
 
@@ -621,7 +769,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     };
 
     await ensureSharedWorkspacePublished(prepared, firebaseUid);
-    await saveUserWorkspaces(firebaseUid, {
+    await syncWorkspacesToCloudNow(firebaseUid, {
       customServers: get().customServers,
       memberships: get().memberships,
     });
@@ -646,7 +794,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     syncActiveWorkspace(get().joinedWorkspaces(memberUid), memberUid);
     const uid = auth.currentUser?.uid;
     if (uid) {
-      void saveUserWorkspaces(uid, {
+      void syncWorkspacesToCloudNow(uid, {
         customServers: get().customServers,
         memberships: get().memberships,
       }).catch(() => {});
@@ -665,7 +813,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       get().leaveWorkspace(normalized, memberUid);
       const uid = auth.currentUser?.uid;
       if (uid) {
-        await saveUserWorkspaces(uid, {
+        await syncWorkspacesToCloudNow(uid, {
           customServers: get().customServers,
           memberships: get().memberships,
         });
@@ -707,7 +855,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
 
     const uid = auth.currentUser?.uid;
     if (uid) {
-      await saveUserWorkspaces(uid, {
+      await syncWorkspacesToCloudNow(uid, {
         customServers: get().customServers,
         memberships: get().memberships,
       });
@@ -741,7 +889,13 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   },
 
   stripLegacyPublicWorkspaces: () => {
-    set((state) => {
+    const state = get();
+    const hasLegacy =
+      state.customServers.some((server) => isLegacyPublicWorkspaceId(server.id)) ||
+      state.memberships.some((entry) => isLegacyPublicWorkspaceId(entry.workspaceId));
+    if (!hasLegacy) return;
+
+    set(() => {
       const next = sanitizePersisted({
         customServers: state.customServers,
         memberships: state.memberships,

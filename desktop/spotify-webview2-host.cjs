@@ -138,9 +138,28 @@ function handleCommand(line) {
         case "toggle":
           await evaluate("toggle");
           break;
-        case "getPosition":
-          writeLine({ event: "position", sec: await evaluate("getPositionSec") });
+        case "setVolume":
+          await evaluate("setVolume", msg.volume);
           break;
+        case "getPosition": {
+          const clock = await evaluate("getPlaybackClock");
+          if (commandId) {
+            writeLine({
+              event: "cmd-result",
+              id: commandId,
+              ok: true,
+              sec: clock?.sec ?? null,
+              durationSec: clock?.durationSec ?? null,
+            });
+            return;
+          }
+          writeLine({
+            event: "position",
+            sec: clock?.sec ?? null,
+            durationSec: clock?.durationSec ?? null,
+          });
+          break;
+        }
         case "reset":
           await evaluate("reset");
           break;
@@ -175,7 +194,7 @@ process.stdin.on("close", () => {
   process.exit(0);
 });
 
-win = create_window("Hall Spotify", playerHtml, {
+win = create_window("Meetra Spotify", playerHtml, {
   width: 480,
   height: 320,
   hidden: true,

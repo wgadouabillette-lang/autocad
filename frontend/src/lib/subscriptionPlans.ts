@@ -33,7 +33,7 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
     features: [
       "Serveurs personnels illimités",
       "Crédits IA mensuels inclus",
-      "Assistant IA dans tout Hall",
+      "Assistant IA dans tout Meetra",
       "AI Notes et Follow-up",
       "Choix du modèle IA",
     ],

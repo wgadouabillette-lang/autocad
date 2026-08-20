@@ -6,7 +6,6 @@ import CallBlockCard from "./CallBlockCard";
 import TheaterBlockPreview from "./TheaterBlockPreview";
 
 interface TheaterBlockProps {
-  index?: number;
   theater: TheaterState;
   onOpen: () => void;
   layout?: "default" | "center";
@@ -23,7 +22,6 @@ function speakerIsSpeaking(
 }
 
 export default function TheaterBlock({
-  index = 0,
   theater,
   onOpen,
   layout = "default",
@@ -40,13 +38,11 @@ export default function TheaterBlock({
     <CallBlockCard
       className={clsx(
         "call-block",
-        "call-block--cascade",
         "call-block--clickable",
         "call-block--theater",
         liveStroke && "call-block--theater-live",
         layout === "center" && "call-block--center-slot",
       )}
-      style={{ animationDelay: `${index * 20}ms` }}
       title="Théâtre"
       participants={[]}
       showActivity={false}

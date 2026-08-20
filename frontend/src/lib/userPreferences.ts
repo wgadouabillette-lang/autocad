@@ -56,9 +56,9 @@ export interface UserPreferences {
   calendarWorkStartMinutes: number;
   /** Minutes from midnight — default working-day end for calendar + /manage. */
   calendarWorkEndMinutes: number;
-  /** Spotify Hall DJ default genre seed (e.g. pop, country). */
+  /** Spotify Meetra DJ default genre seed (e.g. pop, country). */
   hallDjPreferredGenre: string;
-  /** Hall DJ / Spotify in-app playback volume (0–1). */
+  /** Meetra DJ / Spotify in-app playback volume (0–1). */
   hallDjVolume: number;
 }
 

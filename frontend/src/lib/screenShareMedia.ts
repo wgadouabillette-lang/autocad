@@ -19,7 +19,8 @@ export function getScreenShareStream(): MediaStream | null {
   return screenShareStream;
 }
 
-async function ensureDesktopScreenCaptureAllowed(): Promise<void> {
+/** Preflight OS screen-recording permission (desktop). Shared by share + recording. */
+export async function ensureDesktopScreenCaptureAllowed(): Promise<void> {
   if (!hasFormaDesktop()) return;
   const info = await getScreenCaptureAccessInfo();
   if (!info) return;
@@ -47,7 +48,7 @@ export async function startScreenShare(): Promise<MediaStream> {
       throw new Error(
         info
           ? screenCaptureSettingsHint(info.platform)
-          : "Autorisez l'enregistrement d'écran pour Hall dans les réglages système.",
+          : "Autorisez l'enregistrement d'écran pour Meetra dans les réglages système.",
       );
     }
     // Some environments reject audio:true — fall back to video-only share.

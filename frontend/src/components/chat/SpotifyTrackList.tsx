@@ -6,15 +6,18 @@ import { connectorIconPath, CONNECTOR_ICON_FILES } from "../../lib/connectorIcon
 import { primeSpotifyPreviewAudio } from "../../lib/spotifyAudioPulse";
 import { primeSpotifyWebAudioUnlock } from "../../lib/spotifyWebPlayback";
 import { useSpotifyPlayerStore } from "../../store/useSpotifyPlayerStore";
+import { useStore } from "../../store/useStore";
 
 export default function SpotifyTrackList({
   tracks,
   compact = false,
   mode = "play",
+  chatIndex,
 }: {
   tracks: SpotifyTrackCard[];
   compact?: boolean;
   mode?: "play" | "queue-add";
+  chatIndex?: number;
 }) {
   const currentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
   const playing = useSpotifyPlayerStore((s) => s.playing);
@@ -23,6 +26,7 @@ export default function SpotifyTrackList({
   const addToQueue = useSpotifyPlayerStore((s) => s.addToQueue);
   const isTrackQueued = useSpotifyPlayerStore((s) => s.isTrackQueued);
   const refreshPlayerConfig = useSpotifyPlayerStore((s) => s.refreshPlayerConfig);
+  const clearSpotifySearchResults = useStore((s) => s.clearSpotifySearchResults);
 
   useEffect(() => {
     void refreshPlayerConfig();
@@ -110,6 +114,9 @@ export default function SpotifyTrackList({
                     onClick={() => {
                       primeSpotifyPreviewAudio();
                       primeSpotifyWebAudioUnlock();
+                      if (typeof chatIndex === "number") {
+                        clearSpotifySearchResults(chatIndex);
+                      }
                       void playTrack(track);
                     }}
                     aria-label={isPlaying ? "Pause" : "Lire dans l'app"}

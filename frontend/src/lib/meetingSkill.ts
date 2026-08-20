@@ -149,7 +149,7 @@ export async function runMeetingSkill(input: {
     source: "meeting-skill",
   };
 
-  await createUserCalendarEvents(
+  const createResult = await createUserCalendarEvents(
     [
       {
         title,
@@ -182,9 +182,15 @@ export async function runMeetingSkill(input: {
   }
 
   const attendeeNames = mentions.map((m) => m.person.name).join(", ");
+  const googleNote =
+    createResult.googleSynced > 0
+      ? ""
+      : createResult.googleConnected || createResult.googleError
+        ? " L'événement est dans Meetra, mais la sync Google a échoué — reconnectez Google Calendar dans Paramètres → Plugins."
+        : " Connectez Google Calendar dans Paramètres → Plugins pour le synchroniser.";
   return {
     ok: true,
-    summary: `Réunion planifiée le **${dayLabel}** de ${draft.startTime} à ${draft.endTime} avec ${attendeeNames}. L'événement est dans votre calendrier et les invitations ont été envoyées.`,
+    summary: `Réunion planifiée le **${dayLabel}** de ${draft.startTime} à ${draft.endTime} avec ${attendeeNames}. L'événement est dans votre calendrier et les invitations ont été envoyées.${googleNote}`,
     event,
     invitedCount: mentions.length,
   };

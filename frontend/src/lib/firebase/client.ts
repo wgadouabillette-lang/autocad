@@ -15,7 +15,11 @@ import {
   type User,
 } from "firebase/auth";
 import { getDatabase } from "firebase/database";
-import { getFirestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getStorage } from "firebase/storage";
 import { shouldFallbackToOAuthRedirect } from "./authErrors";
@@ -28,7 +32,11 @@ const app = initializeApp({
   authDomain: resolveAuthDomain(),
 });
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+});
 export const rtdb = getDatabase(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, functionsRegion);

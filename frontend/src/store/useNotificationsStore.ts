@@ -14,6 +14,7 @@ import {
 
 export type NotificationKind =
   | "friend_request"
+  | "workspace_invite"
   | "message"
   | "new_feature"
   | "app_update"
@@ -33,6 +34,7 @@ export interface AppNotification {
   createdAt: number;
   read: boolean;
   friendRequestId?: string;
+  workspaceInviteId?: string;
   messageThreadId?: string;
   messagePersonId?: string;
   messagePersonName?: string;
@@ -51,6 +53,14 @@ export interface FriendRequestNotificationInput {
   createdAt: number;
 }
 
+export interface WorkspaceInviteNotificationInput {
+  id: string;
+  workspaceInviteId: string;
+  title: string;
+  body: string;
+  createdAt: number;
+}
+
 interface NotificationsState {
   items: AppNotification[];
   panelOpen: boolean;
@@ -61,6 +71,7 @@ interface NotificationsState {
   unreadCount: () => number;
   hydrate: (email: string | null) => void;
   syncFriendRequests: (requests: FriendRequestNotificationInput[]) => void;
+  syncWorkspaceInvites: (invites: WorkspaceInviteNotificationInput[]) => void;
   togglePanel: () => void;
   openPanel: () => void;
   closePanel: () => void;
@@ -160,6 +171,47 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     });
   },
 
+  syncWorkspaceInvites: (invites) => {
+    if (isNotificationsPreviewAllEnabled()) return;
+    set((s) => {
+      const activeInviteIds = new Set(invites.map((invite) => invite.workspaceInviteId));
+      const existingByInviteId = new Map(
+        s.items
+          .filter((item) => item.kind === "workspace_invite" && item.workspaceInviteId)
+          .map((item) => [item.workspaceInviteId!, item]),
+      );
+      const inviteNotifications: AppNotification[] = invites.map((invite) => {
+        const existing = existingByInviteId.get(invite.workspaceInviteId);
+        return {
+          id: invite.id,
+          kind: "workspace_invite",
+          category: "Workspace",
+          title: invite.title,
+          body: invite.body,
+          createdAt: existing?.createdAt ?? invite.createdAt,
+          read: false,
+          workspaceInviteId: invite.workspaceInviteId,
+        };
+      });
+      const otherItems = s.items.filter(
+        (item) =>
+          item.kind !== "workspace_invite" ||
+          !item.workspaceInviteId ||
+          activeInviteIds.has(item.workspaceInviteId),
+      );
+      const otherNonInviteItems = otherItems.filter((item) => item.kind !== "workspace_invite");
+      const items = commitItems(s.persistedEmail, [
+        ...inviteNotifications,
+        ...otherNonInviteItems,
+      ]);
+      return {
+        items,
+        currentIndex: firstUnreadIndex(items),
+        panelOpen: items.length > 0 ? s.panelOpen : false,
+      };
+    });
+  },
+
   togglePanel: () => {
     const { panelOpen, items, panelOpenGeneration } = get();
     if (!panelOpen && items.length === 0) return;
@@ -242,8 +294,12 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
       return;
     }
     set((s) => {
-      const dismissable = s.items.filter((n) => n.kind !== "friend_request");
-      const persistent = s.items.filter((n) => n.kind === "friend_request");
+      const dismissable = s.items.filter(
+        (n) => n.kind !== "friend_request" && n.kind !== "workspace_invite",
+      );
+      const persistent = s.items.filter(
+        (n) => n.kind === "friend_request" || n.kind === "workspace_invite",
+      );
       markNotificationsSeen(
         s.persistedEmail,
         dismissable.map((n) => n.id),

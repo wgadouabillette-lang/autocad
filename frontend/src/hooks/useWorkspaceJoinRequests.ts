@@ -4,6 +4,7 @@ import {
   watchPendingJoinRequests,
   watchSharedWorkspace,
 } from "../lib/firebase/workspaceRegistry";
+import { watchIncomingWorkspaceInvites } from "../lib/firebase/userData";
 import { useAuthStore } from "../store/useAuthStore";
 import { useNotificationsStore } from "../store/useNotificationsStore";
 import { useStore } from "../store/useStore";
@@ -11,6 +12,19 @@ import {
   acceptSharedWorkspaceJoin,
   useWorkspacesStore,
 } from "../store/useWorkspacesStore";
+
+function inviteCreatedAtMs(value: unknown): number {
+  if (
+    value &&
+    typeof value === "object" &&
+    "toMillis" in value &&
+    typeof (value as { toMillis: () => number }).toMillis === "function"
+  ) {
+    return (value as { toMillis: () => number }).toMillis();
+  }
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return Date.now();
+}
 
 export function useWorkspaceJoinRequests() {
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
@@ -22,6 +36,7 @@ export function useWorkspaceJoinRequests() {
   const removePendingJoinRequest = useWorkspacesStore((s) => s.removePendingJoinRequest);
   const reconcilePendingJoinRequests = useWorkspacesStore((s) => s.reconcilePendingJoinRequests);
   const pushNotification = useNotificationsStore((s) => s.push);
+  const syncWorkspaceInvites = useNotificationsStore((s) => s.syncWorkspaceInvites);
   const handledAcceptanceRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -68,6 +83,31 @@ export function useWorkspaceJoinRequests() {
       },
     );
   }, [activeRoomId, firebaseUid, isAuthenticated, canManageInvites, pushNotification]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !firebaseUid) {
+      syncWorkspaceInvites([]);
+      return;
+    }
+
+    return watchIncomingWorkspaceInvites(
+      firebaseUid,
+      (invites) => {
+        syncWorkspaceInvites(
+          invites.map((invite) => ({
+            id: `workspace-invite-${invite.workspaceId}`,
+            workspaceInviteId: invite.workspaceId,
+            title: "Invitation workspace",
+            body: `${invite.invitedByName} vous invite à rejoindre ${invite.workspaceName}.`,
+            createdAt: inviteCreatedAtMs(invite.createdAt),
+          })),
+        );
+      },
+      () => {
+        syncWorkspaceInvites([]);
+      },
+    );
+  }, [firebaseUid, isAuthenticated, syncWorkspaceInvites]);
 
   useEffect(() => {
     if (!isAuthenticated || !firebaseUid || pendingJoinRequests.length === 0) return;

@@ -122,7 +122,16 @@ function createUiServer({ distDir, apiHost, apiPort, listenHost, listenPort }) {
         if (!res.headersSent) {
           res.writeHead(503, { "Content-Type": "application/json; charset=utf-8" });
         }
-        res.end(JSON.stringify({ detail: "Hall backend unavailable" }));
+        res.end(JSON.stringify({ detail: "Meetra backend unavailable" }));
+      });
+      proxy.setTimeout(20000, () => {
+        proxy.destroy();
+        if (!res.headersSent) {
+          res.writeHead(504, { "Content-Type": "application/json; charset=utf-8" });
+        }
+        if (!res.writableEnded) {
+          res.end(JSON.stringify({ detail: "Meetra backend timeout" }));
+        }
       });
       req.pipe(proxy);
       return;

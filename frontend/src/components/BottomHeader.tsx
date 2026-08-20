@@ -6,7 +6,6 @@ import {
   Circle,
   BarChart3,
   Hand,
-  Loader2,
   MessageSquare,
   Mic,
   Sparkles,
@@ -44,7 +43,7 @@ import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
 import { useHallDjStore } from "../store/useHallDjStore";
 import { isMarketingPreview } from "../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
-import { warmSpotifyWebPlayer, primeSpotifyWebAudioUnlock } from "../lib/spotifyWebPlayback";
+import { warmSpotifyWebPlayer, activateSpotifyPlaybackFromUserGesture } from "../lib/spotifyWebPlayback";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
 import HallDjDiscoIcon from "./bottomBar/HallDjDiscoIcon";
 
@@ -158,9 +157,11 @@ export default function BottomHeader() {
   const queueAddFlashAt = useSpotifyPlayerStore((s) => s.queueAddFlashAt);
   const hallDjLoading = useHallDjStore((s) => s.loading);
   const hallDjActive = useHallDjStore((s) => s.active);
+  const hallDjError = useHallDjStore((s) => s.error);
   const startHallDj = useHallDjStore((s) => s.startDj);
   const skipHallDjTrack = useHallDjStore((s) => s.skipNext);
   const spotifyPremiumAvailable = useSpotifyPlayerStore((s) => s.premiumAvailable);
+  const spotifyPlayerNotice = useSpotifyPlayerStore((s) => s.playerNotice);
   const refreshSpotifyPlayerConfig = useSpotifyPlayerStore((s) => s.refreshPlayerConfig);
   const [queueShimmer, setQueueShimmer] = useState(false);
   const { connectedIds, connect, connectingId, statuses } = useConnectors();
@@ -226,7 +227,8 @@ export default function BottomHeader() {
     </BottomBarButton>
   );
 
-  const spotifyPlaybackActive = spotifyCurrentTrack != null;
+  const spotifyPlaybackActive =
+    spotifyCurrentTrack != null || hallDjActive || hallDjLoading;
   const spotifyStopLocked = isMarketingPreview() && spotifyPlaybackActive;
   const spotifyIconShimmerClass = queueShimmer ? "bottom-bar-btn__icon-shimmer" : undefined;
   const spotifyPulseLevel = useSpotifyAudioPulse();
@@ -240,7 +242,7 @@ export default function BottomHeader() {
   const footerPulseClass = spotifyPulseActive ? "app-bottom-header--spotify-pulse" : undefined;
 
   const spotifyLabel = spotifyPlaybackActive
-    ? spotifyPlaying
+    ? spotifyPlaying && spotifyCurrentTrack
       ? `Arrêter · ${spotifyCurrentTrack.name}`
       : "Arrêter la musique"
     : spotifyConnected
@@ -292,10 +294,14 @@ export default function BottomHeader() {
     </BottomBarButton>
   );
 
-  const showHallDjLoading = hallDjLoading && !hallDjActive;
-  const showHallDjSkip = hallDjActive;
+  const showHallDjLoading = hallDjLoading;
+  const showHallDjSkip = hallDjActive && !hallDjLoading;
   const hallDjPremiumLabel =
-    "Votre compte Spotify connecté doit être Premium pour utiliser le Hall DJ";
+    "Votre compte Spotify connecté doit être Premium pour utiliser le Meetra DJ";
+  const hallDjIdleLabel =
+    hallDjError?.trim() ||
+    (spotifyPlayerNotice?.includes("Meetra DJ") ? spotifyPlayerNotice : null) ||
+    "Démarrer le Meetra DJ";
 
   const spotifyDjButton = spotifyConnected ? (
     <BottomBarButton
@@ -303,10 +309,10 @@ export default function BottomHeader() {
         hallDjNeedsPremium && !showHallDjSkip
           ? hallDjPremiumLabel
           : showHallDjLoading
-            ? "Hall DJ…"
+            ? "Meetra DJ…"
             : showHallDjSkip
               ? "Chanson suivante"
-              : "Démarrer le Hall DJ"
+              : hallDjIdleLabel
       }
       onPointerEnter={primeSpotifyOnIntent}
       onFocus={primeSpotifyOnIntent}
@@ -325,15 +331,24 @@ export default function BottomHeader() {
           });
           return;
         }
-        primeSpotifyWebAudioUnlock();
-        void startHallDj();
+        void (async () => {
+          // Keep Spotify activateElement in the click gesture chain (cold DJ start).
+          await activateSpotifyPlaybackFromUserGesture();
+          await startHallDj();
+        })();
       }}
       disabled={showHallDjLoading || connectingId === "spotify"}
       active={showHallDjSkip || showHallDjLoading}
       className={hallDjNeedsPremium && !showHallDjSkip ? "bottom-bar-btn--wide-signet" : undefined}
     >
       {showHallDjLoading ? (
-        <Loader2 size={ICON_SIZE} aria-hidden className={clsx("animate-spin", spotifyIconShimmerClass)} />
+        <span
+          className="hall-dj-loading-icon"
+          style={{ width: ICON_SIZE, height: ICON_SIZE }}
+          aria-hidden
+        >
+          <span className="hall-dj-loading-icon__ring" />
+        </span>
       ) : showHallDjSkip ? (
         <SkipForward size={ICON_SIZE} aria-hidden className={spotifyIconShimmerClass} />
       ) : (

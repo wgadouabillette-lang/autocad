@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Génère l'icône Hall (Frame 11) pour macOS / Windows / landing."""
+"""Génère l'icône Meetra (Frame 11) pour macOS / Windows / landing."""
 from __future__ import annotations
 
 from pathlib import Path

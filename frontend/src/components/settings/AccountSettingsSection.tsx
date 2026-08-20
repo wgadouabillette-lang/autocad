@@ -109,7 +109,7 @@ export default function AccountSettingsSection() {
 
       <SettingsFieldRow
         label="Nom affiché"
-        description="Comment les autres vous voient dans Hall."
+        description="Comment les autres vous voient dans Meetra."
       >
         <input
           type="text"

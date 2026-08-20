@@ -6,7 +6,9 @@ import {
 } from "../lib/connectorsApi";
 import {
   cancelSpotifyPlaybackEnded,
+  clearSpotifyFullPlaybackLock,
   ensureSpotifyWebPlayer,
+  isSpotifyPlaybackStarting,
   pauseSpotifyWebPlayback,
   playSpotifyFullTrack,
   primeSpotifyWebAudioUnlock,
@@ -14,6 +16,7 @@ import {
   setSpotifyWebPlaybackEndedListener,
   setSpotifyWebPlaybackErrorListener,
   setSpotifyWebPlaybackListener,
+  stopSpotifyWebPlayback,
   warmSpotifyWebPlayer,
 } from "../lib/spotifyWebPlayback";
 import { hasFormaDesktop } from "../lib/formaDesktop";
@@ -26,6 +29,8 @@ import { useHallDjStore } from "./useHallDjStore";
 let sharedAudio: HTMLAudioElement | null = null;
 
 const PLAYER_CONFIG_TTL_MS = 5 * 60 * 1000;
+/** Bumped on Stop so in-flight playTrack cannot restart audio. */
+let playbackStopEpoch = 0;
 /** Bumped after Spotify Feb 2026 /me.product removal so stale premium=false caches refresh. */
 const PLAYER_CONFIG_CACHE_KEY = "forma-spotify-player-config-v2";
 let playerConfigInflight: Promise<void> | null = null;
@@ -156,6 +161,10 @@ interface SpotifyPlayerState {
 }
 
 setSpotifyWebPlaybackListener((playing) => {
+  // Ignore transient "paused" while the Web Playback device is still starting —
+  // otherwise /play lights the green pulse then immediately looks stopped.
+  if (!playing && isSpotifyPlaybackStarting()) return;
+
   const state = useSpotifyPlayerStore.getState();
   if (state.playbackMode === "full") {
     useSpotifyPlayerStore.setState({ playing });
@@ -218,7 +227,7 @@ setSpotifyWebPlaybackErrorListener(() => {
         playing: false,
         playbackMode: null,
         playerNotice: hasFormaDesktop()
-          ? "Lecture Spotify in-app bloquée (DRM). Lance ./scripts/sign-electron-widevine.sh puis relance Hall — comme le web."
+          ? "Lecture Spotify in-app bloquée (DRM). Lance ./scripts/sign-electron-widevine.sh puis relance Meetra — comme le web."
           : "Lecture complète indisponible.",
       });
     } finally {
@@ -274,6 +283,7 @@ function spotifyPlayerNotice(config: {
 }
 
 async function upgradePreviewToFullTrack(trackId: string): Promise<void> {
+  const stopEpoch = playbackStopEpoch;
   const state = useSpotifyPlayerStore.getState();
   let premium = state.premiumAvailable;
   let streamingScope = state.streamingScopeAvailable;
@@ -283,10 +293,15 @@ async function upgradePreviewToFullTrack(trackId: string): Promise<void> {
     streamingScope = useSpotifyPlayerStore.getState().streamingScopeAvailable;
   }
   if (!premium || streamingScope === false) return;
+  if (stopEpoch !== playbackStopEpoch) return;
 
   warmSpotifyWebPlayer(true);
   void ensureSpotifyWebPlayer({ premiumHint: true });
   const ok = await playSpotifyFullTrack(trackId);
+  if (stopEpoch !== playbackStopEpoch) {
+    void stopSpotifyWebPlayback();
+    return;
+  }
   if (!ok) return;
   useSpotifyPlayerStore.setState({
     playing: true,
@@ -296,9 +311,16 @@ async function upgradePreviewToFullTrack(trackId: string): Promise<void> {
   stopPreviewAudio({ silent: true });
 }
 
-async function startPlayback(track: SpotifyTrackCard, restart = false): Promise<boolean> {
+async function startPlayback(
+  track: SpotifyTrackCard,
+  restart = false,
+  stopEpoch: number,
+): Promise<boolean> {
+  if (stopEpoch !== playbackStopEpoch) return false;
+
   suppressTrackEnded = true;
   cancelSpotifyPlaybackEnded();
+  clearSpotifyFullPlaybackLock();
   const trackId = track.id?.trim();
   const preview = track.previewUrl?.trim();
 
@@ -312,21 +334,19 @@ async function startPlayback(track: SpotifyTrackCard, restart = false): Promise<
   });
 
   try {
-    if (preview) {
-      const heard = await playPreview(track, restart);
-      if (heard) {
-        warmSpotifyWebPlayer(true);
-        void ensureSpotifyWebPlayer({ premiumHint: true });
-        if (trackId) void upgradePreviewToFullTrack(trackId);
-        useSpotifyPlayerStore.setState({
-          playerNotice: hasFormaDesktop()
-            ? "Extrait 30 s — passage à la piste complète dès que le lecteur in-app est prêt."
-            : null,
-        });
-        return true;
-      }
+    if (stopEpoch !== playbackStopEpoch) {
+      stopPreviewAudio({ silent: true });
+      void stopSpotifyWebPlayback();
+      useSpotifyPlayerStore.setState({
+        playing: false,
+        currentTrack: null,
+        playbackMode: null,
+      });
+      return false;
     }
 
+    // Prefer full in-app playback when Premium is available — preview→upgrade races
+    // often flash the green pulse then stall on Electron.
     let premium = useSpotifyPlayerStore.getState().premiumAvailable;
     let streamingScope = useSpotifyPlayerStore.getState().streamingScopeAvailable;
     if ((premium === null || streamingScope === null) && trackId) {
@@ -338,21 +358,79 @@ async function startPlayback(track: SpotifyTrackCard, restart = false): Promise<
         premium = false;
         streamingScope = false;
       }
-    } else if (premium && streamingScope !== false) {
-      warmSpotifyWebPlayer(true);
-      void ensureSpotifyWebPlayer({ premiumHint: true });
+    }
+
+    if (stopEpoch !== playbackStopEpoch) {
+      stopPreviewAudio({ silent: true });
+      void stopSpotifyWebPlayback();
+      useSpotifyPlayerStore.setState({
+        playing: false,
+        currentTrack: null,
+        playbackMode: null,
+      });
+      return false;
     }
 
     if (trackId && premium && streamingScope !== false) {
-      stopPreviewAudio();
+      warmSpotifyWebPlayer(true);
+      await ensureSpotifyWebPlayer({ premiumHint: true });
+      if (stopEpoch !== playbackStopEpoch) {
+        stopPreviewAudio({ silent: true });
+        void stopSpotifyWebPlayback();
+        useSpotifyPlayerStore.setState({
+          playing: false,
+          currentTrack: null,
+          playbackMode: null,
+        });
+        return false;
+      }
       const ok = await playSpotifyFullTrack(trackId);
+      if (stopEpoch !== playbackStopEpoch) {
+        stopPreviewAudio({ silent: true });
+        void stopSpotifyWebPlayback();
+        useSpotifyPlayerStore.setState({
+          playing: false,
+          currentTrack: null,
+          playbackMode: null,
+        });
+        return false;
+      }
       if (ok) {
         useSpotifyPlayerStore.setState({ playing: true, playbackMode: "full", playerNotice: null });
         return true;
       }
+    }
+
+    if (preview) {
+      const heard = await playPreview(track, restart);
+      if (stopEpoch !== playbackStopEpoch) {
+        stopPreviewAudio({ silent: true });
+        void stopSpotifyWebPlayback();
+        useSpotifyPlayerStore.setState({
+          playing: false,
+          currentTrack: null,
+          playbackMode: null,
+        });
+        return false;
+      }
+      if (heard) {
+        if (trackId && premium && streamingScope !== false) {
+          void upgradePreviewToFullTrack(trackId);
+        }
+        useSpotifyPlayerStore.setState({
+          playerNotice:
+            trackId && premium && streamingScope !== false && hasFormaDesktop()
+              ? "Extrait 30 s — passage à la piste complète dès que le lecteur in-app est prêt."
+              : null,
+        });
+        return true;
+      }
+    }
+
+    if (trackId && premium && streamingScope !== false) {
       useSpotifyPlayerStore.setState({
         playerNotice: hasFormaDesktop()
-          ? "Lecture Spotify in-app bloquée (DRM Widevine). Lance ./scripts/sign-electron-widevine.sh puis relance Hall."
+          ? "Lecture Spotify in-app bloquée (DRM Widevine). Lance ./scripts/sign-electron-widevine.sh puis relance Meetra."
           : "Lecture complète indisponible. Déconnecte puis reconnecte Spotify dans Settings → Plugins.",
       });
     }
@@ -458,7 +536,11 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
         });
         if (config.premium && config.hasStreamingScope !== false) warmSpotifyWebPlayer(true);
       } catch {
-        set({ premiumAvailable: false, streamingScopeAvailable: false });
+        // Keep last known Premium state — a transient network blip must not
+        // flip Meetra DJ into a permanent "needs Premium" failure.
+        if (get().premiumAvailable === null) {
+          set({ premiumAvailable: null, streamingScopeAvailable: null });
+        }
       }
     })();
     try {
@@ -492,6 +574,7 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
     primeSpotifyWebAudioUnlock();
     const state = get();
     const { restart = false, skipHistory = false } = options;
+    const stopEpoch = playbackStopEpoch;
 
     if (
       !restart &&
@@ -514,7 +597,18 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
       }));
     }
 
-    const ok = await startPlayback(track, restart);
+    const ok = await startPlayback(track, restart, stopEpoch);
+    if (stopEpoch !== playbackStopEpoch) {
+      stopPreviewAudio({ silent: true });
+      void stopSpotifyWebPlayback();
+      set({
+        playing: false,
+        currentTrack: null,
+        playbackMode: null,
+        queue: [],
+      });
+      return false;
+    }
     recordHallDjPlay(track);
     set({ lastPlayedTrack: track });
     return ok;
@@ -611,35 +705,13 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
   },
 
   handleTrackEnded: () => {
-    // #region agent log
-    fetch("http://127.0.0.1:7941/ingest/bf77dbb7-04a4-446f-817c-db0d19c43744", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9c6d7b" },
-      body: JSON.stringify({
-        sessionId: "9c6d7b",
-        runId: "dj-auto-next",
-        hypothesisId: "C",
-        location: "useSpotifyPlayerStore.ts:handleTrackEnded",
-        message: "handleTrackEnded",
-        data: {
-          suppressTrackEnded,
-          handlingTrackEnded,
-          queueLen: get().queue.length,
-          trackId: get().currentTrack?.id ?? null,
-          playbackMode: get().playbackMode,
-          hallDj: useHallDjStore.getState().active,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     if (suppressTrackEnded || handlingTrackEnded) return;
     handlingTrackEnded = true;
     cancelSpotifyPlaybackEnded();
 
     void (async () => {
       try {
-        // Hall DJ: same action as the Next button.
+        // Meetra DJ: same action as the Next button.
         const hallDj = useHallDjStore.getState();
         if (hallDj.active) {
           await hallDj.skipNext();
@@ -670,9 +742,13 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
   },
 
   stop: () => {
-    stopPreviewAudio();
-    void pauseSpotifyWebPlayback();
+    const stopEpoch = ++playbackStopEpoch;
+    // Abort in-flight Meetra DJ start/skip first so it cannot restart audio after Stop.
     useHallDjStore.getState().stopDj();
+    suppressTrackEnded = true;
+    cancelSpotifyPlaybackEnded();
+    stopPreviewAudio({ silent: true });
+    void stopSpotifyWebPlayback();
     set({
       playing: false,
       currentTrack: null,
@@ -682,5 +758,21 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerState>((set, get) => ({
       history: [],
       lastPlayedTrack: null,
     });
+    // Re-assert hard stop after any in-flight playTrack/API call settles.
+    void (async () => {
+      await stopSpotifyWebPlayback();
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+      if (stopEpoch !== playbackStopEpoch) return;
+      stopPreviewAudio({ silent: true });
+      await stopSpotifyWebPlayback();
+      if (stopEpoch !== playbackStopEpoch) return;
+      set({
+        playing: false,
+        currentTrack: null,
+        playbackMode: null,
+        queue: [],
+      });
+      suppressTrackEnded = false;
+    })();
   },
 }));

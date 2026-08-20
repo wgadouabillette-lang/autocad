@@ -99,13 +99,66 @@ export function watchUserProfile(
     onChange(null);
     return () => {};
   }
-  return onSnapshot(
-    profileRef(uid),
-    (snap) => {
-      onChange(snap.exists() ? (snap.data() as UserProfileDoc) : null);
-    },
-    onError,
-  );
+
+  // Ref-counted: plusieurs hooks billing partagent un seul onSnapshot.
+  type Entry = {
+    unsub: Unsubscribe;
+    callbacks: Set<{
+      onChange: (profile: UserProfileDoc | null) => void;
+      onError?: (error: Error) => void;
+    }>;
+    last: UserProfileDoc | null;
+    hasValue: boolean;
+  };
+
+  const globalKey = "__hallUserProfileLive";
+  const root = globalThis as typeof globalThis & {
+    [globalKey]?: Map<string, Entry>;
+  };
+  if (!root[globalKey]) root[globalKey] = new Map();
+  const live = root[globalKey]!;
+
+  let entry = live.get(uid);
+  const callback = { onChange, onError };
+
+  if (!entry) {
+    entry = {
+      unsub: () => {},
+      callbacks: new Set(),
+      last: null,
+      hasValue: false,
+    };
+    live.set(uid, entry);
+    entry.unsub = onSnapshot(
+      profileRef(uid),
+      (snap) => {
+        const current = live.get(uid);
+        if (!current) return;
+        const data = snap.exists() ? (snap.data() as UserProfileDoc) : null;
+        current.last = data;
+        current.hasValue = true;
+        for (const cb of current.callbacks) cb.onChange(data);
+      },
+      (error) => {
+        const current = live.get(uid);
+        if (!current) return;
+        for (const cb of current.callbacks) cb.onError?.(error);
+      },
+    );
+  } else if (entry.hasValue) {
+    onChange(entry.last);
+  }
+
+  entry.callbacks.add(callback);
+
+  return () => {
+    const current = live.get(uid);
+    if (!current) return;
+    current.callbacks.delete(callback);
+    if (current.callbacks.size > 0) return;
+    current.unsub();
+    live.delete(uid);
+  };
 }
 
 export async function saveUserProfile(uid: string, profile: UserProfileDoc): Promise<void> {
@@ -277,7 +330,7 @@ export async function loadUserWorkspaces(uid: string): Promise<{
 }
 
 function firestoreWorkspaceDoc(server: Workspace): DocumentData {
-  const doc: DocumentData = {
+  const docData: DocumentData = {
     id: server.id,
     name: server.name,
     accent: server.accent,
@@ -285,31 +338,98 @@ function firestoreWorkspaceDoc(server: Workspace): DocumentData {
     ownerName: server.ownerName,
     createdAt: server.createdAt,
   };
-  if (server.iconURL) doc.iconURL = server.iconURL;
-  return doc;
+  if (server.iconURL) docData.iconURL = server.iconURL;
+  return docData;
 }
 
+function asComparableJson(value: unknown): string {
+  return JSON.stringify(value ?? null);
+}
+
+function workspaceDocsEqual(existing: DocumentData, desired: DocumentData): boolean {
+  return (
+    asComparableJson(existing.id) === asComparableJson(desired.id) &&
+    asComparableJson(existing.name) === asComparableJson(desired.name) &&
+    asComparableJson(existing.accent) === asComparableJson(desired.accent) &&
+    asComparableJson(existing.ownerId) === asComparableJson(desired.ownerId) &&
+    asComparableJson(existing.ownerName) === asComparableJson(desired.ownerName) &&
+    asComparableJson(existing.createdAt) === asComparableJson(desired.createdAt) &&
+    asComparableJson(existing.iconURL ?? null) === asComparableJson(desired.iconURL ?? null)
+  );
+}
+
+function membershipDocsEqual(existing: DocumentData, desired: ServerMembership): boolean {
+  return (
+    asComparableJson(existing.userId) === asComparableJson(desired.userId) &&
+    asComparableJson(existing.workspaceId) === asComparableJson(desired.workspaceId) &&
+    asComparableJson(existing.role) === asComparableJson(desired.role) &&
+    asComparableJson(existing.joinedAt) === asComparableJson(desired.joinedAt)
+  );
+}
+
+/**
+ * Sync différentiel — pas de delete-all/rewrite.
+ * Ne touche que les docs ajoutés, modifiés ou vraiment absents localement.
+ */
 export async function saveUserWorkspaces(
   uid: string,
   data: { customServers: Workspace[]; memberships: ServerMembership[] },
 ): Promise<void> {
+  const desiredWorkspaces = new Map(
+    data.customServers.map((server) => [server.id, firestoreWorkspaceDoc(server)] as const),
+  );
+  const desiredMemberships = new Map(
+    data.memberships.map((membership) => {
+      const id = `${membership.userId}:${membership.workspaceId}`;
+      return [id, membership] as const;
+    }),
+  );
+
+  const [workspaceSnap, membershipSnap] = await Promise.all([
+    getDocs(workspacesCol(uid)),
+    getDocs(membershipsCol(uid)),
+  ]);
+
   const batch = writeBatch(db);
-  const workspaceSnap = await getDocs(workspacesCol(uid));
+  let ops = 0;
+
   for (const existing of workspaceSnap.docs) {
-    batch.delete(existing.ref);
+    const desired = desiredWorkspaces.get(existing.id);
+    if (!desired) {
+      batch.delete(existing.ref);
+      ops += 1;
+      continue;
+    }
+    if (!workspaceDocsEqual(existing.data(), desired)) {
+      batch.set(existing.ref, desired);
+      ops += 1;
+    }
+    desiredWorkspaces.delete(existing.id);
   }
-  for (const server of data.customServers) {
-    batch.set(doc(workspacesCol(uid), server.id), firestoreWorkspaceDoc(server));
+  for (const [id, desired] of desiredWorkspaces) {
+    batch.set(doc(workspacesCol(uid), id), desired);
+    ops += 1;
   }
 
-  const membershipSnap = await getDocs(membershipsCol(uid));
   for (const existing of membershipSnap.docs) {
-    batch.delete(existing.ref);
+    const desired = desiredMemberships.get(existing.id);
+    if (!desired) {
+      batch.delete(existing.ref);
+      ops += 1;
+      continue;
+    }
+    if (!membershipDocsEqual(existing.data(), desired)) {
+      batch.set(existing.ref, desired as DocumentData);
+      ops += 1;
+    }
+    desiredMemberships.delete(existing.id);
   }
-  for (const membership of data.memberships) {
-    const id = `${membership.userId}:${membership.workspaceId}`;
-    batch.set(doc(membershipsCol(uid), id), membership as DocumentData);
+  for (const [id, desired] of desiredMemberships) {
+    batch.set(doc(membershipsCol(uid), id), desired as DocumentData);
+    ops += 1;
   }
+
+  if (ops === 0) return;
   await batch.commit();
 }
 
@@ -366,6 +486,97 @@ export async function loadChatSessionById(
   const snap = await getDoc(doc(chatSessionsCol(uid), sessionId));
   if (!snap.exists()) return null;
   return snap.data() as ChatSession;
+}
+
+export interface IncomingWorkspaceInviteDoc {
+  workspaceId: string;
+  workspaceName: string;
+  invitedByUid: string;
+  invitedByName: string;
+  status: "pending";
+  createdAt?: unknown;
+}
+
+function incomingWorkspaceInvitesCol(uid: string) {
+  return collection(db, "users", uid, "incomingWorkspaceInvites");
+}
+
+function incomingWorkspaceInviteRef(uid: string, workspaceId: string) {
+  return doc(incomingWorkspaceInvitesCol(uid), workspaceId.trim().toLowerCase());
+}
+
+export async function createIncomingWorkspaceInvite(
+  toUid: string,
+  invite: Omit<IncomingWorkspaceInviteDoc, "createdAt" | "status">,
+): Promise<void> {
+  const workspaceId = invite.workspaceId.trim().toLowerCase();
+  if (!toUid.trim() || !workspaceId) return;
+  await setDoc(incomingWorkspaceInviteRef(toUid, workspaceId), {
+    workspaceId,
+    workspaceName: invite.workspaceName.trim() || "Workspace",
+    invitedByUid: invite.invitedByUid,
+    invitedByName: invite.invitedByName.trim() || "Membre",
+    status: "pending",
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function fetchIncomingWorkspaceInvite(
+  uid: string,
+  workspaceId: string,
+): Promise<IncomingWorkspaceInviteDoc | null> {
+  const trimmed = workspaceId.trim().toLowerCase();
+  if (!uid.trim() || !trimmed) return null;
+  const snap = await getDoc(incomingWorkspaceInviteRef(uid, trimmed));
+  if (!snap.exists()) return null;
+  const data = snap.data() as Partial<IncomingWorkspaceInviteDoc>;
+  return {
+    workspaceId: data.workspaceId?.trim().toLowerCase() || snap.id,
+    workspaceName: data.workspaceName?.trim() || "Workspace",
+    invitedByUid: data.invitedByUid?.trim() || "",
+    invitedByName: data.invitedByName?.trim() || "Membre",
+    status: "pending",
+    createdAt: data.createdAt,
+  };
+}
+
+export function watchIncomingWorkspaceInvites(
+  uid: string,
+  onChange: (invites: IncomingWorkspaceInviteDoc[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  if (!uid.trim()) {
+    onChange([]);
+    return () => {};
+  }
+  return onSnapshot(
+    incomingWorkspaceInvitesCol(uid),
+    (snap) => {
+      onChange(
+        snap.docs.map((entry) => {
+          const data = entry.data() as Partial<IncomingWorkspaceInviteDoc>;
+          return {
+            workspaceId: data.workspaceId?.trim().toLowerCase() || entry.id,
+            workspaceName: data.workspaceName?.trim() || "Workspace",
+            invitedByUid: data.invitedByUid?.trim() || "",
+            invitedByName: data.invitedByName?.trim() || "Membre",
+            status: "pending",
+            createdAt: data.createdAt,
+          };
+        }),
+      );
+    },
+    onError,
+  );
+}
+
+export async function deleteIncomingWorkspaceInvite(
+  uid: string,
+  workspaceId: string,
+): Promise<void> {
+  const trimmed = workspaceId.trim().toLowerCase();
+  if (!uid.trim() || !trimmed) return;
+  await deleteDoc(incomingWorkspaceInviteRef(uid, trimmed));
 }
 
 export async function saveProjectSnapshot(

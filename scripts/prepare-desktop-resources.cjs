@@ -73,25 +73,25 @@ if (fs.existsSync(firebaseSecretSrc)) {
 }
 
 function writePackagedBackendEnv() {
-  const dest = path.join(backendOut, ".env");
+  // Not named `.env`: electron-builder + gitignore `.env*` strip that file from extraResources.
+  const dest = path.join(backendOut, "forma-backend.env");
   const fromSecret = (process.env.FORMA_BACKEND_ENV || "").replace(/\r\n/g, "\n").trim();
   if (fromSecret) {
     fs.writeFileSync(dest, fromSecret.endsWith("\n") ? fromSecret : `${fromSecret}\n`);
-    console.log("→ backend/.env embarqué (secrets de build).");
+    console.log("→ backend/forma-backend.env embarqué (secrets de build).");
     return;
   }
   const localEnv = path.join(backendSrc, ".env");
   if (fs.existsSync(localEnv)) {
     fs.copyFileSync(localEnv, dest);
-    console.log("→ backend/.env local copié dans le package.");
+    console.log("→ backend/.env local copié vers forma-backend.env.");
   } else {
     console.warn(
-      "→ backend/.env absent — paiements et OAuth connecteurs seront indisponibles dans ce build.",
+      "→ forma-backend.env absent — paiements et OAuth connecteurs seront indisponibles dans ce build.",
     );
   }
 }
 writePackagedBackendEnv();
-
 
 console.log("→ Création runtime Python portable pour l'app…");
 
@@ -101,7 +101,21 @@ function resolveBasePython() {
     if (fs.existsSync(devWin)) return devWin;
     return "python";
   }
-  const candidates = ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3", "python3"];
+  // Prefer the project venv (known-good), then versioned interpreters ≤3.13.
+  // Bare `python3` on Homebrew is often 3.14+, which breaks pydantic-core / PyO3.
+  const candidates = [
+    "/usr/bin/python3",
+    path.join(backendSrc, ".venv", "bin", "python"),
+    "/opt/homebrew/bin/python3.13",
+    "/opt/homebrew/bin/python3.12",
+    "/opt/homebrew/bin/python3.11",
+    "/opt/homebrew/bin/python3.10",
+    "/opt/homebrew/bin/python3.9",
+    "/usr/local/bin/python3.13",
+    "/usr/local/bin/python3.12",
+    "/usr/local/bin/python3.11",
+    "/usr/local/bin/python3.10",
+  ];
   for (const candidate of candidates) {
     if (candidate.includes("/") && fs.existsSync(candidate)) return candidate;
   }
@@ -127,6 +141,18 @@ function resolveBasePrefix(pythonExe) {
 }
 
 const py = resolveBasePython();
+const pyVersion = spawnSync(py, ["-c", "import sys; print('%d.%d' % sys.version_info[:2])"], {
+  encoding: "utf8",
+});
+const pyVer = (pyVersion.stdout || "").trim();
+console.log(`→ Python de base : ${py} (${pyVer || "?"})`);
+if (/^3\.(1[4-9]|[2-9]\d)$/.test(pyVer)) {
+  console.error(
+    `Python ${pyVer} est trop récent pour le build desktop (PyO3 / pydantic-core).\n` +
+      "Utilisez le venv backend (3.9–3.13) ou installez python@3.12 via Homebrew.",
+  );
+  process.exit(1);
+}
 
 function copyDirSync(src, dest, skip = []) {
   fs.mkdirSync(dest, { recursive: true });
@@ -227,15 +253,6 @@ function materializeSymlinks(dir) {
 console.log("→ Résolution des liens symboliques du runtime…");
 materializeSymlinks(venvOut);
 
-const python =
-  process.platform === "win32"
-    ? path.join(venvOut, "python.exe")
-    : path.join(venvOut, "bin", "python");
-
-run(python, ["-m", "pip", "install", "--upgrade", "pip"]);
-run(python, ["-m", "pip", "install", "-r", path.join(backendOut, "requirements.txt")]);
-run(python, ["-m", "pip", "install", "-r", path.join(backendOut, "requirements-cad.txt")]);
-
 function ensureDarwinPythonRuntime(venvDir) {
   if (process.platform !== "darwin") return;
 
@@ -261,20 +278,26 @@ function ensureDarwinPythonRuntime(venvDir) {
   const roots = [frameworkRoot, fallbackFrameworkRoot].filter((root) => fs.existsSync(root));
 
   for (const root of roots) {
-    const runtimeSrc = path.join(root, "lib", `libpython${version}.dylib`);
+    // Apple CLT python looks for @executable_path/../Python3 (framework binary).
+    const runtimeCandidates = [
+      path.join(root, "Python3"),
+      path.join(root, "lib", `libpython${version}.dylib`),
+    ];
     const resourcesSrc = path.join(root, "Resources");
     const runtimeDest = path.join(venvDir, "Python3");
     const resourcesDest = path.join(venvDir, "Resources");
 
-    if (fs.existsSync(runtimeSrc)) {
+    for (const runtimeSrc of runtimeCandidates) {
+      if (!fs.existsSync(runtimeSrc)) continue;
       fs.copyFileSync(runtimeSrc, runtimeDest);
       fs.chmodSync(runtimeDest, 0o755);
+      break;
     }
     if (fs.existsSync(resourcesSrc) && !fs.existsSync(resourcesDest)) {
       copyDirSync(resourcesSrc, resourcesDest);
     }
 
-    if (fs.existsSync(runtimeDest) && fs.existsSync(resourcesDest)) {
+    if (fs.existsSync(runtimeDest)) {
       console.log("→ Runtime Python3 + Resources embarqués dans le venv portable.");
       return;
     }
@@ -283,7 +306,17 @@ function ensureDarwinPythonRuntime(venvDir) {
   console.warn("Warning: Python3 runtime not found — portable venv may be invalid.");
 }
 
+// Must run before pip: Apple CLT python looks for @executable_path/../Python3.
 ensureDarwinPythonRuntime(venvOut);
+
+const python =
+  process.platform === "win32"
+    ? path.join(venvOut, "python.exe")
+    : path.join(venvOut, "bin", "python");
+
+run(python, ["-m", "pip", "install", "--upgrade", "pip"]);
+run(python, ["-m", "pip", "install", "-r", path.join(backendOut, "requirements.txt")]);
+run(python, ["-m", "pip", "install", "-r", path.join(backendOut, "requirements-cad.txt")]);
 
 console.log("→ Vérification backend…");
 run(python, ["-c", "import uvicorn; from app.main import app"], {

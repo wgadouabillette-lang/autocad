@@ -128,7 +128,15 @@ async def _send_gmail_message(token: str, raw_message: str) -> dict[str, Any]:
         )
     if r.status_code == 403:
         detail = r.text or ""
-        if "insufficient" in detail.lower() or "scope" in detail.lower():
+        detail_l = detail.lower()
+        if "has not been used" in detail_l or "accessnotconfigured" in detail_l or "it is disabled" in detail_l:
+            raise HTTPException(
+                403,
+                "Gmail API is disabled on the Google Cloud project that owns GOOGLE_CLIENT_ID. "
+                "Enable Gmail API for that project (APIs & Services → Library → Gmail API), "
+                "or move the OAuth client to forma-cad-dev.",
+            )
+        if "insufficient" in detail_l or "auth/gmail.send" in detail_l:
             raise HTTPException(403, "gmail_send_scope_required")
         raise HTTPException(403, detail or "Gmail send permission denied.")
     if r.status_code != 200:
@@ -163,7 +171,7 @@ def _spotify_api_error_message(status_code: int, body: str) -> str:
         return (
             "Spotify bloque l'API : le compte qui possède l'application sur "
             "developer.spotify.com doit avoir Spotify Premium actif "
-            "(compte propriétaire de SPOTIFY_CLIENT_ID, pas votre forfait Hall). "
+            "(compte propriétaire de SPOTIFY_CLIENT_ID, pas votre forfait Meetra). "
             "Après activation, la propagation peut prendre quelques heures."
         )
     return text or "Erreur API Spotify."
@@ -632,6 +640,7 @@ def _spotify_track_card(track: dict[str, Any]) -> dict[str, Any]:
     if images:
         image_url = images[min(1, len(images) - 1)].get("url") if isinstance(images[0], dict) else None
     external = track.get("external_urls") if isinstance(track.get("external_urls"), dict) else {}
+    duration_ms = track.get("duration_ms")
     return {
         "id": track.get("id"),
         "name": track.get("name") or "Sans titre",
@@ -640,6 +649,7 @@ def _spotify_track_card(track: dict[str, Any]) -> dict[str, Any]:
         "imageUrl": image_url,
         "url": external.get("spotify") or "",
         "previewUrl": track.get("preview_url") or None,
+        "durationMs": int(duration_ms) if isinstance(duration_ms, (int, float)) and duration_ms > 0 else None,
     }
 
 

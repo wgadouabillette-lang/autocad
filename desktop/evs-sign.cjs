@@ -11,6 +11,7 @@ function resolveEvsPython() {
           "python",
         ]
       : [
+          path.join(root, ".venv-evs", "bin", "python"),
           path.join(root, "backend", ".venv", "bin", "python"),
           path.join(__dirname, "build-resources", "backend-venv", "bin", "python"),
           "python3",

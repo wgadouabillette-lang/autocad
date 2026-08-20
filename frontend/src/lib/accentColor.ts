@@ -110,7 +110,7 @@ export const ACCENT_COLOR_OPTIONS: AccentColorOption[] = [
   {
     id: "blue",
     title: "Blue",
-    description: "Default Hall accent.",
+    description: "Default Meetra accent.",
     swatch: "#3b6fe8",
   },
   {

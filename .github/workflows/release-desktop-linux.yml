@@ -107,7 +107,7 @@ jobs:
         env:
           EVS_ACCOUNT_NAME: ${{ secrets.EVS_ACCOUNT_NAME }}
           EVS_PASSWD: ${{ secrets.EVS_PASSWD }}
-        run: npx electron-builder --linux AppImage
+        run: npx electron-builder --linux AppImage --publish never
 
       - name: Prepare stable download filename
         run: |
@@ -129,8 +129,10 @@ jobs:
         with:
           files: |
             desktop/release/*.AppImage
+            desktop/release/*.yml
+            desktop/release/*.blockmap
             landing/public/downloads/Hall-linux.AppImage
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -138,6 +140,8 @@ jobs:
           name: Hall-linux-AppImage
           path: |
             desktop/release/*.AppImage
+            desktop/release/latest-linux.yml
+            desktop/release/*.blockmap
             landing/public/downloads/Hall-linux.AppImage
           if-no-files-found: error
           retention-days: 30

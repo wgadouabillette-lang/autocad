@@ -102,26 +102,122 @@ export function watchSharedWorkspace(
   onChange: (workspace: Workspace | null) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const trimmed = workspaceId.trim().toLowerCase();
+  return watchSharedWorkspaceDoc(
+    workspaceId,
+    (data) => {
+      onChange(data ? sharedDocToWorkspace(data) : null);
+    },
+    onError,
+  );
+}
+
+/**
+ * Ref-counted live subscription to workspacesShared/{id}.
+ * Multiple callers share one onSnapshot (presence + join settings + enterprise + boosted).
+ */
+export function watchSharedWorkspaceDoc(
+  workspaceId: string,
+  onChange: (data: SharedWorkspaceDoc | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  const trimmed = normalizeSharedWorkspaceId(workspaceId);
   if (!trimmed) {
     onChange(null);
     return () => {};
   }
-  return onSnapshot(
-    sharedWorkspaceRef(trimmed),
-    (snap) => {
-      onChange(snap.exists() ? sharedDocToWorkspace(snap.data() as SharedWorkspaceDoc) : null);
-    },
-    onError,
+
+  type Entry = {
+    unsub: Unsubscribe;
+    callbacks: Set<{
+      onChange: (data: SharedWorkspaceDoc | null) => void;
+      onError?: (error: Error) => void;
+    }>;
+    last: SharedWorkspaceDoc | null;
+    hasValue: boolean;
+  };
+
+  const globalKey = "__hallSharedWorkspaceLive";
+  const root = globalThis as typeof globalThis & {
+    [globalKey]?: Map<string, Entry>;
+  };
+  if (!root[globalKey]) root[globalKey] = new Map();
+  const live = root[globalKey]!;
+
+  let entry = live.get(trimmed);
+  const callback = { onChange, onError };
+
+  if (!entry) {
+    entry = {
+      unsub: () => {},
+      callbacks: new Set(),
+      last: null,
+      hasValue: false,
+    };
+    live.set(trimmed, entry);
+    entry.unsub = onSnapshot(
+      sharedWorkspaceRef(trimmed),
+      (snap) => {
+        const current = live.get(trimmed);
+        if (!current) return;
+        const data = snap.exists()
+          ? ({ id: trimmed, ...(snap.data() as object) } as SharedWorkspaceDoc)
+          : null;
+        current.last = data;
+        current.hasValue = true;
+        for (const cb of current.callbacks) cb.onChange(data);
+      },
+      (error) => {
+        const current = live.get(trimmed);
+        if (!current) return;
+        for (const cb of current.callbacks) cb.onError?.(error);
+      },
+    );
+  } else if (entry.hasValue) {
+    onChange(entry.last);
+  }
+
+  entry.callbacks.add(callback);
+
+  return () => {
+    const current = live.get(trimmed);
+    if (!current) return;
+    current.callbacks.delete(callback);
+    if (current.callbacks.size > 0) return;
+    current.unsub();
+    live.delete(trimmed);
+  };
+}
+
+function sharedWorkspaceNeedsWrite(
+  existing: SharedWorkspaceDoc | null,
+  next: SharedWorkspaceDoc,
+): boolean {
+  if (!existing) return true;
+  return (
+    existing.name !== next.name ||
+    existing.accent !== next.accent ||
+    (existing.iconURL ?? null) !== (next.iconURL ?? null) ||
+    existing.ownerId !== next.ownerId ||
+    existing.ownerName !== next.ownerName ||
+    existing.createdAt !== next.createdAt ||
+    (existing.membersCanInvite !== false) !== (next.membersCanInvite !== false)
   );
 }
 
 export async function publishSharedWorkspace(workspace: Workspace): Promise<void> {
   const id = normalizeSharedWorkspaceId(workspace.id);
   if (!id) throw new Error("Workspace invalide.");
-  await setDoc(sharedWorkspaceRef(id), toSharedWorkspaceDoc({ ...workspace, id }), {
-    merge: true,
-  });
+  const next = toSharedWorkspaceDoc({ ...workspace, id });
+  const ref = sharedWorkspaceRef(id);
+  const snap = await getDoc(ref);
+  const existing = snap.exists()
+    ? ({ id, ...(snap.data() as object) } as SharedWorkspaceDoc)
+    : null;
+
+  if (sharedWorkspaceNeedsWrite(existing, next)) {
+    await setDoc(ref, next, { merge: true });
+  }
+
   // Owner must appear in members so invitees can list the full roster.
   if (workspace.ownerId) {
     await grantWorkspaceMember(id, {
@@ -155,8 +251,26 @@ export async function ensureSharedWorkspacePublished(
     );
   }
 
-  // Toujours republier pour que Storage voie le bon ownerId dans workspacesShared.
-  await publishSharedWorkspace(payload);
+  const next = toSharedWorkspaceDoc(payload);
+  if (!sharedWorkspaceNeedsWrite(existing as SharedWorkspaceDoc | null, next)) {
+    if (payload.ownerId) {
+      await grantWorkspaceMember(id, {
+        uid: payload.ownerId,
+        displayName: payload.ownerName.trim() || "Membre",
+        email: "",
+      });
+    }
+    return;
+  }
+
+  await setDoc(sharedWorkspaceRef(id), next, { merge: true });
+  if (payload.ownerId) {
+    await grantWorkspaceMember(id, {
+      uid: payload.ownerId,
+      displayName: payload.ownerName.trim() || "Membre",
+      email: "",
+    });
+  }
 }
 
 export async function fetchSharedWorkspace(workspaceId: string): Promise<Workspace | null> {
@@ -225,16 +339,48 @@ export async function grantWorkspaceMember(
 ): Promise<void> {
   const trimmed = workspaceId.trim().toLowerCase();
   if (!trimmed || !member.uid) return;
+  const displayName = member.displayName.trim() || "Membre";
+  const email = member.email.trim().toLowerCase();
+  const ref = workspaceMemberRef(trimmed, member.uid);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    const data = snap.data() as Partial<WorkspaceMemberDoc>;
+    const sameName = (data.displayName?.trim() || "Membre") === displayName;
+    const sameEmail = (typeof data.email === "string" ? data.email : "") === email;
+    const sameUid = (data.uid?.trim() || snap.id) === member.uid;
+    if (sameName && sameEmail && sameUid) return;
+    // Ne pas retoucher joinedAt — ça facturait un write à chaque publish.
+    await setDoc(ref, { uid: member.uid, displayName, email }, { merge: true });
+    return;
+  }
   await setDoc(
-    workspaceMemberRef(trimmed, member.uid),
+    ref,
     {
       uid: member.uid,
-      displayName: member.displayName.trim() || "Membre",
-      email: member.email.trim().toLowerCase(),
+      displayName,
+      email,
       joinedAt: serverTimestamp(),
     },
     { merge: true },
   );
+}
+
+export async function fetchWorkspaceMember(
+  workspaceId: string,
+  memberUid: string,
+): Promise<WorkspaceMemberDoc | null> {
+  const trimmed = workspaceId.trim().toLowerCase();
+  const uid = memberUid.trim();
+  if (!trimmed || !uid) return null;
+  const snap = await getDoc(workspaceMemberRef(trimmed, uid));
+  if (!snap.exists()) return null;
+  const data = snap.data() as Partial<WorkspaceMemberDoc>;
+  return {
+    uid: data.uid?.trim() || snap.id,
+    displayName: data.displayName?.trim() || "Membre",
+    email: typeof data.email === "string" ? data.email : "",
+    joinedAt: data.joinedAt,
+  };
 }
 
 export function watchWorkspaceMembers(

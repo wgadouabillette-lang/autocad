@@ -52,6 +52,7 @@ export interface WorkspacePresenceMember {
 }
 
 const disconnectOps = new Map<string, OnDisconnect>();
+let connectedWatchStarted = false;
 
 const OFFLINE_CLEAR = {
   online: false,
@@ -65,6 +66,19 @@ const OFFLINE_CLEAR = {
   spotifyNowPlaying: null,
   spotifyNowPlayingImageUrl: null,
 } as const;
+
+/**
+ * Après une coupure réseau, les onDisconnect serveur ont déjà tourné —
+ * on oublie le bookkeeping local pour réarmer au prochain touch.
+ */
+function ensureConnectedWatch(): void {
+  if (connectedWatchStarted) return;
+  connectedWatchStarted = true;
+  onValue(ref(rtdb, ".info/connected"), (snap) => {
+    if (snap.val() === true) return;
+    disconnectOps.clear();
+  });
+}
 
 function activityFromDoc(data: WorkspacePresenceDoc): PresenceActivityId | null {
   const value = data.presenceActivity;
@@ -122,17 +136,13 @@ function memberFromEntry(uid: string, raw: unknown): WorkspacePresenceMember {
   };
 }
 
-async function armPresenceDisconnect(workspaceId: string, uid: string): Promise<void> {
+/** Arme onDisconnect une seule fois par session de connexion (pas à chaque heartbeat). */
+async function ensurePresenceDisconnect(workspaceId: string, uid: string): Promise<void> {
+  ensureConnectedWatch();
   const key = presenceKey(workspaceId, uid);
+  if (disconnectOps.has(key)) return;
+
   const node = ref(rtdb, presencePath(workspaceId, uid));
-  const previous = disconnectOps.get(key);
-  if (previous) {
-    try {
-      await previous.cancel();
-    } catch {
-      // Already fired or cancelled.
-    }
-  }
   const op = onDisconnect(node);
   disconnectOps.set(key, op);
   try {
@@ -141,6 +151,13 @@ async function armPresenceDisconnect(workspaceId: string, uid: string): Promise<
   } catch {
     disconnectOps.delete(key);
   }
+}
+
+/** Last profile signature written per presence node — skip unchanged displayName/photoURL. */
+const lastPresenceProfileByKey = new Map<string, string>();
+
+function clearPresenceProfileCache(workspaceId: string, uid: string): void {
+  lastPresenceProfileByKey.delete(presenceKey(workspaceId, uid));
 }
 
 export function watchWorkspacePresence(
@@ -180,18 +197,28 @@ export async function touchWorkspacePresence(
 ): Promise<void> {
   if (!workspaceId || !uid) return;
 
+  const displayName = profile.displayName.trim() || "Membre";
+  const photoURL = profile.photoURL ? profile.photoURL : null;
+  const profileKey = presenceKey(workspaceId, uid);
+  const profileSig = `${displayName}\0${photoURL ?? ""}`;
+  const profileChanged = lastPresenceProfileByKey.get(profileKey) !== profileSig;
+
+  // Heartbeats: lastSeen + ephemeral fields. Profile only on first touch / change.
   const payload: Record<string, unknown> = {
-    uid,
-    displayName: profile.displayName.trim() || "Membre",
-    photoURL: profile.photoURL ? profile.photoURL : null,
     lastSeen: Date.now(),
     online: true,
   };
+  if (profileChanged) {
+    payload.uid = uid;
+    payload.displayName = displayName;
+    payload.photoURL = photoURL;
+  }
   if (voice) {
     payload.voiceInPrivateCall = voice.inPrivateCall;
     payload.voiceOpenChannelId = voice.openChannelId ?? null;
     payload.voiceInTheaterCall = voice.inTheaterCall === true;
-    payload.voiceSpeaking = voice.speaking === true;
+    // Speaking is UI-only (WebRTC VAD) — clear any legacy RTDB value.
+    payload.voiceSpeaking = false;
     payload.voiceMuted = voice.muted === true;
     payload.voiceHandRaised = voice.handRaised === true;
   }
@@ -213,11 +240,13 @@ export async function touchWorkspacePresence(
 
   const node = ref(rtdb, presencePath(workspaceId, uid));
   await update(node, payload);
-  await armPresenceDisconnect(workspaceId, uid);
+  if (profileChanged) lastPresenceProfileByKey.set(profileKey, profileSig);
+  await ensurePresenceDisconnect(workspaceId, uid);
 }
 
 export async function clearWorkspacePresence(workspaceId: string, uid: string): Promise<void> {
   if (!workspaceId || !uid) return;
+  clearPresenceProfileCache(workspaceId, uid);
   const key = presenceKey(workspaceId, uid);
   const previous = disconnectOps.get(key);
   if (previous) {
@@ -232,6 +261,27 @@ export async function clearWorkspacePresence(workspaceId: string, uid: string): 
     await remove(ref(rtdb, presencePath(workspaceId, uid)));
   } catch {
     // Already gone.
+  }
+}
+
+/** Marque offline sans supprimer le nœud (ex. on quitte le workspace actif). */
+export async function markWorkspacePresenceAway(workspaceId: string, uid: string): Promise<void> {
+  if (!workspaceId || !uid) return;
+  clearPresenceProfileCache(workspaceId, uid);
+  const key = presenceKey(workspaceId, uid);
+  const previous = disconnectOps.get(key);
+  if (previous) {
+    try {
+      await previous.cancel();
+    } catch {
+      // ignore
+    }
+    disconnectOps.delete(key);
+  }
+  try {
+    await update(ref(rtdb, presencePath(workspaceId, uid)), { ...OFFLINE_CLEAR });
+  } catch {
+    // Node may already be gone.
   }
 }
 

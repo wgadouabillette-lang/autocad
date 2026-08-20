@@ -1,8 +1,8 @@
-/** Intervalle rapide pendant un appel / canal vocal ouvert (réactivité voice UI). */
-export const PRESENCE_HEARTBEAT_IN_CALL_MS = 15_000;
+/** Intervalle pendant un appel / canal vocal ouvert (keepalive; les events voice restent immédiats). */
+export const PRESENCE_HEARTBEAT_IN_CALL_MS = 30_000;
 
 /** Intervalle au repos — onglet visible, pas en appel. */
-export const PRESENCE_HEARTBEAT_IDLE_MS = 60_000;
+export const PRESENCE_HEARTBEAT_IDLE_MS = 120_000;
 
 export interface PresenceHeartbeatController {
   /** Envoie immédiatement si l'onglet est visible. */
@@ -15,7 +15,7 @@ export interface PresenceHeartbeatController {
 /**
  * Planificateur de heartbeat présence — isolé du reste de l'app.
  * - Aucun write si l'onglet est caché (background)
- * - 15 s en appel vocal, 60 s au repos
+ * - 30 s en appel vocal, 2 min au repos
  */
 export function createPresenceHeartbeat(options: {
   isHighFrequency: () => boolean;

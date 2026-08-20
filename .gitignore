@@ -37,3 +37,4 @@ desktop/secrets/
 .idea/
 frontend/tsconfig.tsbuildinfo
 .vercel
+.env*

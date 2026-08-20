@@ -1,7 +1,6 @@
 import { useEffect } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
 import { effectiveWorkspaceEnterprise } from "../lib/subscriptionPlans";
-import { db } from "../lib/firebase/client";
+import { watchSharedWorkspaceDoc } from "../lib/firebase/workspaceRegistry";
 import { useAuthStore } from "../store/useAuthStore";
 import { useStore } from "../store/useStore";
 
@@ -17,11 +16,9 @@ export function useWorkspaceEnterprise(): void {
       return;
     }
 
-    const ref = doc(db, "workspacesShared", workspaceId);
-    const unsubscribe = onSnapshot(
-      ref,
-      (snap) => {
-        const data = snap.exists() ? snap.data() : null;
+    return watchSharedWorkspaceDoc(
+      workspaceId,
+      (data) => {
         const active = effectiveWorkspaceEnterprise(
           data?.enterpriseSubscriptionPlan,
           data?.enterpriseBillingManaged,
@@ -32,7 +29,5 @@ export function useWorkspaceEnterprise(): void {
         useStore.setState({ workspaceEnterpriseActive: false });
       },
     );
-
-    return unsubscribe;
   }, [activeRoomId, firebaseUid, isAuthenticated]);
 }

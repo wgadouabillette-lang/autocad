@@ -420,6 +420,7 @@ interface State {
   calendarWorkStartMinutes: number;
   calendarWorkEndMinutes: number;
   hallDjPreferredGenre: string;
+  hallDjVolume: number;
   aiRun: AiRun | null;
   activePage: MainPageId | null;
   openPages: MainPageId[];
@@ -453,6 +454,8 @@ interface State {
   setAgentAiNotesInstructions: (value: string) => void;
   setCalendarWorkingHours: (startMinutes: number, endMinutes: number) => void;
   setHallDjPreferredGenre: (genre: string) => void;
+  setHallDjVolume: (volume: number) => void;
+  clearSpotifySearchResults: (chatIndex: number) => void;
   clearSettingsScrollTarget: () => void;
   select: (id: string | null) => void;
   /** additive=true : ⌘/Ctrl+clic pour ajouter ou retirer une face de la sélection. */
@@ -625,6 +628,7 @@ function userPreferencesSnapshot(state: {
   calendarWorkStartMinutes: number;
   calendarWorkEndMinutes: number;
   hallDjPreferredGenre: string;
+  hallDjVolume: number;
 }): UserPreferences {
   const calendarHours = resolveCalendarWorkingHours(
     state.calendarWorkStartMinutes,
@@ -657,9 +661,7 @@ function userPreferencesSnapshot(state: {
     calendarWorkStartMinutes: calendarHours.startMinutes,
     calendarWorkEndMinutes: calendarHours.endMinutes,
     hallDjPreferredGenre: state.hallDjPreferredGenre,
-    hallDjVolume: normalizeHallDjVolume(
-      (state as { hallDjVolume?: number }).hallDjVolume,
-    ),
+    hallDjVolume: normalizeHallDjVolume(state.hallDjVolume),
   };
 }
 
@@ -903,6 +905,26 @@ export const useStore = create<State>((set, get) => ({
     });
   },
 
+  setHallDjVolume: (volume) => {
+    const normalized = normalizeHallDjVolume(volume);
+    set({ hallDjVolume: normalized });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), hallDjVolume: normalized }));
+    void import("../lib/spotifyWebPlayback").then(({ setSpotifyPlaybackVolume }) => {
+      void setSpotifyPlaybackVolume(normalized);
+    });
+  },
+
+  clearSpotifySearchResults: (chatIndex) => {
+    set((s) => {
+      const message = s.chat[chatIndex];
+      if (!message?.spotifySearch?.length) return s;
+      const nextChat = s.chat.map((entry, index) =>
+        index === chatIndex ? { ...entry, spotifySearch: undefined } : entry,
+      );
+      return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+    });
+  },
+
   clearSettingsScrollTarget: () => set({ settingsScrollTarget: null }),
 
   select: (id) => set({ selectedFeatureId: id }),
@@ -1129,7 +1151,7 @@ export const useStore = create<State>((set, get) => ({
         get().tickAiRunStep();
         void useHallDjStore.getState().startDj();
         const assistantText =
-          "La file d'attente est remplacée par le **Hall DJ**. Lecture automatique lancée — utilisez le bouton liste dans la barre du bas pour relancer.";
+          "La file d'attente est remplacée par le **Meetra DJ**. Lecture automatique lancée — utilisez le bouton liste dans la barre du bas pour relancer.";
         await waitMinChatProcessing(processingStartedAt, signal);
         set((s) => ({
           ...patchChatState(

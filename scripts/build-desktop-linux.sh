@@ -35,7 +35,7 @@ echo "[3/5] Préparation des ressources (frontend + backend + venv)…"
 node scripts/prepare-desktop-resources.cjs
 
 echo "[4/5] Construction de l'AppImage…"
-(cd desktop && npx electron-builder --linux AppImage)
+(cd desktop && npx electron-builder --linux AppImage --publish never)
 
 echo "[5/5] Copie vers landing/downloads (nom stable Hall-linux.AppImage)…"
 mkdir -p landing/public/downloads landing/downloads

@@ -63,10 +63,11 @@ def _connectors_ref(uid: str):
     )
 
 
-def _load_firestore_items(uid: str) -> dict[str, Any]:
+def _load_firestore_items(uid: str) -> dict[str, Any] | None:
+    """Return connector map, or None if the read failed (do not treat as empty)."""
     ref = _connectors_ref(uid)
     if ref is None:
-        return {}
+        return None
     try:
         snap = ref.get()
         if not snap.exists:
@@ -76,10 +77,11 @@ def _load_firestore_items(uid: str) -> dict[str, Any]:
         return dict(items) if isinstance(items, dict) else {}
     except Exception as exc:
         logger.warning("Failed to load connectors for %s: %s", uid, exc)
-        return {}
+        return None
 
 
-def _save_firestore_items(uid: str, items: dict[str, Any]) -> bool:
+def _set_firestore_connector(uid: str, connector_id: str, entry: dict[str, Any]) -> bool:
+    """Upsert one connector without touching sibling keys."""
     ref = _connectors_ref(uid)
     if ref is None:
         return False
@@ -88,15 +90,47 @@ def _save_firestore_items(uid: str, items: dict[str, Any]) -> bool:
 
         ref.set(
             {
-                "items": items,
+                f"items.{connector_id}": entry,
                 "updatedAt": firestore.SERVER_TIMESTAMP,
             },
             merge=True,
         )
         return True
     except Exception as exc:
-        logger.warning("Failed to save connectors for %s: %s", uid, exc)
+        logger.warning("Failed to save connector %s for %s: %s", connector_id, uid, exc)
         return False
+
+
+def _delete_firestore_connector(uid: str, connector_id: str) -> bool:
+    """Delete one connector key. merge=True cannot remove nested keys."""
+    ref = _connectors_ref(uid)
+    if ref is None:
+        return False
+    try:
+        from firebase_admin import firestore
+
+        ref.update(
+            {
+                f"items.{connector_id}": firestore.DELETE_FIELD,
+                "updatedAt": firestore.SERVER_TIMESTAMP,
+            }
+        )
+        return True
+    except Exception as exc:
+        # Document missing — nothing to delete.
+        logger.warning("Failed to delete connector %s for %s: %s", connector_id, uid, exc)
+        return False
+
+
+def _migrate_local_items_to_firestore(uid: str, items: dict[str, Any]) -> bool:
+    """One-shot migration: write each connector key with merge (never wipe siblings)."""
+    if not items:
+        return True
+    ok = True
+    for connector_id, entry in items.items():
+        if isinstance(entry, dict):
+            ok = _set_firestore_connector(uid, connector_id, entry) and ok
+    return ok
 
 
 def _load_doc(uid: str) -> dict[str, Any]:
@@ -107,39 +141,32 @@ def _load_doc(uid: str) -> dict[str, Any]:
 
     if _using_local_store():
         items = _load_local_doc(uid)
-    else:
-        items = _load_firestore_items(uid)
-        if items:
-            _ITEMS_CACHE[uid] = (items, now + _ITEMS_CACHE_TTL_SEC)
-            return items
+        _ITEMS_CACHE[uid] = (items, now + _ITEMS_CACHE_TTL_SEC)
+        return dict(items)
 
+    items = _load_firestore_items(uid)
+    if items is None:
+        # Read failed — fall back to local without caching empty as authoritative.
         local_items = _load_local_doc(uid)
-        if not local_items:
-            items = {}
-        elif _save_firestore_items(uid, local_items):
-            logger.info(
-                "Migrated connector tokens for %s from local dev store to Firestore.",
-                uid,
-            )
-            items = local_items
-        else:
-            items = local_items
+        return dict(local_items)
 
+    if items:
+        _ITEMS_CACHE[uid] = (items, now + _ITEMS_CACHE_TTL_SEC)
+        return dict(items)
+
+    local_items = _load_local_doc(uid)
+    if local_items and _migrate_local_items_to_firestore(uid, local_items):
+        logger.info(
+            "Migrated connector tokens for %s from local dev store to Firestore.",
+            uid,
+        )
+        items = local_items
+    else:
+        items = local_items or {}
+
+    # Only cache definitive empty docs (successful Firestore read with no items).
     _ITEMS_CACHE[uid] = (items, now + _ITEMS_CACHE_TTL_SEC)
-    return items
-
-
-def _save_doc(uid: str, items: dict[str, Any]) -> None:
-    _invalidate_items_cache(uid)
-    if _using_local_store():
-        _save_local_doc(uid, items)
-        return
-
-    if _save_firestore_items(uid, items):
-        return
-
-    _save_local_doc(uid, items)
-    logger.info("Saved connector tokens for %s to local dev store (Firestore unavailable).", uid)
+    return dict(items)
 
 
 def load_all_connections(uid: str) -> dict[str, Any]:
@@ -162,26 +189,48 @@ def get_connection(uid: str, connector_id: str) -> dict[str, Any] | None:
 
 
 def set_connection(uid: str, connector_id: str, provider: str, tokens: dict[str, Any]) -> None:
-    items = _load_doc(uid)
     expires_in = tokens.get("expires_in")
     expires_at = None
     if isinstance(expires_in, (int, float)) and expires_in > 0:
         expires_at = time.time() + float(expires_in)
 
-    items[connector_id] = {
+    entry = {
         "provider": provider,
         "connected_at": time.time(),
         "expires_at": expires_at,
         **tokens,
     }
-    _save_doc(uid, items)
+
+    _invalidate_items_cache(uid)
     if _using_local_store():
+        items = _load_local_doc(uid)
+        items[connector_id] = entry
+        _save_local_doc(uid, items)
         logger.info("Saved connector %s for %s to local dev store.", connector_id, uid)
+        return
+
+    if _set_firestore_connector(uid, connector_id, entry):
+        return
+
+    items = _load_local_doc(uid)
+    items[connector_id] = entry
+    _save_local_doc(uid, items)
+    logger.info("Saved connector tokens for %s to local dev store (Firestore unavailable).", uid)
 
 
 def remove_connection(uid: str, connector_id: str) -> None:
-    items = _load_doc(uid)
-    if connector_id not in items:
+    _invalidate_items_cache(uid)
+    if _using_local_store():
+        items = _load_local_doc(uid)
+        if connector_id in items:
+            del items[connector_id]
+            _save_local_doc(uid, items)
         return
-    del items[connector_id]
-    _save_doc(uid, items)
+
+    if _delete_firestore_connector(uid, connector_id):
+        return
+
+    items = _load_local_doc(uid)
+    if connector_id in items:
+        del items[connector_id]
+        _save_local_doc(uid, items)

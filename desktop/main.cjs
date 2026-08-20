@@ -25,9 +25,9 @@ const {
 } = require("./updater.cjs");
 const spotifyWebView2 = require("./spotifyWebView2Manager.cjs");
 
-app.setName("Hall");
+app.setName("Meetra");
 if (process.platform === "win32") {
-  // Keep taskbar / jump-list icons on Hall's AppUserModelID (not Electron's).
+  // Keep taskbar / jump-list icons on Meetra's AppUserModelID (not Electron's).
   app.setAppUserModelId("com.forma.cad");
   // Chromium may stop painting when it thinks the window is occluded
   // (native chrome + File/Edit menus, gray content). Common on NVIDIA / G-SYNC.
@@ -101,6 +101,10 @@ let backendProc = null;
 /** @type {import("http").Server | null} */
 let uiServer = null;
 let mainWindow = null;
+/** @type {Electron.BrowserWindow | null} */
+let splashWindow = null;
+/** @type {"splash" | "app"} */
+let mainWindowMode = "splash";
 /** @type {Electron.BrowserWindow | null} */
 let recordingCameraWindow = null;
 let backendLogPath = null;
@@ -284,6 +288,13 @@ function spawnBackend() {
     PYTHONDONTWRITEBYTECODE: "1",
     PYTHONPATH: cwd,
   };
+  const packagedEnv = path.join(cwd, "forma-backend.env");
+  const packagedDotenv = path.join(cwd, ".env");
+  if (fs.existsSync(packagedEnv)) {
+    env.FORMA_ENV_FILE = packagedEnv;
+  } else if (fs.existsSync(packagedDotenv)) {
+    env.FORMA_ENV_FILE = packagedDotenv;
+  }
   if (firebaseCreds) {
     env.GOOGLE_APPLICATION_CREDENTIALS = firebaseCreds;
   } else {
@@ -309,7 +320,7 @@ function spawnBackend() {
   try {
     fs.writeFileSync(
       backendLogFile(),
-      `[hall] starting backend\npython=${py}\ncwd=${cwd}\nport=${BACKEND_PORT}\nui=${UI_ORIGIN}\n\n`,
+      `[hall] starting backend\npython=${py}\ncwd=${cwd}\nport=${BACKEND_PORT}\nui=${UI_ORIGIN}\nenvFile=${env.FORMA_ENV_FILE || "(none)"}\n\n`,
     );
   } catch {
     // ignore
@@ -385,7 +396,7 @@ function attachRendererDiagnostics(win) {
     );
     win.loadURL(
       loadErrorHtml(
-        "Hall ne peut pas afficher l'interface",
+        "Meetra ne peut pas afficher l'interface",
         `${errorDescription} (${errorCode}).`,
         validatedURL ? `URL : ${validatedURL}` : "",
       ),
@@ -398,9 +409,9 @@ function attachRendererDiagnostics(win) {
     if (rendererRestarts > 2) {
       win.loadURL(
         loadErrorHtml(
-          "Hall ne peut pas afficher l'interface",
+          "Meetra ne peut pas afficher l'interface",
           "Le moteur d'affichage s'est arrêté plusieurs fois.",
-          "Relancez Hall. Si le problème continue, mettez à jour le pilote graphique.",
+          "Relancez Meetra. Si le problème continue, mettez à jour le pilote graphique.",
         ),
       );
       return;
@@ -484,17 +495,132 @@ function resolveAppIconPath() {
   return undefined;
 }
 
+const SPLASH_WINDOW_SIZE = { width: 300, height: 425 };
+const APP_WINDOW_SIZE = { width: 1440, height: 900 };
+const APP_WINDOW_MIN_SIZE = { width: 1024, height: 640 };
+
+/**
+ * Geometric center of the visible desktop (work area), not Electron `center: true`.
+ * `center: true` / `win.center()` use the full display bounds, including the macOS
+ * menu bar, which places the splash slightly too high in the remaining screen.
+ */
+function getCenteredSplashBounds() {
+  const point = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(point) ?? screen.getPrimaryDisplay();
+  const work = display.workArea;
+  const { width, height } = SPLASH_WINDOW_SIZE;
+  return {
+    x: Math.round(work.x + (work.width - width) / 2),
+    y: Math.round(work.y + (work.height - height) / 2),
+    width,
+    height,
+  };
+}
+
+function closeSplashWindow() {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close();
+  }
+  splashWindow = null;
+}
+
+function createSplashWindow() {
+  if (splashWindow && !splashWindow.isDestroyed()) return;
+  const bounds = getCenteredSplashBounds();
+  splashWindow = new BrowserWindow({
+    width: bounds.width,
+    height: bounds.height,
+    x: bounds.x,
+    y: bounds.y,
+    useContentSize: true,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: false,
+    roundedCorners: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    show: false,
+    title: "Meetra",
+    icon: resolveAppIconPath(),
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+  splashWindow.loadFile(path.join(__dirname, "splash.html"));
+  splashWindow.once("ready-to-show", () => {
+    if (!splashWindow || splashWindow.isDestroyed() || mainWindowMode === "app") return;
+    splashWindow.setBounds(getCenteredSplashBounds());
+    splashWindow.show();
+  });
+  splashWindow.on("closed", () => {
+    splashWindow = null;
+  });
+}
+
+function enterLaunchFullScreen(win) {
+  if (!win || win.isDestroyed()) return;
+  if (process.platform === "darwin") {
+    win.setFullScreen(true);
+    return;
+  }
+  win.maximize();
+}
+
+function showAppWindow() {
+  if (mainWindowMode === "app") return;
+  mainWindowMode = "app";
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    // Maximize while still hidden on Windows/Linux so the first paint is not 1440×900.
+    // macOS native fullscreen is applied after show() — setFullScreen on a hidden
+    // window is unreliable.
+    if (process.platform !== "darwin") {
+      enterLaunchFullScreen(mainWindow);
+    }
+    mainWindow.show();
+    if (process.platform === "darwin") {
+      enterLaunchFullScreen(mainWindow);
+    }
+    mainWindow.focus();
+  }
+  closeSplashWindow();
+}
+
+function setMainWindowMode(mode) {
+  if (mode === "app") {
+    showAppWindow();
+    return;
+  }
+  if (mode !== "splash") return;
+  if (mainWindowMode === "app") return;
+  mainWindowMode = "splash";
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+    mainWindow.hide();
+  }
+  createSplashWindow();
+}
+
 function createWindow() {
   if (process.platform === "win32") {
     Menu.setApplicationMenu(null);
   }
 
+  mainWindowMode = "splash";
+  createSplashWindow();
+
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 640,
-    title: "Hall",
+    width: APP_WINDOW_SIZE.width,
+    height: APP_WINDOW_SIZE.height,
+    minWidth: APP_WINDOW_MIN_SIZE.width,
+    minHeight: APP_WINDOW_MIN_SIZE.height,
+    show: false,
+    paintWhenInitiallyHidden: true,
+    fullscreenable: true,
+    title: "Meetra",
     icon: resolveAppIconPath(),
     backgroundColor: "#121212",
     autoHideMenuBar: true,
@@ -521,6 +647,7 @@ function createWindow() {
   mainWindow.on("closed", () => {
     spotifyWebView2.setMainWindow(null);
     hideRecordingCameraOverlay();
+    closeSplashWindow();
     mainWindow = null;
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -684,15 +811,15 @@ async function resolveHallWindowSource() {
     if (byId) return byId;
   }
 
-  const title = win.getTitle() || "Hall";
-  const names = [title, "Hall", "Electron"];
+  const title = win.getTitle() || "Meetra";
+  const names = [title, "Meetra", "Electron"];
   for (const name of names) {
     const match = sources.find((source) => source.name === name);
     if (match) return match;
   }
 
   return (
-    sources.find((source) => source.name.includes("Hall")) ??
+    sources.find((source) => source.name.includes("Meetra")) ??
     sources.find((source) => source.name.includes("Electron")) ??
     null
   );
@@ -739,7 +866,7 @@ async function openScreenCaptureSettings() {
     try {
       await listDisplayMediaSources();
     } catch {
-      // Registers Hall in Windows privacy lists when possible.
+      // Registers Meetra in Windows privacy lists when possible.
     }
     const urls = [
       "ms-settings:privacy-graphicscaptureprogrammatic",
@@ -779,6 +906,12 @@ async function openScreenCaptureSettings() {
 
   return false;
 }
+
+ipcMain.handle("forma:set-window-mode", (_event, mode) => {
+  if (mode !== "splash" && mode !== "app") return { ok: false };
+  setMainWindowMode(mode);
+  return { ok: true, mode: mainWindowMode };
+});
 
 ipcMain.handle("forma:open-external", async (_event, url) => {
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
@@ -848,11 +981,11 @@ ipcMain.handle("forma:spotify-widevine-status", () => getWidevineStatus());
 
 app.whenReady().then(async () => {
   // Screen share / recording: always grant the primary display (full desktop),
-  // not just the Hall window — so Chrome/Google etc. appear in the recording.
+  // not just the Meetra window — so Chrome/Google etc. appear in the recording.
   session.defaultSession.setDisplayMediaRequestHandler(
     async (request, callback) => {
       try {
-        // Probe sources so macOS registers Hall/Electron in Screen Recording.
+        // Probe sources so macOS registers Meetra/Electron in Screen Recording.
         const source = await resolvePreferredScreenSource();
         if (!source) {
           callback({});
@@ -914,7 +1047,7 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error(err);
     const message =
-      err instanceof Error ? err.message : "Le backend Hall n'a pas répondu.";
+      err instanceof Error ? err.message : "Le backend Meetra n'a pas répondu.";
     let hint;
     if (DEV_URL) {
       hint =
@@ -925,8 +1058,8 @@ app.whenReady().then(async () => {
         : `Journal : ${path.join(app.getPath("userData"), "forma-data", "backend.log")}`;
       hint =
         process.platform === "win32"
-          ? `Réinstallez Hall depuis forma.app, puis relancez. ${logHint}`
-          : `Réinstallez Hall, puis relancez. ${logHint}`;
+          ? `Réinstallez Meetra depuis forma.app, puis relancez. ${logHint}`
+          : `Réinstallez Meetra, puis relancez. ${logHint}`;
     } else if (process.platform === "win32") {
       hint =
         "Relancez depuis le projet : scripts\\desktop-dev.sh — ou reconstruisez : scripts\\build-desktop-win.bat";
@@ -940,14 +1073,14 @@ app.whenReady().then(async () => {
     const win = new BrowserWindow({
       width: 720,
       height: 420,
-      title: "Hall",
+      title: "Meetra",
       icon: resolveAppIconPath(),
       backgroundColor: "#121212",
       autoHideMenuBar: true,
     });
-    win.loadURL(loadErrorHtml("Hall ne peut pas démarrer", message, hint));
+    win.loadURL(loadErrorHtml("Meetra ne peut pas démarrer", message, hint));
     if (process.platform === "win32") {
-      dialog.showErrorBox("Hall ne peut pas démarrer", `${message}\n\n${hint}`);
+      dialog.showErrorBox("Meetra ne peut pas démarrer", `${message}\n\n${hint}`);
     }
   }
 });

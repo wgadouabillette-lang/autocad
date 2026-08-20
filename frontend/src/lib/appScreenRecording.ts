@@ -1,10 +1,21 @@
 import { buildAudioInputConstraints } from "./audioDevices";
 import { getLocalMediaStream } from "./localMedia";
 import { hasFormaDesktop } from "./formaDesktop";
-import { isScreenCapturePermissionError } from "./screenCapturePermission";
+import {
+  getScreenCaptureAccessInfo,
+  isScreenCapturePermissionError,
+  openScreenCaptureSettings,
+  screenCaptureSettingsHint,
+} from "./screenCapturePermission";
+import { ensureDesktopScreenCaptureAllowed } from "./screenShareMedia";
 import { readUserPreferences } from "./userPreferences";
 
 const MIN_RECORDING_MS = 2000;
+
+/**
+ * Recording must capture the full desktop/monitor so other apps (Chrome, Finder…)
+ * stay in the video when the user leaves Meetra. Never fall back to Meetra-window-only.
+ */
 
 let recorder: MediaRecorder | null = null;
 let captureStream: MediaStream | null = null;
@@ -40,7 +51,21 @@ function assertLiveVideoTrack(stream: MediaStream): MediaStream {
   if (!track || track.readyState === "ended") {
     stream.getTracks().forEach((item) => item.stop());
     throw new Error(
-      "Screen capture stopped immediately. Check screen recording permissions.",
+      "La capture d'écran s'est arrêtée immédiatement. Vérifiez les autorisations d'enregistrement d'écran.",
+    );
+  }
+  return stream;
+}
+
+/** Reject window/tab picks so recording always follows the whole screen. */
+function assertFullScreenCapture(stream: MediaStream): MediaStream {
+  const track = assertLiveVideoTrack(stream).getVideoTracks()[0];
+  if (!track) return stream;
+  const surface = track.getSettings().displaySurface;
+  if (surface === "window" || surface === "browser" || surface === "application") {
+    stream.getTracks().forEach((item) => item.stop());
+    throw new Error(
+      "Choisissez « Écran entier » (pas une fenêtre ni un onglet) pour enregistrer tout ce que vous ouvrez.",
     );
   }
   return stream;
@@ -49,45 +74,78 @@ function assertLiveVideoTrack(stream: MediaStream): MediaStream {
 async function acquireViaDisplayMedia(): Promise<MediaStream> {
   requireDisplayMedia();
 
-  // Fenêtre complète (pas seulement l'onglet / la surface in-app).
+  // Full desktop / monitor — not a single app tab or Meetra window.
   const stream = await navigator.mediaDevices.getDisplayMedia({
-    video: true,
+    video: {
+      // Chromium may ignore unknown keys; keep displaySurface as a soft hint.
+      displaySurface: "monitor",
+    } as MediaTrackConstraints,
     audio: true,
-  });
+    preferCurrentTab: false,
+    // Chromium: discourage current-tab / window-only picks.
+    selfBrowserSurface: "exclude",
+    surfaceSwitching: "exclude",
+    monitorTypeSurfaces: "include",
+  } as DisplayMediaStreamOptions);
 
-  return assertLiveVideoTrack(stream);
+  return assertFullScreenCapture(stream);
 }
 
 async function acquireDisplayStream(): Promise<MediaStream> {
+  await ensureDesktopScreenCaptureAllowed();
+
   if (hasFormaDesktop()) {
     requireDisplayMedia();
     try {
-      return assertLiveVideoTrack(
+      // Desktop main process auto-grants the primary monitor (full desktop).
+      return assertFullScreenCapture(
         await navigator.mediaDevices.getDisplayMedia({
-          video: true,
+          video: {
+            displaySurface: "monitor",
+          } as MediaTrackConstraints,
           audio: true,
-        }),
+          preferCurrentTab: false,
+        } as DisplayMediaStreamOptions),
       );
     } catch (error) {
-      if (isScreenCapturePermissionError(error)) throw error;
+      if (isScreenCapturePermissionError(error)) {
+        void openScreenCaptureSettings();
+        const info = await getScreenCaptureAccessInfo();
+        throw new Error(
+          info
+            ? screenCaptureSettingsHint(info.platform)
+            : "Autorisez l'enregistrement d'écran pour Meetra dans les réglages système.",
+        );
+      }
       return acquireViaElectronDesktop();
     }
   }
   return acquireViaDisplayMedia();
 }
+
 async function acquireViaElectronDesktop(): Promise<MediaStream> {
-  const sourceId = await window.formaDesktop!.getAppWindowSourceId();
-  if (!sourceId) {
+  // Screen only — never Meetra window. Window capture would freeze on Meetra when
+  // the user switches to Chrome / another app.
+  const sourceId = await window.formaDesktop?.getPreferredScreenSourceId?.();
+  if (!sourceId || !sourceId.startsWith("screen:")) {
     throw new Error(
-      "Hall window not found. Allow Hall (or Electron) in screen recording settings.",
+      "Aucun écran disponible. Autorisez Meetra dans les réglages d'enregistrement d'écran.",
     );
   }
 
   try {
     return assertLiveVideoTrack(await acquireViaDesktopSourceId(sourceId));
   } catch (error) {
-    if (isScreenCapturePermissionError(error)) throw error;
-    return acquireViaDisplayMedia();
+    if (isScreenCapturePermissionError(error)) {
+      void openScreenCaptureSettings();
+      const info = await getScreenCaptureAccessInfo();
+      throw new Error(
+        info
+          ? screenCaptureSettingsHint(info.platform)
+          : "Autorisez l'enregistrement d'écran pour Meetra dans les réglages système.",
+      );
+    }
+    throw error;
   }
 }
 

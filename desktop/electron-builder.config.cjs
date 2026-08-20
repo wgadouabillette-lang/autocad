@@ -27,7 +27,7 @@ module.exports = {
   ...base,
   win: {
     ...base.win,
-    // Must stay true so Hall's icon/metadata are written into Hall.exe.
+    // Must stay true so Meetra's icon/metadata are written into the installer exe.
     // Azure Trusted Signing still runs via azureSignOptions (not the default signtool cert).
     // With this false, Windows desktop/taskbar shortcuts keep the Electron default icon.
     signAndEditExecutable: true,

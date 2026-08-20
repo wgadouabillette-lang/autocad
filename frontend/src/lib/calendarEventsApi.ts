@@ -53,11 +53,20 @@ export async function fetchUserCalendarEvents(): Promise<CalendarEvent[]> {
   return (data.events ?? []).map(toCalendarEvent);
 }
 
+export type CreateUserCalendarEventsResult = {
+  events: CalendarEvent[];
+  googleConnected: boolean;
+  googleSynced: number;
+  googleError: string | null;
+};
+
 export async function createUserCalendarEvents(
   events: CalendarSyncEvent[],
   source: CalendarEvent["source"] = "user",
-): Promise<CalendarEvent[]> {
-  if (events.length === 0) return [];
+): Promise<CreateUserCalendarEventsResult> {
+  if (events.length === 0) {
+    return { events: [], googleConnected: false, googleSynced: 0, googleError: null };
+  }
   const r = await fetch(BASE, {
     method: "POST",
     headers: await authHeaders(true),
@@ -67,8 +76,18 @@ export async function createUserCalendarEvents(
     const text = await r.text();
     throw new Error(text || `HTTP ${r.status}`);
   }
-  const data = (await r.json()) as { events?: PersistedCalendarEventPayload[] };
-  return (data.events ?? []).map(toCalendarEvent);
+  const data = (await r.json()) as {
+    events?: PersistedCalendarEventPayload[];
+    googleConnected?: boolean;
+    googleSynced?: number;
+    googleError?: string | null;
+  };
+  return {
+    events: (data.events ?? []).map(toCalendarEvent),
+    googleConnected: Boolean(data.googleConnected),
+    googleSynced: data.googleSynced ?? 0,
+    googleError: data.googleError ?? null,
+  };
 }
 
 export async function deleteUserCalendarEvent(eventId: string): Promise<void> {

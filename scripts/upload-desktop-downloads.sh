@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publie les installateurs desktop sur Firebase Storage (lecture publique).
+# Publie les installateurs desktop + le feed auto-update sur Firebase Storage.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -34,6 +34,79 @@ upload_one() {
   return 0
 }
 
+upload_update_file() {
+  local src="$1"
+  local name="$2"
+  if [[ ! -f "$src" ]]; then
+    return 1
+  fi
+  local content_type="application/octet-stream"
+  local cache="public, max-age=3600"
+  case "$name" in
+    *.yml|*.yaml)
+      content_type="text/yaml; charset=utf-8"
+      cache="public, max-age=60"
+      ;;
+  esac
+  echo "Upload feed $name → gs://${BUCKET}/desktop-updates/${name}"
+  gcloud storage cp "$src" "gs://${BUCKET}/desktop-updates/${name}" \
+    --content-type="$content_type" \
+    --cache-control="$cache"
+  echo "  https://meetra.cc/desktop-updates/${name}"
+  return 0
+}
+
+upload_update_feed() {
+  local dir="$1"
+  [[ -d "$dir" ]] || return 0
+  local f base uploaded=0
+  shopt -s nullglob
+  for f in "$dir"/latest.yml "$dir"/latest-mac.yml "$dir"/latest-linux.yml; do
+    if [[ -f "$f" ]]; then
+      upload_update_file "$f" "$(basename "$f")"
+      uploaded=1
+    fi
+  done
+  for f in "$dir"/*.exe "$dir"/*.zip "$dir"/*.AppImage "$dir"/*.blockmap; do
+    [[ -f "$f" ]] || continue
+    base="$(basename "$f")"
+    case "$base" in
+      *uninstaller*|*Uninstall*|*uninstall*) continue ;;
+    esac
+    upload_update_file "$f" "$base"
+    uploaded=1
+  done
+  shopt -u nullglob
+  return 0
+}
+
+find_and_upload_feed() {
+  local start="$1"
+  [[ -e "$start" ]] || return 0
+  local dir
+  if [[ -d "$start" ]]; then
+    dir="$(cd "$start" && pwd)"
+  else
+    dir="$(cd "$(dirname "$start")" && pwd)"
+  fi
+  local i
+  for i in 1 2 3 4 5 6 7 8; do
+    if [[ -f "$dir/latest.yml" || -f "$dir/latest-mac.yml" || -f "$dir/latest-linux.yml" ]]; then
+      upload_update_feed "$dir"
+      return 0
+    fi
+    if [[ -f "$dir/desktop/release/latest.yml" || -f "$dir/desktop/release/latest-mac.yml" || -f "$dir/desktop/release/latest-linux.yml" ]]; then
+      upload_update_feed "$dir/desktop/release"
+      return 0
+    fi
+    if [[ "$dir" == "/" ]]; then
+      break
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 0
+}
+
 echo "Déploiement des règles Storage…"
 firebase deploy --only storage --project "$PROJECT_ID"
 
@@ -49,6 +122,13 @@ fi
 if upload_one "$LINUX_SRC" "Hall-linux.AppImage"; then
   uploaded=1
 fi
+
+echo ""
+echo "Feed auto-update…"
+find_and_upload_feed "desktop/release"
+find_and_upload_feed "$MAC_SRC"
+find_and_upload_feed "$WIN_SRC"
+find_and_upload_feed "$LINUX_SRC"
 
 if [[ "$uploaded" -eq 0 ]]; then
   echo "Aucun installateur trouvé."

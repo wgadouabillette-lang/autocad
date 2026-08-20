@@ -1,7 +1,8 @@
 import { UserPlus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { usePeopleStore } from "../../store/usePeopleStore";
+import { useStore } from "../../store/useStore";
+import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 
 const MENU_WIDTH = 280;
 
@@ -11,7 +12,9 @@ interface MenuPosition {
 }
 
 export default function InviteTeammatesButton() {
-  const sendFriendRequest = usePeopleStore((s) => s.sendFriendRequest);
+  const activeRoomId = useStore((s) => s.activeRoomId);
+  const inviteMemberByEmail = useWorkspacesStore((s) => s.inviteMemberByEmail);
+  const canManageInvites = useWorkspacesStore((s) => s.canManageWorkspaceInvites(activeRoomId));
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
   const [handle, setHandle] = useState("");
@@ -58,13 +61,15 @@ export default function InviteTeammatesButton() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
+  if (!canManageInvites) return null;
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
     setSent(false);
     setSending(true);
     try {
-      const result = await sendFriendRequest(handle);
+      const result = await inviteMemberByEmail(activeRoomId, handle);
       if (!result.ok) {
         setError(result.error ?? "Impossible d'envoyer l'invitation.");
         return;
@@ -95,11 +100,12 @@ export default function InviteTeammatesButton() {
                 transform: "translateY(-100%)",
               }}
               role="dialog"
-              aria-label="Inviter un coéquipier"
+              aria-label="Inviter au workspace"
             >
-              <p className="invite-teammates__menu-title">Inviter un coéquipier</p>
+              <p className="invite-teammates__menu-title">Inviter au workspace</p>
               <p className="invite-teammates__menu-hint">
-                Entrez l&apos;adresse email d&apos;un coéquipier pour envoyer une invitation.
+                Entrez l&apos;adresse email d&apos;un compte Meetra. La personne recevra une
+                invitation à accepter pour rejoindre ce workspace.
               </p>
               <form className="invite-teammates__form" onSubmit={onSubmit}>
                 <input
@@ -139,8 +145,8 @@ export default function InviteTeammatesButton() {
         ref={buttonRef}
         type="button"
         className="invite-teammates-btn"
-        aria-label="Inviter un coéquipier"
-        title="Inviter un coéquipier"
+        aria-label="Inviter au workspace"
+        title="Inviter au workspace"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >

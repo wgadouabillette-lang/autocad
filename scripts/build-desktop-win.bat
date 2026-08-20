@@ -42,7 +42,7 @@ if defined AZURE_CODESIGN_ENDPOINT (
   echo ATTENTION: aucune config de signature — installateur non signe.
   set CSC_IDENTITY_AUTO_DISCOVERY=false
 )
-call npx electron-builder --config electron-builder.config.cjs --win nsis
+call npx electron-builder --config electron-builder.config.cjs --win nsis --publish never
 cd ..
 
 echo.

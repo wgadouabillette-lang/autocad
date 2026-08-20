@@ -115,9 +115,6 @@ export function hallDjBlockedTrackIds(): Set<string> {
   for (const entry of readEntries()) {
     if (isHallDjTrackBlocked(entry.trackId)) blocked.add(entry.trackId);
   }
-  for (const entry of readRecentServed()) {
-    blocked.add(entry.trackId);
-  }
   return blocked;
 }
 
@@ -178,13 +175,13 @@ export function sortTracksByDjFeedback(tracks: SpotifyTrackCard[]): SpotifyTrack
   });
 }
 
-/** Drop blocked / recently served tracks. Never reintroduce them as a fallback. */
+/**
+ * Prefer fresh tracks, but never return an empty list when only "recent" ones remain.
+ * Hard rejects stay excluded. No random drop (that emptied the DJ pool).
+ */
 export function filterTracksByDjFeedback(tracks: SpotifyTrackCard[]): SpotifyTrackCard[] {
-  return tracks.filter((track) => {
-    const id = track.id?.trim();
-    if (!id) return true;
-    if (isHallDjTrackBlocked(id)) return false;
-    if (wasHallDjRecentlyServed(id)) return false;
-    return Math.random() < hallDjTrackWeight(id);
-  });
+  const notHardBlocked = tracks.filter((track) => !isHallDjTrackBlocked(track.id));
+  const notRecent = notHardBlocked.filter((track) => !wasHallDjRecentlyServed(track.id));
+  const pool = notRecent.length > 0 ? notRecent : notHardBlocked;
+  return sortTracksByDjFeedback(pool);
 }

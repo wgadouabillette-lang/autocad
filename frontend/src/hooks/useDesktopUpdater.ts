@@ -20,7 +20,7 @@ export function useDesktopUpdater() {
       push({
         kind: "app_update",
         category: "Mise à jour",
-        title: `Hall ${info.version} est disponible`,
+        title: `Meetra ${info.version} est disponible`,
         body:
           info.releaseNotes?.trim() ||
           "Une nouvelle version de l'application est prête à être installée.",
@@ -41,7 +41,7 @@ export function useDesktopUpdater() {
         kind: "new_feature",
         category: "Mise à jour",
         title: "Mise à jour prévue cette nuit",
-        body: `Hall ${info.version} s'installera entre ${info.window}.`,
+        body: `Meetra ${info.version} s'installera entre ${info.window}.`,
       });
     });
 

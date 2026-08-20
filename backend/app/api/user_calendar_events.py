@@ -140,9 +140,11 @@ async def _sync_unsynced_to_google(uid: str) -> dict[str, object]:
             )
             synced += 1
             continue
-        if google_status in {401, 403}:
+        if google_status == 401:
             await _invalidate_google_auth(uid, google_status)
             return {"synced": synced, "reason": "auth_expired"}
+        if google_status == 403:
+            return {"synced": synced, "reason": "google_forbidden"}
         logger.warning(
             "Google Calendar retro-sync failed for user %s event %r",
             uid,
@@ -170,6 +172,13 @@ async def create_user_calendar_events(
         return {"events": []}
 
     prepared: list[dict] = []
+    google_connected = False
+    google_synced_count = 0
+    google_error: str | None = None
+
+    connections = await run_in_threadpool(load_all_connections, user.uid)
+    google_connected = is_connected_from_items(connections, "calendar")
+
     for item in body.events:
         event: dict = {
             "title": item.title,
@@ -180,26 +189,34 @@ async def create_user_calendar_events(
             "source": body.source,
         }
 
-        connections = await run_in_threadpool(load_all_connections, user.uid)
-        if is_connected_from_items(connections, "calendar"):
+        if google_connected:
             token = await get_valid_access_token(user.uid, "calendar")
             if token:
                 google_id, google_status = await _create_google_event(token, item)
                 if google_id:
                     event["googleEventId"] = google_id
+                    google_synced_count += 1
                 else:
                     logger.warning(
-                        "Google Calendar sync failed for user %s event %r",
+                        "Google Calendar sync failed for user %s event %r (%s)",
                         user.uid,
                         item.title,
+                        google_status,
                     )
-                    if google_status in {401, 403}:
+                    if google_status == 401:
                         await _invalidate_google_auth(user.uid, google_status)
+                        google_connected = False
+                        google_error = "auth_expired"
+                    elif google_status == 403:
+                        google_error = google_error or "google_forbidden"
+                    else:
+                        google_error = google_error or f"google_http_{google_status}"
             else:
                 logger.warning(
                     "Google Calendar connected but no token for user %s",
                     user.uid,
                 )
+                google_error = google_error or "not_connected"
 
         connections = await run_in_threadpool(load_all_connections, user.uid)
         if is_connected_from_items(connections, "outlook"):
@@ -212,7 +229,12 @@ async def create_user_calendar_events(
         prepared.append(event)
 
     saved = await run_in_threadpool(save_events, user.uid, prepared)
-    return {"events": [_serialize(event) for event in saved]}
+    return {
+        "events": [_serialize(event) for event in saved],
+        "googleConnected": google_connected or google_synced_count > 0,
+        "googleSynced": google_synced_count,
+        "googleError": google_error,
+    }
 
 
 @router.post("/user-events/sync-google")

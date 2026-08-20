@@ -103,7 +103,7 @@ jobs:
         env:
           EVS_ACCOUNT_NAME: ${{ secrets.EVS_ACCOUNT_NAME }}
           EVS_PASSWD: ${{ secrets.EVS_PASSWD }}
-        run: npx electron-builder --mac dir --universal
+        run: npx electron-builder --mac dir --universal --publish never
 
       - name: Ad-hoc sign + rebuild .dmg
         env:
@@ -126,8 +126,10 @@ jobs:
         with:
           files: |
             desktop/release/*.dmg
+            desktop/release/*.zip
+            desktop/release/*.yml
             landing/public/downloads/Hall-mac.dmg
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -135,6 +137,8 @@ jobs:
           name: Hall-mac-dmg
           path: |
             desktop/release/*.dmg
+            desktop/release/*.zip
+            desktop/release/latest-mac.yml
             landing/public/downloads/Hall-mac.dmg
           if-no-files-found: error
           retention-days: 30

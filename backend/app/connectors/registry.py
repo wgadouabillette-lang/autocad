@@ -245,6 +245,8 @@ def spotify_authorize_url(
     *,
     redirect_base: str | None = None,
 ) -> str:
+    # Intentionally omit show_dialog: if the user already authorized Meetra and still
+    # has a Spotify session, Spotify silently redirects back (auto-connect).
     params = {
         "client_id": os.getenv("SPOTIFY_CLIENT_ID", ""),
         "response_type": "code",

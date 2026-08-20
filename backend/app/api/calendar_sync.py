@@ -159,7 +159,9 @@ async def _create_google_event(token: str, item: CalendarEventInput) -> tuple[st
 
 
 async def _invalidate_google_auth(uid: str, status_code: int) -> None:
-    if status_code in {401, 403}:
+    # Only drop the connection on hard auth failures. 403 can also mean a
+    # temporarily disabled API / insufficient scope — wiping tokens hides that.
+    if status_code == 401:
         await run_in_threadpool(remove_connection, uid, "calendar")
 
 

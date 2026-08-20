@@ -680,8 +680,15 @@ export function formatManageScheduleSummary(
  */
 export async function applyManageScheduleEvents(
   events: ManageScheduleEventDraft[],
-): Promise<CalendarEvent[]> {
-  if (events.length === 0) return [];
+): Promise<{
+  events: CalendarEvent[];
+  googleSynced: number;
+  googleError: string | null;
+  googleConnected: boolean;
+}> {
+  if (events.length === 0) {
+    return { events: [], googleSynced: 0, googleError: null, googleConnected: false };
+  }
   const syncPayload = events.map((event) => ({
     title: event.title,
     detail: event.detail,
@@ -690,11 +697,16 @@ export async function applyManageScheduleEvents(
     endMinutes: event.endMinutes,
   }));
 
-  const saved = await createUserCalendarEvents(syncPayload, "manage-skill");
+  const result = await createUserCalendarEvents(syncPayload, "manage-skill");
   useCalendarStore.getState().setUserEvents(await fetchUserCalendarEvents());
   notifyCalendarEventsChanged();
   window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
-  return saved;
+  return {
+    events: result.events,
+    googleSynced: result.googleSynced,
+    googleError: result.googleError,
+    googleConnected: result.googleConnected,
+  };
 }
 
 export async function runManageScheduleSkill(

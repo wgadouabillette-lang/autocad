@@ -7,6 +7,8 @@ export type ScreenCaptureAccessStatus =
 
 export type DesktopPlatform = "darwin" | "win32" | "linux" | "aix" | "freebsd" | "openbsd" | "sunos";
 
+export type DesktopWindowMode = "splash" | "app";
+
 export interface ScreenCaptureAccessInfo {
   status: ScreenCaptureAccessStatus;
   platform: DesktopPlatform | string;
@@ -44,8 +46,13 @@ export interface SpotifyPlaybackStateEvent {
 export interface FormaDesktopBridge {
   isDesktop: true;
   platform: DesktopPlatform | string;
+  setWindowMode?: (mode: DesktopWindowMode) => Promise<{ ok: boolean; mode?: DesktopWindowMode }>;
   openExternal: (url: string) => Promise<void>;
   getAppWindowSourceId: () => Promise<string | null>;
+  getPreferredScreenSourceId?: () => Promise<string | null>;
+  showRecordingCameraOverlay?: (opts?: { mirror?: boolean }) => Promise<boolean>;
+  hideRecordingCameraOverlay?: () => Promise<boolean>;
+  updateRecordingCameraOverlay?: (opts?: { mirror?: boolean }) => Promise<boolean>;
   getScreenCaptureAccessStatus: () => Promise<ScreenCaptureAccessInfo>;
   openScreenCaptureSettings: () => Promise<boolean>;
   installUpdateNow?: () => Promise<{ ok: boolean; reason?: string; dev?: boolean }>;
@@ -64,7 +71,12 @@ export interface FormaDesktopBridge {
   pauseSpotifyWebView2?: () => Promise<void>;
   resumeSpotifyWebView2?: () => Promise<void>;
   toggleSpotifyWebView2?: () => Promise<void>;
+  setSpotifyWebView2Volume?: (volume: number) => Promise<void>;
   resetSpotifyWebView2?: () => Promise<void>;
+  getSpotifyWebView2PlaybackClock?: () => Promise<{
+    sec: number | null;
+    durationSec: number | null;
+  }>;
   respondSpotifyToken?: (payload: { id: string; token: string }) => Promise<void>;
   onSpotifyTokenRequest?: (handler: (request: SpotifyTokenRequest) => void) => () => void;
   onSpotifyPlaybackState?: (handler: (state: SpotifyPlaybackStateEvent) => void) => () => void;

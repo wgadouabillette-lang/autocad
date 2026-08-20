@@ -9,6 +9,7 @@ function subscribe(channel, handler) {
 contextBridge.exposeInMainWorld("formaDesktop", {
   isDesktop: true,
   platform: process.platform,
+  setWindowMode: (mode) => ipcRenderer.invoke("forma:set-window-mode", mode),
   openExternal: (url) => ipcRenderer.invoke("forma:open-external", url),
   getAppWindowSourceId: () => ipcRenderer.invoke("forma:get-app-window-source-id"),
   getPreferredScreenSourceId: () =>

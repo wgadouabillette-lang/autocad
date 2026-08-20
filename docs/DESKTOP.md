@@ -223,6 +223,20 @@ Publier :
 
 URL : `https://forma.app/downloads/Hall-windows.exe`
 
+### Mises à jour in-app
+
+L’app packagée interroge `https://meetra.cc/desktop-updates/latest.yml` (Windows), `latest-mac.yml` (macOS) et `latest-linux.yml` (Linux).
+
+À chaque release :
+
+1. Incrémenter `desktop/package.json` `version` (ex. `0.1.1` → `0.1.2`).
+2. Construire l’installeur (CI ou script local).
+3. Publier avec `./scripts/upload-desktop-downloads.sh` — le script envoie aussi le feed (`latest.yml` + binaire) sur Storage.
+
+Les installs **antérieures à 0.1.1** n’ont pas ce check : elles doivent réinstaller une fois depuis le site. Ensuite les notifs « Maintenant / Cette nuit » s’affichent toutes seules.
+
+---
+
 ### Spotify (lecture complète Premium)
 
 Sur Windows, l’app `.exe` utilise un **lecteur WebView2** (moteur Microsoft Edge) en arrière-plan pour le Spotify Web Playback SDK. Edge embarque Widevine DRM, ce qu’Electron seul ne fournit pas — d’où les échecs de lecture complète dans la fenêtre principale.

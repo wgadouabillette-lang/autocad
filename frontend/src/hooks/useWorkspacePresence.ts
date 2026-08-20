@@ -3,7 +3,11 @@ import {
   watchSharedWorkspace,
   watchWorkspaceMembers,
 } from "../lib/firebase/workspaceRegistry";
-import { touchWorkspacePresence, watchWorkspacePresence } from "../lib/firebase/workspacePresence";
+import {
+  markWorkspacePresenceAway,
+  touchWorkspacePresence,
+  watchWorkspacePresence,
+} from "../lib/firebase/workspacePresence";
 import { createPresenceHeartbeat } from "../lib/firebase/workspacePresenceHeartbeat";
 import { getLocalPresenceActivityForSync } from "../lib/localPresenceActivity";
 import { getLocalSpotifyNowPlayingForSync } from "../lib/spotifyNowPlaying";
@@ -16,6 +20,10 @@ import { useStore } from "../store/useStore";
 import { useWorkspacePresenceStore } from "../store/useWorkspacePresenceStore";
 import { useWorkspacesStore } from "../store/useWorkspacesStore";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
+import {
+  useWorkspaceListenTargetIds,
+  workspaceListenTargetsKey,
+} from "./useWorkspaceListenTargetIds";
 
 function syncCallsFromPresenceStore(workspaceId: string, localFirebaseUid: string) {
   const members = useWorkspacePresenceStore.getState().membersByWorkspace[workspaceId] ?? {};
@@ -32,14 +40,28 @@ function workspaceIdsFromKey(key: string): string[] {
   return key ? key.split("\n") : [];
 }
 
-function isLocalInAnyVoiceSession(workspaceIds: string[]): boolean {
+function isLocalInVoiceSession(workspaceId: string): boolean {
   const calls = useCallsStore.getState();
-  return workspaceIds.some(
-    (workspaceId) =>
-      calls.isLocalInCall(workspaceId) ||
-      !!calls.localOpenChannelByRoom[workspaceId] ||
-      calls.isLocalInTheaterCall(workspaceId),
+  return (
+    calls.isLocalInCall(workspaceId) ||
+    !!calls.localOpenChannelByRoom[workspaceId] ||
+    calls.isLocalInTheaterCall(workspaceId)
   );
+}
+
+/**
+ * Écrit la présence uniquement sur le workspace ouvert.
+ * Exception: un WS où on est encore en vocal reste actif même si l'UI a changé.
+ */
+function presenceWriteTargets(joinedIds: string[], activeRoomId: string): string[] {
+  const targets = new Set<string>();
+  if (activeRoomId && joinedIds.includes(activeRoomId)) {
+    targets.add(activeRoomId);
+  }
+  for (const workspaceId of joinedIds) {
+    if (isLocalInVoiceSession(workspaceId)) targets.add(workspaceId);
+  }
+  return [...targets];
 }
 
 export function useWorkspacePresence() {
@@ -55,6 +77,8 @@ export function useWorkspacePresence() {
       .sort()
       .join("\n"),
   );
+  const listenTargetIds = useWorkspaceListenTargetIds(ownerUserId);
+  const listenTargetsKey = workspaceListenTargetsKey(listenTargetIds);
 
   useEffect(() => {
     const workspaceIds = workspaceIdsFromKey(workspaceIdsKey);
@@ -64,6 +88,8 @@ export function useWorkspacePresence() {
       displayName: userDisplayName.trim() || "Membre",
       photoURL: photoURL ?? undefined,
     };
+
+    let liveTargets: string[] = [];
 
     const pushPresence = (workspaceId: string) => {
       const calls = useCallsStore.getState();
@@ -84,12 +110,28 @@ export function useWorkspacePresence() {
       );
     };
 
+    const syncWriteTargets = () => {
+      const nextTargets = presenceWriteTargets(
+        workspaceIds,
+        useStore.getState().activeRoomId,
+      );
+      const nextSet = new Set(nextTargets);
+      const left = liveTargets.filter((id) => !nextSet.has(id));
+      liveTargets = nextTargets;
+      for (const workspaceId of left) {
+        void markWorkspacePresenceAway(workspaceId, firebaseUid);
+      }
+      return nextTargets;
+    };
+
     const heartbeat = () => {
-      void Promise.all(workspaceIds.map((workspaceId) => pushPresence(workspaceId)));
+      const targets = syncWriteTargets();
+      if (targets.length === 0) return;
+      void Promise.all(targets.map((workspaceId) => pushPresence(workspaceId)));
     };
 
     const scheduler = createPresenceHeartbeat({
-      isHighFrequency: () => isLocalInAnyVoiceSession(workspaceIds),
+      isHighFrequency: () => liveTargets.some((id) => isLocalInVoiceSession(id)),
       onPulse: heartbeat,
     });
 
@@ -105,6 +147,12 @@ export function useWorkspacePresence() {
       scheduler.stop();
     };
     document.addEventListener("visibilitychange", onVisible);
+
+    const unsubActiveRoom = useStore.subscribe((state, previous) => {
+      if (state.activeRoomId === previous.activeRoomId) return;
+      scheduler.pulse();
+      scheduler.reschedule();
+    });
 
     const voiceSnapshotRef = { current: "" };
     const unsubCalls = useCallsStore.subscribe(() => {
@@ -127,7 +175,7 @@ export function useWorkspacePresence() {
     const unsubActivity = usePresenceActivityStore.subscribe(() => {
       const byKey = usePresenceActivityStore.getState().byKey;
       const snapshot = JSON.stringify(
-        workspaceIds.map((workspaceId) => byKey[presenceActivityKey(workspaceId, "local")] ?? null),
+        liveTargets.map((workspaceId) => byKey[presenceActivityKey(workspaceId, "local")] ?? null),
       );
       if (snapshot === activitySnapshotRef.current) return;
       activitySnapshotRef.current = snapshot;
@@ -152,14 +200,18 @@ export function useWorkspacePresence() {
     return () => {
       scheduler.stop();
       document.removeEventListener("visibilitychange", onVisible);
+      unsubActiveRoom();
       unsubCalls();
       unsubActivity();
       unsubSpotify();
+      for (const workspaceId of liveTargets) {
+        void markWorkspacePresenceAway(workspaceId, firebaseUid);
+      }
     };
   }, [firebaseUid, isAuthenticated, userDisplayName, photoURL, workspaceIdsKey]);
 
   useEffect(() => {
-    const workspaceIds = workspaceIdsFromKey(workspaceIdsKey);
+    const workspaceIds = workspaceIdsFromKey(listenTargetsKey);
     if (!isAuthenticated || !firebaseUid || workspaceIds.length === 0) return;
 
     type RosterPerson = { uid: string; displayName: string; photoURL?: string };
@@ -252,10 +304,6 @@ export function useWorkspacePresence() {
               member.uid,
               member.spotifyNowPlaying,
             );
-            useCallsStore.getState().markParticipantVoiceActivity(
-              member.uid,
-              member.voice.speaking === true,
-            );
           }
           syncCallsFromPresenceStore(workspaceId, firebaseUid);
         },
@@ -273,7 +321,7 @@ export function useWorkspacePresence() {
         useWorkspacePresenceStore.getState().clearWorkspacePresence(workspaceId);
       }
     };
-  }, [firebaseUid, isAuthenticated, workspaceIdsKey]);
+  }, [firebaseUid, isAuthenticated, listenTargetsKey]);
 
   useEffect(() => {
     if (!isAuthenticated) return;

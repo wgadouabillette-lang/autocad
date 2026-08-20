@@ -12,7 +12,7 @@ import {
   Volume2,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties } from "react";
 import {
   normalizeSettingsTab,
   type SettingsTab,
@@ -143,7 +143,7 @@ export default function SettingsPage() {
   }, [closePage]);
 
   return (
-    <div className="settings-view">
+    <div className="settings-view settings-view--cascade">
       <div className="settings-view__frame">
         <div className="settings-view__layout">
           <nav className="settings-view__nav" aria-label="Settings sections">
@@ -160,9 +160,12 @@ export default function SettingsPage() {
                   );
                 }
 
+                const cascadeIndex = navItems
+                  .slice(0, index)
+                  .filter((entry) => entry.kind === "tab").length;
                 const Icon = TAB_ICONS[item.id];
                 return (
-                  <li key={item.id}>
+                  <li key={item.id} style={{ "--cascade-i": cascadeIndex } as CSSProperties}>
                     <button
                       type="button"
                       className={clsx(
@@ -178,7 +181,14 @@ export default function SettingsPage() {
                   </li>
                 );
               })}
-              <li className="settings-view__tabs-logout">
+              <li
+                className="settings-view__tabs-logout"
+                style={
+                  {
+                    "--cascade-i": navItems.filter((entry) => entry.kind === "tab").length,
+                  } as CSSProperties
+                }
+              >
                 <button
                   type="button"
                   className="settings-view__logout"

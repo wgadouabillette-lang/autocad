@@ -61,13 +61,13 @@ export function isScreenCapturePermissionError(error: unknown): boolean {
 
 export function screenCaptureSettingsHint(platform: DesktopPlatform | string): string {
   if (platform === "darwin") {
-    return "Ouvrez Réglages système → Confidentialité et sécurité → Enregistrement de l'écran, puis activez Hall. En développement, autorisez aussi Electron si Hall n'apparaît pas.";
+    return "Ouvrez Réglages système → Confidentialité et sécurité → Enregistrement de l'écran, puis activez Meetra. En développement, autorisez aussi Electron si Meetra n'apparaît pas.";
   }
   if (platform === "win32") {
-    return "Ouvrez Paramètres → Confidentialité et sécurité → Enregistrement d'écran, autorisez Hall, puis relancez l'app.";
+    return "Ouvrez Paramètres → Confidentialité et sécurité → Enregistrement d'écran, autorisez Meetra, puis relancez l'app.";
   }
   if (platform === "linux") {
-    return "Sur Linux, autorisez le partage d'écran dans la boîte de dialogue du système (PipeWire / portail XDG) lorsque Hall le demande.";
+    return "Sur Linux, autorisez le partage d'écran dans la boîte de dialogue du système (PipeWire / portail XDG) lorsque Meetra le demande.";
   }
-  return "Autorisez l'enregistrement d'écran pour Hall dans les réglages de confidentialité de votre système.";
+  return "Autorisez l'enregistrement d'écran pour Meetra dans les réglages de confidentialité de votre système.";
 }

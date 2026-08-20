@@ -7,7 +7,7 @@ export function isDesktopViewport(): boolean {
   return typeof window !== "undefined" && window.matchMedia(DESKTOP_VIEWPORT_QUERY).matches;
 }
 
-/** Packaged Hall serves the UI from the embedded desktop server on loopback. */
+/** Packaged Meetra serves the UI from the embedded desktop server on loopback. */
 export function isLocalDesktopBackend(): boolean {
   if (typeof window === "undefined") return false;
   const { hostname, port } = window.location;
@@ -15,7 +15,7 @@ export function isLocalDesktopBackend(): boolean {
   return loopback && DESKTOP_LOOPBACK_PORTS.has(port);
 }
 
-/** Web app and auth are desktop-only unless running inside the native Hall app. */
+/** Web app and auth are desktop-only unless running inside the native Meetra app. */
 export function canAccessApp(): boolean {
   return hasFormaDesktop() || isLocalDesktopBackend() || isDesktopViewport();
 }

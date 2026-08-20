@@ -10,8 +10,11 @@ import {
   readMarketingPreviewSceneParam,
 } from "./lib/marketingPreview";
 import {
+  seedMarketingHandoffPreview,
+  seedMarketingNotesPreview,
   seedMarketingPreview,
   seedMarketingRecordingPreview,
+  seedMarketingSpotifyPreview,
   seedMarketingTheaterPreview,
 } from "./lib/marketingPreviewSeed";
 import { applyDocumentTheme, bootstrapDocumentTheme } from "./lib/theme";
@@ -28,6 +31,12 @@ if (scene === "recording") {
   seedMarketingRecordingPreview();
 } else if (scene === "theater") {
   seedMarketingTheaterPreview();
+} else if (scene === "notes") {
+  seedMarketingNotesPreview();
+} else if (scene === "handoff") {
+  seedMarketingHandoffPreview();
+} else if (scene === "spotify") {
+  seedMarketingSpotifyPreview();
 } else {
   seedMarketingPreview();
 }
