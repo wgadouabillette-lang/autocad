@@ -20,6 +20,13 @@
       "excludeFiles": "backend/{.venv/**,**/__pycache__/**,app/engine/**,app/vision/**,app/ai/**}"
     }
   },
+  "redirects": [
+    {
+      "source": "/desktop-updates/:file",
+      "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/desktop-updates%2F:file?alt=media",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
