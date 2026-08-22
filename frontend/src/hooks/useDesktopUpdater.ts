@@ -79,7 +79,7 @@ export function useDesktopUpdater(): DesktopUpdateGate {
       }
     };
 
-    const unsubAvailable = desktop.onUpdateAvailable((info) => {
+    const unsubAvailable = desktop.onUpdateAvailable?.((info) => {
       const items = useNotificationsStore.getState().items;
       const already = items.some(
         (n) => n.kind === "app_update" && n.updateVersion === info.version,
@@ -138,7 +138,7 @@ export function useDesktopUpdater(): DesktopUpdateGate {
       window.clearInterval(pollId);
       window.clearTimeout(giveUp);
       window.clearTimeout(unblockAtHundred);
-      unsubAvailable();
+      unsubAvailable?.();
       unsubScheduled?.();
       unsubProgress?.();
       unsubInstalled?.();
