@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("formaDesktop", {
   openScreenCaptureSettings: () => ipcRenderer.invoke("forma:open-screen-capture-settings"),
   installUpdateNow: () => ipcRenderer.invoke("forma:update-install-now"),
   scheduleUpdateTonight: () => ipcRenderer.invoke("forma:update-schedule-tonight"),
+  getUpdateState: () => ipcRenderer.invoke("forma:update-get-state"),
   triggerMockUpdate: () => ipcRenderer.invoke("forma:update-trigger-mock"),
   onUpdateAvailable: (handler) => subscribe("forma:update-available", handler),
   onUpdateScheduledTonight: (handler) =>

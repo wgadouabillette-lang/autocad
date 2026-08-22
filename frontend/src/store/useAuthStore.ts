@@ -50,6 +50,14 @@ import {
   applyDashboardOnboardingFromProfile,
 } from "../lib/dashboardOnboarding";
 import { debugLog } from "../lib/debugLog";
+import { hasFormaDesktop } from "../lib/formaDesktop";
+import {
+  cancelDesktopWebAuth as abortDesktopWebAuthWait,
+  isDesktopWebAuthCancelled,
+  markDesktopAuthAccountChoiceRequired,
+  reopenDesktopWebAuth as reopenDesktopWebAuthUrl,
+  signInViaDesktopWebAuth,
+} from "../lib/firebase/desktopAuth";
 
 export type AuthProvider = FirebaseAuthProvider;
 
@@ -57,6 +65,7 @@ const PROFILE_SYNC_DEBOUNCE_MS = 600;
 const AUTH_HYDRATE_TIMEOUT_MS = 12_000;
 
 let activeAuthHydrateCleanup: (() => void) | null = null;
+let desktopWebAuthGeneration = 0;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -75,9 +84,14 @@ interface AuthState {
   firebaseUid: string | null;
   authError: string | null;
   emailLinkSent: boolean;
+  desktopWebAuthPending: boolean;
+  desktopWebAuthConnected: boolean;
+  acknowledgeDesktopAuthConnected: () => boolean;
   hydrate: () => () => void;
   continueWithEmail: (email: string) => Promise<void>;
   signInWithProvider: (provider: AuthProvider) => Promise<void>;
+  reopenDesktopWebAuth: () => Promise<void>;
+  cancelDesktopWebAuth: () => void;
   signOut: () => Promise<void>;
   syncProfileToCloud: () => Promise<void>;
   syncWorkspacesToCloud: () => Promise<void>;
@@ -438,6 +452,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   firebaseUid: null,
   authError: null,
   emailLinkSent: false,
+  desktopWebAuthPending: false,
+  desktopWebAuthConnected: false,
 
   hydrate: () => {
     activeAuthHydrateCleanup?.();
@@ -500,7 +516,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       stopProfileAutosync = null;
 
       set({ ready: false });
-      set(applyFirebaseUser(user));
+      set({ ...applyFirebaseUser(user), desktopWebAuthPending: false });
 
       const readySafety = window.setTimeout(() => {
         if (!disposed && loadId === authLoadId && auth.currentUser?.uid === user.uid && !get().ready) {
@@ -669,12 +685,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     debugLog(
       "useAuthStore.ts:signInWithProvider",
       "OAuth sign-in started",
-      { provider, pathname: window.location.pathname },
+      { provider, pathname: window.location.pathname, desktop: hasFormaDesktop() },
       "E",
     );
     // #endregion
-    set({ authError: null, ready: false });
+    set({ authError: null, desktopWebAuthConnected: false });
+    const desktopAuthGen = hasFormaDesktop() ? ++desktopWebAuthGeneration : desktopWebAuthGeneration;
     try {
+      if (hasFormaDesktop()) {
+        set({ desktopWebAuthPending: true, desktopWebAuthConnected: false });
+        try {
+          await signInViaDesktopWebAuth(() => {
+            if (desktopAuthGen === desktopWebAuthGeneration) {
+              set({ desktopWebAuthConnected: true });
+            }
+          });
+        } finally {
+          if (desktopAuthGen === desktopWebAuthGeneration) {
+            set({ desktopWebAuthPending: false });
+          }
+        }
+        // #region agent log
+        debugLog(
+          "useAuthStore.ts:signInWithProvider",
+          "Desktop web auth completed",
+          { provider },
+          "E",
+        );
+        // #endregion
+        return;
+      }
+      set({ ready: false });
       const user = await signInWithOAuthProvider(provider);
       // #region agent log
       debugLog(
@@ -685,6 +726,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       );
       // #endregion
     } catch (error) {
+      if (isDesktopWebAuthCancelled(error)) {
+        if (desktopAuthGen === desktopWebAuthGeneration) {
+          set({ desktopWebAuthPending: false, desktopWebAuthConnected: false });
+        }
+        return;
+      }
       if (error instanceof OAuthRedirectStartedError) {
         // #region agent log
         debugLog(
@@ -708,11 +755,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         "E",
       );
       // #endregion
-      set({ authError: formatAuthError(error, provider), ready: true });
+      set({
+        authError: formatAuthError(error, provider),
+        ready: true,
+        desktopWebAuthPending: false,
+        desktopWebAuthConnected: false,
+      });
     }
   },
 
+  acknowledgeDesktopAuthConnected: () => {
+    if (!get().desktopWebAuthConnected) return false;
+    set({ desktopWebAuthConnected: false });
+    return true;
+  },
+
+  reopenDesktopWebAuth: async () => {
+    try {
+      await reopenDesktopWebAuthUrl();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not reopen the sign-in page.";
+      set({ authError: message });
+    }
+  },
+
+  cancelDesktopWebAuth: () => {
+    desktopWebAuthGeneration += 1;
+    abortDesktopWebAuthWait();
+    set({ desktopWebAuthPending: false, desktopWebAuthConnected: false, authError: null });
+  },
+
   signOut: async () => {
+    if (hasFormaDesktop()) {
+      markDesktopAuthAccountChoiceRequired(get().authEmail);
+      document.documentElement.classList.add("app-loading-splash");
+      void window.formaDesktop?.setWindowMode?.("splash");
+    }
     await signOutUser();
     useStore.getState().setPhotoURL(null);
     useStore.setState({
@@ -726,6 +804,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       authProvider: null,
       firebaseUid: null,
       emailLinkSent: false,
+      desktopWebAuthPending: false,
+      desktopWebAuthConnected: false,
     });
   },
 

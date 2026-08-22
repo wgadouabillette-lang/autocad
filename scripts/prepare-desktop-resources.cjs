@@ -43,8 +43,17 @@ function copyDir(src, dest, skip = []) {
   }
 }
 
+if (process.env.FORMA_PROD_BUILD === "1") {
+  process.env.VITE_FORMA_WEB_AUTH_URL =
+    process.env.VITE_FORMA_WEB_AUTH_URL?.trim() || "https://meetra.cc/app/auth.html";
+  console.log("→ Production desktop web auth:", process.env.VITE_FORMA_WEB_AUTH_URL);
+}
+
 console.log("→ Build frontend…");
-run("npm", ["run", "build"], { cwd: path.join(root, "frontend") });
+run("npm", ["run", "build"], {
+  cwd: path.join(root, "frontend"),
+  env: { ...process.env },
+});
 
 if (!fs.existsSync(frontendDist)) {
   console.error("frontend/dist introuvable");

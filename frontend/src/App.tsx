@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
 import ChatFullscreenMediaPip from "./components/chat/ChatFullscreenMediaPip";
 import AppChromeRow from "./components/AppChromeRow";
 import PanelToolbarButtons from "./components/toolbar/PanelToolbarButtons";
@@ -34,6 +34,7 @@ import { useMeetingReminders } from "./hooks/useMeetingReminders";
 import { useSpotifyVoiceMix } from "./hooks/useSpotifyVoiceMix";
 import { useMobileLayout } from "./hooks/useMobileLayout";
 import { canAccessApp, DESKTOP_VIEWPORT_QUERY, getLandingUrl } from "./lib/appAccess";
+import { hasFormaDesktop } from "./lib/formaDesktop";
 import { runAppBoot, type AppBootStatus } from "./lib/appBoot";
 import { applyDocumentTheme } from "./lib/theme";
 import { runDashboardOnboardingIfNeeded } from "./lib/dashboardOnboarding";
@@ -103,6 +104,7 @@ export default function App() {
   const authReady = useAuthStore((s) => s.ready);
   const authEmail = useAuthStore((s) => s.authEmail);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
+  const desktopWebAuthConnected = useAuthStore((s) => s.desktopWebAuthConnected);
   const hydrateAuth = useAuthStore((s) => s.hydrate);
   const workspaceSwitching = useStore((s) => s.workspaceSwitching);
   const finishWorkspaceSwitch = useStore((s) => s.finishWorkspaceSwitch);
@@ -116,8 +118,15 @@ export default function App() {
     setBootStatus(status);
   }, []);
 
-  const desktopSplashWindow = !authReady || (isAuthenticated && bootStatus !== "ready");
-  useEffect(() => {
+  const { progress: updateProgress, blockingUpdate, startupCheckComplete } =
+    useDesktopUpdater();
+  const desktopSplashWindow =
+    !authReady ||
+    (hasFormaDesktop() && !isAuthenticated) ||
+    (isAuthenticated && bootStatus !== "ready") ||
+    blockingUpdate ||
+    (hasFormaDesktop() && !startupCheckComplete);
+  useLayoutEffect(() => {
     const root = document.documentElement;
     if (desktopSplashWindow) {
       root.classList.add("app-loading-splash");
@@ -133,7 +142,6 @@ export default function App() {
   useAppKeyboardShortcuts();
   useColorTheme();
   useAccentColor();
-  useDesktopUpdater();
   useMeetingReminders();
   useSpotifyVoiceMix();
   useCallVoiceActivity(inVoiceCall);
@@ -224,6 +232,20 @@ export default function App() {
     if (!isAuthenticated || !authEmail) return;
     useNotificationsStore.getState().hydrate(authEmail);
   }, [isAuthenticated, authEmail]);
+
+  useEffect(() => {
+    if (bootStatus !== "ready" || !authReady || !isAuthenticated || !authEmail) return;
+    if (!useAuthStore.getState().acknowledgeDesktopAuthConnected()) return;
+    useNotificationsStore.getState().push(
+      {
+        id: "desktop-auth-connected",
+        kind: "workspace",
+        title: "You're connected",
+        body: "Signed in successfully.",
+      },
+      { openPanel: true },
+    );
+  }, [bootStatus, authReady, isAuthenticated, authEmail, desktopWebAuthConnected]);
 
   useEffect(() => {
     if (!isAuthenticated || !firebaseUid || !authEmail) return;
@@ -339,13 +361,16 @@ export default function App() {
     };
   }, [handleRecordingStreamEnded, handleRecordingCaptureLost]);
 
-  const renderBranch = !authReady
-    ? "loading-auth"
-    : !isAuthenticated
-      ? "auth-page"
-      : bootStatus !== "ready"
-        ? "loading-boot"
-        : "app";
+  const showDesktopAuthSuccess = Boolean(desktopWebAuthConnected && !authReady);
+  const renderBranch = showDesktopAuthSuccess
+    ? "auth-page"
+    : !authReady
+      ? "loading-auth"
+      : !isAuthenticated
+        ? "auth-page"
+        : bootStatus !== "ready"
+          ? "loading-boot"
+          : "app";
   // #region agent log
   if (appRenderCount <= 60 || renderBranch !== "app") {
     debugLog(
@@ -365,11 +390,26 @@ export default function App() {
   }
   // #endregion
 
+  if (blockingUpdate || (hasFormaDesktop() && !startupCheckComplete)) {
+    return (
+      <AppLoadingScreen
+        connectionError={false}
+        label={blockingUpdate ? "Updating…" : "Loading…"}
+        progress={updateProgress}
+      />
+    );
+  }
+
+  if (showDesktopAuthSuccess) {
+    return <AuthPage />;
+  }
+
   if (!authReady) {
     return (
       <AppLoadingScreen
         connectionError={false}
         label="Loading…"
+        progress={updateProgress}
       />
     );
   }
@@ -383,6 +423,7 @@ export default function App() {
       <AppLoadingScreen
         connectionError={bootStatus === "connection_error"}
         onRetry={() => void runBoot()}
+        progress={bootStatus === "connection_error" ? null : updateProgress}
       />
     );
   }

@@ -3,46 +3,76 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Sign in to Hall" />
-    <title>Hall — Sign in</title>
+    <meta name="description" content="Sign in to Meetra" />
+    <title>Meetra — Sign in</title>
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
     <link rel="icon" type="image/png" href="icon.png" />
     <link rel="stylesheet" href="styles.css" />
+    <style>
+      html.auth-handoff:not(.auth-done):not(.auth-error) .auth-shell__brand,
+      html.auth-handoff:not(.auth-done):not(.auth-error) .auth-card {
+        display: none !important;
+      }
+      html.auth-handoff:not(.auth-done) .auth-card__title,
+      html.auth-handoff:not(.auth-done) .auth-card__lead,
+      html.auth-handoff:not(.auth-error) .auth-signin-btn {
+        display: none !important;
+      }
+    </style>
+    <script>
+      (function () {
+        var q = new URLSearchParams(window.location.search);
+        var auto = Boolean(q.get("session")) || q.get("google") === "1";
+        try {
+          auto =
+            auto ||
+            Boolean(sessionStorage.getItem("meetraDesktopAuthSession")) ||
+            sessionStorage.getItem("meetraDesktopAuthGoogle") === "1" ||
+            sessionStorage.getItem("meetraDesktopAuthRedirectStarted") === "1";
+        } catch (e) {}
+        if (auto) {
+          document.documentElement.classList.add("auth-handoff");
+          if (q.get("session") || q.get("google") === "1") {
+            window.location.replace("/app/auth.html" + window.location.search + window.location.hash);
+            return;
+          }
+        }
+      })();
+    </script>
   </head>
   <body class="auth-body">
     <div class="auth-shell">
-      <header class="auth-shell__brand">
-        <img src="icon.svg" alt="" width="24" height="24" />
-        <span>Hall</span>
-      </header>
-
+      <a class="auth-shell__brand" href="/" aria-label="Meetra">
+        <img src="/meetra-wordmark.png" alt="" class="auth-shell__brand-logo" />
+      </a>
       <main class="auth-shell__main">
         <div class="auth-card" id="auth-card">
-          <h1 class="auth-card__title" id="auth-title">Welcome to Hall</h1>
+          <h1 class="auth-card__title" id="auth-title">Meetra</h1>
           <p class="auth-card__lead" id="auth-lead">
-            Connect to open Hall in your browser.
+            AI-powered collaborative workspace for teams
           </p>
           <p class="auth-card__error" id="auth-error" hidden></p>
-          <div class="auth-providers" id="auth-providers"></div>
-          <form class="auth-email-form" id="auth-email-form">
-            <label class="auth-email-label" for="auth-email">Email</label>
-            <input
-              id="auth-email"
-              type="email"
-              class="auth-email-input"
-              placeholder="you@company.com"
-              autocomplete="email"
-            />
-            <button type="submit" class="auth-email-submit" id="auth-email-submit">Continue with email</button>
-          </form>
+          <p class="auth-card__status" id="auth-status" hidden></p>
+          <button type="button" class="auth-signin-btn" id="auth-signin">
+            <span class="auth-signin-btn__label">Sign in</span>
+            <svg
+              class="auth-signin-btn__icon"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </button>
         </div>
       </main>
-
-      <footer class="auth-shell__footer">
-        <a href="/terms" class="auth-shell__legal">Terms of Service</a>
-        <span aria-hidden> and </span>
-        <a href="/privacy" class="auth-shell__legal">privacy policy</a>
-      </footer>
     </div>
     <script type="module" src="/auth.js"></script>
   </body>

@@ -1,6 +1,7 @@
 """Authentification bureau — sessions OAuth via navigateur externe."""
 from __future__ import annotations
 
+import logging
 import re
 import threading
 import time
@@ -13,6 +14,7 @@ from app.core.auth_deps import optional_firebase_user
 from app.core.firebase import FirebaseUser
 
 router = APIRouter(prefix="/api/auth/desktop", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 SESSION_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
@@ -51,9 +53,30 @@ def _create_custom_token(uid: str) -> str:
         raise HTTPException(503, "Firebase Admin SDK unavailable.") from exc
 
     try:
-        return auth.create_custom_token(uid).decode("utf-8")
+        token = auth.create_custom_token(uid)
+        return token.decode("utf-8") if isinstance(token, bytes) else str(token)
     except Exception as exc:
         raise HTTPException(503, "Unable to create desktop auth token.") from exc
+
+
+def _publish_session_to_firestore(session_id: str, uid: str, custom_token: str) -> None:
+    """Mirror the in-memory session so Electron can claim via Firestore."""
+    try:
+        from app.core.firebase import firestore_available
+
+        if not firestore_available():
+            return
+        from firebase_admin import firestore
+
+        firestore.client().document(f"desktopAuthSessions/{session_id}").set(
+            {
+                "token": custom_token,
+                "uid": uid,
+                "createdAt": firestore.SERVER_TIMESTAMP,
+            }
+        )
+    except Exception:
+        logger.warning("Could not publish desktop auth session to Firestore.", exc_info=True)
 
 
 def _purge_expired(now: float) -> None:
@@ -82,6 +105,7 @@ def complete_desktop_auth(
             "uid": firebase_user.uid,
             "expiresAt": now + SESSION_TTL_SECONDS,
         }
+    _publish_session_to_firestore(session_id, firebase_user.uid, custom_token)
     return {"ok": True}
 
 

@@ -176,18 +176,33 @@ export const claimDesktopAuthSession = onCall({ cors: true }, async (request) =>
 
   const data = snap.data();
   const createdAt = data?.createdAt?.toDate?.()?.getTime?.() ?? 0;
-  if (!createdAt || Date.now() - createdAt > DESKTOP_AUTH_SESSION_TTL_MS) {
+  if (createdAt && Date.now() - createdAt > DESKTOP_AUTH_SESSION_TTL_MS) {
     await ref.delete();
     throw new HttpsError("deadline-exceeded", "Desktop auth session expired.");
   }
 
   const customToken = data?.token;
-  if (typeof customToken !== "string" || !customToken) {
+  if (typeof customToken === "string" && customToken) {
     await ref.delete();
-    throw new HttpsError("internal", "Desktop auth session is invalid.");
+    return { status: "ready" as const, customToken };
   }
 
-  await ref.delete();
-  return { status: "ready" as const, customToken };
+  const provider = data?.provider;
+  const idToken = data?.idToken;
+  if (
+    (provider === "google" || provider === "microsoft" || provider === "facebook") &&
+    typeof idToken === "string" &&
+    idToken
+  ) {
+    await ref.delete();
+    return {
+      status: "ready" as const,
+      provider,
+      idToken,
+      accessToken: typeof data?.accessToken === "string" ? data.accessToken : undefined,
+    };
+  }
+
+  return { status: "pending" as const };
 });
 

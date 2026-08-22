@@ -25,6 +25,16 @@ export interface DesktopUpdateProgress {
   version: string;
 }
 
+export interface DesktopUpdateState {
+  available: DesktopUpdateInfo | null;
+  pendingTonight: { version: string; releaseNotes?: string; schedule: string } | null;
+  installing: boolean;
+  nightWindow: string;
+  isNightWindow: boolean;
+  startupCheckComplete?: boolean;
+  progress?: DesktopUpdateProgress | null;
+}
+
 export interface DesktopUpdateScheduledTonight {
   version: string;
   window: string;
@@ -57,6 +67,7 @@ export interface FormaDesktopBridge {
   openScreenCaptureSettings: () => Promise<boolean>;
   installUpdateNow?: () => Promise<{ ok: boolean; reason?: string; dev?: boolean }>;
   scheduleUpdateTonight?: () => Promise<{ ok: boolean; reason?: string }>;
+  getUpdateState?: () => Promise<DesktopUpdateState>;
   triggerMockUpdate?: () => Promise<{ ok: boolean }>;
   onUpdateAvailable?: (handler: (info: DesktopUpdateInfo) => void) => () => void;
   onUpdateScheduledTonight?: (

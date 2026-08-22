@@ -1,138 +1,124 @@
-import { FormEvent, useState } from "react";
-import type { AuthProvider } from "../../store/useAuthStore";
+import { useLayoutEffect, useRef, useState } from "react";
+import { ArrowRight } from "lucide-react";
 import { useAuthStore } from "../../store/useAuthStore";
 import { getLandingUrl } from "../../lib/appAccess";
-import { APP_DISPLAY_NAME } from "../../lib/appBrand";
+import { APP_DISPLAY_NAME, APP_TAGLINE } from "../../lib/appBrand";
 import { hasFormaDesktop } from "../../lib/formaDesktop";
-import { FacebookIcon, GoogleIcon, MicrosoftIcon } from "./AuthProviderIcons";
 
-const PROVIDERS: {
-  id: AuthProvider;
-  label: string;
-  Icon: () => JSX.Element;
-}[] = [
-  { id: "google", label: "Continue with Google", Icon: GoogleIcon },
-  { id: "microsoft", label: "Continue with Microsoft", Icon: MicrosoftIcon },
-  { id: "facebook", label: "Continue with Facebook", Icon: FacebookIcon },
-];
-
-const HALL_SITE_URL = "https://hall.app";
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
+const SITE_URL = "https://meetra.cc";
 
 export default function AuthPage() {
-  const continueWithEmail = useAuthStore((s) => s.continueWithEmail);
   const signInWithProvider = useAuthStore((s) => s.signInWithProvider);
+  const reopenDesktopWebAuth = useAuthStore((s) => s.reopenDesktopWebAuth);
+  const cancelDesktopWebAuth = useAuthStore((s) => s.cancelDesktopWebAuth);
+  const desktopWebAuthPending = useAuthStore((s) => s.desktopWebAuthPending);
+  const desktopWebAuthConnected = useAuthStore((s) => s.desktopWebAuthConnected);
   const authError = useAuthStore((s) => s.authError);
-  const emailLinkSent = useAuthStore((s) => s.emailLinkSent);
-  const authEmail = useAuthStore((s) => s.authEmail);
-  const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
+  const signInRef = useRef<HTMLButtonElement>(null);
   const isDesktop = hasFormaDesktop();
-  const trimmedEmail = email.trim();
-  const canContinue = isValidEmail(trimmedEmail);
+  const desktopConnected = isDesktop && desktopWebAuthConnected;
+  const waitingForDesktopAuth = isDesktop && (desktopWebAuthPending || desktopWebAuthConnected);
 
-  const handleEmailSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canContinue || busy) return;
+  useLayoutEffect(() => {
+    const node = signInRef.current;
+    if (node && document.activeElement === node) {
+      node.blur();
+    }
+  }, [waitingForDesktopAuth]);
+
+  const handleSignIn = async () => {
+    if (busy || desktopWebAuthPending) return;
+    if (isDesktop) {
+      await signInWithProvider("google");
+      return;
+    }
     setBusy(true);
     try {
-      await continueWithEmail(trimmedEmail);
+      await signInWithProvider("google");
     } finally {
       setBusy(false);
     }
   };
 
-  const handleProvider = async (provider: AuthProvider) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await signInWithProvider(provider);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const title = (
+    <h1 className="auth-page__title">
+      {isDesktop ? (
+        APP_DISPLAY_NAME
+      ) : (
+        <a
+          className="auth-page__title-link"
+          href={getLandingUrl()}
+          aria-label={`Retour à la page d'accueil ${APP_DISPLAY_NAME}`}
+        >
+          {APP_DISPLAY_NAME}
+        </a>
+      )}
+    </h1>
+  );
 
   return (
-    <div className="auth-page">
-      <header className="auth-page__brand">
-        {isDesktop ? (
-          <span className="auth-page__brand-mark" aria-hidden>
-            {APP_DISPLAY_NAME}
-          </span>
-        ) : (
-          <a
-            className="auth-page__brand-mark auth-page__brand-mark--link"
-            href={getLandingUrl()}
-            aria-label={`Retour à la page d'accueil ${APP_DISPLAY_NAME}`}
-          >
-            {APP_DISPLAY_NAME}
-          </a>
-        )}
-        <span className="sr-only">{APP_DISPLAY_NAME}</span>
-      </header>
-
+    <div className={isDesktop ? "auth-page auth-page--desktop" : "auth-page"}>
       <main className="auth-page__main">
         <div className="auth-page__card">
-          <h1 className="auth-page__title">Welcome to {APP_DISPLAY_NAME}</h1>
-          <p className="auth-page__subtitle">Connectez-vous pour synchroniser vos projets et clés API.</p>
+          {title}
+          <p className="auth-page__subtitle">{APP_TAGLINE}</p>
 
           {authError && <p className="auth-page__error">{authError}</p>}
 
-          {emailLinkSent ? (
-            <p className="auth-page__subtitle">
-              Un lien de connexion a été envoyé à <strong>{authEmail}</strong>. Ouvrez-le sur cet appareil pour
-              continuer.
-            </p>
-          ) : (
-            <>
-              <div className="auth-page__providers">
-                {PROVIDERS.map(({ id, label, Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className="auth-page__provider-btn"
-                    disabled={busy}
-                    onClick={() => void handleProvider(id)}
-                  >
-                    <Icon />
-                    <span>{label}</span>
-                  </button>
-                ))}
+          {waitingForDesktopAuth ? (
+            <div className="auth-page__waiting">
+              <div className="auth-page__waiting-status" role="status" aria-live="polite">
+                {!desktopConnected && (
+                  <div
+                    className="app-loading-screen__spinner auth-page__waiting-spinner"
+                    aria-hidden
+                  />
+                )}
+                <span className="auth-page__waiting-copy">
+                  {desktopConnected ? "You're connected" : "Continue in your browser"}
+                </span>
               </div>
-
-              <form className="auth-page__email-form" onSubmit={(event) => void handleEmailSubmit(event)}>
-                <label className="auth-page__email-label" htmlFor="auth-email">
-                  Email address
-                </label>
-                <input
-                  id="auth-email"
-                  type="email"
-                  className="auth-page__email-input"
-                  placeholder="you@company.com"
-                  autoComplete="email"
-                  value={email}
-                  disabled={busy}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-                <button
-                  type="submit"
-                  className="btn btn-primary auth-page__continue-btn"
-                  disabled={!canContinue || busy}
-                >
-                  {busy ? "Envoi…" : "Continue with email"}
-                </button>
-              </form>
-            </>
+              {!desktopConnected && (
+                <div className="auth-page__waiting-actions">
+                  <button
+                    type="button"
+                    className="btn btn-ghost auth-page__reopen-btn"
+                    onClick={() => void reopenDesktopWebAuth()}
+                  >
+                    Reopen link
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost auth-page__cancel-btn"
+                    onClick={() => cancelDesktopWebAuth()}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              ref={signInRef}
+              type="button"
+              className="btn auth-page__signin-btn"
+              autoFocus={false}
+              disabled={busy}
+              onClick={() => void handleSignIn()}
+            >
+              {busy ? "Signing in…" : "Sign in"}
+              {!busy && (
+                <ArrowRight className="auth-page__signin-icon" size={16} strokeWidth={2} aria-hidden />
+              )}
+            </button>
           )}
         </div>
       </main>
 
       <footer className="auth-page__footer">
         <a
-          href={`${HALL_SITE_URL}/terms`}
+          href={`${SITE_URL}/terms`}
           className="auth-page__legal-link"
           target="_blank"
           rel="noopener noreferrer"
@@ -141,7 +127,7 @@ export default function AuthPage() {
         </a>
         <span aria-hidden> and </span>
         <a
-          href={`${HALL_SITE_URL}/privacy`}
+          href={`${SITE_URL}/privacy`}
           className="auth-page__legal-link"
           target="_blank"
           rel="noopener noreferrer"

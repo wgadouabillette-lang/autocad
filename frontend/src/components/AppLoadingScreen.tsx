@@ -1,33 +1,47 @@
-import { APP_DISPLAY_NAME } from "../lib/appBrand";
+import { APP_DISPLAY_NAME, APP_TAGLINE } from "../lib/appBrand";
 
 type AppLoadingScreenProps = {
   connectionError?: boolean;
   label?: string;
+  /** 0–100 when known (desktop update). Omit for an indeterminate boot bar. */
+  progress?: number | null;
   onRetry?: () => void;
 };
 
 export default function AppLoadingScreen({
   connectionError = false,
   label = "Loading…",
+  progress = null,
   onRetry,
 }: AppLoadingScreenProps) {
+  const determinate = !connectionError && progress != null;
+  const percent = determinate ? Math.max(0, Math.min(100, Math.round(progress))) : 0;
+
   return (
     <div className="app-loading-screen" role={connectionError ? "alert" : "status"}>
       <div className="app-loading-screen__window">
-        <header className="app-loading-screen__brand">
-          <span className="app-loading-screen__brand-mark" aria-hidden>
-            {APP_DISPLAY_NAME}
-          </span>
-          <span className="sr-only">{APP_DISPLAY_NAME}</span>
-        </header>
-        <div className="app-loading-screen__center">
+        <div className="app-loading-screen__card">
+          <h1 className="app-loading-screen__title">{APP_DISPLAY_NAME}</h1>
+          <p className="app-loading-screen__subtitle">{APP_TAGLINE}</p>
           {!connectionError ? (
             <div
-              className="app-loading-screen__spinner"
+              className={
+                determinate
+                  ? "app-loading-screen__progress"
+                  : "app-loading-screen__progress app-loading-screen__progress--indeterminate"
+              }
               role="progressbar"
               aria-label={label}
-              aria-busy="true"
-            />
+              aria-busy={percent < 100}
+              aria-valuemin={determinate ? 0 : undefined}
+              aria-valuemax={determinate ? 100 : undefined}
+              aria-valuenow={determinate ? percent : undefined}
+            >
+              <div
+                className="app-loading-screen__progress-fill"
+                style={determinate ? { width: `${percent}%` } : undefined}
+              />
+            </div>
           ) : null}
           {connectionError ? (
             <div className="app-loading-screen__error">
@@ -43,9 +57,6 @@ export default function AppLoadingScreen({
             </div>
           ) : null}
         </div>
-        <footer className="app-loading-screen__footer">
-          <span>Powered by GB Studio</span>
-        </footer>
       </div>
     </div>
   );

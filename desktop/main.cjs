@@ -495,7 +495,7 @@ function resolveAppIconPath() {
   return undefined;
 }
 
-const SPLASH_WINDOW_SIZE = { width: 300, height: 425 };
+const SPLASH_WINDOW_SIZE = { width: 340, height: 340 };
 const APP_WINDOW_SIZE = { width: 1440, height: 900 };
 const APP_WINDOW_MIN_SIZE = { width: 1024, height: 640 };
 
@@ -517,17 +517,22 @@ function getCenteredSplashBounds() {
   };
 }
 
-function closeSplashWindow() {
-  if (splashWindow && !splashWindow.isDestroyed()) {
-    splashWindow.close();
-  }
-  splashWindow = null;
+function getCenteredAppBounds() {
+  const point = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(point) ?? screen.getPrimaryDisplay();
+  const work = display.workArea;
+  const width = Math.min(APP_WINDOW_SIZE.width, work.width);
+  const height = Math.min(APP_WINDOW_SIZE.height, work.height);
+  return {
+    x: Math.round(work.x + (work.width - width) / 2),
+    y: Math.round(work.y + (work.height - height) / 2),
+    width,
+    height,
+  };
 }
 
-function createSplashWindow() {
-  if (splashWindow && !splashWindow.isDestroyed()) return;
-  const bounds = getCenteredSplashBounds();
-  splashWindow = new BrowserWindow({
+function splashWindowChrome(bounds = getCenteredSplashBounds()) {
+  return {
     width: bounds.width,
     height: bounds.height,
     x: bounds.x,
@@ -541,10 +546,25 @@ function createSplashWindow() {
     resizable: false,
     maximizable: false,
     minimizable: false,
-    fullscreenable: false,
     show: false,
     title: "Meetra",
     icon: resolveAppIconPath(),
+  };
+}
+
+function closeSplashWindow() {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close();
+  }
+  splashWindow = null;
+}
+
+function createSplashWindow() {
+  if (splashWindow && !splashWindow.isDestroyed()) return;
+  const bounds = getCenteredSplashBounds();
+  splashWindow = new BrowserWindow({
+    ...splashWindowChrome(bounds),
+    fullscreenable: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -553,12 +573,94 @@ function createSplashWindow() {
   splashWindow.loadFile(path.join(__dirname, "splash.html"));
   splashWindow.once("ready-to-show", () => {
     if (!splashWindow || splashWindow.isDestroyed() || mainWindowMode === "app") return;
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) return;
     splashWindow.setBounds(getCenteredSplashBounds());
     splashWindow.show();
   });
   splashWindow.on("closed", () => {
     splashWindow = null;
   });
+}
+
+/** @type {Promise<void> | null} */
+let splashChromePromise = null;
+/** @type {Promise<void> | null} */
+let splashShowPromise = null;
+
+function waitForLeaveFullScreen(win) {
+  if (!win || win.isDestroyed() || !win.isFullScreen()) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    win.once("leave-full-screen", done);
+    win.setFullScreen(false);
+    setTimeout(done, 1600);
+  });
+}
+
+function applySplashChromeNow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  }
+  const bounds = getCenteredSplashBounds();
+  mainWindow.setFullScreenable(false);
+  mainWindow.setMinimizable(false);
+  mainWindow.setMaximizable(false);
+  mainWindow.setResizable(true);
+  mainWindow.setMinimumSize(SPLASH_WINDOW_SIZE.width, SPLASH_WINDOW_SIZE.height);
+  mainWindow.setMaximumSize(SPLASH_WINDOW_SIZE.width, SPLASH_WINDOW_SIZE.height);
+  mainWindow.setBounds(bounds);
+  mainWindow.setResizable(false);
+  mainWindow.setHasShadow(false);
+  mainWindow.setBackgroundColor("#00000000");
+}
+
+function applySplashChromeToMainWindow() {
+  if (splashChromePromise) return splashChromePromise;
+  splashChromePromise = (async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    await waitForLeaveFullScreen(mainWindow);
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    applySplashChromeNow();
+  })().finally(() => {
+    splashChromePromise = null;
+  });
+  return splashChromePromise;
+}
+
+async function showSplashMainWindow() {
+  if (splashShowPromise) return splashShowPromise;
+  splashShowPromise = (async () => {
+    const leavingApp = mainWindowMode === "app";
+    mainWindowMode = "splash";
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      // Hide first when leaving the full app so logout does not paint AuthPage
+      // over leftover workspace chrome in a still-maximized/fullscreen window.
+      if (leavingApp && (mainWindow.isVisible() || mainWindow.isFullScreen())) {
+        mainWindow.hide();
+      }
+      await applySplashChromeToMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (leavingApp) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (!mainWindow.isVisible()) {
+        mainWindow.show();
+      }
+      mainWindow.focus();
+    }
+    closeSplashWindow();
+  })().finally(() => {
+    splashShowPromise = null;
+  });
+  return splashShowPromise;
 }
 
 function enterLaunchFullScreen(win) {
@@ -575,6 +677,17 @@ function showAppWindow() {
   mainWindowMode = "app";
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.setFullScreenable(true);
+    mainWindow.setResizable(true);
+    mainWindow.setMaximizable(true);
+    mainWindow.setMinimizable(true);
+    const display = screen.getDisplayMatching(mainWindow.getBounds()) ?? screen.getPrimaryDisplay();
+    const { width, height } = display.bounds;
+    mainWindow.setMaximumSize(width, height);
+    mainWindow.setMinimumSize(APP_WINDOW_MIN_SIZE.width, APP_WINDOW_MIN_SIZE.height);
+    mainWindow.setHasShadow(true);
+    mainWindow.setBackgroundColor("#121212");
+    mainWindow.setBounds(getCenteredAppBounds());
     // Maximize while still hidden on Windows/Linux so the first paint is not 1440×900.
     // macOS native fullscreen is applied after show() — setFullScreen on a hidden
     // window is unreliable.
@@ -593,15 +706,10 @@ function showAppWindow() {
 function setMainWindowMode(mode) {
   if (mode === "app") {
     showAppWindow();
-    return;
+    return Promise.resolve();
   }
-  if (mode !== "splash") return;
-  if (mainWindowMode === "app") return;
-  mainWindowMode = "splash";
-  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
-    mainWindow.hide();
-  }
-  createSplashWindow();
+  if (mode !== "splash") return Promise.resolve();
+  return showSplashMainWindow();
 }
 
 function createWindow() {
@@ -613,16 +721,9 @@ function createWindow() {
   createSplashWindow();
 
   mainWindow = new BrowserWindow({
-    width: APP_WINDOW_SIZE.width,
-    height: APP_WINDOW_SIZE.height,
-    minWidth: APP_WINDOW_MIN_SIZE.width,
-    minHeight: APP_WINDOW_MIN_SIZE.height,
-    show: false,
+    ...splashWindowChrome(),
     paintWhenInitiallyHidden: true,
-    fullscreenable: true,
-    title: "Meetra",
-    icon: resolveAppIconPath(),
-    backgroundColor: "#121212",
+    fullscreenable: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -907,9 +1008,9 @@ async function openScreenCaptureSettings() {
   return false;
 }
 
-ipcMain.handle("forma:set-window-mode", (_event, mode) => {
+ipcMain.handle("forma:set-window-mode", async (_event, mode) => {
   if (mode !== "splash" && mode !== "app") return { ok: false };
-  setMainWindowMode(mode);
+  await setMainWindowMode(mode);
   return { ok: true, mode: mainWindowMode };
 });
 
@@ -917,6 +1018,7 @@ ipcMain.handle("forma:open-external", async (_event, url) => {
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
     throw new Error("Invalid external URL.");
   }
+  console.log("[hall] openExternal", url);
   await shell.openExternal(url);
 });
 
@@ -1038,7 +1140,10 @@ app.whenReady().then(async () => {
       spawnBackend();
     }
     createWindow();
-    initUpdater({ getMainWindow: () => mainWindow });
+    initUpdater({
+      getMainWindow: () => mainWindow,
+      getWindowMode: () => mainWindowMode,
+    });
     if (!DEV_URL) {
       void waitForBackend().catch((err) => {
         appendBackendLog(`[hall] backend not ready: ${err instanceof Error ? err.message : err}\n`);

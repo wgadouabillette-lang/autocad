@@ -5,6 +5,7 @@
 
 :root {
   /* Palette grise neutre (R=G=B) — sans teinte turquoise */
+  --meetra-splash-size: 340px;
   --forma-bg: #1a1a1a;
   --forma-main-bg: #121212;
   --forma-shell-bg: #0a0a0a;
@@ -190,6 +191,12 @@ html.app-loading-splash body,
 html.app-loading-splash #root {
   background: transparent !important;
   color-scheme: only light !important;
+}
+html.app-loading-splash #root {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 body {
@@ -476,22 +483,42 @@ html:not(.app-loading-splash) #root {
   }
   .app-loading-screen__window {
     @apply relative flex shrink-0 flex-col items-center justify-center overflow-hidden;
-    width: 300px;
-    height: 425px;
+    width: var(--meetra-splash-size);
+    height: var(--meetra-splash-size);
     background-color: var(--forma-content-bg);
     border: 1px solid var(--forma-border);
     border-radius: 12px;
     box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
     -webkit-app-region: drag;
   }
-  .app-loading-screen__brand {
-    @apply absolute left-0 top-0 z-[1] flex items-center px-4 py-3;
+  .app-loading-screen__card {
+    @apply flex w-full flex-col items-center px-4 text-center;
   }
-  .app-loading-screen__brand-mark {
-    @apply select-none text-sm font-semibold tracking-wide text-muted-200;
+  .app-loading-screen__title {
+    @apply m-0 select-none text-[2.5rem] font-semibold leading-none tracking-tight text-muted-100;
+    transform: translateY(-12px);
   }
-  .app-loading-screen__center {
-    @apply flex flex-col items-center justify-center gap-3;
+  .app-loading-screen__subtitle {
+    @apply mt-2.5 max-w-[15.5rem] text-[11px] font-normal leading-snug text-white;
+    transform: translateY(-12px);
+  }
+  .app-loading-screen__progress {
+    @apply relative mt-2 w-[9.5rem] overflow-hidden;
+    height: 4px;
+    border-radius: 999px;
+    background-color: var(--forma-divider);
+    transform: translateY(32px);
+  }
+  .app-loading-screen__progress-fill {
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background-color: rgb(200 200 200 / 0.85);
+    transition: width 0.2s ease-out;
+  }
+  .app-loading-screen__progress--indeterminate .app-loading-screen__progress-fill {
+    width: 36%;
+    animation: app-loading-progress-slide 1.15s ease-in-out infinite;
   }
   .app-loading-screen__spinner {
     @apply h-8 w-8 shrink-0 rounded-full;
@@ -503,9 +530,13 @@ html:not(.app-loading-splash) #root {
     .app-loading-screen__spinner {
       animation-duration: 1.6s;
     }
+    .app-loading-screen__progress--indeterminate .app-loading-screen__progress-fill {
+      animation: none;
+      width: 55%;
+    }
   }
   .app-loading-screen__error {
-    @apply flex max-w-[13rem] flex-col items-center gap-2 px-2 text-center;
+    @apply mt-2 flex max-w-[13rem] flex-col items-center gap-2 px-2 text-center;
   }
   .app-loading-screen__error-title {
     @apply text-sm font-medium text-muted-200;
@@ -522,9 +553,6 @@ html:not(.app-loading-splash) #root {
   .app-loading-screen__retry:hover {
     background-color: var(--forma-control-hover-bg);
     border-color: var(--forma-border-strong);
-  }
-  .app-loading-screen__footer {
-    @apply absolute bottom-0 left-0 right-0 px-3 pb-4 text-center text-[10px] text-muted-500;
   }
   .app-error-screen {
     @apply fixed inset-0 z-[9999] flex items-center justify-center overflow-auto p-6;
@@ -558,77 +586,92 @@ html:not(.app-loading-splash) #root {
       transform: rotate(360deg);
     }
   }
-  .auth-page__brand {
-    @apply absolute left-0 top-0 z-[1] flex items-center px-6 py-5;
-  }
-  .auth-page__brand-mark {
-    @apply select-none text-sm font-semibold tracking-wide text-muted-200;
-  }
-  .auth-page__brand-mark--link {
-    @apply no-underline transition-colors hover:text-muted-100;
-    cursor: pointer;
+  @keyframes app-loading-progress-slide {
+    0% {
+      transform: translateX(-120%);
+    }
+    100% {
+      transform: translateX(280%);
+    }
   }
   .auth-page__main {
     @apply flex min-h-0 flex-1 items-center justify-center px-6 py-16;
   }
   .auth-page__card {
-    @apply w-full max-w-[22rem];
+    @apply flex w-full max-w-[26rem] flex-col items-center text-center;
   }
   .auth-page__title {
-    @apply text-left text-[1.35rem] font-normal leading-none tracking-tight text-muted-100;
+    @apply text-[3.5rem] font-semibold leading-none tracking-tight text-muted-100;
+  }
+  .auth-page__title-link {
+    @apply text-inherit no-underline transition-colors hover:text-white;
+    cursor: pointer;
   }
   .auth-page__subtitle {
-    @apply mt-0 text-left text-[1.2rem] font-normal leading-tight text-muted-500;
-  }
-  .auth-page__subtitle--compact {
-    @apply mt-4 text-[0.95rem] leading-relaxed;
+    @apply mt-4 max-w-[22rem] text-[1.2rem] font-normal leading-snug text-white;
   }
   .auth-page__error {
-    @apply mt-4 rounded border border-red-500/40 bg-red-950/30 px-3 py-2 text-[12px] text-red-200;
+    @apply mt-5 w-full rounded border border-red-500/40 bg-red-950/30 px-3 py-2 text-left text-[12px] text-red-200;
   }
-  .auth-page__providers {
-    @apply mt-6 flex flex-col gap-2.5;
+  .auth-page__status {
+    @apply mt-6 max-w-[20rem] text-[0.95rem] leading-relaxed text-muted-400;
   }
-  .auth-page__provider-btn {
-    @apply inline-flex h-9 w-full items-center justify-center gap-2.5 rounded-none border
-      px-4 text-[13px] font-medium text-muted-100 transition-colors;
+  .auth-page__waiting {
+    @apply mt-8 flex w-full flex-col items-center;
+  }
+  .auth-page__waiting-status {
+    @apply flex items-center justify-center gap-2.5;
+  }
+  .auth-page__waiting-spinner {
+    @apply h-4 w-4;
+    border-top-color: rgb(var(--forma-brand-border));
+  }
+  .auth-page__waiting-copy {
+    @apply m-0 text-[0.95rem] leading-none text-muted-300;
+  }
+  .auth-page__waiting-actions {
+    @apply mt-5 flex items-center justify-center gap-2;
+  }
+  .auth-page__reopen-btn {
+    @apply h-10 justify-center bg-transparent px-4 text-[13px] font-medium shadow-none;
+    border-color: transparent;
+    color: rgb(var(--forma-brand));
+  }
+  .auth-page__reopen-btn:hover:not(:disabled) {
+    background-color: transparent;
+    border-color: transparent;
+    color: rgb(var(--forma-brand-light));
+  }
+  .auth-page__cancel-btn {
+    @apply h-10 justify-center px-4 text-[13px];
+  }
+  .auth-page__signin-btn {
+    @apply mt-8 h-10 min-w-[19rem] justify-center gap-2 rounded-full px-6 text-[14px] font-medium;
     appearance: none;
     -webkit-appearance: none;
-    background-color: var(--forma-chat-composer-bg);
-    border-color: var(--forma-chat-composer-stroke);
-  }
-  .auth-page__provider-btn:hover {
-    background-color: var(--forma-control-hover-bg);
+    background-color: var(--forma-main-bg);
     border-color: var(--forma-border-strong);
-  }
-  .auth-provider-icon {
-    @apply h-[18px] w-[18px] shrink-0;
-  }
-  .auth-provider-icon--facebook {
-    @apply h-[18px] w-[18px];
-  }
-  .auth-page__email-form {
-    @apply mt-6 flex flex-col gap-2.5;
-  }
-  .auth-page__email-label {
-    @apply text-[12px] font-medium text-muted-300;
-  }
-  .auth-page__email-input {
-    @apply h-9 w-full rounded-none border px-4 text-[13px] font-medium text-muted-100 transition-colors;
-    appearance: none;
-    -webkit-appearance: none;
-    background-color: var(--forma-chat-composer-bg);
-    border-color: var(--forma-chat-composer-stroke);
-  }
-  .auth-page__email-input::placeholder {
-    color: var(--muted-500);
-  }
-  .auth-page__email-input:focus {
+    color: var(--forma-text-bright);
     outline: none;
+    box-shadow: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .auth-page__signin-btn:hover:not(:disabled) {
+    background-color: var(--forma-bg);
     border-color: var(--forma-border-strong);
   }
-  .auth-page__continue-btn {
-    @apply mt-1 h-9 w-full justify-center rounded-none text-[13px];
+  .auth-page__signin-btn:active,
+  .auth-page__signin-btn:focus,
+  .auth-page__signin-btn:focus-visible {
+    outline: none;
+    box-shadow: none;
+    border-color: var(--forma-border-strong);
+  }
+  .auth-page__signin-btn:focus-visible {
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.16);
+  }
+  .auth-page__signin-icon {
+    @apply shrink-0;
   }
   .auth-page__footer {
     @apply flex shrink-0 items-center justify-center gap-2 px-6 pb-6 text-[12px] text-muted-500;
@@ -718,14 +761,9 @@ html:not(.app-loading-splash) #root {
       -webkit-overflow-scrolling: touch;
     }
 
-    .auth-page__brand {
-      @apply px-4 py-4;
-      padding-top: calc(1rem + env(safe-area-inset-top, 0px));
-    }
-
     .auth-page__main {
-      @apply items-start px-4 py-10;
-      padding-top: 4.25rem;
+      @apply items-center px-4 py-10;
+      padding-top: calc(2.5rem + env(safe-area-inset-top, 0px));
       padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
     }
 
@@ -734,26 +772,87 @@ html:not(.app-loading-splash) #root {
     }
 
     .auth-page__title {
-      @apply text-[1.25rem];
+      @apply text-[2.75rem];
     }
 
     .auth-page__subtitle {
-      @apply text-[0.95rem] leading-relaxed;
+      @apply text-[1.1rem] leading-relaxed;
     }
 
-    .auth-page__provider-btn {
-      @apply h-10 text-[12px];
+    .auth-page__signin-btn {
+      @apply h-11 w-full max-w-[19rem];
     }
 
-    .auth-page__email-input,
-    .auth-page__continue-btn {
-      @apply h-10;
+    .auth-page__waiting-actions {
+      @apply w-full max-w-[18rem];
+    }
+
+    .auth-page__reopen-btn,
+    .auth-page__cancel-btn {
+      @apply h-11 flex-1;
     }
 
     .auth-page__footer {
       @apply flex-wrap justify-center gap-1 px-4 pb-8 text-center leading-relaxed;
       padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
     }
+  }
+
+  html.app-loading-splash .auth-page {
+    width: var(--meetra-splash-size);
+    height: var(--meetra-splash-size);
+    min-height: 0;
+    margin: 0 auto;
+    background-color: var(--forma-content-bg);
+    border: 1px solid var(--forma-border);
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
+    -webkit-app-region: drag;
+  }
+  html.app-loading-splash .auth-page__main {
+    @apply px-4 py-0;
+  }
+  html.app-loading-splash .auth-page__card {
+    @apply max-w-none;
+  }
+  html.app-loading-splash .auth-page__title {
+    @apply text-[2.5rem] leading-none;
+    transform: translateY(-12px);
+  }
+  html.app-loading-splash .auth-page__subtitle {
+    @apply mt-2.5 max-w-[15.5rem] text-[11px] leading-snug text-white;
+    transform: translateY(-12px);
+  }
+  html.app-loading-splash .auth-page__error {
+    @apply mt-2 px-2 py-1.5 text-[10px];
+  }
+  html.app-loading-splash .auth-page__waiting {
+    @apply mt-2;
+    transform: translateY(32px);
+  }
+  html.app-loading-splash .auth-page__waiting-copy {
+    @apply text-[12px];
+  }
+  html.app-loading-splash .auth-page__waiting-actions {
+    @apply mt-3 gap-1;
+  }
+  html.app-loading-splash .auth-page__reopen-btn,
+  html.app-loading-splash .auth-page__cancel-btn {
+    @apply h-8 px-2.5 text-[11px];
+  }
+  html.app-loading-splash .auth-page__signin-btn {
+    @apply mt-2 h-9 min-w-0 w-[13.5rem] px-4 text-[13px];
+    transform: translateY(32px);
+    outline: none;
+    box-shadow: none;
+    border-color: var(--forma-border-strong);
+  }
+  html.app-loading-splash .auth-page__footer {
+    @apply gap-1 px-3 pb-4 text-[10px] text-muted-500;
+  }
+  html.app-loading-splash .auth-page button,
+  html.app-loading-splash .auth-page a {
+    -webkit-app-region: no-drag;
   }
 
   .app-shell {

@@ -15,54 +15,74 @@
       .window {
         position: relative;
         box-sizing: border-box;
-        width: 300px;
-        height: 425px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 340px;
+        height: 340px;
+        padding: 0 16px;
         background: #1a1a1a;
         border: 1px solid #333;
         border-radius: 12px;
         box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
         -webkit-app-region: drag;
-      }
-      .brand {
-        position: absolute;
-        left: 16px;
-        top: 12px;
-        color: #c8c8c8;
-        font-size: 14px;
-        font-weight: 600;
-        letter-spacing: 0.025em;
-      }
-      .spinner {
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        width: 32px;
-        height: 32px;
-        margin: -16px 0 0 -16px;
-        border-radius: 50%;
-        border: 2px solid #2a2a2a;
-        border-top-color: rgb(200 200 200 / 0.85);
-        animation: spin 0.75s linear infinite;
-      }
-      .footer {
-        position: absolute;
-        right: 0;
-        bottom: 16px;
-        left: 0;
         text-align: center;
-        color: #737373;
-        font-size: 10px;
       }
-      @keyframes spin {
-        to { transform: rotate(360deg); }
+      .title {
+        margin: 0;
+        color: #f0f0f0;
+        font-size: 2.5rem;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        line-height: 1;
+        transform: translateY(-12px);
+      }
+      .subtitle {
+        margin: 10px 0 0;
+        max-width: 15.5rem;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 400;
+        line-height: 1.375;
+        transform: translateY(-12px);
+      }
+      .progress {
+        position: relative;
+        width: 9.5rem;
+        height: 4px;
+        margin-top: 8px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #333;
+        transform: translateY(32px);
+      }
+      .progress-fill {
+        height: 100%;
+        width: 36%;
+        border-radius: inherit;
+        background: rgb(200 200 200 / 0.85);
+        animation: slide 1.15s ease-in-out infinite;
+      }
+      @keyframes slide {
+        0% { transform: translateX(-120%); }
+        100% { transform: translateX(280%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .progress-fill {
+          animation: none;
+          width: 55%;
+        }
       }
     </style>
   </head>
   <body>
     <div class="window">
-      <div class="brand">Meetra</div>
-      <div class="spinner" role="progressbar" aria-label="Loading…"></div>
-      <div class="footer">Powered by GB Studio</div>
+      <h1 class="title">Meetra</h1>
+      <p class="subtitle">AI-powered collaborative workspace for teams</p>
+      <div class="progress" role="progressbar" aria-label="Loading…" aria-busy="true">
+        <div class="progress-fill"></div>
+      </div>
     </div>
   </body>
 </html>
