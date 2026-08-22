@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld("formaDesktop", {
   isDesktop: true,
   platform: process.platform,
   setWindowMode: (mode) => ipcRenderer.invoke("forma:set-window-mode", mode),
+  getWindowState: () => ipcRenderer.invoke("forma:window-get-state"),
+  windowMinimize: () => ipcRenderer.invoke("forma:window-minimize"),
+  windowToggleFullscreen: () => ipcRenderer.invoke("forma:window-toggle-fullscreen"),
+  windowClose: () => ipcRenderer.invoke("forma:window-close"),
+  onWindowState: (handler) => subscribe("forma:window-state", handler),
   openExternal: (url) => ipcRenderer.invoke("forma:open-external", url),
   getAppWindowSourceId: () => ipcRenderer.invoke("forma:get-app-window-source-id"),
   getPreferredScreenSourceId: () =>

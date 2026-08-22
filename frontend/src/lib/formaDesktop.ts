@@ -53,10 +53,21 @@ export interface SpotifyPlaybackStateEvent {
   playing: boolean;
 }
 
+export interface DesktopWindowState {
+  mode?: DesktopWindowMode;
+  maximized: boolean;
+  fullScreen: boolean;
+}
+
 export interface FormaDesktopBridge {
   isDesktop: true;
   platform: DesktopPlatform | string;
   setWindowMode?: (mode: DesktopWindowMode) => Promise<{ ok: boolean; mode?: DesktopWindowMode }>;
+  getWindowState?: () => Promise<DesktopWindowState>;
+  windowMinimize?: () => Promise<{ ok: boolean } & Partial<DesktopWindowState>>;
+  windowToggleFullscreen?: () => Promise<{ ok: boolean } & Partial<DesktopWindowState>>;
+  windowClose?: () => Promise<{ ok: boolean }>;
+  onWindowState?: (handler: (state: DesktopWindowState) => void) => () => void;
   openExternal: (url: string) => Promise<void>;
   getAppWindowSourceId: () => Promise<string | null>;
   getPreferredScreenSourceId?: () => Promise<string | null>;

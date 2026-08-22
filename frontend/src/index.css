@@ -1189,6 +1189,58 @@ html:not(.app-loading-splash) #root {
     grid-row: 1;
     justify-self: end;
   }
+  html.has-desktop-window-controls {
+    --desktop-window-controls-width: 6.75rem;
+  }
+  html.has-desktop-window-controls .app-chrome-row__main {
+    padding-right: calc(0.5rem + var(--desktop-window-controls-width));
+  }
+  html.has-desktop-window-controls .app-voice-settings-floating {
+    right: calc(0.75rem + var(--desktop-window-controls-width));
+  }
+  html.has-desktop-window-controls .app-chrome-row {
+    -webkit-app-region: drag;
+  }
+  html.has-desktop-window-controls .app-chrome-row button,
+  html.has-desktop-window-controls .app-chrome-row a,
+  html.has-desktop-window-controls .app-chrome-row input {
+    -webkit-app-region: no-drag;
+  }
+  .desktop-window-controls {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 200;
+    display: flex;
+    height: var(--forma-top-toolbar-height);
+    -webkit-app-region: no-drag;
+  }
+  /* Maximized frameless windows clip a few pixels at the screen edge on Windows. */
+  .desktop-window-controls--expanded {
+    top: 6px;
+    right: 6px;
+    height: calc(var(--forma-top-toolbar-height) - 6px);
+  }
+  .desktop-window-controls__btn {
+    @apply inline-flex items-center justify-center border-0 text-muted-300 transition-colors;
+    appearance: none;
+    -webkit-appearance: none;
+    width: 2.25rem;
+    height: 100%;
+    padding: 0;
+    background: transparent;
+    color: var(--muted-300);
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+  }
+  .desktop-window-controls__btn:hover {
+    background-color: var(--forma-control-hover-bg);
+    color: var(--muted-100);
+  }
+  .desktop-window-controls__btn--close:hover {
+    background-color: #e81123;
+    color: #fff;
+  }
   .header-toolbar-actions {
     @apply flex h-6 items-center gap-1.5;
     overflow: visible;

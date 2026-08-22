@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
 import ChatFullscreenMediaPip from "./components/chat/ChatFullscreenMediaPip";
 import AppChromeRow from "./components/AppChromeRow";
+import DesktopWindowControls from "./components/chrome/DesktopWindowControls";
 import PanelToolbarButtons from "./components/toolbar/PanelToolbarButtons";
 import AppLoadingScreen from "./components/AppLoadingScreen";
 import ChatPanelShell from "./components/ChatPanelShell";
@@ -443,6 +444,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <DesktopWindowControls />
       {recording && <div className="app-recording-frame" aria-hidden />}
       <RecordingCameraPreview />
       <VoiceRemoteAudioSink />

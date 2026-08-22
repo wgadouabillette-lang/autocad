@@ -618,6 +618,7 @@ function applySplashChromeNow() {
   mainWindow.setResizable(false);
   mainWindow.setHasShadow(false);
   mainWindow.setBackgroundColor("#00000000");
+  setNativeWindowButtonsVisible(false);
 }
 
 function applySplashChromeToMainWindow() {
@@ -698,9 +699,79 @@ function showAppWindow() {
     if (process.platform === "darwin") {
       enterLaunchFullScreen(mainWindow);
     }
+    setNativeWindowButtonsVisible(true);
     mainWindow.focus();
+    sendMainWindowState();
   }
   closeSplashWindow();
+}
+
+function getMainWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return {
+      mode: mainWindowMode,
+      maximized: false,
+      fullScreen: false,
+    };
+  }
+  return {
+    mode: mainWindowMode,
+    maximized: mainWindow.isMaximized(),
+    fullScreen: mainWindow.isFullScreen(),
+  };
+}
+
+function sendMainWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("forma:window-state", getMainWindowState());
+}
+
+function setNativeWindowButtonsVisible(visible) {
+  if (process.platform !== "darwin" || !mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    mainWindow.setWindowButtonVisibility(visible);
+  } catch {
+    // Frameless windows on older Electron ignore this.
+  }
+  if (visible) {
+    try {
+      mainWindow.setTrafficLightPosition({ x: 16, y: 14 });
+    } catch {
+      // Optional alignment with the in-app chrome row.
+    }
+  }
+}
+
+function attachMainWindowStateListeners(win) {
+  const emit = () => sendMainWindowState();
+  for (const event of [
+    "maximize",
+    "unmaximize",
+    "enter-full-screen",
+    "leave-full-screen",
+    "minimize",
+    "restore",
+  ]) {
+    win.on(event, emit);
+  }
+}
+
+function toggleMainWindowFullscreen() {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindowMode !== "app") {
+    return getMainWindowState();
+  }
+  if (process.platform === "darwin") {
+    mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    return getMainWindowState();
+  }
+  if (mainWindow.isFullScreen()) {
+    mainWindow.setFullScreen(false);
+  } else if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow.maximize();
+  }
+  return getMainWindowState();
 }
 
 function setMainWindowMode(mode) {
@@ -737,6 +808,7 @@ function createWindow() {
 
   applyDesktopUserAgent(mainWindow.webContents);
   attachRendererDiagnostics(mainWindow);
+  attachMainWindowStateListeners(mainWindow);
 
   mainWindow.loadURL(START_URL);
   spotifyWebView2.setMainWindow(mainWindow);
@@ -1011,6 +1083,31 @@ async function openScreenCaptureSettings() {
 ipcMain.handle("forma:set-window-mode", async (_event, mode) => {
   if (mode !== "splash" && mode !== "app") return { ok: false };
   await setMainWindowMode(mode);
+  return { ok: true, mode: mainWindowMode };
+});
+
+ipcMain.handle("forma:window-get-state", () => getMainWindowState());
+
+ipcMain.handle("forma:window-minimize", () => {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindowMode !== "app") {
+    return { ok: false, ...getMainWindowState() };
+  }
+  mainWindow.minimize();
+  return { ok: true, ...getMainWindowState() };
+});
+
+ipcMain.handle("forma:window-toggle-fullscreen", () => {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindowMode !== "app") {
+    return { ok: false, ...getMainWindowState() };
+  }
+  return { ok: true, ...toggleMainWindowFullscreen() };
+});
+
+ipcMain.handle("forma:window-close", () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, ...getMainWindowState() };
+  }
+  mainWindow.close();
   return { ok: true, mode: mainWindowMode };
 });
 
