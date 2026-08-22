@@ -29,6 +29,7 @@ import ProCheckoutOverlay from "./components/billing/ProCheckoutOverlay";
 import { useColorTheme } from "./hooks/useColorTheme";
 import { useAccentColor } from "./hooks/useAccentColor";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
+import { useAnimatedBootProgress } from "./hooks/useAnimatedBootProgress";
 import { useDesktopUpdater } from "./hooks/useDesktopUpdater";
 import { useMeetingReminders } from "./hooks/useMeetingReminders";
 import { useSpotifyVoiceMix } from "./hooks/useSpotifyVoiceMix";
@@ -120,7 +121,19 @@ export default function App() {
 
   const { progress: updateProgress, blockingUpdate, startupCheckComplete } =
     useDesktopUpdater();
+  const showDesktopAuthSuccess = Boolean(desktopWebAuthConnected && !authReady);
+  const bootPending =
+    !showDesktopAuthSuccess &&
+    (blockingUpdate ||
+      (hasFormaDesktop() && !startupCheckComplete) ||
+      !authReady ||
+      (isAuthenticated && bootStatus !== "ready"));
+  const { progress: splashProgress, holdOverlay } = useAnimatedBootProgress({
+    pending: bootPending,
+    externalProgress: updateProgress,
+  });
   const desktopSplashWindow =
+    holdOverlay ||
     !authReady ||
     (hasFormaDesktop() && !isAuthenticated) ||
     (isAuthenticated && bootStatus !== "ready") ||
@@ -361,7 +374,6 @@ export default function App() {
     };
   }, [handleRecordingStreamEnded, handleRecordingCaptureLost]);
 
-  const showDesktopAuthSuccess = Boolean(desktopWebAuthConnected && !authReady);
   const renderBranch = showDesktopAuthSuccess
     ? "auth-page"
     : !authReady
@@ -390,12 +402,13 @@ export default function App() {
   }
   // #endregion
 
-  if (blockingUpdate || (hasFormaDesktop() && !startupCheckComplete)) {
+  if (holdOverlay) {
     return (
       <AppLoadingScreen
-        connectionError={false}
+        connectionError={bootStatus === "connection_error"}
         label={blockingUpdate ? "Updating…" : "Loading…"}
-        progress={updateProgress}
+        onRetry={bootStatus === "connection_error" ? () => void runBoot() : undefined}
+        progress={bootStatus === "connection_error" ? null : splashProgress}
       />
     );
   }
@@ -409,7 +422,7 @@ export default function App() {
       <AppLoadingScreen
         connectionError={false}
         label="Loading…"
-        progress={updateProgress}
+        progress={splashProgress}
       />
     );
   }
@@ -423,7 +436,7 @@ export default function App() {
       <AppLoadingScreen
         connectionError={bootStatus === "connection_error"}
         onRetry={() => void runBoot()}
-        progress={bootStatus === "connection_error" ? null : updateProgress}
+        progress={bootStatus === "connection_error" ? null : splashProgress}
       />
     );
   }

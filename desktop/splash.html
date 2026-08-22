@@ -59,20 +59,9 @@
       }
       .progress-fill {
         height: 100%;
-        width: 36%;
+        width: 0%;
         border-radius: inherit;
         background: rgb(200 200 200 / 0.85);
-        animation: slide 1.15s ease-in-out infinite;
-      }
-      @keyframes slide {
-        0% { transform: translateX(-120%); }
-        100% { transform: translateX(280%); }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .progress-fill {
-          animation: none;
-          width: 55%;
-        }
       }
     </style>
   </head>
@@ -80,9 +69,27 @@
     <div class="window">
       <h1 class="title">Meetra</h1>
       <p class="subtitle">AI-powered collaborative workspace for teams</p>
-      <div class="progress" role="progressbar" aria-label="Loading…" aria-busy="true">
+      <div class="progress" role="progressbar" aria-label="Loading…" aria-busy="true" aria-valuemin="0" aria-valuemax="100">
         <div class="progress-fill"></div>
       </div>
     </div>
+    <script>
+      (function () {
+        var fill = document.querySelector(".progress-fill");
+        var bar = document.querySelector(".progress");
+        if (!fill) return;
+        var start = performance.now();
+        var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        var cap = 90;
+        var tau = reduce ? 900 : 2200;
+        function tick(now) {
+          var pct = cap * (1 - Math.exp(-(now - start) / tau));
+          fill.style.width = pct.toFixed(2) + "%";
+          if (bar) bar.setAttribute("aria-valuenow", String(Math.round(pct)));
+          window.requestAnimationFrame(tick);
+        }
+        window.requestAnimationFrame(tick);
+      })();
+    </script>
   </body>
 </html>

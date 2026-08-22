@@ -15,7 +15,7 @@ export default function AppLoadingScreen({
   onRetry,
 }: AppLoadingScreenProps) {
   const determinate = !connectionError && progress != null;
-  const percent = determinate ? Math.max(0, Math.min(100, Math.round(progress))) : 0;
+  const percent = determinate ? Math.max(0, Math.min(100, progress)) : 0;
 
   return (
     <div className="app-loading-screen" role={connectionError ? "alert" : "status"}>
@@ -35,7 +35,7 @@ export default function AppLoadingScreen({
               aria-busy={percent < 100}
               aria-valuemin={determinate ? 0 : undefined}
               aria-valuemax={determinate ? 100 : undefined}
-              aria-valuenow={determinate ? percent : undefined}
+              aria-valuenow={determinate ? Math.round(percent) : undefined}
             >
               <div
                 className="app-loading-screen__progress-fill"

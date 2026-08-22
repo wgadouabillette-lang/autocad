@@ -514,7 +514,7 @@ html:not(.app-loading-splash) #root {
     width: 0;
     border-radius: inherit;
     background-color: rgb(200 200 200 / 0.85);
-    transition: width 0.2s ease-out;
+    will-change: width;
   }
   .app-loading-screen__progress--indeterminate .app-loading-screen__progress-fill {
     width: 36%;

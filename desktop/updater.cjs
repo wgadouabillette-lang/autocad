@@ -7,15 +7,19 @@ const NIGHT_START_HOUR = 2;
 const NIGHT_END_HOUR = 5;
 const TONIGHT_TICK_MS = 60_000;
 const UPDATE_POLL_MS = 4 * 60 * 60 * 1000;
-const STARTUP_CHECK_DELAY_MS = 8_000;
+const STARTUP_CHECK_DELAY_MS = 400;
 
 let getMainWindow = () => null;
+let getWindowMode = () => "app";
 let schedulerTimer = null;
 let pollTimer = null;
 let pendingInfo = null;
 let installing = false;
 let downloaded = false;
 let autoUpdaterRef = null;
+let startupCheckComplete = false;
+/** @type {{ percent: number, version: string } | null} */
+let lastProgress = null;
 
 function packageVersion() {
   try {
@@ -45,6 +49,14 @@ function sendToRenderer(channel, payload) {
   const win = getMainWindow();
   if (!win || win.isDestroyed()) return;
   win.webContents.send(channel, payload);
+}
+
+function sendProgress(payload) {
+  lastProgress = {
+    percent: Math.max(0, Math.min(100, Math.round(payload.percent || 0))),
+    version: payload.version || "",
+  };
+  sendToRenderer("forma:update-progress", lastProgress);
 }
 
 function emitUpdateAvailable(info) {
@@ -98,11 +110,16 @@ function loadAutoUpdater() {
   }
 
   autoUpdater.on("update-available", (info) => {
-    emitUpdateAvailable({
+    const payload = {
       version: info.version,
       releaseNotes: releaseNotesFrom(info),
       currentVersion: packageVersion(),
-    });
+    };
+    emitUpdateAvailable(payload);
+    // Launch/splash: download+install while the loading overlay is still showing.
+    if (getWindowMode() === "splash") {
+      void runInstallNow(payload);
+    }
   });
 
   autoUpdater.on("update-not-available", () => {
@@ -114,7 +131,7 @@ function loadAutoUpdater() {
   });
 
   autoUpdater.on("download-progress", (progress) => {
-    sendToRenderer("forma:update-progress", {
+    sendProgress({
       percent: Math.round(progress.percent || 0),
       version: pendingInfo?.version || "",
     });
@@ -122,7 +139,7 @@ function loadAutoUpdater() {
 
   autoUpdater.on("update-downloaded", (info) => {
     downloaded = true;
-    sendToRenderer("forma:update-progress", {
+    sendProgress({
       percent: 100,
       version: info.version,
     });
@@ -132,23 +149,33 @@ function loadAutoUpdater() {
   return autoUpdaterRef;
 }
 
-async function checkForUpdates() {
-  if (isDevMode()) return;
+async function checkForUpdates({ startup = false } = {}) {
+  if (isDevMode()) {
+    startupCheckComplete = true;
+    return;
+  }
   const updater = loadAutoUpdater();
-  if (!updater) return;
+  if (!updater) {
+    startupCheckComplete = true;
+    return;
+  }
   try {
     await updater.checkForUpdates();
   } catch (err) {
     console.error("[forma-updater] check failed:", err);
+  } finally {
+    if (startup || !startupCheckComplete) {
+      startupCheckComplete = true;
+    }
   }
 }
 
 async function runMockInstall(info) {
-  sendToRenderer("forma:update-progress", { percent: 0, version: info.version });
+  sendProgress({ percent: 0, version: info.version });
   const steps = [15, 40, 65, 85, 100];
   for (const percent of steps) {
     await new Promise((r) => setTimeout(r, 350));
-    sendToRenderer("forma:update-progress", { percent, version: info.version });
+    sendProgress({ percent, version: info.version });
   }
   sendToRenderer("forma:update-installed", {
     version: info.version,
@@ -185,7 +212,7 @@ async function runInstallNow(info) {
   }
 
   try {
-    sendToRenderer("forma:update-progress", { percent: 0, version: info.version });
+    sendProgress({ percent: 0, version: info.version });
     if (!downloaded) {
       await updater.downloadUpdate();
     }
@@ -258,6 +285,9 @@ function scheduleDevMockUpdate(delayMs = 4000) {
 
 function initUpdater(options) {
   getMainWindow = options.getMainWindow;
+  if (typeof options.getWindowMode === "function") {
+    getWindowMode = options.getWindowMode;
+  }
   startScheduler();
 
   const devMode = isDevMode();
@@ -272,6 +302,7 @@ function initUpdater(options) {
   }
 
   if (devMode) {
+    startupCheckComplete = true;
     console.info(
       "[forma-updater] mode dev — notification de test dans quelques secondes.",
     );
@@ -280,7 +311,7 @@ function initUpdater(options) {
 
   loadAutoUpdater();
   setTimeout(() => {
-    void checkForUpdates();
+    void checkForUpdates({ startup: true });
   }, STARTUP_CHECK_DELAY_MS);
   if (!pollTimer) {
     pollTimer = setInterval(() => {
@@ -322,6 +353,8 @@ function handleGetState() {
     installing,
     nightWindow: `${NIGHT_START_HOUR}:00–${NIGHT_END_HOUR}:00`,
     isNightWindow: isNightWindow(),
+    startupCheckComplete,
+    progress: lastProgress,
   };
 }
 

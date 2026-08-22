@@ -79,14 +79,9 @@
       }
       .app-loading-screen__progress-fill {
         height: 100%;
-        width: 36%;
+        width: 0%;
         border-radius: inherit;
         background: rgb(200 200 200 / 0.85);
-        animation: app-loading-progress-slide 1.15s ease-in-out infinite;
-      }
-      @keyframes app-loading-progress-slide {
-        0% { transform: translateX(-120%); }
-        100% { transform: translateX(280%); }
       }
     </style>
   </head>
@@ -109,6 +104,23 @@
         </div>
       </div>
     </div>
+    <script>
+      (function () {
+        var fill = document.querySelector(".app-loading-screen__progress-fill");
+        if (!fill) return;
+        var start = performance.now();
+        var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        var cap = 90;
+        var tau = reduce ? 900 : 2200;
+        function tick(now) {
+          if (!fill.isConnected) return;
+          var pct = cap * (1 - Math.exp(-(now - start) / tau));
+          fill.style.width = pct.toFixed(2) + "%";
+          window.requestAnimationFrame(tick);
+        }
+        window.requestAnimationFrame(tick);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
