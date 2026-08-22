@@ -9,12 +9,20 @@ BUCKET="${FIREBASE_STORAGE_BUCKET:-forma-cad-dev.firebasestorage.app}"
 MAC_SRC="${1:-landing/public/downloads/Hall-mac.dmg}"
 if [[ -n "${2:-}" ]]; then
   WIN_SRC="$2"
+elif [[ -f landing/public/downloads/Meetra.exe ]]; then
+  WIN_SRC="landing/public/downloads/Meetra.exe"
 elif [[ -f landing/public/downloads/Hall.exe ]]; then
   WIN_SRC="landing/public/downloads/Hall.exe"
 else
   WIN_SRC="landing/public/downloads/Hall-windows.exe"
 fi
-LINUX_SRC="${3:-landing/public/downloads/Hall-linux.AppImage}"
+if [[ -n "${3:-}" ]]; then
+  LINUX_SRC="$3"
+elif [[ -f landing/public/downloads/Meetra-linux.AppImage ]]; then
+  LINUX_SRC="landing/public/downloads/Meetra-linux.AppImage"
+else
+  LINUX_SRC="landing/public/downloads/Hall-linux.AppImage"
+fi
 
 upload_one() {
   local src="$1"
@@ -115,12 +123,13 @@ uploaded=0
 if upload_one "$MAC_SRC" "Hall-mac.dmg"; then
   uploaded=1
 fi
-if upload_one "$WIN_SRC" "Hall.exe"; then
+if upload_one "$WIN_SRC" "Meetra.exe"; then
   uploaded=1
-  upload_one "$WIN_SRC" "Hall-windows.exe" "Hall.exe" || true
+  upload_one "$WIN_SRC" "Hall.exe" "Meetra.exe" || true
 fi
-if upload_one "$LINUX_SRC" "Hall-linux.AppImage"; then
+if upload_one "$LINUX_SRC" "Meetra-linux.AppImage"; then
   uploaded=1
+  upload_one "$LINUX_SRC" "Hall-linux.AppImage" "Meetra-linux.AppImage" || true
 fi
 
 echo ""
@@ -132,7 +141,7 @@ find_and_upload_feed "$LINUX_SRC"
 
 if [[ "$uploaded" -eq 0 ]]; then
   echo "Aucun installateur trouvé."
-  echo "Placez Hall-mac.dmg / Hall.exe / Hall-linux.AppImage dans landing/public/downloads/"
+  echo "Placez Hall-mac.dmg / Meetra.exe / Meetra-linux.AppImage dans landing/public/downloads/"
   echo "ou passez les chemins : $0 <mac.dmg> <win.exe> <linux.AppImage>"
   exit 1
 fi

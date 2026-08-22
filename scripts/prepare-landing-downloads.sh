@@ -6,8 +6,8 @@ cd "$(dirname "$0")/.."
 RELEASE_DIR="desktop/release"
 OUT_DIRS=("landing/downloads" "landing/public/downloads")
 MAC_NAME="Hall-mac.dmg"
-WIN_NAME="Hall.exe"
-LINUX_NAME="Hall-linux.AppImage"
+WIN_NAME="Meetra.exe"
+LINUX_NAME="Meetra-linux.AppImage"
 
 if [[ ! -d "$RELEASE_DIR" ]]; then
   echo "Dossier $RELEASE_DIR introuvable."
@@ -22,7 +22,7 @@ mkdir -p "${OUT_DIRS[@]}"
 
 MAC_SRC="$(find "$RELEASE_DIR" -maxdepth 1 -name '*.dmg' -type f | head -1)"
 WIN_SRC="$(find "$RELEASE_DIR" -maxdepth 1 -name '*.exe' -type f | head -1)"
-LINUX_SRC="$(find "$RELEASE_DIR" -maxdepth 1 \( -name 'Hall-*-linux.AppImage' -o -name '*.AppImage' \) -type f | head -1)"
+LINUX_SRC="$(find "$RELEASE_DIR" -maxdepth 1 \( -name 'Meetra-*-linux.AppImage' -o -name 'Hall-*-linux.AppImage' -o -name '*.AppImage' \) -type f | head -1)"
 
 if [[ -z "$MAC_SRC" && -z "$WIN_SRC" && -z "$LINUX_SRC" ]]; then
   echo "Aucun .dmg / .exe / .AppImage trouvé dans $RELEASE_DIR"
@@ -63,6 +63,6 @@ done
 echo ""
 echo "Déployez le dossier landing/ sur votre hébergeur (Netlify, Vercel, S3, nginx…)."
 echo "URL de téléchargement :"
-echo "  https://votre-domaine.com/downloads/Hall-mac.dmg"
-echo "  https://votre-domaine.com/downloads/Hall.exe"
-echo "  https://votre-domaine.com/downloads/Hall-linux.AppImage"
+echo "  https://meetra.cc/downloads/Hall-mac.dmg"
+echo "  https://meetra.cc/downloads/Meetra.exe"
+echo "  https://meetra.cc/downloads/Meetra-linux.AppImage"

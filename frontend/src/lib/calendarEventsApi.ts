@@ -1,3 +1,4 @@
+import { apiUrl } from "./apiBase";
 import { getAuthIdToken } from "./firebase/authToken";
 import type { CalendarSyncEvent } from "./calendarSync";
 import type { CalendarEvent } from "../store/useCalendarStore";
@@ -44,7 +45,7 @@ function toCalendarEvent(event: PersistedCalendarEventPayload): CalendarEvent {
 }
 
 export async function fetchUserCalendarEvents(): Promise<CalendarEvent[]> {
-  const r = await fetch(BASE, { headers: await authHeaders() });
+  const r = await fetch(apiUrl(BASE), { headers: await authHeaders() });
   if (!r.ok) {
     const text = await r.text();
     throw new Error(text || `HTTP ${r.status}`);
@@ -67,7 +68,7 @@ export async function createUserCalendarEvents(
   if (events.length === 0) {
     return { events: [], googleConnected: false, googleSynced: 0, googleError: null };
   }
-  const r = await fetch(BASE, {
+  const r = await fetch(apiUrl(BASE), {
     method: "POST",
     headers: await authHeaders(true),
     body: JSON.stringify({ events, source }),
@@ -91,7 +92,7 @@ export async function createUserCalendarEvents(
 }
 
 export async function deleteUserCalendarEvent(eventId: string): Promise<void> {
-  const r = await fetch(`${BASE}/${encodeURIComponent(eventId)}`, {
+  const r = await fetch(apiUrl(`${BASE}/${encodeURIComponent(eventId)}`), {
     method: "DELETE",
     headers: await authHeaders(),
   });
@@ -111,7 +112,7 @@ export async function syncUserEventsToGoogle(): Promise<{
   reason?: string | null;
   events: CalendarEvent[];
 }> {
-  const r = await fetch(`${BASE}/sync-google`, {
+  const r = await fetch(apiUrl(`${BASE}/sync-google`), {
     method: "POST",
     headers: await authHeaders(),
   });

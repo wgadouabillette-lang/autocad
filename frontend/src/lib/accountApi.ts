@@ -1,3 +1,4 @@
+import { apiUrl } from "./apiBase";
 import { getAuthIdToken } from "./firebase/authToken";
 
 const BASE = "/api/account";
@@ -24,12 +25,12 @@ async function readError(r: Response): Promise<string> {
 
 /** Supprime définitivement le compte et toutes les données associées. */
 export async function deleteAccount(): Promise<void> {
-  let r = await fetch(BASE, {
+  let r = await fetch(apiUrl(BASE), {
     method: "DELETE",
     headers: await authHeaders(false),
   });
   if (r.status === 401) {
-    r = await fetch(BASE, {
+    r = await fetch(apiUrl(BASE), {
       method: "DELETE",
       headers: await authHeaders(true),
     });

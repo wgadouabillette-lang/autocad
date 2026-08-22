@@ -46,7 +46,10 @@ function copyDir(src, dest, skip = []) {
 if (process.env.FORMA_PROD_BUILD === "1") {
   process.env.VITE_FORMA_WEB_AUTH_URL =
     process.env.VITE_FORMA_WEB_AUTH_URL?.trim() || "https://meetra.cc/app/auth.html";
+  process.env.VITE_FORMA_API_URL =
+    process.env.VITE_FORMA_API_URL?.trim() || "https://meetra.cc";
   console.log("→ Production desktop web auth:", process.env.VITE_FORMA_WEB_AUTH_URL);
+  console.log("→ Production desktop API:", process.env.VITE_FORMA_API_URL);
 }
 
 console.log("→ Build frontend…");

@@ -6,7 +6,7 @@ cd /d "%~dp0\.."
 set RELEASE_DIR=desktop\release
 set OUT1=landing\downloads
 set OUT2=landing\public\downloads
-set WIN_NAME=Hall-windows.exe
+set WIN_NAME=Meetra.exe
 
 if not exist "%RELEASE_DIR%" (
   echo Dossier %RELEASE_DIR% introuvable.

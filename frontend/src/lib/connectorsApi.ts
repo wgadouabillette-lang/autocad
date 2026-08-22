@@ -1,3 +1,4 @@
+import { apiUrl } from "./apiBase";
 import { getAuthIdToken } from "./firebase/authToken";
 
 export interface ConnectorStatus {
@@ -33,6 +34,11 @@ async function connectorAuthToken(forceRefresh = false): Promise<string | null> 
   return token;
 }
 
+export function clearConnectorAuthCache(): void {
+  cachedAuthToken = null;
+  cachedAuthTokenAt = 0;
+}
+
 async function authHeaders(opts?: {
   json?: boolean;
   forceRefresh?: boolean;
@@ -59,13 +65,13 @@ async function fetchWithAuth(
       forceRefresh: forceRefresh || authOpts?.forceRefresh,
     })),
   });
-  let r = await fetch(`${BASE}${path}`, {
+  let r = await fetch(apiUrl(`${BASE}${path}`), {
     ...init,
     signal: init.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
     headers: await buildHeaders(false),
   });
   if (r.status === 401) {
-    r = await fetch(`${BASE}${path}`, {
+    r = await fetch(apiUrl(`${BASE}${path}`), {
       ...init,
       signal: init.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: await buildHeaders(true),

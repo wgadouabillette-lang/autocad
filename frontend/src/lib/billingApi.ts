@@ -1,3 +1,4 @@
+import { apiUrl } from "./apiBase";
 import { getAuthIdToken } from "./firebase/authToken";
 
 const BASE = "/api/billing";
@@ -167,6 +168,11 @@ async function billingAuthToken(forceRefresh = false): Promise<string | null> {
   return token;
 }
 
+export function clearBillingAuthCache(): void {
+  cachedAuthToken = null;
+  cachedAuthTokenAt = 0;
+}
+
 async function authHeaders(forceRefresh = false): Promise<HeadersInit> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const token = await billingAuthToken(forceRefresh);
@@ -193,14 +199,14 @@ async function fetchWithAuth(path: string, init: RequestInit, auth = true): Prom
     signal: init.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
   };
   if (!auth) {
-    return fetch(`${BASE}${path}`, requestInit);
+    return fetch(apiUrl(`${BASE}${path}`), requestInit);
   }
-  let r = await fetch(`${BASE}${path}`, {
+  let r = await fetch(apiUrl(`${BASE}${path}`), {
     ...requestInit,
     headers: { ...(init.headers as Record<string, string>), ...(await authHeaders(false)) },
   });
   if (r.status === 401) {
-    r = await fetch(`${BASE}${path}`, {
+    r = await fetch(apiUrl(`${BASE}${path}`), {
       ...requestInit,
       headers: { ...(init.headers as Record<string, string>), ...(await authHeaders(true)) },
     });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 import type { ChatConnectorId } from "../components/chat/chatConnectors";
 import { isConnectorOAuthMessage, warmConnectorAuth } from "../lib/connectorsApi";
+import { waitForAuthIdToken } from "../lib/firebase/authToken";
 import {
   applyConnectorOAuthResult,
   tryFinishConnectorOAuthFromStorage,
@@ -49,7 +50,10 @@ export function useConnectors() {
       return;
     }
     warmConnectorAuth();
-    void refresh(true);
+    void (async () => {
+      await waitForAuthIdToken();
+      await refresh(true);
+    })();
   }, [authReady, isAuthenticated, refresh, setVisualOnly]);
 
   useEffect(() => {

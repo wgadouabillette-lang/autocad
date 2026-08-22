@@ -74,7 +74,7 @@ CONNECTORS: dict[str, ConnectorDef] = {
 
 
 _DEFAULT_LOCAL_OAUTH_BASE = "http://127.0.0.1:8000"
-_PRODUCTION_OAUTH_BASE = "https://autocad-blue.vercel.app"
+_PRODUCTION_OAUTH_BASE = "https://meetra.cc"
 _FRONTEND_DEV_PORTS = frozenset({5173, 5174, 3000, 4173})
 
 

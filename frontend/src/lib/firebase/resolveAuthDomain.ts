@@ -1,28 +1,15 @@
 const DEFAULT_AUTH_DOMAIN = "forma-cad-dev.firebaseapp.com";
 
-function isLocalDevHost(hostname: string): boolean {
-  return hostname === "localhost" || hostname === "127.0.0.1";
-}
-
-function isFirebaseHostedDomain(hostname: string): boolean {
-  return hostname.endsWith(".firebaseapp.com") || hostname.endsWith(".web.app");
-}
-
 /**
- * Firebase redirect sign-in requires authDomain to match the app host on custom
- * domains (see Firebase redirect best practices). Local dev must keep the
- * project *.firebaseapp.com domain so Google OAuth popup works.
+ * Use the Firebase project auth domain (not the page hostname).
+ *
+ * meetra.cc is on Vercel. Treating it as authDomain made Google request
+ * `https://meetra.cc/__/auth/handler`. If that URI is missing on Firebase's
+ * default Web client, Google shows "La demande de cette appli n'est pas valide".
+ * localhost already used *.firebaseapp.com; keep production on the same path.
+ * meetra.cc remains an authorized domain so the opener origin is allowed.
  */
 export function resolveAuthDomain(): string {
   const fromEnv = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN?.trim();
-  const fallback = fromEnv || DEFAULT_AUTH_DOMAIN;
-
-  if (typeof window === "undefined") return fallback;
-
-  const hostname = window.location.hostname;
-  if (!hostname || isLocalDevHost(hostname) || isFirebaseHostedDomain(hostname)) {
-    return fallback;
-  }
-
-  return hostname;
+  return fromEnv || DEFAULT_AUTH_DOMAIN;
 }

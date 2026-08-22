@@ -1,3 +1,4 @@
+import { apiUrl } from "./apiBase";
 import { getAuthIdToken } from "./firebase/authToken";
 import type { CalendarSyncEvent, CalendarSyncResult } from "./calendarSync";
 import { isValidDate, normalizeDateKey, parseDateKey } from "./daySchedule";
@@ -53,7 +54,7 @@ function dayRangeIso(dateKey: string): { timeMin: string; timeMax: string } {
 }
 
 export async function fetchOutlookCalendarStatus(): Promise<OutlookCalendarStatus> {
-  const r = await fetch(`${BASE}/status`, { headers: await authHeaders() });
+  const r = await fetch(apiUrl(`${BASE}/status`), { headers: await authHeaders() });
   if (!r.ok) {
     const text = await r.text();
     throw new Error(text || `HTTP ${r.status}`);
@@ -80,7 +81,7 @@ async function fetchOutlookCalendarEventsInRange(
   timeMax: string,
 ): Promise<OutlookCalendarEvent[]> {
   const params = new URLSearchParams({ timeMin, timeMax });
-  const r = await fetch(`${BASE}/events?${params.toString()}`, {
+  const r = await fetch(apiUrl(`${BASE}/events?${params.toString()}`), {
     headers: await authHeaders(),
   });
   if (!r.ok) {
@@ -112,7 +113,7 @@ export async function syncEventsToOutlookCalendar(
     return { synced: false, created: 0, reason: "no_events" };
   }
 
-  const r = await fetch(`${BASE}/events`, {
+  const r = await fetch(apiUrl(`${BASE}/events`), {
     method: "POST",
     headers: await authHeaders(true),
     body: JSON.stringify({ events }),
@@ -129,7 +130,7 @@ export async function syncEventsToOutlookCalendar(
 export async function deleteOutlookCalendarEvent(eventId: string): Promise<void> {
   const safeId = eventId.trim();
   if (!safeId) return;
-  await fetch(`${BASE}/events/${encodeURIComponent(safeId)}`, {
+  await fetch(apiUrl(`${BASE}/events/${encodeURIComponent(safeId)}`), {
     method: "DELETE",
     headers: await authHeaders(),
   });

@@ -120,6 +120,40 @@ def ensure_desktop_env() -> Path:
 _load_env()
 
 
+_DEFAULT_CORS_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:47831",
+    "http://127.0.0.1:47831",
+    "http://localhost:47832",
+    "http://127.0.0.1:47832",
+    "https://meetra.cc",
+    "https://www.meetra.cc",
+    "https://autocad-blue.vercel.app",
+)
+
+# Packaged Electron (127.0.0.1:47832) and Vercel preview hosts must be able
+# to send Authorization: Bearer <Firebase ID token> to this API.
+CORS_ORIGIN_REGEX = (
+    r"https://([a-z0-9-]+\.)*meetra\.cc"
+    r"|https://([a-z0-9-]+\.)*vercel\.app"
+    r"|http://(localhost|127\.0\.0\.1):\d+"
+)
+
+
+def _cors_origins() -> List[str]:
+    raw = os.getenv("FORMA_CORS", "")
+    origins: List[str] = []
+    seen: set[str] = set()
+    for item in (*raw.split(","), *_DEFAULT_CORS_ORIGINS):
+        origin = item.strip().rstrip("/")
+        if not origin or origin in seen:
+            continue
+        seen.add(origin)
+        origins.append(origin)
+    return origins
+
+
 @dataclass
 class Settings:
     app_name: str = "Meetra"
@@ -129,13 +163,9 @@ class Settings:
     host: str = field(default_factory=lambda: os.getenv("FORMA_HOST", "127.0.0.1"))
     port: int = field(default_factory=lambda: int(os.getenv("FORMA_PORT", "8000")))
 
-    # CORS (le frontend Vite tourne sur 5173 par defaut)
-    cors_origins: List[str] = field(
-        default_factory=lambda: os.getenv(
-            "FORMA_CORS",
-            "http://localhost:5173,http://127.0.0.1:5173",
-        ).split(",")
-    )
+    # CORS — always include desktop loopback + meetra.cc so packaged Electron
+    # can call the deployed API after Google handoff (Bearer ID token).
+    cors_origins: List[str] = field(default_factory=_cors_origins)
 
     # LLM (optionnel). Si aucune cle -> moteur de regles.
     llm_provider: str = field(default_factory=lambda: os.getenv("FORMA_LLM_PROVIDER", "auto"))

@@ -16,8 +16,11 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { getAuthIdToken } from "./authToken";
+import { apiUrl } from "../apiBase";
+import { getAuthIdToken, waitForAuthIdToken } from "./authToken";
 import { hasFormaDesktop } from "../formaDesktop";
+import { clearBillingAuthCache } from "../billingApi";
+import { clearConnectorAuthCache } from "../connectorsApi";
 import { auth, db, functions, type FirebaseAuthProvider } from "./client";
 
 const POLL_INTERVAL_MS = 1500;
@@ -242,7 +245,7 @@ async function openExternalAuthUrl(url: string): Promise<void> {
 async function completeDesktopAuthSessionViaBackend(sessionId: string): Promise<boolean> {
   const idToken = await getAuthIdToken(true);
   if (!idToken) return false;
-  const response = await fetch("/api/auth/desktop/complete", {
+  const response = await fetch(apiUrl("/api/auth/desktop/complete"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${idToken}`,
@@ -334,7 +337,7 @@ async function claimDesktopAuthSessionViaBackend(
   sessionId: string,
   signal?: AbortSignal,
 ): Promise<DesktopAuthCompletion | null> {
-  const response = await fetch(`/api/auth/desktop/claim?sessionId=${encodeURIComponent(sessionId)}`, {
+  const response = await fetch(apiUrl(`/api/auth/desktop/claim?sessionId=${encodeURIComponent(sessionId)}`), {
     signal,
   });
   if (!response.ok) return null;
@@ -482,12 +485,22 @@ async function pollDesktopAuthSession(
 }
 
 async function applyDesktopAuthCompletion(completion: DesktopAuthCompletion): Promise<void> {
+  clearConnectorAuthCache();
+  clearBillingAuthCache();
   if (completion.kind === "customToken") {
     const cred = await signInWithCustomToken(auth, completion.token);
+    const token = await waitForAuthIdToken();
+    if (!token) {
+      throw new Error("Firebase ID token unavailable after desktop sign-in.");
+    }
     console.info("[desktop-auth] signed in with custom token", cred.user.uid);
     return;
   }
   const cred = await signInWithCredential(auth, oauthCredentialFromPayload(completion.payload));
+  const token = await waitForAuthIdToken();
+  if (!token) {
+    throw new Error("Firebase ID token unavailable after desktop sign-in.");
+  }
   console.info("[desktop-auth] signed in with oauth credential", cred.user.uid);
 }
 

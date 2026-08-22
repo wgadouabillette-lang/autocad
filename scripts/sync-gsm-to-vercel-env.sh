@@ -48,13 +48,13 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     value="1"
   fi
   if [[ "$key" == "FORMA_OAUTH_REDIRECT_BASE" ]]; then
-    value="https://autocad-blue.vercel.app"
+    value="https://meetra.cc"
   fi
   if [[ "$key" == "FORMA_FRONTEND_ORIGIN" ]]; then
-    value="https://autocad-blue.vercel.app"
+    value="https://meetra.cc"
   fi
   if [[ "$key" == "FORMA_CORS" ]]; then
-    value="https://autocad-blue.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
+    value="https://meetra.cc,https://www.meetra.cc,https://autocad-blue.vercel.app,http://localhost:5173,http://127.0.0.1:5173,http://localhost:47832,http://127.0.0.1:47832"
   fi
 
   if printf '%s' "$value" | "${VERCEL[@]}" env add "$key" "$VERCEL_ENV" --force >/dev/null 2>&1; then

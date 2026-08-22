@@ -51,6 +51,8 @@ import {
 } from "../lib/dashboardOnboarding";
 import { debugLog } from "../lib/debugLog";
 import { hasFormaDesktop } from "../lib/formaDesktop";
+import { clearBillingAuthCache } from "../lib/billingApi";
+import { clearConnectorAuthCache } from "../lib/connectorsApi";
 import {
   cancelDesktopWebAuth as abortDesktopWebAuthWait,
   isDesktopWebAuthCancelled,
@@ -792,6 +794,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       void window.formaDesktop?.setWindowMode?.("splash");
     }
     await signOutUser();
+    clearConnectorAuthCache();
+    clearBillingAuthCache();
     useStore.getState().setPhotoURL(null);
     useStore.setState({
       subscriptionPlan: "free",

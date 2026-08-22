@@ -13,7 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ID = "forma-cad-dev"
 BUCKET = "forma-cad-dev.firebasestorage.app"
 MAC_SRC = ROOT / "landing/public/downloads/Hall-mac.dmg"
-WIN_SRC = ROOT / "landing/public/downloads/Hall.exe"
+WIN_SRC = ROOT / "landing/public/downloads/Meetra.exe"
+if not WIN_SRC.is_file():
+    WIN_SRC = ROOT / "landing/public/downloads/Hall.exe"
 if not WIN_SRC.is_file():
     WIN_SRC = ROOT / "landing/public/downloads/Hall-windows.exe"
 
@@ -48,7 +50,7 @@ def main() -> int:
         return 1
 
     mac_url = upload(MAC_SRC, "downloads/Hall-mac.dmg") if MAC_SRC.is_file() else ""
-    win_url = upload(WIN_SRC, "downloads/Hall.exe") if WIN_SRC.is_file() else ""
+    win_url = upload(WIN_SRC, "downloads/Meetra.exe") if WIN_SRC.is_file() else ""
 
     print("\nPublic URLs:")
     if mac_url:

@@ -22,13 +22,18 @@
   },
   "redirects": [
     {
+      "source": "/downloads/Meetra.exe",
+      "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media",
+      "permanent": false
+    },
+    {
       "source": "/downloads/Hall.exe",
-      "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall.exe?alt=media",
+      "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media",
       "permanent": false
     },
     {
       "source": "/downloads/Hall-windows.exe",
-      "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall.exe?alt=media",
+      "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media",
       "permanent": false
     },
     {
@@ -37,8 +42,13 @@
       "permanent": false
     },
     {
+      "source": "/downloads/Meetra-linux.AppImage",
+      "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra-linux.AppImage?alt=media",
+      "permanent": false
+    },
+    {
       "source": "/downloads/Hall-linux.AppImage",
-      "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-linux.AppImage?alt=media",
+      "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra-linux.AppImage?alt=media",
       "permanent": false
     },
     {

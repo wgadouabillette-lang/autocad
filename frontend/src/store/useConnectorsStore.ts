@@ -67,8 +67,13 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
         const items = await fetchConnectorStatuses();
         set({ statuses: items, statusSource: "api", error: null });
       } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to load connectors.";
+        const authFailed = /authentication required/i.test(message);
         set({
-          error: err instanceof Error ? err.message : "Failed to load connectors.",
+          error: message,
+          ...(authFailed
+            ? { statuses: VISUAL_STATUSES, statusSource: "visual" as const }
+            : {}),
         });
       } finally {
         set({ loading: false, inflight: null });

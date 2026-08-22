@@ -1,4 +1,5 @@
 import type { AgentImagePayload } from "./agentImages";
+import { apiUrl } from "./apiBase";
 import { getAuthIdToken } from "./firebase/authToken";
 import { callAiChat } from "./firebase/aiChat";
 import { notifyAiUsageUpdated } from "./usageEvents";
@@ -13,6 +14,10 @@ import type {
 } from "./types";
 
 const BASE = "/api";
+
+function apiPath(path: string): string {
+  return apiUrl(`${BASE}${path}`);
+}
 
 async function authHeaders(): Promise<HeadersInit> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -47,7 +52,7 @@ async function parseApiError(response: Response): Promise<string> {
 }
 
 async function jsonPost<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  const r = await fetch(`${BASE}${path}`, {
+  const r = await fetch(apiPath(path), {
     method: "POST",
     headers: await authHeaders(),
     body: JSON.stringify(body),
@@ -58,7 +63,7 @@ async function jsonPost<T>(path: string, body: unknown, signal?: AbortSignal): P
 }
 
 async function jsonGet<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const r = await fetch(`${BASE}${path}`, {
+  const r = await fetch(apiPath(path), {
     headers: await authHeaders(),
     signal,
   });
@@ -119,7 +124,7 @@ export interface UserLookupResponse {
 
 export const api = {
   async health(signal?: AbortSignal) {
-    const r = await fetch(`${BASE}/health`, { signal });
+    const r = await fetch(apiPath("/health"), { signal });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json();
   },
@@ -212,7 +217,7 @@ export const api = {
     const headers: Record<string, string> = {};
     const token = await getAuthIdToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    const r = await fetch(`${BASE}/import-mesh`, { method: "POST", body: fd, headers });
+    const r = await fetch(apiPath("/import-mesh"), { method: "POST", body: fd, headers });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json();
   },
@@ -231,7 +236,7 @@ export const api = {
     const headers: Record<string, string> = {};
     const token = await getAuthIdToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    const r = await fetch(`${BASE}/recap`, {
+    const r = await fetch(apiPath("/recap"), {
       method: "POST",
       body: fd,
       headers,
@@ -270,13 +275,13 @@ export const api = {
     const headers: Record<string, string> = {};
     const token = await getAuthIdToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    const r = await fetch(`${BASE}/import`, { method: "POST", body: fd, headers });
+    const r = await fetch(apiPath("/import"), { method: "POST", body: fd, headers });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json();
   },
 
   async export(document: CadDocument, fmt: string): Promise<Blob> {
-    const r = await fetch(`${BASE}/export?fmt=${fmt}`, {
+    const r = await fetch(apiPath(`/export?fmt=${fmt}`), {
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify(document),
@@ -286,7 +291,7 @@ export const api = {
   },
 
   async examples(): Promise<{ prompt: string; document: CadDocument }[]> {
-    const r = await fetch(`${BASE}/examples`);
+    const r = await fetch(apiPath("/examples"));
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json();
   },

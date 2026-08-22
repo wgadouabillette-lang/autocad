@@ -26,7 +26,7 @@ from app.api.connector_resources import router as connector_resources_router
 from app.api.connectors import router as connectors_router
 from app.api.desktop_auth import router as desktop_auth_router
 from app.api.user_calendar_events import router as user_calendar_events_router
-from app.core.config import ensure_desktop_env, settings
+from app.core.config import CORS_ORIGIN_REGEX, ensure_desktop_env, settings
 
 
 def _running_on_vercel() -> bool:
@@ -62,6 +62,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
