@@ -3,100 +3,81 @@ import { hasFormaDesktop } from "../lib/formaDesktop";
 import { useNotificationsStore } from "../store/useNotificationsStore";
 
 export type DesktopUpdateGate = {
-  /** 0–100 while a desktop update is downloading/installing; null otherwise. */
+  /** 0–100 while a confirmed update is downloading/installing; null otherwise. */
   progress: number | null;
-  /** Keep the splash/loading overlay until the current update reaches 100% (or installs). */
+  /** Overlay only after the user accepts an update (Maintenant). Never blocks boot. */
   blockingUpdate: boolean;
-  /** First packaged update check finished (or skipped in dev). */
-  startupCheckComplete: boolean;
 };
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function notifyUpdateAvailable(info: { version: string; releaseNotes?: string }) {
+  const store = useNotificationsStore.getState();
+  const already = store.items.some(
+    (n) => n.kind === "app_update" && n.updateVersion === info.version,
+  );
+  if (already) return;
+
+  store.push({
+    kind: "app_update",
+    category: "Mise à jour",
+    title: "A new version of Meetra is available",
+    body:
+      info.releaseNotes?.trim() ||
+      "Install when you are ready. Meetra will download the update and restart after you confirm.",
+    updateVersion: info.version,
+    updateReleaseNotes: info.releaseNotes,
+  });
+  store.openPanel();
+}
+
 export function useDesktopUpdater(): DesktopUpdateGate {
   const push = useNotificationsStore((s) => s.push);
-  const openPanel = useNotificationsStore((s) => s.openPanel);
   const removeNotification = useNotificationsStore((s) => s.removeNotification);
   const [progress, setProgress] = useState<number | null>(null);
   const [blockingUpdate, setBlockingUpdate] = useState(false);
-  const [startupCheckComplete, setStartupCheckComplete] = useState(() => !hasFormaDesktop());
 
   useEffect(() => {
     if (!hasFormaDesktop() || !window.formaDesktop?.onUpdateAvailable) {
-      setStartupCheckComplete(true);
       return;
     }
 
     const desktop = window.formaDesktop;
     let cancelled = false;
-    let unblockAtHundred: number | undefined;
     let pollId: number | undefined;
 
-    const applyProgress = async (percent: number) => {
-      const next = clampPercent(percent);
-      setProgress(next);
-      if (next < 100) {
-        setBlockingUpdate(true);
+    const applyInstallProgress = (percent: number, installing: boolean) => {
+      if (!installing) {
+        setBlockingUpdate(false);
+        setProgress(null);
         return;
       }
-      const state = await desktop.getUpdateState?.();
-      if (cancelled) return;
-      if (state?.installing) {
-        setBlockingUpdate(true);
-        return;
-      }
-      // Download reached 100% without an in-progress install (e.g. “tonight” pre-download).
-      window.clearTimeout(unblockAtHundred);
-      unblockAtHundred = window.setTimeout(() => {
-        if (!cancelled) setBlockingUpdate(false);
-      }, 200);
+      setProgress(clampPercent(percent));
+      setBlockingUpdate(true);
     };
 
     const syncFromMain = async () => {
-      if (!desktop.getUpdateState) {
-        setStartupCheckComplete(true);
-        return;
-      }
+      if (!desktop.getUpdateState) return;
       const state = await desktop.getUpdateState();
       if (cancelled || !state) return;
-      if (state.progress && typeof state.progress.percent === "number") {
-        await applyProgress(state.progress.percent);
-      } else if (state.installing) {
-        setBlockingUpdate(true);
-        setProgress((current) => current ?? 0);
+      if (state.available && !state.pendingTonight) {
+        notifyUpdateAvailable(state.available);
       }
-      if (state.startupCheckComplete) {
-        setStartupCheckComplete(true);
-        const downloadOpen =
-          state.installing ||
-          (state.progress != null && state.progress.percent < 100);
-        if (!downloadOpen && pollId !== undefined) {
-          window.clearInterval(pollId);
-          pollId = undefined;
-        }
+      if (state.installing) {
+        applyInstallProgress(state.progress?.percent ?? 0, true);
+      } else {
+        applyInstallProgress(0, false);
+      }
+      if (state.startupCheckComplete && !state.installing && pollId !== undefined) {
+        window.clearInterval(pollId);
+        pollId = undefined;
       }
     };
 
     const unsubAvailable = desktop.onUpdateAvailable?.((info) => {
-      const items = useNotificationsStore.getState().items;
-      const already = items.some(
-        (n) => n.kind === "app_update" && n.updateVersion === info.version,
-      );
-      if (already) return;
-
-      push({
-        kind: "app_update",
-        category: "Mise à jour",
-        title: `Meetra ${info.version} est disponible`,
-        body:
-          info.releaseNotes?.trim() ||
-          "Une nouvelle version de l'application est prête à être installée.",
-        updateVersion: info.version,
-        updateReleaseNotes: info.releaseNotes,
-      });
-      openPanel();
+      notifyUpdateAvailable(info);
     });
 
     const unsubScheduled = desktop.onUpdateScheduledTonight?.((info) => {
@@ -115,12 +96,16 @@ export function useDesktopUpdater(): DesktopUpdateGate {
     });
 
     const unsubProgress = desktop.onUpdateProgress?.((payload) => {
-      void applyProgress(payload.percent);
+      void (async () => {
+        const state = await desktop.getUpdateState?.();
+        if (cancelled) return;
+        applyInstallProgress(payload.percent, Boolean(state?.installing));
+      })();
     });
 
     const unsubInstalled = desktop.onUpdateInstalled?.((info) => {
-      window.clearTimeout(unblockAtHundred);
       setProgress(100);
+      setBlockingUpdate(true);
       // Packaged builds quitAndInstall after this event; keep the 100% bar until restart.
       if (info.dev) setBlockingUpdate(false);
     });
@@ -130,20 +115,22 @@ export function useDesktopUpdater(): DesktopUpdateGate {
       void syncFromMain();
     }, 400);
     const giveUp = window.setTimeout(() => {
-      setStartupCheckComplete(true);
+      if (pollId !== undefined) {
+        window.clearInterval(pollId);
+        pollId = undefined;
+      }
     }, 20_000);
 
     return () => {
       cancelled = true;
       window.clearInterval(pollId);
       window.clearTimeout(giveUp);
-      window.clearTimeout(unblockAtHundred);
       unsubAvailable?.();
       unsubScheduled?.();
       unsubProgress?.();
       unsubInstalled?.();
     };
-  }, [push, openPanel, removeNotification]);
+  }, [push, removeNotification]);
 
-  return { progress, blockingUpdate, startupCheckComplete };
+  return { progress, blockingUpdate };
 }

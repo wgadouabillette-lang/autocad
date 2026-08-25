@@ -120,13 +120,11 @@ export default function App() {
     setBootStatus(status);
   }, []);
 
-  const { progress: updateProgress, blockingUpdate, startupCheckComplete } =
-    useDesktopUpdater();
+  const { progress: updateProgress, blockingUpdate } = useDesktopUpdater();
   const showDesktopAuthSuccess = Boolean(desktopWebAuthConnected && !authReady);
   const bootPending =
     !showDesktopAuthSuccess &&
     (blockingUpdate ||
-      (hasFormaDesktop() && !startupCheckComplete) ||
       !authReady ||
       (isAuthenticated && bootStatus !== "ready"));
   const { progress: splashProgress, holdOverlay } = useAnimatedBootProgress({
@@ -138,8 +136,7 @@ export default function App() {
     !authReady ||
     (hasFormaDesktop() && !isAuthenticated) ||
     (isAuthenticated && bootStatus !== "ready") ||
-    blockingUpdate ||
-    (hasFormaDesktop() && !startupCheckComplete);
+    blockingUpdate;
   useLayoutEffect(() => {
     const root = document.documentElement;
     if (desktopSplashWindow) {

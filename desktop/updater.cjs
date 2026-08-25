@@ -91,6 +91,8 @@ function loadAutoUpdater() {
     return null;
   }
 
+  // Never download or install on launch. The renderer shows a notification;
+  // install runs only from handleInstallNow / the "tonight" schedule.
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.allowDowngrade = false;
@@ -115,11 +117,8 @@ function loadAutoUpdater() {
       releaseNotes: releaseNotesFrom(info),
       currentVersion: packageVersion(),
     };
+    // Notify only — never download or install until the user confirms.
     emitUpdateAvailable(payload);
-    // Launch/splash: download+install while the loading overlay is still showing.
-    if (getWindowMode() === "splash") {
-      void runInstallNow(payload);
-    }
   });
 
   autoUpdater.on("update-not-available", () => {
