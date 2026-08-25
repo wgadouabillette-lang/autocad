@@ -62,6 +62,7 @@
   --forma-boost-cap-r: 1.125rem;
   --forma-boost-trailing-pad: 0.25rem;
   --forma-top-toolbar-height: 2.75rem;
+  --desktop-autohide-titlebar-height: 2rem;
   --forma-chat-panel-width: 26rem;
   --forma-chat-fullscreen-width: 34.375rem;
   --forma-chat-composer-height: 4.375rem;
@@ -1189,37 +1190,49 @@ html:not(.app-loading-splash) #root {
     grid-row: 1;
     justify-self: end;
   }
-  html.has-desktop-window-controls {
-    --desktop-window-controls-width: 6.75rem;
-  }
-  html.has-desktop-window-controls .app-chrome-row__main {
-    padding-right: calc(0.5rem + var(--desktop-window-controls-width));
-  }
-  html.has-desktop-window-controls .app-voice-settings-floating {
-    right: calc(0.75rem + var(--desktop-window-controls-width));
-  }
-  html.has-desktop-window-controls .app-chrome-row {
-    -webkit-app-region: drag;
-  }
-  html.has-desktop-window-controls .app-chrome-row button,
-  html.has-desktop-window-controls .app-chrome-row a,
-  html.has-desktop-window-controls .app-chrome-row input {
-    -webkit-app-region: no-drag;
-  }
+  /* Windows/Linux: auto-hide titlebar. Hidden state must not reserve layout or steal clicks. */
   .desktop-window-controls {
     position: fixed;
     top: 0;
+    left: 0;
     right: 0;
-    z-index: 200;
+    z-index: 400;
+    height: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .desktop-window-controls__bar {
     display: flex;
-    height: var(--forma-top-toolbar-height);
-    -webkit-app-region: no-drag;
+    align-items: stretch;
+    justify-content: flex-end;
+    height: var(--desktop-autohide-titlebar-height);
+    pointer-events: none;
+    transform: translateY(-100%);
+    background-color: rgb(18 18 18 / 0.92);
+    border-bottom: 1px solid var(--forma-border);
+    box-shadow: 0 8px 20px rgb(0 0 0 / 0.28);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    transition: transform 0.18s ease;
+  }
+  .desktop-window-controls--revealed .desktop-window-controls__bar {
+    pointer-events: auto;
+    transform: translateY(0);
   }
   /* Maximized frameless windows clip a few pixels at the screen edge on Windows. */
-  .desktop-window-controls--expanded {
-    top: 6px;
-    right: 6px;
-    height: calc(var(--forma-top-toolbar-height) - 6px);
+  .desktop-window-controls--expanded.desktop-window-controls--revealed .desktop-window-controls__bar {
+    padding-right: 6px;
+  }
+  .desktop-window-controls__drag {
+    flex: 1 1 auto;
+    min-width: 2rem;
+    height: 100%;
+    -webkit-app-region: drag;
+  }
+  .desktop-window-controls__buttons {
+    display: flex;
+    height: 100%;
+    -webkit-app-region: no-drag;
   }
   .desktop-window-controls__btn {
     @apply inline-flex items-center justify-center border-0 text-muted-300 transition-colors;
@@ -1240,6 +1253,11 @@ html:not(.app-loading-splash) #root {
   .desktop-window-controls__btn--close:hover {
     background-color: #e81123;
     color: #fff;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .desktop-window-controls__bar {
+      transition: none;
+    }
   }
   .header-toolbar-actions {
     @apply flex h-6 items-center gap-1.5;

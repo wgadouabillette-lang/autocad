@@ -441,6 +441,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {/* Windows/Linux only: auto-hide titlebar. Not rendered on splash / sign-in. */}
       <DesktopWindowControls />
       {recording && <div className="app-recording-frame" aria-hidden />}
       <RecordingCameraPreview />
