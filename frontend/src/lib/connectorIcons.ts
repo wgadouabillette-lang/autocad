@@ -8,4 +8,6 @@ export const CONNECTOR_ICON_FILES = {
   gmail: "gmail.svg",
   outlook: "outlook.svg",
   spotify: "spotify.svg",
+  figma: "figma.svg",
+  dropbox: "dropbox.svg",
 } as const;

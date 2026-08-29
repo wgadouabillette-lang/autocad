@@ -23,10 +23,8 @@ function notifyUpdateAvailable(info: { version: string; releaseNotes?: string })
   store.push({
     kind: "app_update",
     category: "Mise à jour",
-    title: "A new version of Meetra is available",
-    body:
-      info.releaseNotes?.trim() ||
-      "Install when you are ready. Meetra will download the update and restart after you confirm.",
+    title: "Une nouvelle version est disponible",
+    body: "",
     updateVersion: info.version,
     updateReleaseNotes: info.releaseNotes,
   });

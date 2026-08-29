@@ -336,7 +336,9 @@ export default function NotificationsPanel({
               <div className="notifications-panel__copy">
                 <p className="notifications-panel__category">{notificationCategory(item)}</p>
                 <h3 className="notifications-panel__title">{item.title}</h3>
-                <p className="notifications-panel__description">{item.body}</p>
+                {item.body?.trim() ? (
+                  <p className="notifications-panel__description">{item.body}</p>
+                ) : null}
               </div>
               <div
                 className={clsx(

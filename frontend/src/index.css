@@ -63,6 +63,7 @@
   --forma-boost-trailing-pad: 0.25rem;
   --forma-top-toolbar-height: 2.75rem;
   --desktop-autohide-titlebar-height: 2rem;
+  --desktop-chrome-leading-reserve: 4.75rem;
   --forma-chat-panel-width: 26rem;
   --forma-chat-fullscreen-width: 34.375rem;
   --forma-messages-people-width: 17.5rem;
@@ -1138,6 +1139,26 @@ html:not(.app-loading-splash) #root {
     justify-self: stretch;
     -webkit-app-region: no-drag;
   }
+  /* Windows/Linux titlebar is z-index 400. Keep workspace + invite above it and
+     never apply macOS traffic-light inset on win32 (that would push them off-screen). */
+  html.has-desktop-autohide-titlebar .app-chrome-row__main {
+    padding-left: 0.5rem;
+    margin-left: 0;
+  }
+  html.has-desktop-autohide-titlebar .app-chrome-row__leading,
+  html.has-desktop-autohide-titlebar .app-chrome-row__workspace-brand-group {
+    display: flex;
+    visibility: visible;
+    opacity: 1;
+    left: auto;
+    margin-left: 0;
+    transform: none;
+    z-index: 410;
+    -webkit-app-region: no-drag;
+  }
+  html.has-desktop-autohide-titlebar .app-chrome-row__leading button {
+    -webkit-app-region: no-drag;
+  }
   .app-chrome-row__brand {
     @apply pointer-events-none absolute inset-y-0 left-1/2 z-0 flex items-center gap-1.5;
     transform: translateX(-50%);
@@ -1193,11 +1214,14 @@ html:not(.app-loading-splash) #root {
     grid-row: 1;
     justify-self: end;
   }
-  /* Windows/Linux: auto-hide titlebar. Hidden state must not reserve layout or steal clicks. */
+  /* Windows/Linux: auto-hide titlebar. Hidden state must not reserve layout or steal clicks.
+     Start after the workspace/invite cluster so − □ × never covers those buttons.
+     Drag is applied only while revealed — on Windows, -webkit-app-region: drag is
+     treated as non-client even when the bar is translated off-screen. */
   .desktop-window-controls {
     position: fixed;
     top: 0;
-    left: 0;
+    left: var(--desktop-chrome-leading-reserve, 4.75rem);
     right: 0;
     z-index: 400;
     height: 0;
@@ -1230,6 +1254,9 @@ html:not(.app-loading-splash) #root {
     flex: 1 1 auto;
     min-width: 2rem;
     height: 100%;
+    -webkit-app-region: no-drag;
+  }
+  .desktop-window-controls--revealed .desktop-window-controls__drag {
     -webkit-app-region: drag;
   }
   .desktop-window-controls__buttons {
@@ -7330,7 +7357,7 @@ html:not(.app-loading-splash) #root {
     @apply m-0 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-500;
   }
   .notifications-panel__title {
-    @apply mt-1 text-[14px] font-semibold leading-snug text-muted-100;
+    @apply mt-1 truncate text-[14px] font-semibold leading-snug text-muted-100;
   }
   .notifications-panel__description {
     @apply mt-0.5 text-[11.5px] leading-snug text-muted-400;

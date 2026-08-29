@@ -26,6 +26,20 @@ export const CHAT_CONNECTORS = [
     Logo: CHAT_APP_LOGOS.outlook,
     comingSoon: true,
   },
+  {
+    id: "figma",
+    label: "Figma",
+    slash: "/figma",
+    Logo: CHAT_APP_LOGOS.figma,
+    comingSoon: true,
+  },
+  {
+    id: "dropbox",
+    label: "Dropbox",
+    slash: "/dropbox",
+    Logo: CHAT_APP_LOGOS.dropbox,
+    comingSoon: true,
+  },
 ] as const;
 
 export type ChatConnectorId = (typeof CHAT_CONNECTORS)[number]["id"];

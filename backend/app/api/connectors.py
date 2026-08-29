@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.connectors.oauth import create_authorize_session, exchange_code, pop_state
 from app.connectors.registry import (
+    COMING_SOON_CONNECTORS,
     CONNECTOR_IDS,
     CONNECTORS,
     connector_configured,
@@ -56,6 +57,16 @@ def list_connectors(user: FirebaseUser = Depends(require_firebase_user)):
                 ),
             }
         )
+    for connector_id, label in COMING_SOON_CONNECTORS.items():
+        result.append(
+            {
+                "id": connector_id,
+                "label": label,
+                "provider": connector_id,
+                "connected": False,
+                "configured": False,
+            }
+        )
     return {"connectors": result}
 
 
@@ -67,6 +78,8 @@ def authorize_connector(
     return_path: Optional[str] = Query(default=None),
     user: FirebaseUser = Depends(require_firebase_user),
 ):
+    if connector_id in COMING_SOON_CONNECTORS:
+        raise HTTPException(400, "This connector is not available yet.")
     if connector_id not in CONNECTORS:
         raise HTTPException(404, "Unknown connector.")
     if not connector_configured(connector_id):
@@ -141,6 +154,8 @@ def disconnect_connector(
     connector_id: str,
     user: FirebaseUser = Depends(require_firebase_user),
 ):
+    if connector_id in COMING_SOON_CONNECTORS:
+        raise HTTPException(400, "This connector is not available yet.")
     if connector_id not in CONNECTORS:
         raise HTTPException(404, "Unknown connector.")
     remove_connection(user.uid, connector_id)

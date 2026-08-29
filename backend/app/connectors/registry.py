@@ -10,6 +10,12 @@ ProviderId = Literal["google", "microsoft", "spotify"]
 
 CONNECTOR_IDS = ("calendar", "gmail", "outlook", "spotify")
 
+# Catalog-only — shown in Settings → Plugins, no OAuth / no API.
+COMING_SOON_CONNECTORS: dict[str, str] = {
+    "figma": "Figma",
+    "dropbox": "Dropbox",
+}
+
 
 @dataclass(frozen=True)
 class ConnectorDef:
@@ -75,7 +81,14 @@ CONNECTORS: dict[str, ConnectorDef] = {
 
 _DEFAULT_LOCAL_OAUTH_BASE = "http://127.0.0.1:8000"
 _PRODUCTION_OAUTH_BASE = "https://meetra.cc"
-_FRONTEND_DEV_PORTS = frozenset({5173, 5174, 3000, 4173})
+# Vite / Electron UI ports — never valid provider callback hosts.
+_FRONTEND_DEV_PORTS = frozenset({5173, 5174, 3000, 4173, 47832})
+_LEGACY_PRODUCTION_HOSTS = frozenset(
+    {
+        "www.meetra.cc",
+        "autocad-blue.vercel.app",
+    }
+)
 
 
 def _env_or_default(name: str, default: str) -> str:
@@ -87,8 +100,26 @@ def _on_vercel() -> bool:
     return bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("VERCEL_URL"))
 
 
+def _origin_host(base: str) -> str:
+    from urllib.parse import urlparse
+
+    return (urlparse(base.strip()).hostname or "").lower()
+
+
+def _canonical_production_base(base: str) -> str:
+    host = _origin_host(base)
+    if host == "meetra.cc" or host in _LEGACY_PRODUCTION_HOSTS:
+        return _PRODUCTION_OAUTH_BASE
+    return base
+
+
+def _is_production_api_origin(origin: str | None) -> bool:
+    host = _origin_host(origin or "")
+    return host == "meetra.cc" or host in _LEGACY_PRODUCTION_HOSTS
+
+
 def _normalize_oauth_redirect_base(base: str) -> str:
-    """OAuth callbacks must hit the API, not the Vite dev server."""
+    """OAuth callbacks must hit the API, not the Vite / Electron UI origin."""
     from urllib.parse import urlparse
 
     trimmed = base.strip().rstrip("/")
@@ -101,7 +132,7 @@ def _normalize_oauth_redirect_base(base: str) -> str:
         scheme = parsed.scheme or "http"
         return f"{scheme}://{host}:8000"
 
-    return trimmed
+    return _canonical_production_base(trimmed)
 
 
 def oauth_redirect_base() -> str:
@@ -120,11 +151,15 @@ def resolve_oauth_redirect_base(
     return_origin: str | None = None,
     request_origin: str | None = None,
 ) -> str:
-    """Pick the OAuth callback host (API origin).
+    """Pick the OAuth provider callback host (API origin).
 
-    Local dev uses port 8000. On Vercel, frontend and API share the same HTTPS
-    origin — never use localhost if the browser or request is on production.
+    Packaged desktop UI is http://127.0.0.1:47832 — that origin is only used
+    after Google/Spotify/Microsoft redirect back, never as redirect_uri.
+    Production always callbacks on https://meetra.cc.
     """
+    if _on_vercel() or _is_production_api_origin(request_origin):
+        return _PRODUCTION_OAUTH_BASE
+
     env_base = _normalize_oauth_redirect_base(oauth_redirect_base())
     if env_base and not _is_local_oauth_base(env_base):
         return env_base
@@ -133,11 +168,10 @@ def resolve_oauth_redirect_base(
         if not hint:
             continue
         origin = _normalize_oauth_redirect_base(hint.strip())
+        if _is_local_oauth_base(origin):
+            continue
         if origin.startswith("https://"):
             return origin
-
-    if _on_vercel():
-        return _PRODUCTION_OAUTH_BASE
 
     return env_base or _DEFAULT_LOCAL_OAUTH_BASE
 
@@ -171,11 +205,14 @@ def frontend_app_url(
 
 
 def callback_url(redirect_base: str | None = None) -> str:
-    base = _normalize_oauth_redirect_base(
-        redirect_base or oauth_redirect_base() or _DEFAULT_LOCAL_OAUTH_BASE
-    )
-    if _on_vercel() and _is_local_oauth_base(base):
+    if _on_vercel():
         base = _PRODUCTION_OAUTH_BASE
+    else:
+        base = _normalize_oauth_redirect_base(
+            redirect_base or oauth_redirect_base() or _DEFAULT_LOCAL_OAUTH_BASE
+        )
+        if _origin_host(base) in {"meetra.cc"} | _LEGACY_PRODUCTION_HOSTS:
+            base = _PRODUCTION_OAUTH_BASE
     return f"{base}/api/connectors/oauth/callback"
 
 

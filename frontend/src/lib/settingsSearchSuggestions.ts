@@ -1,4 +1,4 @@
-import { CHAT_CONNECTORS } from "../components/chat/chatConnectors";
+import { CHAT_CONNECTORS, isConnectorComingSoon } from "../components/chat/chatConnectors";
 
 export type SettingsTab =
   | "general"
@@ -207,13 +207,18 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
   },
 ];
 
-const PLUGIN_SUGGESTIONS: SettingsSearchSuggestion[] = CHAT_CONNECTORS.map((connector) => ({
-  id: `plugin-${connector.id}`,
-  tab: "plugins" as const,
-  label: connector.label,
-  hint: `Connecteur chat ${connector.slash}`,
-  keywords: `plugins api connecteur ${connector.label} ${connector.slash} ${connector.id}`,
-}));
+const PLUGIN_SUGGESTIONS: SettingsSearchSuggestion[] = CHAT_CONNECTORS.map((connector) => {
+  const comingSoon = isConnectorComingSoon(connector.id);
+  return {
+    id: `plugin-${connector.id}`,
+    tab: "plugins" as const,
+    label: connector.label,
+    hint: comingSoon ? "Bientôt disponible" : `Connecteur chat ${connector.slash}`,
+    keywords: comingSoon
+      ? `plugins api connecteur ${connector.label} ${connector.slash} ${connector.id} coming soon bientôt disponible`
+      : `plugins api connecteur ${connector.label} ${connector.slash} ${connector.id}`,
+  };
+});
 
 export const SETTINGS_SEARCH_SUGGESTIONS: SettingsSearchSuggestion[] = [
   ...BASE_SUGGESTIONS,

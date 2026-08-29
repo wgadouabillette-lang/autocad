@@ -28,6 +28,16 @@ export function SpotifyLogo() {
   return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.spotify)} />;
 }
 
+/** Figma */
+export function FigmaLogo() {
+  return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.figma)} />;
+}
+
+/** Dropbox */
+export function DropboxLogo() {
+  return <LogoFrame src={connectorIconPath(CONNECTOR_ICON_FILES.dropbox)} />;
+}
+
 export type ChatAppLogoComponent = () => JSX.Element;
 
 export const CHAT_APP_LOGOS = {
@@ -35,4 +45,6 @@ export const CHAT_APP_LOGOS = {
   gmail: GmailLogo,
   outlook: OutlookLogo,
   spotify: SpotifyLogo,
+  figma: FigmaLogo,
+  dropbox: DropboxLogo,
 } as const;
