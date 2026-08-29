@@ -238,6 +238,74 @@ export function isTodayKey(dateKey: string): boolean {
   return dateKey === toDateKey(new Date());
 }
 
+/** Months shown in the fullscreen calendar gutter: current month through +11. */
+export const FULLSCREEN_CALENDAR_MONTH_COUNT = 12;
+
+export function upcomingMonthStarts(
+  count = FULLSCREEN_CALENDAR_MONTH_COUNT,
+  from = new Date(),
+): Date[] {
+  const start = new Date(from.getFullYear(), from.getMonth(), 1);
+  return Array.from({ length: count }, (_, offset) => {
+    return new Date(start.getFullYear(), start.getMonth() + offset, 1);
+  });
+}
+
+export function formatMonthYearLabel(date: Date, locale = "fr-FR"): string {
+  if (!isValidDate(date)) return "";
+  try {
+    const label = new Intl.DateTimeFormat(locale, {
+      month: "long",
+      year: "numeric",
+    }).format(date);
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  } catch {
+    return `${date.getMonth() + 1}/${date.getFullYear()}`;
+  }
+}
+
+/** Monday-first narrow weekday labels (matches the French day view). */
+export function weekdayNarrowLabels(locale = "fr-FR", weekStartsOn = 1): string[] {
+  const sunday = new Date(Date.UTC(2024, 0, 7));
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(sunday);
+    day.setUTCDate(sunday.getUTCDate() + ((weekStartsOn + i) % 7));
+    try {
+      return new Intl.DateTimeFormat(locale, {
+        weekday: "narrow",
+        timeZone: "UTC",
+      }).format(day);
+    } catch {
+      return "";
+    }
+  });
+}
+
+export interface MiniMonthCell {
+  dateKey: string | null;
+}
+
+export function miniMonthGrid(
+  year: number,
+  monthIndex: number,
+  weekStartsOn = 1,
+): MiniMonthCell[] {
+  const first = new Date(year, monthIndex, 1);
+  if (!isValidDate(first)) return [];
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const leading = (first.getDay() - weekStartsOn + 7) % 7;
+  const cells: MiniMonthCell[] = Array.from({ length: leading }, () => ({
+    dateKey: null,
+  }));
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push({ dateKey: toDateKey(new Date(year, monthIndex, day)) });
+  }
+  while (cells.length % 7 !== 0) {
+    cells.push({ dateKey: null });
+  }
+  return cells;
+}
+
 export function formatScheduleTime(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;

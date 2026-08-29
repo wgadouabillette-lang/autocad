@@ -49,6 +49,34 @@ export async function uploadProfilePhoto(uid: string, file: File): Promise<strin
   return url;
 }
 
+export function googleProviderPhotoURL(
+  user: { providerData: Array<{ providerId: string; photoURL?: string | null }> } | null,
+): string | null {
+  const url = user?.providerData
+    .find((entry) => entry.providerId === "google.com")
+    ?.photoURL?.trim();
+  return url || null;
+}
+
+export async function restoreGoogleProfilePhoto(uid: string): Promise<string> {
+  const user = auth.currentUser;
+  const url = googleProviderPhotoURL(user);
+  if (!user || user.uid !== uid || !url) {
+    throw new Error("Aucune photo Google n'est disponible.");
+  }
+  await Promise.all(
+    PROFILE_EXTENSIONS.map(async (ext) => {
+      try {
+        await deleteObject(profilePhotoRef(uid, ext));
+      } catch {
+        // Rien à supprimer.
+      }
+    }),
+  );
+  await updateProfile(user, { photoURL: url });
+  return url;
+}
+
 export async function removeProfilePhoto(uid: string): Promise<void> {
   await Promise.all(
     PROFILE_EXTENSIONS.map(async (ext) => {

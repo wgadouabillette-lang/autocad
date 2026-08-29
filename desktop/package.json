@@ -1,6 +1,6 @@
 {
   "name": "forma-desktop",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "Meetra",
   "main": "main.cjs",
@@ -109,6 +109,12 @@
       "description": "Meetra — AI-powered collaborative workspace for teams.",
       "artifactName": "Meetra-${version}-linux.${ext}"
     },
+    "protocols": [
+      {
+        "name": "Meetra",
+        "schemes": ["meetra"]
+      }
+    ],
     "nsis": {
       "oneClick": false,
       "perMachine": true,

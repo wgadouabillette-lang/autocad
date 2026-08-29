@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./client";
 import type { CloudFriendMessage } from "./friendChats";
+import { cloudMessageSortKey } from "../firestoreTime";
 
 export interface WorkspaceTextChannelDoc {
   id: string;
@@ -96,21 +97,7 @@ function mapMessageDoc(docSnap: QueryDocumentSnapshot<DocumentData>): CloudFrien
 }
 
 function sortMessages(messages: CloudFriendMessage[]): CloudFriendMessage[] {
-  return [...messages].sort((a, b) => {
-    const aKey =
-      typeof a.clientCreatedAt === "number"
-        ? a.clientCreatedAt
-        : a.createdAt && typeof a.createdAt === "object" && "seconds" in a.createdAt
-          ? a.createdAt.seconds * 1000
-          : 0;
-    const bKey =
-      typeof b.clientCreatedAt === "number"
-        ? b.clientCreatedAt
-        : b.createdAt && typeof b.createdAt === "object" && "seconds" in b.createdAt
-          ? b.createdAt.seconds * 1000
-          : 0;
-    return aKey - bKey;
-  });
+  return [...messages].sort((a, b) => cloudMessageSortKey(a) - cloudMessageSortKey(b));
 }
 
 export function watchWorkspaceTextChannelMessages(

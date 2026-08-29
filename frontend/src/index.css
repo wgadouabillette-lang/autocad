@@ -65,7 +65,9 @@
   --desktop-autohide-titlebar-height: 2rem;
   --forma-chat-panel-width: 26rem;
   --forma-chat-fullscreen-width: 34.375rem;
+  --forma-messages-people-width: 17.5rem;
   --forma-chat-composer-height: 4.375rem;
+  --forma-friends-composer-width: 32rem;
   --forma-chat-composer-morph-width: calc(var(--forma-chat-fullscreen-width) - 1.5rem);
   --forma-chat-composer-morph-height: calc(var(--forma-chat-composer-height) * 5 - 20px);
   --forma-chat-composer-morph-max-height: min(
@@ -1134,6 +1136,7 @@ html:not(.app-loading-splash) #root {
     grid-column: 1;
     grid-row: 1;
     justify-self: stretch;
+    -webkit-app-region: no-drag;
   }
   .app-chrome-row__brand {
     @apply pointer-events-none absolute inset-y-0 left-1/2 z-0 flex items-center gap-1.5;
@@ -1144,7 +1147,7 @@ html:not(.app-loading-splash) #root {
     max-width: 6.5rem;
   }
   .app-chrome-row__workspace-brand-group {
-    @apply inline-flex h-6 max-w-full min-w-0 items-center;
+    @apply inline-flex h-6 max-w-full min-w-0 items-center gap-0.5;
   }
   .app-chrome-row__workspace-brand {
     @apply inline-flex h-6 min-h-0 min-w-0 flex-1 items-center gap-2 rounded-lg border-0 bg-transparent px-1.5
@@ -1275,6 +1278,69 @@ html:not(.app-loading-splash) #root {
     box-shadow: none;
     outline: none;
     border-radius: var(--forma-toolbar-radius);
+    -webkit-app-region: no-drag;
+  }
+  .header-invite-menu__backdrop {
+    @apply fixed inset-0 z-[79];
+    background: transparent;
+    cursor: default;
+    -webkit-app-region: no-drag;
+  }
+  .header-invite-menu {
+    @apply fixed z-[80] flex flex-col gap-2 overflow-hidden rounded-xl p-2;
+    border: 1px solid var(--forma-overlay-border);
+    background-color: var(--forma-panel);
+    box-shadow: var(--forma-overlay-shadow);
+    -webkit-app-region: no-drag;
+  }
+  .header-invite-menu__title {
+    @apply px-1 pt-0.5 text-[12.5px] font-semibold text-muted-100;
+  }
+  .header-invite-menu__hint {
+    @apply px-1 text-[11px] leading-snug text-muted-500;
+  }
+  .header-invite-menu__friends {
+    @apply m-0 flex max-h-56 list-none flex-col gap-0.5 overflow-y-auto p-0;
+  }
+  .header-invite-menu__friend {
+    @apply flex w-full items-center gap-2 rounded-lg border-0 px-1.5 py-1.5 text-left;
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: transparent;
+  }
+  .header-invite-menu__friend:hover:not(:disabled) {
+    background-color: var(--forma-control-hover-bg);
+  }
+  .header-invite-menu__friend:disabled {
+    opacity: 0.7;
+  }
+  .header-invite-menu__avatar {
+    @apply h-6 w-6 shrink-0 text-[9px];
+  }
+  .header-invite-menu__friend-copy {
+    @apply min-w-0 flex-1;
+  }
+  .header-invite-menu__friend-name {
+    @apply block truncate text-[12.5px] font-medium text-muted-100;
+  }
+  .header-invite-menu__friend-handle {
+    @apply block truncate text-[10.5px] text-muted-500;
+  }
+  .header-invite-menu__friend-action {
+    @apply shrink-0 text-[11px] font-medium text-muted-300;
+  }
+  .header-invite-menu__copy {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border-0 px-2 py-1.5 text-[12px]
+      font-medium text-muted-100;
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: var(--forma-control-hover-bg);
+  }
+  .header-invite-menu__copy:hover {
+    background-color: var(--forma-tint-16);
+  }
+  .header-invite-menu__error {
+    @apply px-1 text-[11px] text-red-400;
   }
   .app-chrome-row:not(.app-chrome-row--panel-left):not(.app-chrome-row--panel-right)
     .app-chrome-row__main {
@@ -1603,6 +1669,111 @@ html:not(.app-loading-splash) #root {
   }
   .settings-profile-photo__actions {
     @apply flex flex-wrap items-center gap-2;
+  }
+  .settings-profile-card {
+    @apply relative isolate flex w-full flex-col overflow-hidden rounded-xl;
+    border: var(--forma-divider-width) solid var(--forma-divider);
+    background-color: color-mix(in srgb, var(--forma-calls-bg) 88%, #000);
+  }
+  .settings-profile-card__hero {
+    @apply relative overflow-hidden px-5 pb-5 pt-6;
+  }
+  .settings-profile-card__backdrop {
+    pointer-events: none;
+    position: absolute;
+    inset: -20% -8% auto;
+    height: 140%;
+    overflow: hidden;
+    opacity: 0.22;
+    filter: blur(28px) saturate(0.85);
+  }
+  .settings-profile-card__backdrop-avatar {
+    @apply h-full w-full object-cover;
+    min-height: 100%;
+  }
+  .settings-profile-card__identity {
+    @apply relative z-[1] flex flex-col;
+  }
+  .settings-profile-card .settings-profile-photo {
+    @apply items-end gap-3;
+  }
+  .settings-profile-card__avatar-btn {
+    @apply relative;
+  }
+  .settings-profile-card__avatar {
+    @apply h-24 w-24 rounded-full ring-1 ring-white/10;
+  }
+  .settings-profile-card__avatar-cam {
+    @apply pointer-events-none absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center
+      rounded-full text-muted-100;
+    background-color: color-mix(in srgb, var(--forma-calls-bg) 82%, #000);
+    border: 1px solid var(--forma-divider);
+  }
+  .settings-profile-card__name-wrap {
+    @apply mt-4 block;
+  }
+  .settings-profile-card__name {
+    @apply w-full border-0 bg-transparent p-0 text-[1.5rem] font-semibold leading-tight
+      text-muted-100 outline-none;
+    appearance: none;
+    -webkit-appearance: none;
+    box-shadow: none;
+    border-bottom: 1px solid transparent;
+  }
+  .settings-profile-card__name:hover,
+  .settings-profile-card__name:focus-visible {
+    border-bottom-color: var(--forma-divider);
+  }
+  .settings-profile-card__email {
+    @apply mt-1 mb-0 truncate text-[13px] text-muted-400;
+  }
+  .settings-profile-card__rule {
+    @apply m-0 h-px w-full shrink-0 border-0;
+    background-color: var(--forma-divider);
+  }
+  .settings-profile-card__block {
+    @apply relative z-[1] flex flex-col gap-3 px-5 py-4;
+  }
+  .settings-profile-card__block-head {
+    @apply flex flex-col;
+  }
+  .settings-profile-card__label {
+    @apply m-0 text-sm font-medium text-muted-100;
+  }
+  .settings-profile-card__hint {
+    @apply mt-0.5 mb-0 text-[12px] leading-relaxed text-muted-400;
+  }
+  .settings-profile-card__days {
+    @apply flex flex-wrap gap-1.5;
+  }
+  .settings-profile-card__day {
+    @apply min-w-[2.35rem] rounded-lg px-2 py-1.5 text-[12px] font-medium text-muted-400
+      transition-colors;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: 1px solid var(--forma-divider);
+  }
+  .settings-profile-card__day:hover {
+    @apply text-muted-200;
+    border-color: color-mix(in srgb, var(--muted-400) 40%, var(--forma-divider));
+  }
+  .settings-profile-card__day--on {
+    @apply text-muted-100;
+    background-color: var(--ink-800, #1c1c1c);
+    border-color: color-mix(in srgb, var(--muted-400) 55%, var(--forma-divider));
+  }
+  .settings-profile-card__block .settings-picker {
+    @apply max-w-[14rem];
+  }
+  .settings-profile-card__hours {
+    @apply flex max-w-[22rem] flex-wrap items-end gap-3;
+  }
+  .settings-profile-card__time {
+    @apply flex min-w-[8.5rem] flex-1 flex-col gap-1 text-[11px] text-muted-400;
+  }
+  .settings-profile-card__error {
+    @apply m-0 text-[11px] text-red-300;
   }
   .user-avatar {
     @apply inline-flex shrink-0 items-center justify-center overflow-hidden object-cover;
@@ -2301,12 +2472,10 @@ html:not(.app-loading-splash) #root {
     @apply cursor-not-allowed opacity-50;
   }
   .settings-plan-grid {
-    @apply mb-6 grid w-full gap-3;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    @apply mb-6 flex w-full flex-wrap items-start gap-3;
   }
   .settings-plan-grid__full {
-    grid-column: 1 / -1;
-    @apply mb-0 flex flex-col gap-3;
+    @apply mb-0 flex w-full flex-col gap-3;
   }
   .boosted-workspaces-list {
     @apply rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-3;
@@ -2364,38 +2533,97 @@ html:not(.app-loading-splash) #root {
     @apply m-0 text-[11px] text-red-400;
   }
   .settings-plan-card {
-    @apply flex h-full flex-col rounded-xl border border-ink-700 bg-ink-850 p-4 text-left;
+    @apply relative isolate flex shrink-0 flex-col self-start rounded-xl px-4 pb-4 pt-8 text-left;
+    width: 325px;
+    max-width: 325px;
+    flex: 0 0 325px;
+    height: auto;
+    box-sizing: border-box;
+    border: var(--forma-divider-width) solid var(--forma-divider);
+    background: transparent;
+  }
+  /* Same top wash as `.pro-checkout-overlay__card::before` / Notes promo. */
+  .settings-plan-card::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 0;
+    height: 30px;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      rgb(52 211 200 / 0.34) 0%,
+      rgb(56 200 230 / 0.32) 45%,
+      rgb(56 189 248 / 0.3) 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      180deg,
+      #000 0%,
+      rgb(0 0 0 / 0.55) 22%,
+      rgb(0 0 0 / 0.22) 40%,
+      rgb(0 0 0 / 0.08) 62%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      180deg,
+      #000 0%,
+      rgb(0 0 0 / 0.55) 22%,
+      rgb(0 0 0 / 0.22) 40%,
+      rgb(0 0 0 / 0.08) 62%,
+      transparent 100%
+    );
   }
   .settings-plan-card--active {
-    @apply border-muted-400 bg-ink-750;
+    border-color: color-mix(in srgb, var(--muted-400) 55%, var(--forma-divider));
+  }
+  .settings-plan-card__top {
+    @apply relative z-[1] flex flex-col;
+  }
+  .settings-plan-card__eyebrow {
+    @apply m-0 text-[10px] font-semibold uppercase tracking-wide text-muted-500;
+  }
+  .settings-plan-card__header {
+    @apply mt-1 flex items-center gap-1.5;
   }
   .settings-plan-card__name {
-    @apply m-0 text-[13px] font-semibold text-muted-200;
+    @apply relative z-[1] m-0 text-[15px] font-semibold text-muted-100;
+  }
+  .settings-plan-card__check {
+    @apply relative z-[1] shrink-0 text-muted-300;
   }
   .settings-plan-card__price {
-    @apply mt-1 text-[1.75rem] font-semibold leading-none tracking-tight text-muted-100;
+    @apply relative z-[1] mt-2 text-[1.75rem] font-semibold leading-none tracking-tight text-muted-100;
+  }
+  .settings-plan-card__desc {
+    @apply relative z-[1] mt-2 mb-0 text-[12px] leading-snug text-muted-400;
   }
   .settings-plan-card__cta {
-    @apply mt-4 inline-flex w-full items-center justify-center rounded-lg border border-ink-600
-      bg-ink-750 px-3 py-2 text-[12px] font-medium text-muted-100 transition-colors;
+    @apply relative z-[1] mt-2 inline-flex w-full items-center justify-center rounded-lg px-3 py-2
+      text-[12px] font-medium text-muted-100 transition-colors;
     appearance: none;
     -webkit-appearance: none;
+    background-color: var(--forma-chat-composer-bg);
+    border: 1px solid var(--forma-chat-composer-stroke);
   }
   .settings-plan-card__cta:hover:not(:disabled) {
-    @apply border-ink-500 bg-ink-700 text-muted-100;
+    border-color: var(--forma-border-strong);
+    @apply text-muted-100;
   }
   .settings-plan-card__cta:disabled {
-    @apply cursor-default border-ink-700 bg-ink-850 text-muted-500 opacity-100;
+    @apply cursor-default text-muted-500 opacity-100;
   }
   .settings-plan-card--active .settings-plan-card__cta:disabled {
-    @apply bg-ink-800 text-muted-300;
-    border-color: color-mix(in srgb, var(--muted-400) 35%, transparent);
+    @apply text-muted-300;
   }
   .settings-plan-card__divider {
-    @apply my-4 h-px w-full shrink-0 border-0 bg-ink-700;
+    @apply relative z-[1] my-4 h-px w-full shrink-0 border-0;
+    background-color: var(--forma-divider);
   }
   .settings-plan-card__features {
-    @apply m-0 flex flex-col gap-2 p-0 text-[11px] leading-snug text-muted-300;
+    @apply relative z-[1] m-0 mb-4 flex flex-col gap-2.5 p-0 text-[12px] leading-snug text-muted-300;
     list-style: none;
   }
   .settings-plan-card__features li {
@@ -4302,6 +4530,7 @@ html:not(.app-loading-splash) #root {
     pointer-events: auto;
     overflow: hidden;
     box-sizing: border-box;
+    --forma-chat-fullscreen-content-width: var(--forma-chat-fullscreen-width);
   }
   .chat-panel--expanded:not(.chat-panel--expanded-leave) {
     border-left: none;
@@ -4344,9 +4573,27 @@ html:not(.app-loading-splash) #root {
     @apply flex min-h-0 min-w-0 flex-1 flex-col;
     width: 100%;
   }
+  .chat-panel--expanded.chat-panel--mode-ai-notes {
+    --forma-chat-fullscreen-content-width: calc(100% * 2 / 3 - 15px);
+  }
+  .chat-panel--expanded.chat-panel--mode-friends {
+    --forma-chat-fullscreen-content-width: 100%;
+  }
   .chat-panel--expanded .chat-panel__morph {
-    max-width: var(--forma-chat-fullscreen-width);
+    max-width: var(--forma-chat-fullscreen-content-width);
     margin-inline: auto;
+  }
+  .chat-panel--expanded.chat-panel--mode-friends .chat-panel__morph {
+    max-width: none;
+    width: 100%;
+    margin-inline: 0;
+  }
+  .chat-panel--expanded.chat-panel--mode-friends .chat-panel__content {
+    display: flex;
+    flex-direction: column;
+  }
+  .chat-panel--expanded.chat-panel--mode-friends .chat-fullscreen-media-pip-stack {
+    z-index: 50;
   }
   .chat-panel--expanded-leave.chat-panel--dock-right .chat-panel__morph,
   .chat-panel--expanded-leave.chat-panel--dock-left .chat-panel__morph {
@@ -4382,7 +4629,7 @@ html:not(.app-loading-splash) #root {
     }
     to {
       width: 100%;
-      max-width: var(--forma-chat-fullscreen-width);
+      max-width: var(--forma-chat-fullscreen-content-width);
       margin-left: auto;
       margin-right: auto;
     }
@@ -4396,16 +4643,16 @@ html:not(.app-loading-splash) #root {
     }
     to {
       width: 100%;
-      max-width: var(--forma-chat-fullscreen-width);
+      max-width: var(--forma-chat-fullscreen-content-width);
       margin-left: auto;
       margin-right: auto;
     }
   }
   @keyframes chat-panel-leave-shell-right {
     from {
-      left: max(0px, calc((100% - var(--forma-chat-fullscreen-width)) / 2));
+      left: max(0px, calc((100% - var(--forma-chat-fullscreen-content-width)) / 2));
       right: auto;
-      width: var(--forma-chat-fullscreen-width);
+      width: var(--forma-chat-fullscreen-content-width);
     }
     to {
       left: auto;
@@ -4416,8 +4663,8 @@ html:not(.app-loading-splash) #root {
   @keyframes chat-panel-leave-shell-left {
     from {
       left: auto;
-      right: max(0px, calc((100% - var(--forma-chat-fullscreen-width)) / 2));
-      width: var(--forma-chat-fullscreen-width);
+      right: max(0px, calc((100% - var(--forma-chat-fullscreen-content-width)) / 2));
+      width: var(--forma-chat-fullscreen-content-width);
     }
     to {
       left: 0;
@@ -4441,6 +4688,7 @@ html:not(.app-loading-splash) #root {
     padding-left: 0;
     display: flex;
     justify-content: center;
+    border-bottom: var(--forma-divider-width) solid var(--forma-divider);
   }
   .chat-panel--expanded .chat-panel-mode-tabs__fade-wrap {
     width: 100%;
@@ -4654,6 +4902,417 @@ html:not(.app-loading-splash) #root {
     .people-chat-fullscreen-skills__card {
       animation: none;
     }
+  }
+  .notes-fullscreen-promo {
+    --notes-fullscreen-promo-overlap: 1.5rem;
+    position: absolute;
+    /* Gutter to the right of Notes; card packs to the trailing edge so extra width does not eat the editor. */
+    top: calc(var(--forma-top-toolbar-height) + 5.8125rem);
+    right: 0.5rem;
+    left: calc(
+      50% + var(--forma-chat-fullscreen-content-width) / 2 - var(--notes-fullscreen-promo-overlap)
+    );
+    bottom: auto;
+    height: auto;
+    transform: translateX(-100px);
+    z-index: 46;
+    display: flex;
+    width: auto;
+    max-width: none;
+    align-items: stretch;
+    justify-content: flex-end;
+    padding: 0;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+  .notes-fullscreen-promo__card {
+    @apply relative isolate flex flex-col items-start justify-start gap-1.5 rounded-xl px-3 pb-2.5 pt-8;
+    width: calc(15.5rem + 150px);
+    max-width: 100%;
+    height: auto;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    pointer-events: auto;
+    border: var(--forma-divider-width) solid var(--forma-divider);
+    background: transparent;
+    box-shadow: none;
+    animation: notes-fullscreen-promo-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* Same top wash as `.pro-checkout-overlay__card::before` (billing overlay). */
+  .notes-fullscreen-promo__card::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 0;
+    height: 30px;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      rgb(52 211 200 / 0.34) 0%,
+      rgb(56 200 230 / 0.32) 45%,
+      rgb(56 189 248 / 0.3) 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      180deg,
+      #000 0%,
+      rgb(0 0 0 / 0.55) 22%,
+      rgb(0 0 0 / 0.22) 40%,
+      rgb(0 0 0 / 0.08) 62%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      180deg,
+      #000 0%,
+      rgb(0 0 0 / 0.55) 22%,
+      rgb(0 0 0 / 0.22) 40%,
+      rgb(0 0 0 / 0.08) 62%,
+      transparent 100%
+    );
+  }
+  @keyframes notes-fullscreen-promo-in {
+    0% {
+      opacity: 0;
+      transform: translateY(0.75rem) scale(0.96);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  .notes-fullscreen-promo__footer {
+    @apply relative z-[1] flex w-full flex-col items-start gap-1.5;
+  }
+  .notes-fullscreen-promo__title {
+    @apply relative z-[1] m-0 text-[12.5px] font-medium leading-snug text-muted-100;
+  }
+  .notes-fullscreen-promo__body {
+    @apply relative z-[1] m-0 text-[10.5px] leading-snug text-muted-400;
+  }
+  .notes-fullscreen-promo__cta {
+    @apply relative z-[1] mt-0.5 inline-flex items-center gap-1 self-end rounded-md px-2 py-0.5 text-[11px] font-medium
+      text-muted-200 transition-colors hover:text-muted-100 disabled:opacity-50;
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: var(--forma-chat-composer-bg);
+    border: 1px solid var(--forma-chat-composer-stroke);
+  }
+  .notes-fullscreen-promo__cta:hover:not(:disabled) {
+    border-color: var(--forma-border-strong);
+  }
+  .notes-fullscreen-promo__cta:disabled {
+    @apply cursor-wait;
+  }
+  .notes-fullscreen-promo__dismiss {
+    @apply absolute -right-1.5 -top-1.5 z-[2] inline-flex h-4 w-4 items-center justify-center
+      rounded-full border-0 text-muted-200 opacity-0 transition-[opacity,background-color,color,transform]
+      duration-150;
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgb(28 28 28 / 0.96);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.14), 0 4px 10px -6px rgb(0 0 0 / 0.7);
+    pointer-events: none;
+  }
+  .notes-fullscreen-promo__card:hover .notes-fullscreen-promo__dismiss,
+  .notes-fullscreen-promo__card:focus-within .notes-fullscreen-promo__dismiss {
+    @apply opacity-100;
+    pointer-events: auto;
+  }
+  .notes-fullscreen-promo__dismiss:hover {
+    @apply text-muted-100;
+    background: rgb(42 42 42 / 0.98);
+    transform: scale(1.06);
+  }
+  .notes-fullscreen-promo__dismiss:focus-visible {
+    @apply opacity-100 outline-none;
+    pointer-events: auto;
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.22),
+      0 0 0 3px var(--forma-border-strong);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .notes-fullscreen-promo__card {
+      animation: none;
+    }
+    .notes-fullscreen-promo__dismiss {
+      transition: none;
+    }
+  }
+  .calendar-fullscreen-month-nav {
+    position: absolute;
+    top: calc(var(--forma-top-toolbar-height) + 4.55rem);
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    display: flex;
+    width: max(0px, calc((100% - min(100%, var(--forma-chat-fullscreen-content-width))) / 2));
+    align-items: stretch;
+    justify-content: center;
+    padding: 0 0.5rem;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+  .chat-panel--expanded-leave .calendar-fullscreen-month-nav {
+    display: none;
+  }
+  .calendar-fullscreen-month-nav__card {
+    pointer-events: auto;
+    position: relative;
+    display: block;
+    width: 100%;
+    max-width: 16.5rem;
+    min-width: 0;
+    margin-inline: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 0 1rem;
+    box-sizing: border-box;
+    border: none;
+    background: transparent;
+    animation: calendar-fullscreen-month-nav-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .calendar-fullscreen-month-nav__card::before {
+    content: "";
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: block;
+    height: 28px;
+    margin-bottom: -28px;
+    pointer-events: none;
+    z-index: 5;
+    background: linear-gradient(to bottom, var(--forma-content-bg) 0%, rgb(0 0 0 / 0) 100%);
+    opacity: 0;
+  }
+  .calendar-fullscreen-month-nav__card--scrolled::before {
+    opacity: 1;
+  }
+  .calendar-fullscreen-month-nav__stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  @keyframes calendar-fullscreen-month-nav-in {
+    0% {
+      opacity: 0;
+      transform: translateY(0.75rem) scale(0.96);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .calendar-fullscreen-month-nav__card {
+      animation: none;
+    }
+  }
+  .calendar-fullscreen-month-nav__month {
+    @apply flex w-full shrink-0 flex-col;
+    box-sizing: border-box;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+  .calendar-fullscreen-month-nav__frame {
+    @apply flex w-full flex-col;
+    box-sizing: border-box;
+    padding: 0.75rem 0;
+    border: var(--forma-divider-width) solid var(--forma-divider);
+    border-radius: 0.75rem;
+    background: transparent;
+  }
+  .calendar-fullscreen-month-nav__title {
+    @apply m-0 text-center text-[12.5px] font-medium capitalize leading-snug text-muted-100;
+    padding: 0 0.75rem 0.5rem;
+  }
+  .calendar-fullscreen-month-nav__divider {
+    height: var(--forma-divider-width);
+    width: 100%;
+    margin-inline: 0;
+    flex-shrink: 0;
+    border: 0;
+    background-color: var(--forma-divider);
+  }
+  .calendar-fullscreen-month-nav__weekdays,
+  .calendar-fullscreen-month-nav__grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    padding-inline: 0.75rem;
+  }
+  .calendar-fullscreen-month-nav__weekdays {
+    @apply text-center text-[10px] font-medium text-muted-500;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+  }
+  .calendar-fullscreen-month-nav__day {
+    @apply inline-flex aspect-square items-center justify-center rounded-md border-0 bg-transparent
+      text-[11px] font-medium tabular-nums text-muted-200;
+    appearance: none;
+    -webkit-appearance: none;
+    min-height: 1.5rem;
+  }
+  .calendar-fullscreen-month-nav__day:hover {
+    background-color: var(--forma-tint-08);
+    color: var(--muted-100);
+  }
+  .calendar-fullscreen-month-nav__day--empty {
+    pointer-events: none;
+    visibility: hidden;
+  }
+  .calendar-fullscreen-month-nav__day--today:not(.calendar-fullscreen-month-nav__day--selected) {
+    box-shadow: inset 0 0 0 1px var(--forma-chat-composer-stroke);
+  }
+  .calendar-fullscreen-month-nav__day--selected {
+    background-color: rgb(var(--forma-brand-submit) / 0.22);
+    box-shadow: inset 0 0 0 1px rgb(var(--forma-brand-focus) / 0.45);
+    color: var(--muted-100);
+  }
+  .calendar-fullscreen-month-nav__day--selected:hover {
+    background-color: rgb(var(--forma-brand-submit) / 0.3);
+  }
+  .agent-fullscreen-skills {
+    position: absolute;
+    top: calc(var(--forma-top-toolbar-height) + 4.55rem);
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    display: flex;
+    width: max(0px, calc((100% - min(100%, var(--forma-chat-fullscreen-content-width))) / 2));
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+  .chat-panel--expanded-leave .agent-fullscreen-skills {
+    display: none;
+  }
+  .agent-fullscreen-skills__card {
+    pointer-events: auto;
+    position: relative;
+    display: block;
+    width: min(19rem, 100%);
+    max-width: 19rem;
+    max-height: 100%;
+    min-width: 0;
+    flex: 0 1 19rem;
+    margin-inline: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 0 1rem;
+    box-sizing: border-box;
+    border: none;
+    background: transparent;
+    animation: calendar-fullscreen-month-nav-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .agent-fullscreen-skills__card::before {
+    content: "";
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: block;
+    height: 28px;
+    margin-bottom: -28px;
+    pointer-events: none;
+    z-index: 5;
+    background: linear-gradient(to bottom, var(--forma-content-bg) 0%, rgb(0 0 0 / 0) 100%);
+    opacity: 0;
+  }
+  .agent-fullscreen-skills__card--scrolled::before {
+    opacity: 1;
+  }
+  .agent-fullscreen-skills__stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .agent-fullscreen-skills__frame {
+    @apply relative isolate flex w-full items-center gap-2.5;
+    appearance: none;
+    -webkit-appearance: none;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0.75rem;
+    overflow: hidden;
+    border: var(--forma-divider-width) solid var(--forma-divider);
+    border-radius: 0.75rem;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+  .agent-fullscreen-skills__copy {
+    @apply relative z-[1] flex min-w-0 flex-1 flex-col items-start;
+  }
+  .agent-fullscreen-skills__go {
+    @apply relative z-[1] inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-400;
+    pointer-events: none;
+    box-sizing: border-box;
+    border: var(--forma-divider-width) solid var(--forma-divider);
+    background-color: var(--forma-control-hover-bg);
+  }
+  .agent-fullscreen-skills__frame:hover {
+    background-color: var(--forma-tint-08);
+  }
+  .agent-fullscreen-skills__frame:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 1px rgb(var(--forma-brand-focus) / 0.45);
+  }
+  /* Same top wash as `.pro-checkout-overlay__card::before` (billing overlay). */
+  .agent-fullscreen-skills__frame--pro::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 0;
+    height: 30px;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      rgb(52 211 200 / 0.34) 0%,
+      rgb(56 200 230 / 0.32) 45%,
+      rgb(56 189 248 / 0.3) 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      180deg,
+      #000 0%,
+      rgb(0 0 0 / 0.55) 22%,
+      rgb(0 0 0 / 0.22) 40%,
+      rgb(0 0 0 / 0.08) 62%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      180deg,
+      #000 0%,
+      rgb(0 0 0 / 0.55) 22%,
+      rgb(0 0 0 / 0.22) 40%,
+      rgb(0 0 0 / 0.08) 62%,
+      transparent 100%
+    );
+  }
+  .agent-fullscreen-skills__title {
+    @apply relative z-[1] m-0 inline-flex items-start justify-start gap-1.5 text-left text-[12.5px] font-medium leading-snug text-muted-100;
+  }
+  .agent-fullscreen-skills__meta {
+    @apply relative z-[1] mt-1 text-left text-[10.5px] leading-snug text-muted-500;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .agent-fullscreen-skills__card {
+      animation: none;
+    }
+  }
+  .chat-panel--expanded .calendar-panel__today-picker {
+    display: none;
   }
   .chat-panel::-webkit-scrollbar,
   .chat-panel *::-webkit-scrollbar {
@@ -5848,6 +6507,13 @@ html:not(.app-loading-splash) #root {
   .messages-thread-card:active {
     background-color: var(--forma-control-hover-bg);
   }
+  .messages-thread-card--active {
+    background-color: var(--forma-left-panel-active);
+  }
+  .messages-thread-card--active:hover,
+  .messages-thread-card--active:active {
+    background-color: var(--forma-control-hover-bg);
+  }
   .messages-overlay__thread-item {
     @apply list-none px-3;
   }
@@ -5961,15 +6627,18 @@ html:not(.app-loading-splash) #root {
   .people-chat-thread {
     @apply flex min-h-0 min-w-0 w-full max-w-full flex-1 list-none flex-col overflow-x-hidden overflow-y-auto px-3 pt-3;
     min-height: 100%;
+    flex-wrap: nowrap;
+    align-items: stretch;
     justify-content: flex-end;
-    gap: 40px;
+    gap: 10px;
     padding-bottom: 40px;
   }
   .people-chat-thread__spacer {
     @apply m-0 min-h-0 flex-1 list-none p-0;
   }
   .people-chat-thread__group {
-    @apply flex shrink-0 flex-col gap-2;
+    @apply flex w-full max-w-full shrink-0 flex-col gap-2;
+    align-self: stretch;
   }
   .people-chat-thread__group--rise {
     animation: people-chat-message-rise 360ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -7622,12 +8291,171 @@ html:not(.app-loading-splash) #root {
   }
   .friends-chat-panel {
     @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+    height: 100%;
+  }
+  .friends-chat-panel--split {
+    flex-direction: row;
+    align-items: stretch;
+  }
+  .friends-chat-panel__people {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    width: var(--forma-messages-people-width);
+    flex-shrink: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: var(--forma-divider-width) solid var(--forma-divider);
+  }
+  .friends-chat-panel__conversation {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .friends-chat-panel__thread-bar {
+    @apply flex shrink-0 items-center gap-2.5 px-4;
+    height: var(--forma-top-toolbar-height);
+    min-height: var(--forma-top-toolbar-height);
+    border-bottom: var(--forma-divider-width) solid var(--forma-divider);
+  }
+  .friends-chat-panel--split .friends-chat-panel__thread-bar {
+    border-bottom: none;
+  }
+  .friends-chat-panel__thread-bar-avatar.user-avatar,
+  .friends-chat-panel__thread-bar-avatar img.user-avatar {
+    @apply h-7 w-7 shrink-0 overflow-hidden rounded-md text-[10px] font-semibold text-white;
+  }
+  .friends-chat-panel__thread-bar-avatar img.user-avatar {
+    @apply h-7 w-7 object-cover;
+  }
+  .friends-chat-panel__thread-bar-avatar--group {
+    @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-300;
+    background-color: var(--forma-tint-08);
+  }
+  .friends-chat-panel__thread-bar-name {
+    @apply min-w-0 truncate text-[13px] font-semibold text-muted-100;
+  }
+  .friends-chat-panel__placeholder {
+    @apply flex min-h-0 flex-1 items-center justify-center;
+    height: 100%;
+  }
+  .friends-chat-panel__conversation > .chat-panel-layout {
+    flex: 1 1 0;
+    min-height: 0;
+    height: auto;
+  }
+  .friends-chat-panel--split .people-chat-bubble-wrap {
+    max-width: 88%;
+  }
+  .friends-chat-panel--split .friends-chat-panel__conversation > .chat-panel-layout::before,
+  .friends-chat-panel--split .chat-panel-footer::before {
+    display: none;
+  }
+  .friends-chat-panel--split .people-chat-thread-scroll::before,
+  .friends-chat-panel--split .people-chat-thread-scroll::after {
+    content: "";
+    position: sticky;
+    left: 0;
+    right: 0;
+    display: block;
+    height: 28px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .friends-chat-panel--split .people-chat-thread-scroll::before {
+    top: 0;
+    margin-bottom: -28px;
+    background: linear-gradient(to bottom, var(--forma-content-bg) 0%, rgb(0 0 0 / 0) 100%);
+    opacity: 0;
+  }
+  .friends-chat-panel--split .people-chat-thread-scroll--scrolled::before {
+    opacity: 1;
+  }
+  .friends-chat-panel--split .people-chat-thread-scroll::after {
+    bottom: 0;
+    margin-top: -28px;
+    background: linear-gradient(to top, var(--forma-content-bg) 0%, rgb(0 0 0 / 0) 100%);
+  }
+  .friends-chat-panel--split .people-chat-thread {
+    box-sizing: border-box;
+    width: min(var(--forma-friends-composer-width), calc(100% - 3rem));
+    max-width: var(--forma-friends-composer-width);
+    margin-inline: auto;
+    padding-left: 0;
+    padding-right: 0;
+    overflow-y: visible;
+  }
+  .friends-chat-panel--split .chat-panel-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+  .friends-chat-panel--split .friends-chat-composer-shell {
+    width: min(var(--forma-friends-composer-width), 100%);
+    max-width: var(--forma-friends-composer-width);
+    margin-inline: auto;
+  }
+  .friends-chat-composer__bar {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "input input"
+      "clip actions";
+    align-items: center;
+    column-gap: 0.5rem;
+    row-gap: 0.25rem;
+  }
+  .friends-chat-composer__clip {
+    grid-area: clip;
+  }
+  .friends-chat-composer__input {
+    grid-area: input;
+    min-width: 0;
+  }
+  .friends-chat-composer__actions {
+    grid-area: actions;
+    display: flex;
+    align-items: center;
+    justify-self: end;
+    gap: 0.375rem;
   }
   .friends-chat-panel__categories {
-    @apply flex min-h-0 flex-1 flex-col overflow-y-auto px-1 py-1;
+    @apply flex min-h-0 flex-1 flex-col overflow-y-auto py-1;
+    padding-inline: 0;
+  }
+  .friends-chat-panel__categories-divider {
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    align-self: stretch;
+    width: 100%;
+    height: var(--forma-divider-width);
+    min-height: var(--forma-divider-width);
+    margin-block: 0.375rem;
+    margin-inline: 0;
+    border: 0;
+    background-color: var(--forma-divider);
+    pointer-events: none;
   }
   .messages-panel-category {
-    @apply overflow-hidden;
+    @apply overflow-hidden px-1;
+  }
+  .messages-panel-category--fill {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .messages-panel-category--fill .messages-panel-category__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
   .messages-panel-category__header {
     @apply flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left transition-colors;
@@ -7679,7 +8507,24 @@ html:not(.app-loading-splash) #root {
     @apply h-8 w-8;
   }
   .workspace-text-channels {
-    @apply flex flex-col gap-1;
+    @apply flex min-h-0 flex-1 flex-col gap-1;
+  }
+  .workspace-text-channels--empty {
+    @apply items-center justify-center;
+    min-height: 4.5rem;
+  }
+  .workspace-text-channels--empty .workspace-text-channel-create {
+    align-self: stretch;
+  }
+  .workspace-create-chat-capsule {
+    @apply inline-flex shrink-0 items-center justify-center gap-1 px-3.5 py-1.5 text-[12px] font-medium
+      text-muted-200 transition-colors hover:text-muted-100;
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    background: transparent;
+    border: 1px solid var(--forma-divider);
+    border-radius: 9999px;
   }
   .workspace-text-channel-create {
     @apply inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[0.875rem]
@@ -7715,7 +8560,11 @@ html:not(.app-loading-splash) #root {
   .workspace-text-channel-row__content {
     @apply flex min-w-0 items-center gap-1 rounded-lg px-1 py-0.5 transition-colors;
   }
-  .workspace-text-channel-row__content:hover {
+  .workspace-text-channel-row__content:hover,
+  .workspace-text-channel-row__content--active {
+    background-color: var(--forma-control-hover-bg);
+  }
+  .workspace-text-channel-row__content--active:hover {
     background-color: var(--forma-control-hover-bg);
   }
   .workspace-text-channel-row__open {
@@ -9098,6 +9947,11 @@ html:not(.app-loading-splash) #root {
       right: 0.75rem !important;
       width: auto !important;
       max-width: none !important;
+    }
+
+    .calendar-fullscreen-month-nav,
+    .agent-fullscreen-skills {
+      display: none;
     }
   }
 

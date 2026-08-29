@@ -12,8 +12,13 @@ import {
   ArrowRightLeft,
 } from "lucide-react";
 import clsx from "clsx";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAiNotesEditorSync } from "../../hooks/useAiNotesEditorSync";
+import {
+  clearNotesEditorDraft,
+  plainTextFromNoteHtml,
+  publishNotesEditorDraft,
+} from "../../lib/notesFullscreenPromo";
 import { hasAiNotesAccess } from "../../lib/subscriptionPlans";
 import { useAiNotesStore } from "../../store/useAiNotesStore";
 import { useRecapStore } from "../../store/useRecapStore";
@@ -64,6 +69,14 @@ function runFormat(action: FormatAction, editor: HTMLDivElement) {
   if (action.kind === "highlight") {
     document.execCommand("hiliteColor", false, HIGHLIGHT_COLOR);
   }
+}
+
+function publishLiveNoteDraft(title: string, editor: HTMLDivElement | null, fallbackHtml = "") {
+  const fromEditor = editor?.innerText ?? "";
+  publishNotesEditorDraft({
+    title,
+    bodyPlain: fromEditor || plainTextFromNoteHtml(fallbackHtml),
+  });
 }
 
 export default function ManualNotesPanel() {
@@ -127,13 +140,17 @@ export default function ManualNotesPanel() {
     scrollEl.scrollTop = scrollEl.scrollHeight;
   }, [structuring, editorVersion]);
 
-  useEffect(() => {
-    if (initializedRef.current) return;
-    if (editorRef.current) {
+  useLayoutEffect(() => {
+    if (!initializedRef.current && editorRef.current) {
       editorRef.current.innerHTML = initialBody;
       initializedRef.current = true;
     }
-  }, [initialBody]);
+    publishLiveNoteDraft(title, editorRef.current, initialBody);
+  }, [title, editorVersion, initialBody]);
+
+  useEffect(() => {
+    return () => clearNotesEditorDraft();
+  }, []);
 
   useEffect(() => {
     sessionIdRef.current = activeManualNoteId;
@@ -189,6 +206,7 @@ export default function ManualNotesPanel() {
     const editor = editorRef.current;
     if (!editor) return;
     runFormat(action, editor);
+    publishLiveNoteDraft(title, editor, initialBody);
     setEditorVersion((v) => v + 1);
   };
 
@@ -280,7 +298,11 @@ export default function ManualNotesPanel() {
             type="text"
             className="manual-notes-panel__title-input"
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              setTitle(next);
+              publishLiveNoteDraft(next, editorRef.current, initialBody);
+            }}
             placeholder="Title"
             aria-label="Note title"
           />
@@ -304,7 +326,10 @@ export default function ManualNotesPanel() {
                     ? "Écoute en cours — les notes structurées apparaîtront ici…"
                     : "Write your note here…"
                 }
-                onInput={() => setEditorVersion((v) => v + 1)}
+                onInput={() => {
+                  publishLiveNoteDraft(title, editorRef.current, initialBody);
+                  setEditorVersion((v) => v + 1);
+                }}
               />
               {structuring && (
                 <div

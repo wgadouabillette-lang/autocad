@@ -36,6 +36,7 @@ import {
   type CloudFriendChat,
   type CloudFriendMessage,
 } from "../lib/firebase/friendChats";
+import { cloudMessageSortKey, firestoreTimeMs } from "../lib/firestoreTime";
 import {
   createGroupChatDoc,
   sendGroupChatMessage,
@@ -96,10 +97,7 @@ function isCloudCapableFriend(personId: string): boolean {
 function firestoreUpdatedAtMillis(
   updatedAt?: { seconds: number; nanoseconds: number } | null,
 ): number {
-  if (updatedAt && typeof updatedAt === "object" && "seconds" in updatedAt) {
-    return updatedAt.seconds * 1000 + Math.floor(updatedAt.nanoseconds / 1_000_000);
-  }
-  return 0;
+  return firestoreTimeMs(updatedAt);
 }
 
 function previewFromDocMeta(meta: {
@@ -263,15 +261,7 @@ function mergeCloudMessagesWithPending(
 }
 
 function cloudMessageTimestamp(message: CloudFriendMessage): number {
-  if (typeof message.clientCreatedAt === "number") return message.clientCreatedAt;
-  return tsToMillis(message.createdAt);
-}
-
-function tsToMillis(value: CloudFriendMessage["createdAt"]): number {
-  if (value && typeof value === "object" && "seconds" in value) {
-    return value.seconds * 1000 + Math.floor(value.nanoseconds / 1_000_000);
-  }
-  return 0;
+  return cloudMessageSortKey(message);
 }
 
 const EMPTY_PEOPLE_THREADS: PeopleThread[] = [];
@@ -1707,6 +1697,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     const msg: PeopleMessage = {
       id: optimisticId,
       author: "Vous",
+      authorUid: myUid,
       text: trimmed,
       at: Date.now(),
       mine: true,
@@ -1844,6 +1835,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
       const msg: PeopleMessage = {
         id: optimisticId,
         author: "Vous",
+        authorUid: myUid,
         text: trimmed,
         at: Date.now(),
         mine: true,
@@ -1915,6 +1907,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     const msg: PeopleMessage = {
       id: optimisticId,
       author: "Vous",
+      authorUid: myUid,
       text: trimmed,
       at: Date.now(),
       mine: true,
@@ -2044,6 +2037,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     const msg: PeopleMessage = {
       id: optimisticId,
       author: "Vous",
+      authorUid: myUid,
       text: trimmed,
       at: Date.now(),
       mine: true,

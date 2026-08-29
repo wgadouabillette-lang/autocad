@@ -12,6 +12,7 @@ import { presenceActivityFromModel } from "../lib/aiModelStroke";
 import { useAiComposerStore } from "../store/useAiComposerStore";
 import { usePresenceActivityStore } from "../store/usePresenceActivityStore";
 import { useStore, updateActiveTabInTabs, type ChatMessage } from "../store/useStore";
+import { useAgentSkillApplyStore } from "../store/useAgentSkillApplyStore";
 import { useCallsStore } from "../store/useCallsStore";
 import { usePeopleStore } from "../store/usePeopleStore";
 import { isOpenAiChatModel } from "../lib/aiModels";
@@ -437,6 +438,8 @@ export default function ChatPanel() {
   const openSettingsTab = useStore((s) => s.openSettingsTab);
   const agentComposerInsert = useStore((s) => s.agentComposerInsert);
   const takeAgentComposerInsert = useStore((s) => s.takeAgentComposerInsert);
+  const agentSkillPending = useAgentSkillApplyStore((s) => s.pending);
+  const takeAgentSkillPending = useAgentSkillApplyStore((s) => s.takePending);
   const openManualNote = useStore((s) => s.openManualNote);
   const [activeSkillRun, setActiveSkillRun] = useState<{
     runId: string;
@@ -469,6 +472,7 @@ export default function ChatPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recapFileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const insertSkillTemplateRef = useRef<(skill: ChatSkillDef) => void>(() => {});
   const meetingAttendeesRef = useRef<HTMLTextAreaElement>(null);
   const mailRecipientsRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1137,6 +1141,16 @@ export default function ChatPanel() {
       el?.setSelectionRange(pos, pos);
     });
   };
+
+  insertSkillTemplateRef.current = insertSkillTemplate;
+
+  useEffect(() => {
+    if (!agentSkillPending) return;
+    const apply = takeAgentSkillPending();
+    if (!apply) return;
+    const skill = chatSkillBySlash(apply.skillId);
+    if (skill) insertSkillTemplateRef.current(skill);
+  }, [agentSkillPending, takeAgentSkillPending]);
 
   const submitMeetingFromDraft = useCallback(async () => {
     if (!isMeetingDraftReady(meetingDraft, mentionablePeople)) return;

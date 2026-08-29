@@ -13,6 +13,7 @@ const LOCAL_STORAGE_PREFIXES = [
   "forma-spotify-player-config",
   "forma-email-for-sign-in",
   "forma-connector-oauth-result",
+  "forma-notes-fullscreen-promo-dismissed-at",
 ];
 
 function clearMatchingLocalStorage(): void {

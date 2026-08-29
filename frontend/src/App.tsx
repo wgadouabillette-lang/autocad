@@ -37,6 +37,7 @@ import { useSpotifyVoiceMix } from "./hooks/useSpotifyVoiceMix";
 import { useMobileLayout } from "./hooks/useMobileLayout";
 import { canAccessApp, DESKTOP_VIEWPORT_QUERY, getLandingUrl } from "./lib/appAccess";
 import { hasFormaDesktop } from "./lib/formaDesktop";
+import { parseWorkspaceInviteInput } from "./lib/workspaceInvite";
 import { runAppBoot, type AppBootStatus } from "./lib/appBoot";
 import { applyDocumentTheme } from "./lib/theme";
 import { runDashboardOnboardingIfNeeded } from "./lib/dashboardOnboarding";
@@ -283,18 +284,33 @@ export default function App() {
 
   useEffect(() => {
     if (bootStatus !== "ready" || !isAuthenticated) return;
+
+    const applyWorkspaceInvite = (raw: string) => {
+      const workspaceInvite = parseWorkspaceInviteInput(raw);
+      if (!workspaceInvite) return false;
+      useWorkspacesStore.getState().setPendingInviteWorkspaceId(workspaceInvite);
+      useStore.getState().openSettingsPage();
+      useStore.getState().openSettingsTab("workspaces");
+      return true;
+    };
+
     const params = new URLSearchParams(window.location.search);
-    const workspaceInvite = params.get("workspace")?.trim().toLowerCase();
-    if (!workspaceInvite) return;
+    if (applyWorkspaceInvite(params.get("workspace") ?? "")) {
+      params.delete("workspace");
+      const next = params.toString();
+      const url = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;
+      window.history.replaceState(null, "", url);
+    }
 
-    useWorkspacesStore.getState().setPendingInviteWorkspaceId(workspaceInvite);
-    useStore.getState().openSettingsPage();
-    useStore.getState().openSettingsTab("workspaces");
-
-    params.delete("workspace");
-    const next = params.toString();
-    const url = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;
-    window.history.replaceState(null, "", url);
+    if (!hasFormaDesktop() || !window.formaDesktop) return undefined;
+    const desktop = window.formaDesktop;
+    void desktop.getPendingWorkspaceInvite?.().then((pending) => {
+      if (pending) applyWorkspaceInvite(pending);
+    });
+    if (!desktop.onWorkspaceInvite) return undefined;
+    return desktop.onWorkspaceInvite((workspaceId) => {
+      applyWorkspaceInvite(workspaceId);
+    });
   }, [bootStatus, isAuthenticated]);
 
   useEffect(() => {

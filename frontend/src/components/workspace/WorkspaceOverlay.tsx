@@ -90,6 +90,7 @@ export default function WorkspaceOverlay() {
   const roleIn = useWorkspacesStore((s) => s.roleIn);
   const canUserCreateWorkspace = useWorkspacesStore((s) => s.canUserCreateWorkspace);
   const createWorkspace = useWorkspacesStore((s) => s.createWorkspace);
+  const ensureWorkspaceCloudPublished = useWorkspacesStore((s) => s.ensureWorkspaceCloudPublished);
   const requestJoinWorkspace = useWorkspacesStore((s) => s.requestJoinWorkspace);
   const respondJoinRequest = useWorkspacesStore((s) => s.respondJoinRequest);
   const incomingJoinRequests = useWorkspacesStore((s) => s.incomingJoinRequests);
@@ -178,20 +179,26 @@ export default function WorkspaceOverlay() {
 
   const onCreate = (e: FormEvent) => {
     e.preventDefault();
-    setCreateError(null);
-    if (!draftName.trim()) return;
-    if (!canCreate) {
-      setCreateError(workspaceLimitHint);
-      return;
-    }
-    try {
-      const id = createWorkspace(draftName, userDisplayName, ownerUserId);
-      setDraftName("");
-      void useAuthStore.getState().syncWorkspacesToCloud();
-      selectWorkspace(id);
-    } catch (error) {
-      setCreateError(error instanceof Error ? error.message : "Création impossible.");
-    }
+    void (async () => {
+      setCreateError(null);
+      if (!draftName.trim()) return;
+      if (!canCreate) {
+        setCreateError(workspaceLimitHint);
+        return;
+      }
+      if (!firebaseUid) {
+        setCreateError("Connectez-vous pour créer un workspace.");
+        return;
+      }
+      try {
+        const id = createWorkspace(draftName, userDisplayName, ownerUserId);
+        setDraftName("");
+        await ensureWorkspaceCloudPublished(id);
+        selectWorkspace(id);
+      } catch (error) {
+        setCreateError(error instanceof Error ? error.message : "Création impossible.");
+      }
+    })();
   };
 
   const onRequestJoin = async (e: FormEvent) => {

@@ -25,6 +25,7 @@ import {
   DEFAULT_CALENDAR_WORK_END_MINUTES,
   DEFAULT_CALENDAR_WORK_START_MINUTES,
   formatCalendarWorkTime,
+  normalizeAvailabilityDays,
   resolveCalendarWorkingHours,
   type CalendarWorkingHours,
 } from "./userPreferences";
@@ -66,6 +67,10 @@ export function getCalendarWorkingHours(): CalendarWorkingHours {
     state.calendarWorkStartMinutes,
     state.calendarWorkEndMinutes,
   );
+}
+
+function getAvailabilityDays(): number[] {
+  return normalizeAvailabilityDays(useStore.getState().availabilityDays);
 }
 
 interface ParsedManageTask {
@@ -557,6 +562,7 @@ function scheduleTasksLocally(
   const today = toDateKey(new Date());
   const deadlineKey = effectiveDeadlineKey(parsed.deadline);
   const scheduled = [...seedEvents];
+  const availableDays = getAvailabilityDays();
   const tasksToPlace =
     seedEvents.length >= parsed.tasks.length
       ? []
@@ -571,6 +577,14 @@ function scheduleTasksLocally(
 
     while (!placed && parseDateKey(searchEndKey) <= parseDateKey(maxEndKey)) {
       for (const dateKey of enumerateDateKeys(today, searchEndKey)) {
+        const dayDate = parseDateKey(dateKey);
+        if (
+          availableDays.length > 0 &&
+          !Number.isNaN(dayDate.getTime()) &&
+          !availableDays.includes(dayDate.getDay())
+        ) {
+          continue;
+        }
         const isDeadlineDay = dateKey === deadlineKey;
 
         let maxEnd = parsed.workEndMinutes;

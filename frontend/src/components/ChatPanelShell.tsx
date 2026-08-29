@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { isRecordingSession } from "../lib/chatSessionKinds";
+import { isNotesEditorPromoSurface } from "../lib/notesFullscreenPromo";
 import { useStore } from "../store/useStore";
 import DaySchedulePanel from "./calendar/DaySchedulePanel";
 import ChatHistoryView from "./chat/ChatHistoryView";
@@ -15,6 +16,9 @@ import VoiceAssistPanel from "./chat/VoiceAssistPanel";
 import { isVoiceAssistPanelMode } from "../lib/voiceAssistPanel";
 import ChatFullscreenMediaPip from "./chat/ChatFullscreenMediaPip";
 import CalendarFullscreenComposerPip from "./calendar/CalendarFullscreenComposerPip";
+import CalendarFullscreenMonthNav from "./calendar/CalendarFullscreenMonthNav";
+import AgentFullscreenSkills from "./chat/AgentFullscreenSkills";
+import NotesFullscreenPromo from "./chat/NotesFullscreenPromo";
 import RecordingPlaybackView from "./chat/RecordingPlaybackView";
 
 const LEAVE_ANIM_MS = 540;
@@ -140,6 +144,8 @@ export default function ChatPanelShell() {
           keepOverlayPosition && "chat-panel--expanded",
           entering && "chat-panel--expanded-enter",
           leaving && "chat-panel--expanded-leave",
+          chatPanelMode === "ai-notes" && "chat-panel--mode-ai-notes",
+          chatPanelMode === "friends" && "chat-panel--mode-friends",
         )}
         aria-label={panelLabel}
         onAnimationEnd={(event) => {
@@ -183,7 +189,18 @@ export default function ChatPanelShell() {
           )}
         </div>
       </div>
+      {isOverlay && chatPanelMode === "calendar" && <CalendarFullscreenMonthNav />}
       {isOverlay && chatPanelMode === "calendar" && <CalendarFullscreenComposerPip />}
+      {isOverlay && chatPanelMode === "agent" && <AgentFullscreenSkills />}
+      {isNotesEditorPromoSurface({
+        isMobileLayout,
+        chatPanelExpanded,
+        chatPanelMode,
+        showChatHistory,
+        showRecordingPlayback,
+      }) ? (
+        <NotesFullscreenPromo />
+      ) : null}
     </aside>
     </>
   );

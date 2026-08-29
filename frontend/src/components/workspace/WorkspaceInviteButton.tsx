@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { Check, UserPlus } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { ChromeSignetLabel, signetHostClassName } from "../chrome/ChromeSignetLabel";
+import { copyTextToClipboard } from "../../lib/clipboard";
 import { buildWorkspaceJoinUrl } from "../../lib/workspaceInvite";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
@@ -21,7 +22,8 @@ export default function WorkspaceInviteButton() {
   const handleCopy = useCallback(async () => {
     if (!canManageInvites) return;
     try {
-      await navigator.clipboard.writeText(inviteLink);
+      const copied = await copyTextToClipboard(inviteLink);
+      if (!copied) throw new Error("clipboard");
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {

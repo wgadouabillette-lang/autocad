@@ -50,7 +50,7 @@ const TAB_DESCRIPTIONS: Record<SettingsTab, string> = {
   general: "",
   friends: "Amis et invitations.",
   workspaces: "Vos workspaces, invitations et consommation IA Entreprise.",
-  usage: "Forfaits, consommation IA et comparaison des plans.",
+  usage: "Forfaits Pro, Pro+ et Team.",
   billing: "Forfait actuel et date de prochain prélèvement.",
   agents: "Personnalisation du chat, des follow-ups et des AI Notes.",
   audio: "",

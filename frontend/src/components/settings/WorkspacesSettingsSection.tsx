@@ -7,6 +7,7 @@ import {
   type WorkspaceJoinRequestDoc,
 } from "../../lib/firebase/workspaceRegistry";
 import { uploadWorkspaceIcon } from "../../lib/firebase/workspaceIcon";
+import { copyTextToClipboard } from "../../lib/clipboard";
 import { buildWorkspaceJoinUrl } from "../../lib/workspaceInvite";
 import {
   LOCAL_USER_ID,
@@ -295,15 +296,15 @@ export default function WorkspacesSettingsSection() {
   }, [pendingJoinRequests]);
 
   const onCopyInviteLink = useCallback(async (workspaceId: string) => {
-    try {
-      await navigator.clipboard.writeText(buildWorkspaceJoinUrl(workspaceId));
-      setCopiedWorkspaceId(workspaceId);
-      window.setTimeout(() => {
-        setCopiedWorkspaceId((current) => (current === workspaceId ? null : current));
-      }, 2000);
-    } catch {
+    const copied = await copyTextToClipboard(buildWorkspaceJoinUrl(workspaceId));
+    if (!copied) {
       setCopiedWorkspaceId(null);
+      return;
     }
+    setCopiedWorkspaceId(workspaceId);
+    window.setTimeout(() => {
+      setCopiedWorkspaceId((current) => (current === workspaceId ? null : current));
+    }, 2000);
   }, []);
 
   const onIconSelected = useCallback(

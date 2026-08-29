@@ -29,6 +29,14 @@ function sameGroup(a: PeopleMessage, b: PeopleMessage): boolean {
   return Math.abs(a.at - b.at) <= GROUP_GAP_MS;
 }
 
+function chronologicalMessages(messages: PeopleMessage[]): PeopleMessage[] {
+  return [...messages].sort((a, b) => {
+    const byTime = (a.at || 0) - (b.at || 0);
+    if (byTime !== 0) return byTime;
+    return a.id.localeCompare(b.id);
+  });
+}
+
 export function buildPeopleChatTimeline(messages: PeopleMessage[]): PeopleChatTimelineEntry[] {
   if (messages.length === 0) return [];
 
@@ -53,7 +61,7 @@ export function buildPeopleChatTimeline(messages: PeopleMessage[]): PeopleChatTi
     groupMessages = [];
   };
 
-  for (const message of messages) {
+  for (const message of chronologicalMessages(messages)) {
     const previous = groupMessages[groupMessages.length - 1];
     if (previous && !sameGroup(previous, message)) {
       flushGroup();

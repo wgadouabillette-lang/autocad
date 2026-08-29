@@ -57,6 +57,7 @@ export default function ChatPanelHeader() {
     workspaceChannelThreadsByWorkspace,
   ]);
   const friendsMode = chatPanelMode === "friends";
+  const friendsSplit = friendsMode && chatPanelExpanded && !isMobileLayout;
   const inFriendThread = friendsMode && !!activeFriendThread;
   const inGroupThread = inFriendThread && activeFriendThread?.section === "groups";
   const inWorkspaceChannelThread =
@@ -73,7 +74,7 @@ export default function ChatPanelHeader() {
   return (
     <div className="chat-panel-header grid w-full min-w-0 grid-cols-[1fr_auto_1fr] items-center gap-1">
       <div className="flex items-center gap-0.5 justify-self-start">
-        {inFriendThread ? (
+        {inFriendThread && !friendsSplit ? (
           <button
             type="button"
             className="toolbar-btn"
@@ -84,7 +85,7 @@ export default function ChatPanelHeader() {
             <ArrowLeft size={14} />
           </button>
         ) : null}
-        {friendsMode && !inFriendThread ? (
+        {friendsMode && (!inFriendThread || friendsSplit) ? (
           <button
             type="button"
             className="toolbar-btn"
@@ -155,7 +156,9 @@ export default function ChatPanelHeader() {
       </div>
 
       <h2 className="chat-panel-header__title pointer-events-none min-w-0 select-none text-xs font-semibold tracking-wide text-muted-200">
-        {inFriendThread && activeFriendThread ? (
+        {friendsSplit ? (
+          "Friends"
+        ) : inFriendThread && activeFriendThread ? (
           <span className="chat-panel-header__thread-identity">
             {inGroupThread ? (
               <span className="chat-panel-header__thread-avatar chat-panel-header__thread-avatar--group">

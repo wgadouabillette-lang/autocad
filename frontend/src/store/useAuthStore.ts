@@ -27,11 +27,17 @@ import {
   saveUserWorkspaces,
   type UserProfileDoc,
 } from "../lib/firebase/userData";
-import { removeProfilePhoto, uploadProfilePhoto } from "../lib/firebase/profilePhoto";
+import { withWorkspaceCloudSyncSuppressed } from "../lib/firebase/workspaceCloudSync";
+import {
+  removeProfilePhoto,
+  restoreGoogleProfilePhoto as restoreGooglePhotoFile,
+  uploadProfilePhoto,
+} from "../lib/firebase/profilePhoto";
 import { pushProfileToJoinedWorkspaces } from "../lib/firebase/workspacePresence";
 import {
   writeUserPreferences,
   normalizeHallDjVolume,
+  normalizeAvailabilityDays,
   normalizeSidePanelSide,
   resolveCalendarWorkingHours,
   type SidePanelSide,
@@ -100,6 +106,7 @@ interface AuthState {
   markWorkspaceSetupCompleted: () => Promise<void>;
   markDashboardOnboardingCompleted: () => Promise<void>;
   uploadAndSyncProfilePhoto: (file: File) => Promise<void>;
+  restoreGoogleProfilePhoto: () => Promise<void>;
   removeAndSyncProfilePhoto: () => Promise<void>;
 }
 
@@ -160,6 +167,9 @@ function applyLocalProfile(profile: UserProfileDoc) {
     profile.calendarWorkStartMinutes ?? currentState.calendarWorkStartMinutes,
     profile.calendarWorkEndMinutes ?? currentState.calendarWorkEndMinutes,
   );
+  const availabilityDays = normalizeAvailabilityDays(
+    profile.availabilityDays ?? currentState.availabilityDays,
+  );
   useStore.setState({
     chatWorkMode: profile.chatWorkMode,
     autoWorkModeSwitch: profile.autoWorkModeSwitch,
@@ -185,6 +195,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
     calendarWorkStartMinutes: calendarHours.startMinutes,
     calendarWorkEndMinutes: calendarHours.endMinutes,
+    availabilityDays,
     hallDjPreferredGenre: normalizeHallDjGenre(
       profile.hallDjPreferredGenre ?? currentState.hallDjPreferredGenre,
     ),
@@ -218,6 +229,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
     calendarWorkStartMinutes: calendarHours.startMinutes,
     calendarWorkEndMinutes: calendarHours.endMinutes,
+    availabilityDays,
     hallDjPreferredGenre: normalizeHallDjGenre(
       profile.hallDjPreferredGenre ?? currentState.hallDjPreferredGenre,
     ),
@@ -255,6 +267,7 @@ function profileFromStore(user: User): UserProfileDoc {
     agentAiNotesInstructions: state.agentAiNotesInstructions,
     calendarWorkStartMinutes: state.calendarWorkStartMinutes,
     calendarWorkEndMinutes: state.calendarWorkEndMinutes,
+    availabilityDays: normalizeAvailabilityDays(state.availabilityDays),
     hallDjPreferredGenre: state.hallDjPreferredGenre,
     hallDjVolume: normalizeHallDjVolume((state as { hallDjVolume?: number }).hallDjVolume),
   };
@@ -288,6 +301,7 @@ function profileSyncKey(profile: UserProfileDoc): string {
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
     calendarWorkStartMinutes: profile.calendarWorkStartMinutes ?? null,
     calendarWorkEndMinutes: profile.calendarWorkEndMinutes ?? null,
+    availabilityDays: normalizeAvailabilityDays(profile.availabilityDays),
     aiModel: profile.aiModel ?? null,
   });
 }
@@ -357,7 +371,10 @@ function startProfileAutosync(
   };
 }
 
-async function hydrateRemoteData(uid: string): Promise<boolean> {
+async function hydrateRemoteData(
+  uid: string,
+  isCurrent: () => boolean = () => true,
+): Promise<boolean> {
   const [profile, workspaces, chatSessions, project] = await Promise.all([
     loadUserProfile(uid),
     loadUserWorkspaces(uid),
@@ -365,7 +382,7 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
     loadLatestProjectSnapshot(uid),
   ]);
 
-  if (auth.currentUser?.uid !== uid) {
+  if (!isCurrent() || auth.currentUser?.uid !== uid) {
     return false;
   }
 
@@ -380,54 +397,52 @@ async function hydrateRemoteData(uid: string): Promise<boolean> {
   const hasCloudWorkspaces =
     workspaces.customServers.length > 0 || workspaces.memberships.length > 0;
 
-  useWorkspacesStore.getState().stripLegacyPublicWorkspaces();
-
   const ownerUid = uid;
   const displayName = useStore.getState().userDisplayName;
 
-  if (hasCloudWorkspaces) {
-    useWorkspacesStore.getState().applyCloudWorkspaces(workspaces);
-    const joined = useWorkspacesStore.getState().joinedWorkspaces(ownerUid);
-    for (const workspace of joined) {
-      useCallsStore.getState().ensureRoom(workspace.id);
+  withWorkspaceCloudSyncSuppressed(() => {
+    useWorkspacesStore.getState().stripLegacyPublicWorkspaces();
+
+    if (hasCloudWorkspaces) {
+      useWorkspacesStore.getState().applyCloudWorkspaces(workspaces);
+    } else {
+      useWorkspacesStore.getState().resetLocalMemberships();
     }
-    const target = resolveActiveWorkspaceId(
-      joined.map((workspace) => workspace.id),
-      { currentId: useStore.getState().activeRoomId, userId: ownerUid },
-    );
-    if (target) {
-      useStore.getState().setActiveRoom(target);
-    }
+
+    // Remap leftover `local` memberships before deciding the user has none.
+    useWorkspacesStore.getState().reconcileOwnedWorkspacesForAuth(uid);
+
+    let joined = useWorkspacesStore.getState().joinedWorkspaces(ownerUid);
     if (joined.length === 0) {
       const id = useWorkspacesStore.getState().createPersonalWorkspace(displayName, ownerUid);
       useStore.getState().setActiveRoom(id);
-      void saveUserWorkspaces(uid, {
-        customServers: useWorkspacesStore.getState().customServers,
-        memberships: useWorkspacesStore.getState().memberships,
-      }).catch(() => {});
+      joined = useWorkspacesStore.getState().joinedWorkspaces(ownerUid);
+    } else {
+      const target = resolveActiveWorkspaceId(
+        joined.map((workspace) => workspace.id),
+        { currentId: useStore.getState().activeRoomId, userId: ownerUid },
+      );
+      if (target) {
+        useStore.getState().setActiveRoom(target);
+      }
     }
-    if (profile && !profile.workspaceSetupCompleted) {
+    for (const workspace of joined) {
+      useCallsStore.getState().ensureRoom(workspace.id);
+    }
+
+    if (!hasCloudWorkspaces || (profile && !profile.workspaceSetupCompleted)) {
       void saveUserAccountProfile(uid, {
         ...profileFromStore(auth.currentUser!),
         workspaceSetupCompleted: true,
       }).catch(() => {});
     }
-  } else {
-    useWorkspacesStore.getState().resetLocalMemberships();
-    const id = useWorkspacesStore.getState().createPersonalWorkspace(displayName, ownerUid);
-    useStore.getState().setActiveRoom(id);
-    void saveUserWorkspaces(uid, {
-      customServers: useWorkspacesStore.getState().customServers,
-      memberships: useWorkspacesStore.getState().memberships,
-    }).catch(() => {});
-    void saveUserAccountProfile(uid, {
-      ...profileFromStore(auth.currentUser!),
-      workspaceSetupCompleted: true,
-    }).catch(() => {});
+  });
+
+  if (!isCurrent()) {
+    return false;
   }
 
   void useWorkspacesStore.getState().reconcilePendingJoinRequests(uid);
-  useWorkspacesStore.getState().reconcileOwnedWorkspacesForAuth(uid);
   void useAuthStore.getState().syncWorkspacesToCloud();
 
   if (chatSessions.length) {
@@ -528,20 +543,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }, AUTH_HYDRATE_TIMEOUT_MS);
 
       void (async () => {
+        const isCurrent = () =>
+          !disposed && loadId === authLoadId && auth.currentUser?.uid === user.uid;
+        let hydrateOk = false;
         try {
           const hydrated = await withTimeout(
-            hydrateRemoteData(user.uid),
+            hydrateRemoteData(user.uid, isCurrent),
             AUTH_HYDRATE_TIMEOUT_MS,
             "hydrateRemoteData",
           );
-          if (!hydrated || disposed || loadId !== authLoadId) return;
+          if (!hydrated || !isCurrent()) return;
+          hydrateOk = true;
           void saveUserAccountProfile(user.uid, profileFromStore(user)).catch(() => {});
-          if (disposed || loadId !== authLoadId || auth.currentUser?.uid !== user.uid) return;
+          if (!isCurrent()) return;
           stopProfileAutosync = startProfileAutosync(user.uid, user, (message) => {
             set({ authError: message });
           });
         } catch (error) {
-          if (disposed || loadId !== authLoadId) return;
+          if (!isCurrent()) return;
           const message =
             error instanceof Error ? error.message : "Synchronisation cloud impossible.";
           if (!message.endsWith(" timeout")) {
@@ -549,28 +568,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         } finally {
           window.clearTimeout(readySafety);
-          if (!disposed && loadId === authLoadId && auth.currentUser?.uid === user.uid) {
-            const joined = useWorkspacesStore.getState().joinedWorkspaces(user.uid);
-            if (joined.length === 0) {
-              const id = useWorkspacesStore.getState().createPersonalWorkspace(
-                useStore.getState().userDisplayName,
-                user.uid,
-              );
-              useStore.getState().setActiveRoom(id);
-            } else {
-              const target = resolveActiveWorkspaceId(
-                joined.map((workspace) => workspace.id),
-                { currentId: useStore.getState().activeRoomId, userId: user.uid },
-              );
-              if (target) useStore.getState().setActiveRoom(target);
-            }
-            const { subscriptionPlan, billingManaged, onDemandUsageEnabled } = useStore.getState();
-            if (subscriptionPlan === "pro" && billingManaged) {
-              void syncDevSubscriptionToFirestore("pro", onDemandUsageEnabled).catch(() => {});
-            }
-            set({ ready: true });
-            useStore.getState().openAgentPanel();
+          if (!isCurrent()) return;
+          useWorkspacesStore.getState().reconcileOwnedWorkspacesForAuth(user.uid);
+          const joined = useWorkspacesStore.getState().joinedWorkspaces(user.uid);
+          const storeEmpty =
+            useWorkspacesStore.getState().customServers.length === 0 &&
+            useWorkspacesStore.getState().memberships.length === 0;
+          // On timeout, the in-flight cloud load may still apply. Don't spawn a
+          // workspace unless this browser truly has none yet.
+          if (joined.length === 0 && (hydrateOk || storeEmpty)) {
+            const id = useWorkspacesStore.getState().createPersonalWorkspace(
+              useStore.getState().userDisplayName,
+              user.uid,
+            );
+            useStore.getState().setActiveRoom(id);
+          } else if (joined.length > 0) {
+            const target = resolveActiveWorkspaceId(
+              joined.map((workspace) => workspace.id),
+              { currentId: useStore.getState().activeRoomId, userId: user.uid },
+            );
+            if (target) useStore.getState().setActiveRoom(target);
           }
+          const { subscriptionPlan, billingManaged, onDemandUsageEnabled } = useStore.getState();
+          if (subscriptionPlan === "pro" && billingManaged) {
+            void syncDevSubscriptionToFirestore("pro", onDemandUsageEnabled).catch(() => {});
+          }
+          set({ ready: true });
+          useStore.getState().openAgentPanel();
         }
       })();
     };
@@ -863,6 +887,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await saveUserAccountProfile(uid, profileFromStore(user));
   },
 
+  restoreGoogleProfilePhoto: async () => {
+    const uid = get().firebaseUid;
+    const user = auth.currentUser;
+    if (!uid || !user) {
+      throw new Error("Connectez-vous pour utiliser votre photo Google.");
+    }
+    const url = await restoreGooglePhotoFile(uid);
+    useStore.getState().setPhotoURL(url);
+    useCallsStore.getState().syncLocalParticipantProfile({ photoURL: url });
+    await pushProfileToJoinedWorkspaces(uid, {
+      displayName: useStore.getState().userDisplayName,
+      photoURL: url,
+    });
+    await saveUserAccountProfile(uid, profileFromStore(user));
+  },
+
   removeAndSyncProfilePhoto: async () => {
     const uid = get().firebaseUid;
     const user = auth.currentUser;
@@ -907,6 +947,7 @@ export function currentUserPreferencesSnapshot(): UserPreferences {
     agentAiNotesInstructions: state.agentAiNotesInstructions,
     calendarWorkStartMinutes: state.calendarWorkStartMinutes,
     calendarWorkEndMinutes: state.calendarWorkEndMinutes,
+    availabilityDays: normalizeAvailabilityDays(state.availabilityDays),
     hallDjPreferredGenre: state.hallDjPreferredGenre,
     hallDjVolume: normalizeHallDjVolume((state as { hallDjVolume?: number }).hallDjVolume),
   };

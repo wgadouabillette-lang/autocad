@@ -25,6 +25,7 @@ export interface UserProfileDoc extends UserPreferences {
   photoURL?: string;
   aiModel?: string;
   billingManaged?: boolean;
+  subscriptionTier?: string;
   workspaceSetupCompleted?: boolean;
   dashboardOnboardingCompleted?: boolean;
   updatedAt?: unknown;

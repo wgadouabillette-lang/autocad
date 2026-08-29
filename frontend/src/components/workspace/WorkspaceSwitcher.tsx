@@ -61,6 +61,7 @@ export default function WorkspaceSwitcher() {
   const customServers = useWorkspacesStore((s) => s.customServers);
   const roleIn = useWorkspacesStore((s) => s.roleIn);
   const createWorkspace = useWorkspacesStore((s) => s.createWorkspace);
+  const ensureWorkspaceCloudPublished = useWorkspacesStore((s) => s.ensureWorkspaceCloudPublished);
   const canUserCreateWorkspace = useWorkspacesStore((s) => s.canUserCreateWorkspace);
   const requestJoinWorkspace = useWorkspacesStore((s) => s.requestJoinWorkspace);
 
@@ -121,17 +122,19 @@ export default function WorkspaceSwitcher() {
 
   const onCreate = (event: FormEvent) => {
     event.preventDefault();
-    if (!draftName.trim()) return;
-    if (!canUserCreateWorkspace(ownerUserId)) return;
-    try {
-      const id = createWorkspace(draftName, userDisplayName, ownerUserId);
-      setDraftName("");
-      setMenuOpen(false);
-      void useAuthStore.getState().syncWorkspacesToCloud();
-      setActiveRoom(id);
-    } catch {
-      // Limite atteinte — ignoré dans ce menu legacy.
-    }
+    void (async () => {
+      if (!draftName.trim()) return;
+      if (!canUserCreateWorkspace(ownerUserId)) return;
+      try {
+        const id = createWorkspace(draftName, userDisplayName, ownerUserId);
+        setDraftName("");
+        await ensureWorkspaceCloudPublished(id);
+        setMenuOpen(false);
+        setActiveRoom(id);
+      } catch {
+        // Limite atteinte — ignoré dans ce menu legacy.
+      }
+    })();
   };
 
   const onRequestJoin = async (event: FormEvent) => {

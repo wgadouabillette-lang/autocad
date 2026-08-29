@@ -25,6 +25,7 @@ import {
   type WorkMode,
 } from "../lib/workModes";
 import {
+  normalizeAvailabilityDays,
   normalizeSidePanelSide,
   readUserPreferences,
   resolveCalendarWorkingHours,
@@ -419,6 +420,7 @@ interface State {
   agentAiNotesInstructions: string;
   calendarWorkStartMinutes: number;
   calendarWorkEndMinutes: number;
+  availabilityDays: number[];
   hallDjPreferredGenre: string;
   hallDjVolume: number;
   aiRun: AiRun | null;
@@ -453,6 +455,7 @@ interface State {
   setAgentFollowUpInstructions: (value: string) => void;
   setAgentAiNotesInstructions: (value: string) => void;
   setCalendarWorkingHours: (startMinutes: number, endMinutes: number) => void;
+  setAvailabilityDays: (days: number[]) => void;
   setHallDjPreferredGenre: (genre: string) => void;
   setHallDjVolume: (volume: number) => void;
   clearSpotifySearchResults: (chatIndex: number) => void;
@@ -627,6 +630,7 @@ function userPreferencesSnapshot(state: {
   agentAiNotesInstructions: string;
   calendarWorkStartMinutes: number;
   calendarWorkEndMinutes: number;
+  availabilityDays: number[];
   hallDjPreferredGenre: string;
   hallDjVolume: number;
 }): UserPreferences {
@@ -660,6 +664,7 @@ function userPreferencesSnapshot(state: {
     agentAiNotesInstructions: state.agentAiNotesInstructions,
     calendarWorkStartMinutes: calendarHours.startMinutes,
     calendarWorkEndMinutes: calendarHours.endMinutes,
+    availabilityDays: normalizeAvailabilityDays(state.availabilityDays),
     hallDjPreferredGenre: state.hallDjPreferredGenre,
     hallDjVolume: normalizeHallDjVolume(state.hallDjVolume),
   };
@@ -894,6 +899,12 @@ export const useStore = create<State>((set, get) => ({
         calendarWorkEndMinutes: resolved.endMinutes,
       }),
     );
+  },
+
+  setAvailabilityDays: (days) => {
+    const availabilityDays = normalizeAvailabilityDays(days);
+    set({ availabilityDays });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), availabilityDays }));
   },
 
   setHallDjPreferredGenre: (genre) => {

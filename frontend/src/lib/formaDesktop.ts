@@ -105,6 +105,9 @@ export interface FormaDesktopBridge {
   onSpotifyPlaybackEnded?: (handler: () => void) => () => void;
   /** macOS : statut Widevine CDM (Electron Castlabs). */
   getSpotifyWidevineStatus?: () => Promise<Record<string, unknown>>;
+  writeClipboardText?: (text: string) => Promise<{ ok: boolean }>;
+  getPendingWorkspaceInvite?: () => Promise<string | null>;
+  onWorkspaceInvite?: (handler: (workspaceId: string) => void) => () => void;
 }
 
 export function hasFormaDesktop(): boolean {

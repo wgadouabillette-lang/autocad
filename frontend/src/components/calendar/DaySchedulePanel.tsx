@@ -36,6 +36,7 @@ export default function DaySchedulePanel() {
   const chatPanelLeaveAnimating = useStore((s) => s.chatPanelLeaveAnimating);
   const showInlineComposer =
     composerOpen && !chatPanelExpanded && !chatPanelLeaveAnimating;
+  const showDatePicker = !chatPanelExpanded && !chatPanelLeaveAnimating;
 
   const dateInputRef = useRef<HTMLInputElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -101,36 +102,40 @@ export default function DaySchedulePanel() {
       <div className="calendar-panel__toolbar">
         <p className="calendar-panel__date">{formatDayLabel(selectedDate)}</p>
 
-        <div className="calendar-panel__today-wrap">
-          <div className="calendar-panel__today-row">
-            <div className="calendar-panel__today-picker">
-              <span className="calendar-panel__today-btn" aria-hidden>
-                Today
-                <ChevronDown size={11} strokeWidth={2.25} className="shrink-0 opacity-80" />
-              </span>
-              <input
-                ref={dateInputRef}
-                type="date"
-                className="calendar-panel__date-input"
-                value={selectedDate}
-                onChange={(e) => {
-                  if (e.target.value) setSelectedDate(e.target.value);
-                }}
-                onClick={handleDateInputClick}
-                aria-label="Choisir une date"
-              />
-            </div>
+        {(showDatePicker || !viewingToday) && (
+          <div className="calendar-panel__today-wrap">
+            {showDatePicker ? (
+              <div className="calendar-panel__today-row">
+                <div className="calendar-panel__today-picker">
+                  <span className="calendar-panel__today-btn" aria-hidden>
+                    Today
+                    <ChevronDown size={11} strokeWidth={2.25} className="shrink-0 opacity-80" />
+                  </span>
+                  <input
+                    ref={dateInputRef}
+                    type="date"
+                    className="calendar-panel__date-input"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      if (e.target.value) setSelectedDate(e.target.value);
+                    }}
+                    onClick={handleDateInputClick}
+                    aria-label="Choisir une date"
+                  />
+                </div>
+              </div>
+            ) : null}
+            {!viewingToday && (
+              <button
+                type="button"
+                className="calendar-panel__today-reset"
+                onClick={goToToday}
+              >
+                Revenir à aujourd'hui
+              </button>
+            )}
           </div>
-          {!viewingToday && (
-            <button
-              type="button"
-              className="calendar-panel__today-reset"
-              onClick={goToToday}
-            >
-              Revenir à aujourd'hui
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {(googleNeedsReconnect || googleSyncError) && (

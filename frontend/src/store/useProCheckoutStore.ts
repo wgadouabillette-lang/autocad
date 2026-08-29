@@ -1,13 +1,17 @@
 import { create } from "zustand";
 
+export type ProCheckoutPlan = "pro" | "proPlus";
+
 interface ProCheckoutState {
   open: boolean;
-  openCheckout: () => void;
+  plan: ProCheckoutPlan;
+  openCheckout: (plan?: ProCheckoutPlan) => void;
   closeCheckout: () => void;
 }
 
 export const useProCheckoutStore = create<ProCheckoutState>((set) => ({
   open: false,
-  openCheckout: () => set({ open: true }),
+  plan: "pro",
+  openCheckout: (plan = "pro") => set({ open: true, plan }),
   closeCheckout: () => set({ open: false }),
 }));

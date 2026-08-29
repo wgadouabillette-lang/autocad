@@ -2,6 +2,7 @@ const {
   app,
   BrowserWindow,
   Menu,
+  clipboard,
   dialog,
   shell,
   session,
@@ -26,6 +27,81 @@ const {
 const spotifyWebView2 = require("./spotifyWebView2Manager.cjs");
 
 app.setName("Meetra");
+
+function workspaceIdFromOpenUrl(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return "";
+  try {
+    const url = new URL(raw);
+    const fromQuery = url.searchParams.get("workspace")?.trim().toLowerCase();
+    if (fromQuery) return fromQuery;
+    if (url.protocol === "meetra:") {
+      const parts = `${url.hostname}${url.pathname}`.split("/").filter(Boolean);
+      const last = parts[parts.length - 1]?.trim().toLowerCase() ?? "";
+      if (last) return last;
+    }
+  } catch {
+    const match = /[?&]workspace=([^&#]+)/i.exec(raw);
+    if (match?.[1]) {
+      try {
+        return decodeURIComponent(match[1]).trim().toLowerCase();
+      } catch {
+        return match[1].trim().toLowerCase();
+      }
+    }
+  }
+  return "";
+}
+
+function workspaceIdFromArgv(argv) {
+  if (!Array.isArray(argv)) return "";
+  for (const arg of argv) {
+    if (typeof arg !== "string") continue;
+    if (arg.startsWith("meetra:") || /[?&]workspace=/i.test(arg) || /meetra\.cc/i.test(arg)) {
+      const id = workspaceIdFromOpenUrl(arg);
+      if (id) return id;
+    }
+  }
+  return "";
+}
+
+let pendingDesktopWorkspaceInvite = workspaceIdFromArgv(process.argv);
+
+function deliverWorkspaceInvite(workspaceId) {
+  const id = typeof workspaceId === "string" ? workspaceId.trim().toLowerCase() : "";
+  if (!id) return;
+  pendingDesktopWorkspaceInvite = id;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("forma:workspace-invite", id);
+  }
+}
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient("meetra", process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient("meetra");
+}
+
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, argv) => {
+    deliverWorkspaceInvite(workspaceIdFromArgv(argv));
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  deliverWorkspaceInvite(workspaceIdFromOpenUrl(url));
+});
+
 if (process.platform === "win32") {
   // Keep taskbar / jump-list icons on Meetra's AppUserModelID (not Electron's).
   app.setAppUserModelId("com.forma.cad");
@@ -813,6 +889,9 @@ function createWindow() {
   mainWindow.loadURL(START_URL);
   spotifyWebView2.setMainWindow(mainWindow);
   mainWindow.webContents.once("did-finish-load", () => {
+    if (pendingDesktopWorkspaceInvite) {
+      mainWindow.webContents.send("forma:workspace-invite", pendingDesktopWorkspaceInvite);
+    }
     if (spotifyWebView2.isSupported()) {
       void spotifyWebView2.startHost();
     }
@@ -1111,6 +1190,18 @@ ipcMain.handle("forma:window-close", () => {
   return { ok: true, mode: mainWindowMode };
 });
 
+ipcMain.handle("forma:clipboard-write-text", (_event, text) => {
+  if (typeof text !== "string" || !text) return { ok: false };
+  clipboard.writeText(text);
+  return { ok: true };
+});
+
+ipcMain.handle("forma:get-pending-workspace-invite", () => {
+  const id = pendingDesktopWorkspaceInvite || null;
+  pendingDesktopWorkspaceInvite = "";
+  return id;
+});
+
 ipcMain.handle("forma:open-external", async (_event, url) => {
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
     throw new Error("Invalid external URL.");
@@ -1179,6 +1270,7 @@ ipcMain.handle("forma:spotify-token-response", (_event, payload) => {
 ipcMain.handle("forma:spotify-widevine-status", () => getWidevineStatus());
 
 app.whenReady().then(async () => {
+  if (!gotTheLock) return;
   // Screen share / recording: always grant the primary display (full desktop),
   // not just the Meetra window — so Chrome/Google etc. appear in the recording.
   session.defaultSession.setDisplayMediaRequestHandler(
@@ -1210,7 +1302,9 @@ app.whenReady().then(async () => {
       permission === "media" ||
       permission === "display-capture" ||
       permission === "protectedMedia" ||
-      permission === "mediaKeySystem"
+      permission === "mediaKeySystem" ||
+      permission === "clipboard-sanitized-write" ||
+      permission === "clipboard-read"
     );
   });
 
@@ -1219,7 +1313,9 @@ app.whenReady().then(async () => {
       permission === "media" ||
         permission === "display-capture" ||
         permission === "protectedMedia" ||
-        permission === "mediaKeySystem",
+        permission === "mediaKeySystem" ||
+        permission === "clipboard-sanitized-write" ||
+        permission === "clipboard-read",
     );
   });
 

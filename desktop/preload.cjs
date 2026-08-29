@@ -52,4 +52,7 @@ contextBridge.exposeInMainWorld("formaDesktop", {
   onSpotifyPlaybackState: (handler) => subscribe("forma:spotify-playback-state", handler),
   onSpotifyPlaybackEnded: (handler) => subscribe("forma:spotify-playback-ended", handler),
   getSpotifyWidevineStatus: () => ipcRenderer.invoke("forma:spotify-widevine-status"),
+  writeClipboardText: (text) => ipcRenderer.invoke("forma:clipboard-write-text", text),
+  getPendingWorkspaceInvite: () => ipcRenderer.invoke("forma:get-pending-workspace-invite"),
+  onWorkspaceInvite: (handler) => subscribe("forma:workspace-invite", handler),
 });

@@ -1,18 +1,27 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import clsx from "clsx";
-import { Check, Hash, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowUpRight, Check, Hash, Pencil, Plus, Trash2, X } from "lucide-react";
+import { resolveClientLocale } from "../../lib/billingCurrency";
 import { useAuthStore } from "../../store/useAuthStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import { useWorkspaceTextChannelsStore, EMPTY_WORKSPACE_TEXT_CHANNELS } from "../../store/useWorkspaceTextChannelsStore";
 
+function workspaceCreateChatLabel(): string {
+  return resolveClientLocale().toLowerCase().startsWith("fr")
+    ? "Créer un chat"
+    : "Create Chat";
+}
+
 interface WorkspaceTextChannelsSectionProps {
   workspaceId: string;
+  selectedThreadId?: string | null;
   onOpenChannel: (threadId: string) => void;
 }
 
 export default function WorkspaceTextChannelsSection({
   workspaceId,
+  selectedThreadId,
   onOpenChannel,
 }: WorkspaceTextChannelsSectionProps) {
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
@@ -60,6 +69,9 @@ export default function WorkspaceTextChannelsSection({
     renameInputRef.current?.select();
   }, [renamingChannel, workspaceId]);
 
+  const isEmpty = visibleChannels.length === 0;
+  const createChatLabel = workspaceCreateChatLabel();
+
   const openChannel = (channelId: string, name: string) => {
     const threadId = ensureWorkspaceTextChannelThread(workspaceId, channelId, name);
     onOpenChannel(threadId);
@@ -80,13 +92,33 @@ export default function WorkspaceTextChannelsSection({
   };
 
   return (
-    <div className="workspace-text-channels">
-      <ul className="messages-panel-category__list">
-        {visibleChannels.map((channel) => {
+    <div
+      className={clsx(
+        "workspace-text-channels",
+        isEmpty && "workspace-text-channels--empty",
+      )}
+    >
+      {isEmpty && !draftChannel ? (
+        <button
+          type="button"
+          className="workspace-create-chat-capsule"
+          onClick={() => startDraft(workspaceId)}
+          aria-label={createChatLabel}
+        >
+          {createChatLabel}
+          <ArrowUpRight size={12} strokeWidth={2.25} aria-hidden />
+        </button>
+      ) : null}
+
+      {visibleChannels.length > 0 ? (
+        <ul className="messages-panel-category__list">
+          {visibleChannels.map((channel) => {
           const thread = workspaceThreads.find((entry) => entry.personId === channel.id);
           const isRenaming =
             renamingChannel?.workspaceId === workspaceId &&
             renamingChannel.channelId === channel.id;
+
+          const selected = !!thread && thread.id === selectedThreadId;
 
           return (
             <li
@@ -123,13 +155,19 @@ export default function WorkspaceTextChannelsSection({
                   </button>
                 </form>
               ) : (
-                <div className="workspace-text-channel-row__content">
+                <div
+                  className={clsx(
+                    "workspace-text-channel-row__content",
+                    selected && "workspace-text-channel-row__content--active",
+                  )}
+                >
                   <button
                     type="button"
                     className={clsx(
                       "workspace-text-channel-row__open",
                       thread && thread.unread > 0 && "workspace-text-channel-row__open--unread",
                     )}
+                    aria-current={selected ? "true" : undefined}
                     onClick={() => openChannel(channel.id, channel.name)}
                   >
                     <Hash size={14} className="workspace-text-channel-row__hash" aria-hidden />
@@ -162,8 +200,9 @@ export default function WorkspaceTextChannelsSection({
               )}
             </li>
           );
-        })}
-      </ul>
+          })}
+        </ul>
+      ) : null}
 
       {draftChannel ? (
         <form className="workspace-text-channel-create workspace-text-channel-create--draft" onSubmit={submitDraft}>
@@ -194,7 +233,7 @@ export default function WorkspaceTextChannelsSection({
             <X size={14} aria-hidden />
           </button>
         </form>
-      ) : (
+      ) : !isEmpty ? (
         <button
           type="button"
           className="open-channel-add"
@@ -208,7 +247,7 @@ export default function WorkspaceTextChannelsSection({
             <Hash size={12} strokeWidth={2.25} aria-hidden />
           </span>
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useWorkspaceOverlayStore } from "../../store/useWorkspaceOverlayStore";
 import { workspaceLabel, useWorkspacesStore } from "../../store/useWorkspacesStore";
 import { useStore } from "../../store/useStore";
+import HeaderInviteButton from "./HeaderInviteButton";
 
 /** Bouton workspace — icône double flèche, sélecteur à gauche du header. */
 export default function WorkspaceBrandButton() {
@@ -43,6 +44,7 @@ export default function WorkspaceBrandButton() {
       >
         <Shuffle size={14} strokeWidth={2.25} aria-hidden />
       </button>
+      <HeaderInviteButton />
     </div>
   );
 }

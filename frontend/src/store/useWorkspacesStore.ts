@@ -126,6 +126,7 @@ interface WorkspacesState extends PersistedState {
   canUserCreateWorkspace: (userId?: string) => boolean;
   createWorkspace: (name: string, ownerName: string, userId?: string) => string;
   createPersonalWorkspace: (ownerName: string, userId?: string) => string;
+  ensureWorkspaceCloudPublished: (workspaceId: string) => Promise<void>;
   addRemoteWorkspace: (workspace: Workspace, userId?: string) => boolean;
   updateWorkspace: (
     workspaceId: string,
@@ -260,6 +261,11 @@ function syncActiveWorkspace(joined: Workspace[], userId?: string) {
   }
 }
 
+function oldestWorkspaceId(workspaces: Workspace[]): string | null {
+  if (workspaces.length === 0) return null;
+  return [...workspaces].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))[0].id;
+}
+
 export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   customServers: [],
   memberships: [],
@@ -294,7 +300,13 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     });
     get().stripLegacyPublicWorkspaces();
     const memberUid = currentMembershipUserId();
-    if (get().joinedWorkspaces(memberUid).length === 0 && memberUid === LOCAL_USER_ID) {
+    // Only seed a default when this browser has no persisted workspaces at all.
+    // Auth may not be ready yet; memberships are often stored under the Firebase
+    // uid, so treating "no local-user membership" as empty spawned a new
+    // workspace on every launch.
+    const persistedEmpty =
+      get().customServers.length === 0 && get().memberships.length === 0;
+    if (persistedEmpty && memberUid === LOCAL_USER_ID) {
       const ownerName = useStore.getState().userDisplayName;
       get().createPersonalWorkspace(ownerName, LOCAL_USER_ID);
     }
@@ -378,7 +390,8 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     if (!trimmed) {
       throw new Error("Le nom du serveur est requis.");
     }
-    if (!get().canUserCreateWorkspace(userId)) {
+    const ownerId = auth.currentUser?.uid ?? userId;
+    if (!get().canUserCreateWorkspace(ownerId)) {
       throw new Error(
         `Limite de ${FREE_OWNED_WORKSPACE_LIMIT} serveurs personnels atteinte. Passez à Pro pour en créer davantage.`,
       );
@@ -393,13 +406,13 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       id,
       name: trimmed,
       accent: pickWorkspaceAccent(get().customServers.length),
-      ownerId: userId,
+      ownerId,
       ownerName: ownerName.trim() || "Vous",
       createdAt: Date.now(),
     };
     const membership: ServerMembership = {
       workspaceId: id,
-      userId,
+      userId: ownerId,
       role: "owner",
       joinedAt: Date.now(),
     };
@@ -412,15 +425,46 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     });
 
     if (auth.currentUser) {
-      void publishSharedWorkspace(server).catch(() => {
-        // Le workspace reste utilisable localement même si l'enregistrement cloud échoue.
+      void publishSharedWorkspace({ ...server, ownerId: auth.currentUser.uid }).catch(() => {
+        // Surface via ensureWorkspaceCloudPublished after an explicit create.
       });
     }
 
     return id;
   },
 
+  ensureWorkspaceCloudPublished: async (workspaceId) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      throw new Error("Connectez-vous pour enregistrer ce workspace.");
+    }
+    const workspace = get().findWorkspace(workspaceId);
+    if (!workspace) {
+      throw new Error("Workspace introuvable.");
+    }
+    await ensureSharedWorkspacePublished({ ...workspace, ownerId: uid }, uid);
+    await syncWorkspacesToCloudNow(uid, {
+      customServers: get().customServers,
+      memberships: get().memberships,
+    });
+  },
+
   createPersonalWorkspace: (ownerName, userId = LOCAL_USER_ID) => {
+    const joined = get().joinedWorkspaces(userId);
+    const existing =
+      oldestWorkspaceId(joined) ??
+      (userId !== LOCAL_USER_ID ? oldestWorkspaceId(get().joinedWorkspaces(LOCAL_USER_ID)) : null) ??
+      oldestWorkspaceId(get().customServers);
+    if (existing) {
+      if (userId !== LOCAL_USER_ID) {
+        get().reconcileOwnedWorkspacesForAuth(userId);
+      }
+      const workspace = get().findWorkspace(existing);
+      if (workspace && !get().membershipIn(existing, userId)) {
+        get().addRemoteWorkspace(workspace, userId);
+      }
+      return existing;
+    }
     return get().createWorkspace(defaultPersonalWorkspaceName(ownerName), ownerName, userId);
   },
 
@@ -524,11 +568,27 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     if (!normalized) {
       throw new Error("Indiquez l'identifiant du workspace.");
     }
-    const memberUid = profile.uid || LOCAL_USER_ID;
+    const memberUid = profile.uid || auth.currentUser?.uid || LOCAL_USER_ID;
     if (get().membershipIn(normalized, memberUid)) {
       throw new Error("Vous faites déjà partie de ce workspace.");
     }
-    await requestWorkspaceJoin(normalized, profile);
+    const email =
+      profile.email.trim().toLowerCase() ||
+      auth.currentUser?.email?.trim().toLowerCase() ||
+      "";
+    const displayName =
+      profile.displayName.trim() ||
+      auth.currentUser?.displayName?.trim() ||
+      email.split("@")[0] ||
+      "Membre";
+    if (email.length <= 3) {
+      throw new Error("Connectez-vous avec un compte email pour rejoindre un workspace.");
+    }
+    await requestWorkspaceJoin(normalized, {
+      uid: profile.uid || auth.currentUser?.uid || LOCAL_USER_ID,
+      displayName,
+      email,
+    });
     get().addPendingJoinRequest(normalized);
   },
 

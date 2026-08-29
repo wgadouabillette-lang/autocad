@@ -8,6 +8,7 @@ import {
   effectiveOnDemandUsage,
   effectiveSubscriptionPlan,
 } from "../../lib/subscriptionPlans";
+import { resolveClientLocale } from "../../lib/billingCurrency";
 import { getStripePromise } from "../../lib/stripeClient";
 import { useLocalizedUsdPrice } from "../../hooks/useLocalizedUsdPrice";
 import { useProCheckoutStore } from "../../store/useProCheckoutStore";
@@ -21,13 +22,16 @@ import {
 
 export default function ProCheckoutOverlay() {
   const open = useProCheckoutStore((s) => s.open);
+  const checkoutPlan = useProCheckoutStore((s) => s.plan);
   const closeCheckout = useProCheckoutStore((s) => s.closeCheckout);
   const subscriptionPlan = useStore((s) => s.subscriptionPlan);
   const billingManaged = useStore((s) => s.billingManaged);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [publishableKey, setPublishableKey] = useState<string | null>(null);
-  const [priceLabel, setPriceLabel] = useState("$25 / month");
-  const [usdCents, setUsdCents] = useState(2500);
+  const [priceLabel, setPriceLabel] = useState(
+    checkoutPlan === "proPlus" ? "$40 / month" : "$25 / month",
+  );
+  const [usdCents, setUsdCents] = useState(checkoutPlan === "proPlus" ? 4000 : 2500);
   const { localized } = useLocalizedUsdPrice(open ? usdCents : null);
   const [loadingIntent, setLoadingIntent] = useState(false);
   const [intentError, setIntentError] = useState<string | null>(null);
@@ -85,12 +89,19 @@ export default function ProCheckoutOverlay() {
       try {
         const config = await billingApi.config();
         if (!cancelled) {
-          if (config.proPriceLabel) setPriceLabel(config.proPriceLabel);
-          if (typeof config.proPriceUsdCents === "number") {
-            setUsdCents(config.proPriceUsdCents);
+          if (checkoutPlan === "proPlus") {
+            if (config.proPlusPriceLabel) setPriceLabel(config.proPlusPriceLabel);
+            if (typeof config.proPlusPriceUsdCents === "number") {
+              setUsdCents(config.proPlusPriceUsdCents);
+            }
+          } else {
+            if (config.proPriceLabel) setPriceLabel(config.proPriceLabel);
+            if (typeof config.proPriceUsdCents === "number") {
+              setUsdCents(config.proPriceUsdCents);
+            }
           }
         }
-        const intent = await billingApi.checkoutProIntent();
+        const intent = await billingApi.checkoutProIntent(checkoutPlan);
         if (cancelled) return;
         setClientSecret(intent.clientSecret);
         setPublishableKey(intent.publishableKey);
@@ -105,7 +116,7 @@ export default function ProCheckoutOverlay() {
     return () => {
       cancelled = true;
     };
-  }, [open, reset]);
+  }, [open, reset, checkoutPlan]);
 
   // Fermer quand le profil / store passe Pro (webhook).
   useEffect(() => {
@@ -191,13 +202,22 @@ export default function ProCheckoutOverlay() {
   const displayAmount = localized?.amountLabel ?? priceAmount;
   const displayFrequency = localized?.frequencyLabel ?? priceFrequency;
   const showShimmer = !awaitingWebhook && !intentError && (loadingIntent || !elementsReady);
+  const fr = resolveClientLocale().toLowerCase().startsWith("fr");
+  const overlayTitle =
+    checkoutPlan === "proPlus"
+      ? fr
+        ? "Passer à Pro +"
+        : "Upgrade to Pro+"
+      : fr
+        ? "Passer à Pro"
+        : "Upgrade to Pro";
 
   return createPortal(
     <div
       className="workspace-modal pro-checkout-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label="Passer à Pro"
+      aria-label={overlayTitle}
     >
       <button
         type="button"
@@ -257,7 +277,7 @@ export default function ProCheckoutOverlay() {
                 }
               >
                 <header className="workspace-modal__header pro-checkout-overlay__header">
-                  <h2 className="workspace-modal__title">Passer à Pro</h2>
+                  <h2 className="workspace-modal__title">{overlayTitle}</h2>
                   <p className="pro-checkout-overlay__price">
                     <span className="pro-checkout-overlay__price-amount">{displayAmount}</span>
                     {displayFrequency ? (

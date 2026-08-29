@@ -28,6 +28,9 @@ const DEFAULT_CONFIG: BillingConfig = {
   onDemandAvailable: false,
   billingManaged: false,
   proPriceLabel: "$25 / month",
+  proPlusEnabled: false,
+  proPlusPriceLabel: "$40 / month",
+  proPlusPriceUsdCents: 4000,
   enterpriseEnabled: false,
   enterpriseMinMembers: 2,
   enterpriseSeatPriceLabel: "$18 / seat",
@@ -68,9 +71,11 @@ export function useBilling() {
   const billingManaged = useStore((s) => s.billingManaged);
   const [config, setConfig] = useState<BillingConfig | null>(null);
   const [localizedProLabel, setLocalizedProLabel] = useState<string | null>(null);
+  const [localizedProPlusLabel, setLocalizedProPlusLabel] = useState<string | null>(null);
   const [localizedEnterpriseSeatLabel, setLocalizedEnterpriseSeatLabel] = useState<string | null>(
     null,
   );
+  const [subscriptionTier, setSubscriptionTier] = useState<"pro" | "proPlus" | "">("");
   const [enterpriseWorkspaces, setEnterpriseWorkspaces] = useState<EnterpriseWorkspaceOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,11 +86,19 @@ export function useBilling() {
     const country = resolveClientCountry();
     const currency = resolveClientCurrency();
     const proCents = value.proPriceUsdCents ?? 2500;
+    const plusCents = value.proPlusPriceUsdCents ?? 4000;
     const seatCents = value.enterpriseSeatUnitAmountCents ?? 1800;
     try {
-      const [pro, seat] = await Promise.all([
+      const [pro, plus, seat] = await Promise.all([
         billingApi.localizeAmount({
           usdCents: proCents,
+          currency,
+          country,
+          locale,
+          frequency: "month",
+        }),
+        billingApi.localizeAmount({
+          usdCents: plusCents,
           currency,
           country,
           locale,
@@ -100,11 +113,15 @@ export function useBilling() {
         }),
       ]);
       setLocalizedProLabel(`${pro.amountLabel} ${pro.frequencyLabel}`.replace(/\s+/g, " ").trim());
+      setLocalizedProPlusLabel(
+        `${plus.amountLabel} ${plus.frequencyLabel}`.replace(/\s+/g, " ").trim(),
+      );
       setLocalizedEnterpriseSeatLabel(
         `${seat.amountLabel} ${seat.frequencyLabel}`.replace(/\s+/g, " ").trim(),
       );
     } catch {
       setLocalizedProLabel(null);
+      setLocalizedProPlusLabel(null);
       setLocalizedEnterpriseSeatLabel(null);
     }
   }, []);
@@ -119,6 +136,7 @@ export function useBilling() {
     } catch {
       setConfig(DEFAULT_CONFIG);
       setLocalizedProLabel(null);
+      setLocalizedProPlusLabel(null);
       setLocalizedEnterpriseSeatLabel(null);
       return DEFAULT_CONFIG;
     }
@@ -181,6 +199,9 @@ export function useBilling() {
         profile.onDemandUsageEnabled,
         managed,
       );
+      setSubscriptionTier(
+        subscriptionPlan === "pro" && profile.subscriptionTier === "proPlus" ? "proPlus" : subscriptionPlan === "pro" ? "pro" : "",
+      );
       useStore.setState((state) => {
         const patch: Partial<{
           subscriptionPlan: typeof subscriptionPlan;
@@ -220,6 +241,13 @@ export function useBilling() {
       onDemandUsageEnabled,
       billingManaged: managed,
     });
+    setSubscriptionTier(
+      subscriptionPlan === "pro" && profile.subscriptionTier === "proPlus"
+        ? "proPlus"
+        : subscriptionPlan === "pro"
+          ? "pro"
+          : "",
+    );
     await loadConfig();
   }, [firebaseUid, loadConfig]);
 
@@ -233,6 +261,13 @@ export function useBilling() {
         onDemandUsageEnabled: status.onDemandUsageEnabled,
         billingManaged: status.billingManaged,
       });
+      setSubscriptionTier(
+        subscriptionPlan === "pro" && status.subscriptionTier === "proPlus"
+          ? "proPlus"
+          : subscriptionPlan === "pro"
+            ? "pro"
+            : "",
+      );
       setExternalCheckoutOpen(false);
       setLoading(false);
       return status;
@@ -273,9 +308,9 @@ export function useBilling() {
     [isAuthenticated],
   );
 
-  const checkoutPro = useCallback(async () => {
+  const checkoutPro = useCallback(async (plan: "pro" | "proPlus" = "pro") => {
     setError(null);
-    useProCheckoutStore.getState().openCheckout();
+    useProCheckoutStore.getState().openCheckout(plan);
   }, []);
 
   const openPortal = useCallback(async () => {
@@ -407,6 +442,7 @@ export function useBilling() {
     enterpriseWorkspaces,
     loadEnterpriseWorkspaces,
     stripeEnabled: Boolean(config?.enabled),
+    proPlusEnabled: Boolean(config?.proPlusEnabled),
     enterpriseEnabled: Boolean(config?.enterpriseEnabled),
     enterpriseMinMembers: config?.enterpriseMinMembers ?? DEFAULT_CONFIG.enterpriseMinMembers,
     enterpriseSeatPriceLabel:
@@ -416,6 +452,11 @@ export function useBilling() {
     enterpriseSeatUnitAmountCents: config?.enterpriseSeatUnitAmountCents ?? 1800,
     billingManaged,
     onDemandAvailable: Boolean(config?.onDemandAvailable),
+    subscriptionTier,
     proPriceLabel: localizedProLabel ?? config?.proPriceLabel ?? DEFAULT_CONFIG.proPriceLabel,
+    proPlusPriceLabel:
+      localizedProPlusLabel ??
+      config?.proPlusPriceLabel ??
+      DEFAULT_CONFIG.proPlusPriceLabel,
   };
 }

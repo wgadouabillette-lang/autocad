@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import clsx from "clsx";
 import {
   ArrowUp,
   ChevronDown,
   FileImage,
+  Hash,
   Megaphone,
   Paperclip,
   Smile,
@@ -54,6 +55,7 @@ import {
   workspaceMembersForMentions,
   type WorkspaceChannelMentionMenuItem,
 } from "../../lib/workspaceChannelMentions";
+import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useHandoffStore } from "../../store/useHandoffStore";
@@ -130,7 +132,7 @@ const MESSAGE_PANEL_CATEGORIES: {
   },
   {
     id: "colleague",
-    label: "Colleague",
+    label: "Colleagues",
     hint: "Members of the active workspace",
     emptyLabel: "No colleagues in this workspace yet.",
   },
@@ -148,6 +150,7 @@ interface MessagePanelCategoryProps {
   count: number;
   expanded: boolean;
   alwaysShowBody?: boolean;
+  fillRemaining?: boolean;
   onToggle: () => void;
   children: ReactNode;
 }
@@ -158,11 +161,18 @@ function MessagePanelCategory({
   count,
   expanded,
   alwaysShowBody = false,
+  fillRemaining = false,
   onToggle,
   children,
 }: MessagePanelCategoryProps) {
   return (
-    <section className={clsx("messages-panel-category", expanded && "is-expanded")}>
+    <section
+      className={clsx(
+        "messages-panel-category",
+        expanded && "is-expanded",
+        fillRemaining && expanded && "messages-panel-category--fill",
+      )}
+    >
       <button
         type="button"
         className="messages-panel-category__header"
@@ -198,11 +208,18 @@ function MessagePanelCategory({
 interface MessagePanelPersonRowProps {
   item: PeopleThread;
   photoURL?: string;
+  selected?: boolean;
   onOpen: () => void;
   onDelete?: () => void;
 }
 
-function MessagePanelPersonRow({ item, photoURL, onOpen, onDelete }: MessagePanelPersonRowProps) {
+function MessagePanelPersonRow({
+  item,
+  photoURL,
+  selected = false,
+  onOpen,
+  onDelete,
+}: MessagePanelPersonRowProps) {
   return (
     <li className="messages-panel-category__item messages-overlay__thread-item">
       <div className="messages-overlay__thread-row-wrap">
@@ -211,7 +228,9 @@ function MessagePanelPersonRow({ item, photoURL, onOpen, onDelete }: MessagePane
           className={clsx(
             "messages-overlay__thread-row messages-thread-card",
             item.unread > 0 && "messages-thread-card--unread",
+            selected && "messages-thread-card--active",
           )}
+          aria-current={selected ? "true" : undefined}
           onClick={onOpen}
         >
           <UserAvatar
@@ -248,6 +267,9 @@ function MessagePanelPersonRow({ item, photoURL, onOpen, onDelete }: MessagePane
 
 
 export default function FriendsChatPanel() {
+  const isMobileLayout = useMobileLayout();
+  const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
+  const splitLayout = !isMobileLayout && chatPanelExpanded;
   const friendThreads = usePeopleStore((s) => s.friendThreadsList());
   const groupThreads = usePeopleStore((s) => s.groupThreads);
   const friends = usePeopleStore((s) => s.friends);
@@ -353,14 +375,16 @@ export default function FriendsChatPanel() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<
     Partial<Record<MessagePanelCategoryId, boolean>>
-  >({ friends: true, workspace: true });
+  >({ friends: true, colleague: true, workspace: true });
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mentionAnchorRef = useRef<HTMLDivElement>(null);
   const mentionMenuRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLUListElement>(null);
+  const threadScrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [threadScrolledFromTop, setThreadScrolledFromTop] = useState(false);
 
   const slashOptions = filterPeopleSlashSkillMenu(slashFilter);
   const skillComposerOpen = activeComposerSkill !== null;
@@ -601,11 +625,19 @@ export default function FriendsChatPanel() {
     setSlashIndex(0);
   }, [slashFilter]);
 
-  useEffect(() => {
-    const el = messagesScrollRef.current;
+  useLayoutEffect(() => {
+    const el = splitLayout ? threadScrollRef.current : messagesScrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages, selectedThreadId]);
+    if (!splitLayout) {
+      setThreadScrolledFromTop(false);
+      return;
+    }
+    const syncTopFade = () => setThreadScrolledFromTop(el.scrollTop > 0);
+    syncTopFade();
+    el.addEventListener("scroll", syncTopFade, { passive: true });
+    return () => el.removeEventListener("scroll", syncTopFade);
+  }, [messages, selectedThreadId, splitLayout]);
 
   const openThread = (item: PeopleThread) => {
     if (item.section === "groups" || item.section === "workspace-channels") {
@@ -630,14 +662,6 @@ export default function FriendsChatPanel() {
     }));
   };
 
-  const visibleCategories = useMemo(
-    () =>
-      MESSAGE_PANEL_CATEGORIES.filter(
-        (category) => category.id !== "colleague" || colleagueItems.length > 0,
-      ),
-    [colleagueItems.length],
-  );
-
   const categoryCounts = useMemo(
     () => ({
       friends: friendItems.length,
@@ -651,10 +675,17 @@ export default function FriendsChatPanel() {
     <ul className="messages-panel-category__list">
       {items.map((item) => {
         const hasConversation = item.messages.length > 0 || item.unread > 0;
+        const selected =
+          !!selectedThreadId &&
+          (item.id === selectedThreadId ||
+            (!!thread &&
+              item.personId === thread.personId &&
+              item.section === thread.section));
         return (
           <MessagePanelPersonRow
             key={item.id}
             item={item}
+            selected={selected}
             photoURL={resolvePersonPhotoURL(item.personId, membersByWorkspace, photoLookup)}
             onOpen={() => openThread(item)}
             onDelete={
@@ -1032,30 +1063,54 @@ export default function FriendsChatPanel() {
     ],
   );
 
-  if (thread) {
-    const isMultiPartyChat =
-      thread.section === "workspace-channels" ||
-      (thread.section === "groups" && (thread.memberIds?.length ?? 0) > 2);
-    const partnerPhotoURL = isMultiPartyChat
-      ? undefined
-      : resolvePersonPhotoURL(thread.personId, membersByWorkspace, photoLookup);
-    const resolveAuthorPhotoURL = (authorUid: string, authorName: string) =>
-      resolvePersonPhotoURL(authorUid, membersByWorkspace, photoLookup);
-    const canSubmit =
-      handoffSelectionMode
-        ? handoffSelectedIndices.size > 0 && !!handoffTarget && !handoffSubmitting
-        : activeComposerSkill === "group"
-          ? memberPromptReady
-          : activeComposerSkill === "manage"
-            ? isManageDraftReady(manageDraft) && !manageSubmitting
-            : draft.trim().length > 0 || attachments.length > 0;
-    const composerPlaceholder =
-      thread.section === "groups" || thread.section === "workspace-channels"
-        ? `Écrire dans ${thread.groupName ?? thread.personName}…`
-        : `Write to ${thread.personName}…`;
-    return (
-      <div className="chat-panel-layout relative h-full min-h-0 min-w-0 w-full max-w-full overflow-hidden">
-        <div className="chat-messages-scroll relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-hidden">
+  const isMultiPartyChat =
+    !!thread &&
+    (thread.section === "workspace-channels" ||
+      (thread.section === "groups" && (thread.memberIds?.length ?? 0) > 2));
+  const partnerPhotoURL =
+    thread && !isMultiPartyChat
+      ? resolvePersonPhotoURL(thread.personId, membersByWorkspace, photoLookup)
+      : undefined;
+  const resolveAuthorPhotoURL = (authorUid: string, authorName: string) =>
+    resolvePersonPhotoURL(authorUid, membersByWorkspace, photoLookup);
+  const canSubmit =
+    handoffSelectionMode
+      ? handoffSelectedIndices.size > 0 && !!handoffTarget && !handoffSubmitting
+      : activeComposerSkill === "group"
+        ? memberPromptReady
+        : activeComposerSkill === "manage"
+          ? isManageDraftReady(manageDraft) && !manageSubmitting
+          : draft.trim().length > 0 || attachments.length > 0;
+  const composerPlaceholder = thread
+    ? thread.section === "groups" || thread.section === "workspace-channels"
+      ? `Écrire dans ${thread.groupName ?? thread.personName}…`
+      : `Write to ${thread.personName}…`
+    : "";
+  const inGroupThread = thread?.section === "groups";
+  const inWorkspaceChannelThread = thread?.section === "workspace-channels";
+  const threadTitle = thread
+    ? inWorkspaceChannelThread
+      ? thread.personName
+      : (thread.groupName ?? thread.personName)
+    : "";
+
+  const conversationPane = thread ? (
+      <div
+        className={clsx(
+          "chat-panel-layout relative min-h-0 min-w-0 w-full max-w-full overflow-hidden",
+          splitLayout ? "flex-1" : "h-full",
+        )}
+      >
+        <div
+          ref={threadScrollRef}
+          className={clsx(
+            "chat-messages-scroll relative min-h-0 min-w-0 flex-1 overflow-x-hidden",
+            splitLayout
+              ? "people-chat-thread-scroll overflow-y-auto"
+              : "overflow-y-hidden",
+            splitLayout && threadScrolledFromTop && "people-chat-thread-scroll--scrolled",
+          )}
+        >
           <PeopleChatThreadMessages
             partnerName={thread.groupName ?? thread.personName}
             partnerId={thread.personId}
@@ -1093,7 +1148,7 @@ export default function FriendsChatPanel() {
             (emojiPickerOpen || skillComposerOpen) && "chat-panel-footer--poll-morph",
           )}
         >
-          <div className="pointer-events-auto relative w-full min-w-0 max-w-full">
+          <div className="pointer-events-auto relative w-full min-w-0 max-w-full friends-chat-composer-shell">
             {showSlashMenu ? (
               <div className="chat-connectors-stage chat-connectors-stage--footer">
                 <ChatSkillsList
@@ -1115,7 +1170,7 @@ export default function FriendsChatPanel() {
             <div
               ref={mentionAnchorRef}
               className={clsx(
-                "relative",
+                "relative friends-chat-composer",
                 (emojiPickerOpen || skillComposerOpen) &&
                   "chat-composer chat-composer-morph rounded-xl",
                 !emojiPickerOpen &&
@@ -1234,7 +1289,17 @@ export default function FriendsChatPanel() {
                 }}
               />
 
-              <HighlightedPromptInput
+              <div className="friends-chat-composer__bar">
+                <button
+                  type="button"
+                  title="Add attachment"
+                  aria-label="Add attachment"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="friends-chat-composer__clip inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-transparent text-muted-400 transition-colors hover:text-muted-200"
+                >
+                  <Paperclip size={14} strokeWidth={2.25} aria-hidden />
+                </button>
+                <HighlightedPromptInput
                 ref={textareaRef}
                 value={draft}
                 placeholder={composerPlaceholder}
@@ -1334,20 +1399,9 @@ export default function FriendsChatPanel() {
                     submit();
                   }
                 }}
-                className="px-1 py-1 text-muted-100"
+                className="friends-chat-composer__input px-1 py-1 text-muted-100"
               />
-              <div className="flex h-[24px] items-center gap-2">
-                <button
-                  type="button"
-                  title="Add attachment"
-                  aria-label="Add attachment"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-transparent text-muted-400 transition-colors hover:text-muted-200"
-                >
-                  <Paperclip size={14} strokeWidth={2.25} aria-hidden />
-                </button>
-
-                <div className="ml-auto flex items-center gap-1.5">
+                <div className="friends-chat-composer__actions">
                   <button
                     type="button"
                     onClick={() => setEmojiPickerOpen(true)}
@@ -1377,23 +1431,37 @@ export default function FriendsChatPanel() {
           </div>
         </div>
       </div>
-    );
-  }
+  ) : (
+    <div className="friends-chat-panel__placeholder" role="status">
+      <div className="theater-chat-empty">
+        <p className="theater-chat-empty__title">Select a conversation</p>
+        <p className="theater-chat-empty__subtitle">
+          Choose someone on the left to open the chat.
+        </p>
+      </div>
+    </div>
+  );
 
-  return (
-    <div className="friends-chat-panel">
-      <div className="friends-chat-panel__categories">
-        {visibleCategories.map((category) => {
-          const expanded = Boolean(expandedCategories[category.id]);
-          const count = categoryCounts[category.id];
-          return (
+  const peopleList = (
+    <div className="friends-chat-panel__categories">
+      {MESSAGE_PANEL_CATEGORIES.map((category) => {
+        const expanded = Boolean(expandedCategories[category.id]);
+        const count = categoryCounts[category.id];
+        return (
+          <Fragment key={category.id}>
+            {category.id === "colleague" || category.id === "workspace" ? (
+              <div
+                className="friends-chat-panel__categories-divider"
+                role="separator"
+              />
+            ) : null}
             <MessagePanelCategory
-              key={category.id}
               label={category.label}
               emptyLabel={category.emptyLabel}
               count={count}
               expanded={expanded}
               alwaysShowBody={category.id === "workspace"}
+              fillRemaining={category.id === "workspace"}
               onToggle={() => toggleCategory(category.id)}
             >
               {category.id === "friends"
@@ -1403,14 +1471,19 @@ export default function FriendsChatPanel() {
                   : (
                     <WorkspaceTextChannelsSection
                       workspaceId={activeRoomId}
+                      selectedThreadId={selectedThreadId}
                       onOpenChannel={setActiveFriendThread}
                     />
                   )}
             </MessagePanelCategory>
-          );
-        })}
-      </div>
+          </Fragment>
+        );
+      })}
+    </div>
+  );
 
+  const deleteUi = (
+    <>
       {deleteTarget ? (
         <DeletePeopleChatOverlay
           title={
@@ -1437,6 +1510,51 @@ export default function FriendsChatPanel() {
           {deleteError}
         </p>
       ) : null}
+    </>
+  );
+
+  if (splitLayout) {
+    return (
+      <div className="friends-chat-panel friends-chat-panel--split">
+        <div className="friends-chat-panel__people" aria-label="People">
+          {peopleList}
+        </div>
+        <div
+          className="friends-chat-panel__conversation"
+          aria-label={thread ? threadTitle : "Conversation"}
+        >
+          {thread ? (
+            <div className="friends-chat-panel__thread-bar">
+              {inGroupThread ? (
+                <span className="friends-chat-panel__thread-bar-avatar friends-chat-panel__thread-bar-avatar--group">
+                  <UsersRound size={14} aria-hidden />
+                </span>
+              ) : inWorkspaceChannelThread ? (
+                <span className="friends-chat-panel__thread-bar-avatar friends-chat-panel__thread-bar-avatar--group">
+                  <Hash size={14} aria-hidden />
+                </span>
+              ) : (
+                <UserAvatar
+                  userId={thread.personId}
+                  name={thread.personName}
+                  photoURL={partnerPhotoURL}
+                  className="friends-chat-panel__thread-bar-avatar"
+                />
+              )}
+              <span className="friends-chat-panel__thread-bar-name">{threadTitle}</span>
+            </div>
+          ) : null}
+          {conversationPane}
+        </div>
+        {deleteUi}
+      </div>
+    );
+  }
+
+  return (
+    <div className="friends-chat-panel">
+      {thread ? conversationPane : peopleList}
+      {deleteUi}
     </div>
   );
 }

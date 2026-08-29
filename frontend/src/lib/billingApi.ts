@@ -10,6 +10,9 @@ export interface BillingConfig {
   billingManaged: boolean;
   proPriceLabel: string;
   proPriceUsdCents?: number;
+  proPlusEnabled: boolean;
+  proPlusPriceLabel: string;
+  proPlusPriceUsdCents?: number;
   enterpriseEnabled: boolean;
   enterpriseMinMembers: number;
   enterpriseSeatPriceLabel: string;
@@ -65,6 +68,7 @@ export interface BillingStatus {
   onDemandLimitUsd?: number | null;
   billingManaged: boolean;
   stripeSubscriptionStatus: string | null;
+  subscriptionTier?: string;
 }
 
 export interface ModelRateItem {
@@ -278,8 +282,9 @@ export const billingApi = {
     return jsonPost<{ url: string }>("/checkout/pro");
   },
 
-  checkoutProIntent() {
-    return jsonPost<ProCheckoutIntent>("/checkout/pro/intent");
+  checkoutProIntent(plan: "pro" | "proPlus" = "pro") {
+    const path = plan === "proPlus" ? "/checkout/pro-plus/intent" : "/checkout/pro/intent";
+    return jsonPost<ProCheckoutIntent>(path);
   },
 
   checkoutEnterprise(workspaceId: string) {

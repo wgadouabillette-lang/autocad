@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./client";
 import type { PeopleManageScheduleEvent } from "../peopleChat";
+import { cloudMessageSortKey } from "../firestoreTime";
 
 export interface CloudFriendMessage {
   id: string;
@@ -344,10 +345,5 @@ export function watchFriendChatMessages(
 }
 
 function messageSortKey(message: CloudFriendMessage): number {
-  if (typeof message.clientCreatedAt === "number") return message.clientCreatedAt;
-  const createdAt = message.createdAt;
-  if (createdAt && typeof createdAt === "object" && "seconds" in createdAt) {
-    return createdAt.seconds * 1000 + Math.floor(createdAt.nanoseconds / 1_000_000);
-  }
-  return 0;
+  return cloudMessageSortKey(message);
 }

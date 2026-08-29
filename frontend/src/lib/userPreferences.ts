@@ -19,10 +19,37 @@ export type { ColorThemePreference };
 export const DEFAULT_CALENDAR_WORK_START_MINUTES = 7 * 60;
 export const DEFAULT_CALENDAR_WORK_END_MINUTES = 17 * 60;
 export const MIN_CALENDAR_WORK_SPAN_MINUTES = 60;
+/** JS `Date.getDay()` — 0 Sunday … 6 Saturday. Default Mon–Fri. */
+export const DEFAULT_AVAILABILITY_DAYS: number[] = [1, 2, 3, 4, 5];
+/** Monday-first order for weekly availability chips. */
+export const AVAILABILITY_WEEKDAY_ORDER: number[] = [1, 2, 3, 4, 5, 6, 0];
 
 export interface CalendarWorkingHours {
   startMinutes: number;
   endMinutes: number;
+}
+
+export function normalizeAvailabilityDays(value: unknown): number[] {
+  if (!Array.isArray(value)) return [...DEFAULT_AVAILABILITY_DAYS];
+  const next = [
+    ...new Set(
+      value.filter(
+        (day): day is number =>
+          typeof day === "number" && Number.isInteger(day) && day >= 0 && day <= 6,
+      ),
+    ),
+  ].sort((a, b) => a - b);
+  return next;
+}
+
+export function toggleAvailabilityDay(days: number[], day: number): number[] {
+  if (!Number.isInteger(day) || day < 0 || day > 6) {
+    return normalizeAvailabilityDays(days);
+  }
+  const set = new Set(normalizeAvailabilityDays(days));
+  if (set.has(day)) set.delete(day);
+  else set.add(day);
+  return [...set].sort((a, b) => a - b);
 }
 
 export interface UserPreferences {
@@ -56,6 +83,8 @@ export interface UserPreferences {
   calendarWorkStartMinutes: number;
   /** Minutes from midnight — default working-day end for calendar + /manage. */
   calendarWorkEndMinutes: number;
+  /** Weekdays the user is available (`Date.getDay()`, 0 = Sunday). */
+  availabilityDays: number[];
   /** Spotify Meetra DJ default genre seed (e.g. pop, country). */
   hallDjPreferredGenre: string;
   /** Meetra DJ / Spotify in-app playback volume (0–1). */
@@ -93,6 +122,7 @@ const DEFAULTS: UserPreferences = {
   agentAiNotesInstructions: "",
   calendarWorkStartMinutes: DEFAULT_CALENDAR_WORK_START_MINUTES,
   calendarWorkEndMinutes: DEFAULT_CALENDAR_WORK_END_MINUTES,
+  availabilityDays: [...DEFAULT_AVAILABILITY_DAYS],
   hallDjPreferredGenre: DEFAULT_HALL_DJ_GENRE,
   hallDjVolume: DEFAULT_HALL_DJ_VOLUME,
 };
@@ -193,6 +223,7 @@ export function readUserPreferences(): UserPreferences {
         typeof data.agentAiNotesInstructions === "string" ? data.agentAiNotesInstructions : "",
       calendarWorkStartMinutes: calendarHours.startMinutes,
       calendarWorkEndMinutes: calendarHours.endMinutes,
+      availabilityDays: normalizeAvailabilityDays(data.availabilityDays),
       hallDjPreferredGenre: normalizeHallDjGenre(data.hallDjPreferredGenre),
       hallDjVolume: normalizeHallDjVolume(data.hallDjVolume),
     };
