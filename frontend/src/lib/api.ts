@@ -246,6 +246,18 @@ export const api = {
     return r.json();
   },
 
+  async transcribeChunk(file: Blob, filename = "chunk.webm"): Promise<string> {
+    const fd = new FormData();
+    fd.append("file", file, filename);
+    const headers: Record<string, string> = {};
+    const token = await getAuthIdToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const r = await fetch(apiPath("/transcribe"), { method: "POST", body: fd, headers });
+    if (!r.ok) throw new Error(await parseApiError(r));
+    const payload = (await r.json()) as { text?: unknown };
+    return typeof payload.text === "string" ? payload.text.trim() : "";
+  },
+
   async createHandoff(body: {
     kind: "ai-segment" | "manual-note";
     targetType: "dm" | "group";
