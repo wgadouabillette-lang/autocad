@@ -1,5 +1,5 @@
 :root {
-  --meetra-gutter-bust: 9;
+  --meetra-gutter-bust: 10;
   --bg: #141414;
   --surface: #161616;
   --surface-elevated: #1e1e1e;
@@ -12,9 +12,9 @@
   /* Exact salon-vocal card shadow (.forma-capsule / .call-block) */
   --forma-composer-shadow: 0 6px 18px -5px rgba(0, 0, 0, 0.44), 0 2px 5px -2px rgba(0, 0, 0, 0.24);
   --salon-shadow: var(--forma-composer-shadow), inset 0 1px 0 rgb(255 255 255 / 0.07);
-  --radius: 0.625rem;
+  --radius: 1.125rem;
   --nav-height: 64px;
-  --footer-bg: #141414;
+  --footer-bg: #0a0a0a;
   --page-gutter: clamp(1.5rem, calc(8vw + 75px), 300px);
   --font: "SF Pro Text", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   --footer-control-bg: rgb(255 255 255 / 0.06);
@@ -226,7 +226,7 @@ a {
 .product-window {
   width: 100%;
   aspect-ratio: 16 / 10;
-  border-radius: 0.625rem 0.625rem 0 0;
+  border-radius: var(--radius) var(--radius) 0 0;
   overflow: hidden;
   border: 1px solid var(--border);
   border-bottom: 0;
@@ -4291,7 +4291,7 @@ body.landing-locked .hero__cta {
   min-height: 8.5rem;
   padding: 1rem 1.05rem;
   border: 1px solid var(--border);
-  border-radius: 0.25rem;
+  border-radius: var(--radius);
   background: var(--surface-elevated);
   box-shadow: var(--salon-shadow);
   color: inherit;
