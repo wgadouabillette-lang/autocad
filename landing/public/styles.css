@@ -1,5 +1,5 @@
 :root {
-  --meetra-gutter-bust: 12;
+  --meetra-gutter-bust: 13;
   --bg: #141414;
   --surface: #161616;
   --surface-elevated: #1e1e1e;
@@ -2889,9 +2889,9 @@ body.landing-locked .hero__shot-img {
 }
 
 body.landing-locked .hero__shot--dashboard > .hero__shot-img {
-  width: 74%;
+  width: 81%;
   height: auto;
-  max-height: 80%;
+  max-height: 86%;
   object-position: center;
 }
 
@@ -3401,9 +3401,9 @@ body.landing-locked .hero__cta {
     left: 50%;
     top: 46%;
     z-index: 1;
-    width: 86%;
+    width: 91%;
     height: auto;
-    max-height: 88%;
+    max-height: 94%;
     min-height: 0;
     object-fit: contain;
     object-position: center;
@@ -4196,9 +4196,9 @@ body.landing-locked .hero__cta {
   left: 50%;
   top: 46%;
   z-index: 1;
-  width: 74%;
+  width: 81%;
   height: auto;
-  max-height: 80%;
+  max-height: 86%;
   object-fit: contain;
   transform: translate(-50%, -50%);
   border-radius: 0.85rem;

@@ -1,8 +1,8 @@
 (function () {
   var PREVIEW_WIDTH = 1680;
   var PREVIEW_HEIGHT = 940;
-  var WINDOW_SCALE = 0.74;
-  var WINDOW_SCALE_MOBILE = 0.86;
+  var WINDOW_SCALE = 0.81;
+  var WINDOW_SCALE_MOBILE = 0.91;
   var LOAD_TIMEOUT_MS = 8000;
   var NAV_MESSAGE = "lyte-marketing-preview-nav";
   var DESKTOP_WALLPAPER =
