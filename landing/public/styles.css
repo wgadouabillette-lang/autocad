@@ -1,5 +1,5 @@
 :root {
-  --meetra-gutter-bust: 10;
+  --meetra-gutter-bust: 11;
   --bg: #141414;
   --surface: #161616;
   --surface-elevated: #1e1e1e;
@@ -2992,10 +2992,10 @@ body.landing-locked .hero__cta {
 
 .hero__feature-card {
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: 1fr 2.25fr;
   align-items: stretch;
   width: 100%;
-  aspect-ratio: 16 / 8;
+  aspect-ratio: 16 / 9;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: rgb(255 255 255 / 0.04);
@@ -3004,7 +3004,7 @@ body.landing-locked .hero__cta {
 }
 
 .hero__feature-card--media-left {
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 2.25fr 1fr;
 }
 
 .hero__feature-copy {
@@ -3085,16 +3085,17 @@ body.landing-locked .hero__cta {
   margin: 0;
   min-width: 0;
   min-height: 0;
-  padding: clamp(1rem, 2.5vw, 1.75rem);
+  padding: clamp(0.55rem, 1.35vw, 0.9rem);
   overflow: hidden;
 }
 
 .hero__feature-media-frame {
   flex: 1 1 auto;
   width: 100%;
+  height: 100%;
   max-width: 100%;
   max-height: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 11.5;
   border-radius: var(--radius);
   overflow: hidden;
   background: linear-gradient(
@@ -3129,7 +3130,7 @@ body.landing-locked .hero__cta {
 }
 
 .hero__feature-media-frame--notes {
-  aspect-ratio: 16 / 11;
+  aspect-ratio: 16 / 12.5;
 }
 
 .hero__theater-feature-scaler {
@@ -3192,18 +3193,19 @@ body.landing-locked .hero__cta {
   .hero__feature-media-frame {
     flex: none;
     width: 100%;
+    height: auto;
     max-width: none;
     min-width: 0;
-    aspect-ratio: 16 / 12;
-    min-height: clamp(16.5rem, 68vw, 26rem);
+    aspect-ratio: 16 / 13;
+    min-height: clamp(18.75rem, 78vw, 30rem);
     max-height: none;
     border-radius: var(--radius) 0 0 var(--radius);
   }
 
   .hero__feature-media-frame--theater,
   .hero__feature-media-frame--notes {
-    aspect-ratio: 16 / 11;
-    min-height: clamp(17.5rem, 72vw, 28rem);
+    aspect-ratio: 16 / 12.5;
+    min-height: clamp(20rem, 82vw, 32rem);
     border-radius: var(--radius) 0 0 var(--radius);
   }
 }
