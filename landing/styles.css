@@ -1,5 +1,5 @@
 :root {
-  --meetra-gutter-bust: 8;
+  --meetra-gutter-bust: 9;
   --bg: #141414;
   --surface: #161616;
   --surface-elevated: #1e1e1e;
@@ -2995,7 +2995,7 @@ body.landing-locked .hero__cta {
   grid-template-columns: 1fr 2fr;
   align-items: stretch;
   width: 100%;
-  aspect-ratio: 16 / 6.5;
+  aspect-ratio: 16 / 8;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: rgb(255 255 255 / 0.04);
@@ -3195,7 +3195,7 @@ body.landing-locked .hero__cta {
     max-width: none;
     min-width: 0;
     aspect-ratio: 16 / 12;
-    min-height: clamp(14rem, 58vw, 22rem);
+    min-height: clamp(16.5rem, 68vw, 26rem);
     max-height: none;
     border-radius: var(--radius) 0 0 var(--radius);
   }
@@ -3203,7 +3203,7 @@ body.landing-locked .hero__cta {
   .hero__feature-media-frame--theater,
   .hero__feature-media-frame--notes {
     aspect-ratio: 16 / 11;
-    min-height: clamp(15rem, 62vw, 24rem);
+    min-height: clamp(17.5rem, 72vw, 28rem);
     border-radius: var(--radius) 0 0 var(--radius);
   }
 }
