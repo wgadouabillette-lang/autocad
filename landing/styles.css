@@ -11,7 +11,7 @@
   --radius: 0.625rem;
   --nav-height: 64px;
   --footer-bg: #141414;
-  --page-gutter: clamp(1rem, 8vw, 75px);
+  --page-gutter: clamp(1rem, 8vw, 225px);
   --font: "SF Pro Text", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   --footer-control-bg: rgb(255 255 255 / 0.06);
   --footer-control-active: rgb(255 255 255 / 0.12);
