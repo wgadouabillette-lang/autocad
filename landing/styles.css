@@ -1,5 +1,5 @@
 :root {
-  --meetra-gutter-bust: 11;
+  --meetra-gutter-bust: 12;
   --bg: #141414;
   --surface: #161616;
   --surface-elevated: #1e1e1e;
@@ -2856,14 +2856,16 @@ body.landing-locked .hero__shot.hero__shot--dashboard {
     0 24px 64px -28px rgb(0 0 0 / 0.85);
   overflow: hidden;
   pointer-events: none;
-  background: #161616;
+  background-color: #1a1a1a;
+  background-image: url("okokok.avif");
+  background-size: cover;
+  background-position: center;
 }
 
 body.landing-locked .hero__shot.hero__shot--dashboard .hero__dashboard-preview-scaler {
-  inset: 0;
-  left: 0 !important;
-  top: 0 !important;
-  transform: none !important;
+  left: 50% !important;
+  top: 46% !important;
+  transform: translate(-50%, -50%) !important;
 }
 
 /* Keep the live dashboard preview fully visible (no pseudo overlays). */
@@ -2884,6 +2886,13 @@ body.landing-locked .hero__shot-img {
   object-fit: contain;
   object-position: left top;
   display: block;
+}
+
+body.landing-locked .hero__shot--dashboard > .hero__shot-img {
+  width: 74%;
+  height: auto;
+  max-height: 80%;
+  object-position: center;
 }
 
 body.landing-locked .home-main .hero__text {
@@ -3298,8 +3307,25 @@ body.landing-locked .hero__cta {
   position: relative;
   aspect-ratio: 1680 / 940;
   padding: 0;
+  overflow: hidden;
   box-shadow: var(--salon-shadow);
-  background: var(--surface);
+  background-color: #1a1a1a;
+  background-image: url("okokok.avif");
+  background-size: cover;
+  background-position: center;
+}
+
+.hero__shot-desktop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .hero__workspaces-section {
@@ -3316,9 +3342,14 @@ body.landing-locked .hero__cta {
 .hero__dashboard-preview-scaler {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 46%;
+  z-index: 1;
   transform: translate(-50%, -50%);
   overflow: hidden;
+  border-radius: 0.85rem;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.1),
+    0 22px 56px -18px rgb(0 0 0 / 0.72);
 }
 
 .hero__dashboard-preview-scale-layer {
@@ -3360,16 +3391,23 @@ body.landing-locked .hero__cta {
   }
 
   .hero__shot.hero__shot--dashboard .hero__dashboard-preview-scaler {
-    inset: 0;
-    left: 0;
-    top: 0;
-    transform: none;
+    left: 50%;
+    top: 46%;
+    transform: translate(-50%, -50%);
   }
 
   .hero__shot.hero__shot--dashboard .hero__shot-img {
-    min-height: clamp(calc(14rem * 11 / 8), calc(58vw * 11 / 8), calc(22rem * 11 / 8));
-    object-fit: cover;
-    object-position: left center;
+    position: absolute;
+    left: 50%;
+    top: 46%;
+    z-index: 1;
+    width: 86%;
+    height: auto;
+    max-height: 88%;
+    min-height: 0;
+    object-fit: contain;
+    object-position: center;
+    transform: translate(-50%, -50%);
   }
 }
 
@@ -4151,6 +4189,22 @@ body.landing-locked .hero__cta {
   object-fit: cover;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+.hero__shot--dashboard > .hero__shot-img {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  z-index: 1;
+  width: 74%;
+  height: auto;
+  max-height: 80%;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+  border-radius: 0.85rem;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.1),
+    0 22px 56px -18px rgb(0 0 0 / 0.72);
 }
 
 /* Buttons */

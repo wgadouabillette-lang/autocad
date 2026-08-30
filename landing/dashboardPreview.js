@@ -1,8 +1,12 @@
 (function () {
   var PREVIEW_WIDTH = 1680;
   var PREVIEW_HEIGHT = 940;
+  var WINDOW_SCALE = 0.74;
+  var WINDOW_SCALE_MOBILE = 0.86;
   var LOAD_TIMEOUT_MS = 8000;
   var NAV_MESSAGE = "lyte-marketing-preview-nav";
+  var DESKTOP_WALLPAPER =
+    '<img class="hero__shot-desktop" src="okokok.avif" alt="" decoding="async" />';
   var activeIframe = null;
 
   function resolvePreviewHref() {
@@ -30,8 +34,13 @@
     },
   };
 
+  function desktopWallpaperHtml() {
+    return DESKTOP_WALLPAPER;
+  }
+
   function showFallback(mount) {
     mount.innerHTML =
+      desktopWallpaperHtml() +
       '<img class="hero__shot-img" src="app-preview.png" alt="Meetra workspace preview" loading="eager" decoding="async" />';
   }
 
@@ -77,40 +86,16 @@
     var height = mount.clientHeight;
     if (width <= 0 || height <= 0) return false;
 
-    if (isMobilePreview() && !isLockedLanding()) {
-      var coverScale = Math.max(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT);
-      var offsetX = 0;
-      var offsetY = (height - PREVIEW_HEIGHT * coverScale) / 2;
-
-      wrapper.style.width = width + "px";
-      wrapper.style.height = height + "px";
-      wrapper.style.left = "0";
-      wrapper.style.top = "0";
-      wrapper.style.transform = "none";
-
-      scaleLayer.style.width = PREVIEW_WIDTH + "px";
-      scaleLayer.style.height = PREVIEW_HEIGHT + "px";
-      scaleLayer.style.transform =
-        "translate(" + offsetX + "px, " + offsetY + "px) scale(" + coverScale + ")";
-      return true;
-    }
-
-    var scale = Math.min(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT);
+    var inset = isMobilePreview() ? WINDOW_SCALE_MOBILE : WINDOW_SCALE;
+    var scale = Math.min(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT) * inset;
     var scaledW = PREVIEW_WIDTH * scale;
     var scaledH = PREVIEW_HEIGHT * scale;
 
     wrapper.style.width = scaledW + "px";
     wrapper.style.height = scaledH + "px";
-    if (isLockedLanding()) {
-      // Keep the product preview pinned top-left under the hero copy.
-      wrapper.style.left = "0";
-      wrapper.style.top = "0";
-      wrapper.style.transform = "none";
-    } else {
-      wrapper.style.left = "50%";
-      wrapper.style.top = "50%";
-      wrapper.style.transform = "translate(-50%, -50%)";
-    }
+    wrapper.style.left = "50%";
+    wrapper.style.top = "46%";
+    wrapper.style.transform = "translate(-50%, -50%)";
 
     scaleLayer.style.width = PREVIEW_WIDTH + "px";
     scaleLayer.style.height = PREVIEW_HEIGHT + "px";
@@ -123,7 +108,7 @@
     if (!mount) return;
 
     var href = resolvePreviewHref();
-    mount.innerHTML = "";
+    mount.innerHTML = desktopWallpaperHtml();
     activeIframe = null;
 
     var wrapper = document.createElement("div");
