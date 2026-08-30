@@ -107,17 +107,37 @@
 
   function buildFooterHtml() {
     var year = String(new Date().getFullYear());
-    var download =
-      typeof window.HallDownloadTarget === "function"
-        ? window.HallDownloadTarget()
-        : {
-            href: "/downloads/Hall-mac.dmg",
-            labelKey: "try.downloadMac",
-          };
+    var desktop =
+      typeof window.HallIsDesktopDownload === "function"
+        ? window.HallIsDesktopDownload()
+        : true;
+    var downloadItem;
+    if (!desktop) {
+      var unavailable =
+        typeof window.HallUnavailableLabel === "function"
+          ? window.HallUnavailableLabel()
+          : t("nav.downloadUnavailable");
+      downloadItem =
+        '<li><span class="footer-link footer-link--disabled footer-link--unavailable" aria-disabled="true">' +
+        unavailable +
+        (typeof window.HallUnavailableIcon === "function"
+          ? window.HallUnavailableIcon("footer-link__unavailable-icon")
+          : "") +
+        "</span></li>";
+    } else {
+      var download =
+        typeof window.HallDownloadTarget === "function"
+          ? window.HallDownloadTarget()
+          : {
+              href: "/downloads/Hall-mac.dmg",
+              labelKey: "try.downloadMac",
+            };
+      downloadItem = link(download.href, download.labelKey);
+    }
     var columns = [
       column(
         "footer.product",
-        link(download.href, download.labelKey) +
+        downloadItem +
           link("/tarifs", "footer.pricing"),
       ),
       column(
@@ -171,4 +191,5 @@
 
   mountFooter();
   document.addEventListener("lyte-landing:locale", mountFooter);
+  document.addEventListener("lyte-landing:viewport", mountFooter);
 })();

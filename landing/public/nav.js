@@ -37,7 +37,39 @@
     return key;
   }
 
+  function unavailableIcon() {
+    return (
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">' +
+      '<circle cx="12" cy="12" r="10" />' +
+      '<path d="m15 9-6 6" />' +
+      '<path d="m9 9 6 6" />' +
+      "</svg>"
+    );
+  }
+
   function downloadCta() {
+    if (!isDesktopViewport()) {
+      var unavailableLabel =
+        typeof window.HallUnavailableLabel === "function"
+          ? window.HallUnavailableLabel()
+          : window.HallLandingI18n
+            ? t("nav.downloadUnavailable")
+            : "Unavailable on mobile";
+      var icon =
+        typeof window.HallUnavailableIcon === "function"
+          ? window.HallUnavailableIcon()
+          : unavailableIcon();
+      return (
+        '<span class="nav__cta nav__cta--unavailable" id="nav-download" role="note" aria-label="' +
+        unavailableLabel +
+        '"><span id="nav-download-label">' +
+        unavailableLabel +
+        "</span>" +
+        icon +
+        "</span>"
+      );
+    }
+
     var target =
       typeof window.HallDownloadTarget === "function"
         ? window.HallDownloadTarget()
@@ -46,7 +78,7 @@
             labelKey: "try.downloadMac",
             ariaKey: "try.downloadMacAria",
             fallbackLabel: "Download for macOS",
-            fallbackAria: "Download Hall for macOS",
+            fallbackAria: "Download Meetra for macOS",
           };
     var label = window.HallLandingI18n
       ? t(target.labelKey)
@@ -54,12 +86,6 @@
     var aria = window.HallLandingI18n
       ? t(target.ariaKey)
       : target.fallbackAria;
-    var icon =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" width="11" height="11" aria-hidden="true">' +
-      '<path d="M12 3v12" />' +
-      '<path d="m7 10 5 5 5-5" />' +
-      '<path d="M5 21h14" />' +
-      "</svg>";
     return (
       '<a class="nav__cta" id="nav-download" href="' +
       target.href +
@@ -67,9 +93,7 @@
       aria +
       '"><span id="nav-download-label">' +
       label +
-      "</span>" +
-      icon +
-      "</a>"
+      "</span></a>"
     );
   }
 
@@ -243,9 +267,9 @@
       '<nav class="nav" id="site-nav" data-active="' +
       active +
       '">' +
-      '<a class="nav__logo" href="/" aria-label="Hall">' +
-      '<img src="icon.svg" alt="" class="nav__logo-icon" width="26" height="26" />' +
-      "<span>Hall</span></a>" +
+      '<a class="nav__logo" href="/" aria-label="Meetra">' +
+      '<img src="/meetra-wordmark.png" alt="Meetra" class="nav__logo-wordmark" />' +
+      "</a>" +
       '<ul class="nav__tabs" role="list">' +
       tabsHtml +
       "</ul>" +
@@ -259,4 +283,12 @@
   mountNav();
   scrollToInitialHash();
   document.addEventListener("lyte-landing:locale", mountNav);
+  if (window.matchMedia) {
+    var desktopMq = window.matchMedia(DESKTOP_VIEWPORT_QUERY);
+    if (desktopMq.addEventListener) {
+      desktopMq.addEventListener("change", mountNav);
+    } else if (desktopMq.addListener) {
+      desktopMq.addListener(mountNav);
+    }
+  }
 })();

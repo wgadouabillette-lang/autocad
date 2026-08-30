@@ -11,6 +11,33 @@
     if (!link || !labelEl) return;
 
     var lang = locale === "fr" ? "fr" : "en";
+    var icon = link.querySelector("svg");
+    var desktop =
+      typeof window.HallIsDesktopDownload === "function"
+        ? window.HallIsDesktopDownload()
+        : true;
+
+    if (!desktop) {
+      var unavailable =
+        typeof window.HallUnavailableLabel === "function"
+          ? window.HallUnavailableLabel()
+          : "Unavailable on mobile";
+      labelEl.textContent = unavailable;
+      link.classList.add("is-unavailable");
+      link.removeAttribute("href");
+      link.removeAttribute("download");
+      link.setAttribute("role", "note");
+      link.setAttribute("aria-disabled", "true");
+      link.setAttribute("aria-label", unavailable);
+      if (icon) {
+        icon.outerHTML =
+          typeof window.HallUnavailableIcon === "function"
+            ? window.HallUnavailableIcon("hero__cta-icon")
+            : "";
+      }
+      return;
+    }
+
     var target =
       typeof window.HallDownloadTarget === "function"
         ? window.HallDownloadTarget()
@@ -19,10 +46,14 @@
             labelKey: "try.downloadMac",
             ariaKey: "try.downloadMacAria",
             fallbackLabel: "Download for macOS",
-            fallbackAria: "Download Hall for macOS",
+            fallbackAria: "Download Meetra for macOS",
           };
 
+    link.classList.remove("is-unavailable");
+    link.removeAttribute("role");
+    link.removeAttribute("aria-disabled");
     link.href = target.href;
+    link.setAttribute("download", "");
     labelEl.textContent = window.HallLandingI18n
       ? window.HallLandingI18n.t(target.labelKey, lang)
       : target.fallbackLabel;
@@ -32,6 +63,10 @@
         ? window.HallLandingI18n.t(target.ariaKey, lang)
         : target.fallbackAria,
     );
+    icon = link.querySelector("svg");
+    if (icon && typeof window.HallDownloadArrowIcon === "function") {
+      icon.outerHTML = window.HallDownloadArrowIcon("hero__cta-icon");
+    }
   }
 
   function refreshDownloadLabel(locale) {
@@ -45,11 +80,14 @@
       document.getElementById("home-download-label"),
       locale,
     );
-    configureDownloadLink(
-      document.getElementById("nav-download"),
-      document.getElementById("nav-download-label"),
-      locale,
-    );
+    var navDownload = document.getElementById("nav-download");
+    if (navDownload && navDownload.tagName === "A") {
+      configureDownloadLink(
+        navDownload,
+        document.getElementById("nav-download-label"),
+        locale,
+      );
+    }
   }
 
   var grid = document.getElementById("highlights-grid");
@@ -133,5 +171,8 @@
   document.addEventListener("lyte-landing:locale", function (event) {
     refreshDownloadLabel(event.detail && event.detail.locale ? event.detail.locale : "en");
     refreshHighlightsMoreLabel();
+  });
+  document.addEventListener("lyte-landing:viewport", function () {
+    refreshDownloadLabel(window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en");
   });
 })();

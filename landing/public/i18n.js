@@ -6,9 +6,9 @@
 
   var MESSAGES = {
     en: {
-      "meta.title": "Hall — Collaborative workspace",
+      "meta.title": "Meetra — Collaborative workspace",
       "meta.description":
-        "Hall is a desktop team workspace with voice channels, AI chat, calendar, screen recording, and Google/Spotify connectors — download the app to collaborate.",
+        "Meetra is a desktop team workspace with voice channels, AI chat, calendar, screen recording, and Google/Spotify connectors — download the app to collaborate.",
       "nav.pricing": "Pricing",
       "nav.careers": "Careers",
       "nav.skills": "Skills",
@@ -20,7 +20,7 @@
       "nav.affiliateSoon": "Coming soon",
       "nav.resources": "Resources",
       "nav.openApp": "Open on web",
-      "nav.openAppDesktopOnly": "Hall is available on desktop only",
+      "nav.openAppDesktopOnly": "Meetra is available on desktop only",
       "hero.title": "AI-powered collaborative<br />workspace for teams",
       "hero.lead":
         "A collaborative workspace application that helps teams communicate, organize meetings, manage tasks, and connect productivity tools.",
@@ -28,34 +28,34 @@
       "hero.cta.pricing": "View pricing",
       "hero.shots.trio.title": "From conversation to action",
       "hero.shot.main.alt":
-        "Hall preview — main view with voice channels and AI chat",
-      "hero.shot.voice.alt": "Hall preview — voice channels and team calls",
+        "Meetra preview — main view with voice channels and AI chat",
+      "hero.shot.voice.alt": "Meetra preview — voice channels and team calls",
       "hero.shot.voice.title": "Voice channels",
       "hero.shot.voice.desc":
         "Join teammates in one click — camera, screen share, and live presence.",
-      "hero.shot.skills.alt": "Hall preview — AI Skills slash commands in chat",
+      "hero.shot.skills.alt": "Meetra preview — AI Skills slash commands in chat",
       "hero.shot.skills.title": "AI Skills",
       "hero.shot.skills.desc":
         "Type / for in-app skills — schedule tasks with /manage or share context with /handoff.",
-      "hero.shot.recording.alt": "Hall preview — demo recording with active record button",
+      "hero.shot.recording.alt": "Meetra preview — demo recording with active record button",
       "hero.shot.recording.title": "Demo Recording",
       "hero.shot.recording.desc":
         "Capture your screen and voice from the bottom bar — one click to record.",
-      "hero.shot.calendar.alt": "Hall preview — calendar and connectors",
+      "hero.shot.calendar.alt": "Meetra preview — calendar and connectors",
       "hero.shot.calendar.title": "Calendar & connectors",
       "hero.shot.calendar.desc":
         "Schedule meetings and connect Gmail, Calendar, Spotify, and more.",
-      "hero.shot.notes.alt": "Hall preview — Theater mode with stage and audience",
-      "hero.shot.notes.title": "Theater mode",
+      "hero.shot.notes.alt": "Meetra preview — Starboy playing in the workspace",
+      "hero.shot.notes.title": "Spotify integrated",
       "hero.shot.notes.desc":
-        "Run all-hands and presentations with a stage, audience seating, and a hand-raise queue — built into your workspace.",
-      "hero.shot.notes.cta": "Explore Theater",
-      "hero.shot.workspace.alt": "Hall preview — /handoff skill sharing chat context",
+        "Play Spotify inside Meetra — see what’s playing while you chat.",
+      "hero.shot.notes.cta": "Explore Spotify",
+      "hero.shot.workspace.alt": "Meetra preview — AI one-pager handed off to a teammate",
       "hero.shot.workspace.title": "AI handoff",
       "hero.shot.workspace.desc":
         "Select messages from any thread and send them to a teammate or group with /handoff — full context, zero copy-paste.",
       "hero.shot.workspace.cta": "Explore handoff",
-      "hero.shot.followup.alt": "Hall preview — post-call follow-up and recap",
+      "hero.shot.followup.alt": "Meetra preview — Notes tab after a completed meeting",
       "hero.shot.followup.title": "Post-call follow-up",
       "hero.shot.followup.desc":
         "Structured recap, action items, and draft emails — generated right after your meeting.",
@@ -69,7 +69,7 @@
       "highlights.card2.desc": "Share a conversation excerpt with a teammate or group.",
       "highlights.card3.tag": "Calls",
       "highlights.card3.title": "AI Notes",
-      "highlights.card3.desc": "Live transcription during voice calls, right inside Hall.",
+      "highlights.card3.desc": "Live transcription during voice calls, right inside Meetra.",
       "highlights.card4.tag": "Connectors",
       "highlights.card4.title": "Spotify in chat",
       "highlights.card4.desc": "Play a track or queue it from the composer.",
@@ -81,13 +81,14 @@
       "highlights.card6.desc": "Structured summary, calendar, and emails after your meeting.",
       "highlights.more": "View more product upgrades",
       "highlights.less": "View less product upgrades",
-      "try.title": "Try Hall Now.",
+      "try.title": "Try Meetra Now.",
       "try.downloadMac": "Download for macOS",
       "try.downloadWin": "Download for Windows",
       "try.downloadLinux": "Download for Linux",
-      "try.downloadMacAria": "Download Hall for macOS",
-      "try.downloadWinAria": "Download Hall for Windows",
-      "try.downloadLinuxAria": "Download Hall for Linux",
+      "try.downloadMacAria": "Download Meetra for macOS",
+      "try.downloadWinAria": "Download Meetra for Windows",
+      "try.downloadLinuxAria": "Download Meetra for Linux",
+      "nav.downloadUnavailable": "Unavailable on mobile",
       "try.mobileStart": "Get started",
       "footer.product": "Product",
       "footer.openApp": "Open on web",
@@ -105,17 +106,17 @@
       "footer.subprocessors": "Subprocessors",
       "footer.googleLimitedUse": "Google Limited Use",
       "footer.connect": "Connect",
-      "footer.copyright": "© {year} Hall. All rights reserved.",
+      "footer.copyright": "© {year} Meetra. All rights reserved.",
       "footer.theme.system": "System theme",
       "footer.theme.light": "Light theme",
       "footer.theme.dark": "Dark theme",
       "footer.lang.label": "Language",
-      "careers.meta.title": "Hall — Careers",
+      "careers.meta.title": "Meetra — Careers",
       "careers.meta.description":
-        "Join Hall — help build the collaborative workspace teams actually want.",
+        "Join Meetra — help build the collaborative workspace teams actually want.",
       "careers.intro.title": "Help us build the workspace teams actually want",
       "careers.intro.p1":
-        "Hall is a collaborative workspace — voice channels, AI chat, calendar, connectors, and post-call follow-up in one desktop app. We're building the tool we wished we had when juggling calls, chat, and a dozen tabs.",
+        "Meetra is a collaborative workspace — voice channels, AI chat, calendar, connectors, and post-call follow-up in one desktop app. We're building the tool we wished we had when juggling calls, chat, and a dozen tabs.",
       "careers.intro.p2":
         "We're early but shipping fast: real-time voice with AI notes, an agent with skills, and integrations teams use every day. We're a small, focused team with big ambitions for how teams work together.",
       "careers.intro.p3":
@@ -159,9 +160,9 @@
         "Product • Paris or Remote (Europe, North America) • Full time • Remote",
     },
     fr: {
-      "meta.title": "Hall — Espace de travail collaboratif",
+      "meta.title": "Meetra — Espace de travail collaboratif",
       "meta.description":
-        "Hall est une app desktop d'espace de travail d'équipe : canaux vocaux, chat IA, calendrier, enregistrement d'écran et connecteurs Google/Spotify — téléchargez l'app pour collaborer.",
+        "Meetra est une app desktop d'espace de travail d'équipe : canaux vocaux, chat IA, calendrier, enregistrement d'écran et connecteurs Google/Spotify — téléchargez l'app pour collaborer.",
       "nav.pricing": "Tarifs",
       "nav.careers": "Careers",
       "nav.skills": "Skills",
@@ -173,7 +174,7 @@
       "nav.affiliateSoon": "Bientôt disponible",
       "nav.resources": "Ressources",
       "nav.openApp": "Ouvrir le web",
-      "nav.openAppDesktopOnly": "Hall est disponible sur ordinateur uniquement",
+      "nav.openAppDesktopOnly": "Meetra est disponible sur ordinateur uniquement",
       "hero.title": "Espace de travail collaboratif<br />propulsé par l'IA",
       "hero.lead":
         "Une application d'espace de travail collaboratif qui aide les équipes à communiquer, organiser des réunions, gérer des tâches et connecter leurs outils de productivité.",
@@ -181,34 +182,34 @@
       "hero.cta.pricing": "Voir les tarifs",
       "hero.shots.trio.title": "From conversation to action",
       "hero.shot.main.alt":
-        "Aperçu de Hall — vue principale avec salons vocaux et chat IA",
-      "hero.shot.voice.alt": "Aperçu Hall — salons vocaux et appels d'équipe",
+        "Aperçu de Meetra — vue principale avec salons vocaux et chat IA",
+      "hero.shot.voice.alt": "Aperçu Meetra — salons vocaux et appels d'équipe",
       "hero.shot.voice.title": "Salons vocaux",
       "hero.shot.voice.desc":
         "Rejoignez vos collègues en un clic — caméra, partage d'écran et présence en direct.",
-      "hero.shot.skills.alt": "Hall preview — AI Skills slash commands in chat",
+      "hero.shot.skills.alt": "Meetra preview — AI Skills slash commands in chat",
       "hero.shot.skills.title": "AI Skills",
       "hero.shot.skills.desc":
         "Type / for in-app skills — schedule tasks with /manage or share context with /handoff.",
-      "hero.shot.recording.alt": "Hall preview — demo recording with active record button",
+      "hero.shot.recording.alt": "Meetra preview — demo recording with active record button",
       "hero.shot.recording.title": "Demo Recording",
       "hero.shot.recording.desc":
         "Capture your screen and voice from the bottom bar — one click to record.",
-      "hero.shot.calendar.alt": "Hall preview — calendar and connectors",
+      "hero.shot.calendar.alt": "Meetra preview — calendar and connectors",
       "hero.shot.calendar.title": "Calendar & connectors",
       "hero.shot.calendar.desc":
         "Schedule meetings and connect Gmail, Calendar, Spotify, and more.",
-      "hero.shot.notes.alt": "Aperçu Hall — mode Theater avec scène et audience",
-      "hero.shot.notes.title": "Mode Theater",
+      "hero.shot.notes.alt": "Aperçu Meetra — Starboy en lecture dans l’espace de travail",
+      "hero.shot.notes.title": "Spotify intégré",
       "hero.shot.notes.desc":
-        "All-hands et présentations avec scène, audience et file de mains levées — intégré à votre workspace.",
-      "hero.shot.notes.cta": "Découvrir Theater",
-      "hero.shot.workspace.alt": "Aperçu Hall — skill /handoff pour partager le contexte d'un chat",
+        "Écoutez Spotify dans Meetra — la piste en cours s’affiche pendant que vous discutez.",
+      "hero.shot.notes.cta": "Découvrir Spotify",
+      "hero.shot.workspace.alt": "Aperçu Meetra — one-pager IA transmis à un collègue",
       "hero.shot.workspace.title": "Handoff IA",
       "hero.shot.workspace.desc":
         "Sélectionnez des messages dans n'importe quel fil et envoyez-les à un collègue ou un groupe avec /handoff — le contexte, sans copier-coller.",
       "hero.shot.workspace.cta": "Découvrir handoff",
-      "hero.shot.followup.alt": "Aperçu Hall — follow-up et récap post-appel",
+      "hero.shot.followup.alt": "Aperçu Meetra — onglet Notes après une réunion terminée",
       "hero.shot.followup.title": "Follow-up post-appel",
       "hero.shot.followup.desc":
         "Récap structuré, actions et brouillons d'emails — générés juste après votre réunion.",
@@ -225,7 +226,7 @@
       "highlights.card3.tag": "Calls",
       "highlights.card3.title": "AI Notes",
       "highlights.card3.desc":
-        "Transcription live pendant vos appels vocaux, directement dans Hall.",
+        "Transcription live pendant vos appels vocaux, directement dans Meetra.",
       "highlights.card4.tag": "Connectors",
       "highlights.card4.title": "Spotify dans le chat",
       "highlights.card4.desc":
@@ -240,13 +241,14 @@
         "Synthèse structurée, calendrier et e-mails après votre réunion.",
       "highlights.more": "View more product upgrades",
       "highlights.less": "View less product upgrades",
-      "try.title": "Try Hall Now.",
+      "try.title": "Try Meetra Now.",
       "try.downloadMac": "Download for macOS",
       "try.downloadWin": "Download for Windows",
       "try.downloadLinux": "Télécharger pour Linux",
-      "try.downloadMacAria": "Télécharger Hall pour macOS",
-      "try.downloadWinAria": "Télécharger Hall pour Windows",
-      "try.downloadLinuxAria": "Télécharger Hall pour Linux",
+      "try.downloadMacAria": "Télécharger Meetra pour macOS",
+      "try.downloadWinAria": "Télécharger Meetra pour Windows",
+      "try.downloadLinuxAria": "Télécharger Meetra pour Linux",
+      "nav.downloadUnavailable": "Indisponible sur mobile",
       "try.mobileStart": "Commencer",
       "footer.product": "Produit",
       "footer.openApp": "Ouvrir le web",
@@ -264,17 +266,17 @@
       "footer.subprocessors": "Sous-traitants",
       "footer.googleLimitedUse": "Google Limited Use",
       "footer.connect": "Réseaux",
-      "footer.copyright": "© {year} Hall. Tous droits réservés.",
+      "footer.copyright": "© {year} Meetra. Tous droits réservés.",
       "footer.theme.system": "Thème système",
       "footer.theme.light": "Thème clair",
       "footer.theme.dark": "Thème sombre",
       "footer.lang.label": "Langue",
-      "careers.meta.title": "Hall — Careers",
+      "careers.meta.title": "Meetra — Careers",
       "careers.meta.description":
-        "Rejoignez Hall — construisez l'espace de travail collaboratif dont les équipes ont besoin.",
+        "Rejoignez Meetra — construisez l'espace de travail collaboratif dont les équipes ont besoin.",
       "careers.intro.title": "Construisons l'espace de travail dont les équipes ont vraiment besoin",
       "careers.intro.p1":
-        "Hall est un espace de travail collaboratif — salons vocaux, chat IA, calendrier, connecteurs et follow-up post-appel dans une seule app desktop. On construit l'outil qu'on aurait aimé avoir entre appels, chat et douzaines d'onglets.",
+        "Meetra est un espace de travail collaboratif — salons vocaux, chat IA, calendrier, connecteurs et follow-up post-appel dans une seule app desktop. On construit l'outil qu'on aurait aimé avoir entre appels, chat et douzaines d'onglets.",
       "careers.intro.p2":
         "On est encore early stage mais on ship vite : voix temps réel avec AI Notes, un agent avec skills, et des intégrations utilisées au quotidien. Petite équipe, grandes ambitions sur la façon dont les équipes travaillent ensemble.",
       "careers.intro.p3":

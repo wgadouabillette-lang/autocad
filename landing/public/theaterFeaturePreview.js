@@ -13,7 +13,7 @@
 
   function showFallback(mount) {
     mount.innerHTML =
-      '<img class="hero__feature-img" src="app-preview.png" alt="Hall Theater preview" loading="eager" decoding="async" />';
+      '<img class="hero__feature-img" src="app-preview.png" alt="Meetra Theater preview" loading="eager" decoding="async" />';
   }
 
   function scalePreview(mount, wrapper, scaleLayer) {
@@ -51,7 +51,7 @@
 
     var iframe = document.createElement("iframe");
     iframe.className = "hero__theater-feature-frame";
-    iframe.title = "Hall Theater preview";
+    iframe.title = "Meetra Theater preview";
     iframe.loading = "eager";
     iframe.tabIndex = -1;
     iframe.setAttribute("aria-hidden", "true");

@@ -1,19 +1,24 @@
 (function () {
-  var PREVIEW_WIDTH = 1280;
-  var PREVIEW_HEIGHT = 800;
+  var PREVIEW_WIDTH = 1680;
+  var PREVIEW_HEIGHT = 940;
+  var VISIBLE_WIDTH = 980;
+  var VISIBLE_HEIGHT = 680;
+  var VISIBLE_LEFT = (PREVIEW_WIDTH - VISIBLE_WIDTH) / 2;
+  var VISIBLE_TOP = 0;
+  var TOP_PAD = 15;
   var LOAD_TIMEOUT_MS = 8000;
 
   function resolvePreviewHref() {
     var params = new URLSearchParams();
     var theme = document.documentElement.dataset.theme || "dark";
     params.set("theme", theme);
-    params.set("scene", "theater");
+    params.set("scene", "handoff");
     return "/app/preview.html?" + params.toString();
   }
 
   function showFallback(mount) {
     mount.innerHTML =
-      '<img class="hero__feature-img" src="app-preview.png" alt="Meetra Theater preview" loading="eager" decoding="async" />';
+      '<img class="hero__feature-img" src="app-preview.png" alt="Meetra AI handoff preview" loading="eager" decoding="async" />';
   }
 
   function scalePreview(mount, wrapper, scaleLayer) {
@@ -21,11 +26,9 @@
     var height = mount.clientHeight;
     if (width <= 0 || height <= 0) return;
 
-    var scale = Math.max(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT);
-    var scaledW = PREVIEW_WIDTH * scale;
-    var scaledH = PREVIEW_HEIGHT * scale;
-    var offsetX = Math.min(0, (width - scaledW) / 2);
-    var offsetY = Math.min(0, (height - scaledH) / 2);
+    var scale = Math.max(width / VISIBLE_WIDTH, height / VISIBLE_HEIGHT);
+    var offsetX = -VISIBLE_LEFT * scale + (width - VISIBLE_WIDTH * scale) / 2;
+    var offsetY = -VISIBLE_TOP * scale + TOP_PAD;
 
     wrapper.style.width = width + "px";
     wrapper.style.height = height + "px";
@@ -37,7 +40,7 @@
   }
 
   function mountPreview() {
-    var mount = document.getElementById("theater-feature-preview");
+    var mount = document.getElementById("handoff-feature-preview");
     if (!mount) return;
 
     var href = resolvePreviewHref();
@@ -51,7 +54,7 @@
 
     var iframe = document.createElement("iframe");
     iframe.className = "hero__theater-feature-frame";
-    iframe.title = "Meetra Theater preview";
+    iframe.title = "Meetra AI handoff preview";
     iframe.loading = "eager";
     iframe.tabIndex = -1;
     iframe.setAttribute("aria-hidden", "true");
