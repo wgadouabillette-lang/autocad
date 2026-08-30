@@ -1,5 +1,5 @@
 :root {
-  --meetra-gutter-bust: 5;
+  --meetra-gutter-bust: 6;
   --bg: #171717;
   --surface: #161616;
   --surface-elevated: #1e1e1e;
@@ -2993,7 +2993,7 @@ body.landing-locked .hero__cta {
   align-items: stretch;
   width: 100%;
   aspect-ratio: 16 / 6.5;
-  border: 0;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: rgb(255 255 255 / 0.04);
   overflow: hidden;
@@ -3292,7 +3292,6 @@ body.landing-locked .hero__cta {
   position: relative;
   aspect-ratio: 1680 / 940;
   padding: 0;
-  border: 0;
   box-shadow: var(--shadow);
   background: var(--surface);
 }
@@ -4287,7 +4286,7 @@ body.landing-locked .hero__cta {
   width: 100%;
   min-height: 8.5rem;
   padding: 1rem 1.05rem;
-  border: 0;
+  border: 1px solid var(--border);
   border-radius: 0.25rem;
   background: var(--surface-elevated);
   color: inherit;
