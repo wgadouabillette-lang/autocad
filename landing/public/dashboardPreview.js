@@ -25,13 +25,100 @@
     return true;
   }
 
+  var FEATURES = {
+    polls: { label: "Polls" },
+    recording: { label: "Recording" },
+    "follows-up": { label: "Follows-up" },
+    spotify: { label: "Spotify" },
+    calendar: { label: "Calendar" },
+    "ai-notes": { label: "AI Notes" },
+    messages: { label: "Messages" },
+  };
+
+  function pulsePreviewWindow() {
+    var mount = document.getElementById("workspaces-preview");
+    if (!mount) return;
+    var targets = mount.querySelectorAll(
+      ".hero__dashboard-preview-scaler, .hero__shot--dashboard > .hero__shot-img",
+    );
+    for (var i = 0; i < targets.length; i++) {
+      targets[i].classList.remove("is-showcasing");
+      void targets[i].offsetWidth;
+      targets[i].classList.add("is-showcasing");
+    }
+  }
+
+  function featureOverlayHost(mount) {
+    return (
+      mount.querySelector(".hero__dashboard-preview-scaler") ||
+      mount
+    );
+  }
+
+  function ensureFeatureOverlay(mount) {
+    var host = featureOverlayHost(mount);
+    var veil = host.querySelector("[data-feature-veil]");
+    var callout = host.querySelector("[data-feature-callout]");
+    if (!veil) {
+      veil = document.createElement("div");
+      veil.className = "hero__feature-veil";
+      veil.setAttribute("data-feature-veil", "");
+      veil.setAttribute("aria-hidden", "true");
+      host.appendChild(veil);
+    }
+    if (!callout) {
+      callout = document.createElement("div");
+      callout.className = "hero__feature-callout";
+      if (!host.classList.contains("hero__dashboard-preview-scaler")) {
+        callout.classList.add("hero__feature-callout--fallback");
+      }
+      callout.setAttribute("data-feature-callout", "");
+      callout.setAttribute("aria-live", "polite");
+      host.appendChild(callout);
+    }
+    return { veil: veil, callout: callout };
+  }
+
+  function showcaseOnWindow(feature) {
+    var mount = document.getElementById("workspaces-preview");
+    var meta = FEATURES[feature];
+    if (!mount || !meta) return;
+    var overlay = ensureFeatureOverlay(mount);
+    overlay.callout.textContent = meta.label;
+    overlay.veil.classList.remove("is-visible");
+    overlay.callout.classList.remove("is-visible");
+    void overlay.callout.offsetWidth;
+    overlay.veil.classList.add("is-visible");
+    overlay.callout.classList.add("is-visible");
+  }
+
+  function setActiveFeatureChip(feature) {
+    var chips = document.querySelectorAll("[data-feature-chip]");
+    for (var i = 0; i < chips.length; i++) {
+      var on = chips[i].getAttribute("data-feature-chip") === feature;
+      chips[i].classList.toggle("is-active", on);
+      if (on) chips[i].setAttribute("aria-pressed", "true");
+      else chips[i].setAttribute("aria-pressed", "false");
+    }
+  }
+
+  function showFeature(feature) {
+    if (!FEATURES[feature]) return false;
+    setActiveFeatureChip(feature);
+    pulsePreviewWindow();
+    showcaseOnWindow(feature);
+    return true;
+  }
+
   window.HallCompactPreview = {
     showSection: function (sectionId) {
       if (sectionId === "connectors") return postPreviewNavAction("open-connectors");
       if (sectionId === "skills") return postPreviewNavAction("open-skills");
       if (sectionId === "music") return postPreviewNavAction("play-music");
+      if (FEATURES[sectionId]) return showFeature(sectionId);
       return postPreviewNavAction("show-dashboard");
     },
+    showFeature: showFeature,
   };
 
   function desktopWallpaperHtml() {
@@ -42,6 +129,7 @@
     mount.innerHTML =
       desktopWallpaperHtml() +
       '<img class="hero__shot-img" src="app-preview.png" alt="Meetra workspace preview" loading="eager" decoding="async" />';
+    ensureFeatureOverlay(mount);
   }
 
   function isMobilePreview() {
@@ -164,6 +252,20 @@
     }
 
     iframe.src = href;
+
+    ensureFeatureOverlay(mount);
+    bindFeatureChips();
+  }
+
+  function bindFeatureChips() {
+    var row = document.querySelector("[data-feature-chips]");
+    if (!row || row.dataset.bound === "1") return;
+    row.dataset.bound = "1";
+    row.addEventListener("click", function (event) {
+      var button = event.target.closest("[data-feature-chip]");
+      if (!button || !row.contains(button)) return;
+      showFeature(button.getAttribute("data-feature-chip"));
+    });
   }
 
   function bootPreview() {
