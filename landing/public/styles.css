@@ -1,5 +1,5 @@
 :root {
-  --meetra-gutter-bust: 3;
+  --meetra-gutter-bust: 4;
   --bg: #000000;
   --surface: #161616;
   --surface-elevated: #1e1e1e;
@@ -12,7 +12,7 @@
   --radius: 0.625rem;
   --nav-height: 64px;
   --footer-bg: #141414;
-  --page-gutter: clamp(1rem, calc(8vw - 75px), 150px);
+  --page-gutter: clamp(1.5rem, calc(8vw + 75px), 300px);
   --font: "SF Pro Text", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   --footer-control-bg: rgb(255 255 255 / 0.06);
   --footer-control-active: rgb(255 255 255 / 0.12);
