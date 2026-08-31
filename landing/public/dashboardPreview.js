@@ -2,6 +2,7 @@
   var PREVIEW_WIDTH = 1680;
   var PREVIEW_HEIGHT = 940;
   var WINDOW_SCALE = 0.81;
+  var MOBILE_INSET = 0.06;
   var TITLE_BAR_PX = 23;
   var LOAD_TIMEOUT_MS = 8000;
   var NAV_MESSAGE = "lyte-marketing-preview-nav";
@@ -103,23 +104,27 @@
     if (width <= 0 || height <= 0) return false;
 
     if (isMobilePreview()) {
-      var bodyH = Math.max(height - TITLE_BAR_PX, 1);
-      var coverScale = Math.max(width / PREVIEW_WIDTH, bodyH / PREVIEW_HEIGHT);
+      var insetX = Math.max(12, Math.round(width * MOBILE_INSET));
+      var insetY = Math.max(12, Math.round(height * MOBILE_INSET));
+      var innerW = Math.max(width - insetX * 2, 1);
+      var innerH = Math.max(height - insetY * 2, 1);
+      var bodyH = Math.max(innerH - TITLE_BAR_PX, 1);
+      var coverScale = Math.max(innerW / PREVIEW_WIDTH, bodyH / PREVIEW_HEIGHT);
       var coverW = PREVIEW_WIDTH * coverScale;
       var coverH = PREVIEW_HEIGHT * coverScale;
 
-      wrapper.style.inset = "0";
-      wrapper.style.width = "100%";
-      wrapper.style.height = "100%";
-      wrapper.style.left = "0";
-      wrapper.style.top = "0";
-      wrapper.style.right = "0";
-      wrapper.style.bottom = "0";
-      wrapper.style.transform = "none";
+      wrapper.style.inset = "";
+      wrapper.style.right = "";
+      wrapper.style.bottom = "";
+      wrapper.style.width = innerW + "px";
+      wrapper.style.height = innerH + "px";
+      wrapper.style.left = "50%";
+      wrapper.style.top = "50%";
+      wrapper.style.transform = "translate(-50%, -50%)";
 
       scaleLayer.style.width = PREVIEW_WIDTH + "px";
       scaleLayer.style.height = PREVIEW_HEIGHT + "px";
-      scaleLayer.style.left = (width - coverW) / 2 + "px";
+      scaleLayer.style.left = (innerW - coverW) / 2 + "px";
       scaleLayer.style.top = (bodyH - coverH) / 2 + "px";
       scaleLayer.style.transform = "scale(" + coverScale + ")";
       return true;
