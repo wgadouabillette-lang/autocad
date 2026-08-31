@@ -72,11 +72,14 @@
   /** Size the mount to the largest 1680×940 box that fits the visible shots frame. */
   function fitLockedMount(mount) {
     if (!isLockedLanding()) {
-      mount.style.width = "";
-      mount.style.height = "";
-      mount.style.maxWidth = "";
-      mount.style.maxHeight = "";
-      mount.style.marginLeft = "";
+      if (!isMobilePreview()) {
+        mount.style.width = "";
+        mount.style.height = "";
+        mount.style.maxWidth = "";
+        mount.style.maxHeight = "";
+        mount.style.marginLeft = "";
+        mount.style.marginRight = "";
+      }
       return true;
     }
 
@@ -104,24 +107,46 @@
     if (width <= 0 || height <= 0) return false;
 
     if (isMobilePreview()) {
+      mount.style.marginRight = "";
+      mount.style.width = "";
+      width = mount.clientWidth;
+      height = mount.clientHeight;
+      var mountRect = mount.getBoundingClientRect();
+      var rightGap = window.innerWidth - mountRect.right;
+      if (rightGap > 0.5) {
+        mount.style.marginRight = -rightGap + "px";
+        mount.style.width = Math.round(width + rightGap) + "px";
+        width = mount.clientWidth;
+        height = mount.clientHeight;
+      }
+
       var insetX = Math.max(12, Math.round(width * MOBILE_INSET));
       var insetY = Math.max(12, Math.round(height * MOBILE_INSET));
-      // Flush-right: wallpaper can peek on left/top/bottom, never on the right.
-      var innerW = Math.max(width - insetX, 1);
+      // Stretch to the card/viewport right edge; wallpaper peeks only on the left.
       var innerH = Math.max(height - insetY * 2, 1);
-      var bodyH = Math.max(innerH - TITLE_BAR_PX, 1);
-      var coverScale = Math.max(innerW / PREVIEW_WIDTH, bodyH / PREVIEW_HEIGHT);
-      var coverW = PREVIEW_WIDTH * coverScale;
-      var coverH = PREVIEW_HEIGHT * coverScale;
 
       wrapper.style.inset = "";
       wrapper.style.bottom = "";
       wrapper.style.left = insetX + "px";
       wrapper.style.top = insetY + "px";
       wrapper.style.right = "0px";
-      wrapper.style.width = innerW + "px";
+      wrapper.style.width = "";
+      wrapper.style.maxWidth = "none";
       wrapper.style.height = innerH + "px";
       wrapper.style.transform = "none";
+      wrapper.style.borderTopRightRadius = "0";
+      wrapper.style.borderBottomRightRadius = "0";
+
+      var innerW = Math.max(wrapper.clientWidth || width - insetX, 1);
+      var wrapRect = wrapper.getBoundingClientRect();
+      var wrapGap = window.innerWidth - wrapRect.right;
+      if (wrapGap > 0.5) {
+        innerW = Math.max(Math.round(innerW + wrapGap), 1);
+        wrapper.style.width = innerW + "px";
+      }
+      var bodyH = Math.max(innerH - TITLE_BAR_PX, 1);
+      var coverScale = Math.max(innerW / PREVIEW_WIDTH, bodyH / PREVIEW_HEIGHT);
+      var coverH = PREVIEW_HEIGHT * coverScale;
 
       scaleLayer.style.width = PREVIEW_WIDTH + "px";
       scaleLayer.style.height = PREVIEW_HEIGHT + "px";
