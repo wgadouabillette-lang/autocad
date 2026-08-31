@@ -106,7 +106,8 @@
     if (isMobilePreview()) {
       var insetX = Math.max(12, Math.round(width * MOBILE_INSET));
       var insetY = Math.max(12, Math.round(height * MOBILE_INSET));
-      var innerW = Math.max(width - insetX * 2, 1);
+      // Flush-right: wallpaper can peek on left/top/bottom, never on the right.
+      var innerW = Math.max(width - insetX, 1);
       var innerH = Math.max(height - insetY * 2, 1);
       var bodyH = Math.max(innerH - TITLE_BAR_PX, 1);
       var coverScale = Math.max(innerW / PREVIEW_WIDTH, bodyH / PREVIEW_HEIGHT);
@@ -114,17 +115,17 @@
       var coverH = PREVIEW_HEIGHT * coverScale;
 
       wrapper.style.inset = "";
-      wrapper.style.right = "";
       wrapper.style.bottom = "";
+      wrapper.style.left = insetX + "px";
+      wrapper.style.top = insetY + "px";
+      wrapper.style.right = "0px";
       wrapper.style.width = innerW + "px";
       wrapper.style.height = innerH + "px";
-      wrapper.style.left = "50%";
-      wrapper.style.top = "50%";
-      wrapper.style.transform = "translate(-50%, -50%)";
+      wrapper.style.transform = "none";
 
       scaleLayer.style.width = PREVIEW_WIDTH + "px";
       scaleLayer.style.height = PREVIEW_HEIGHT + "px";
-      scaleLayer.style.left = (innerW - coverW) / 2 + "px";
+      scaleLayer.style.left = "0px";
       scaleLayer.style.top = (bodyH - coverH) / 2 + "px";
       scaleLayer.style.transform = "scale(" + coverScale + ")";
       return true;
