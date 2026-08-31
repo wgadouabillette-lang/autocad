@@ -1,5 +1,10 @@
 import { ArrowUpRight } from "lucide-react";
-import { CHAT_CONNECTORS, isConnectorComingSoon, type ChatConnectorId } from "./chatConnectors";
+import {
+  CHAT_CONNECTORS,
+  isConnectorComingSoon,
+  isVisibleInChatConnectorsList,
+  type ChatConnectorId,
+} from "./chatConnectors";
 import type { ConnectorStatus } from "../../lib/connectorsApi";
 import SpotifyPluginSettingsExpand from "../settings/SpotifyPluginSettingsExpand";
 
@@ -26,8 +31,10 @@ export default function ChatConnectorsList({
   onDisconnect?: (id: ChatConnectorId) => void;
   onInsertSlash: (slash: string) => void;
 }) {
-  const items = CHAT_CONNECTORS;
   const isSettings = variant === "settings";
+  const items = isSettings
+    ? CHAT_CONNECTORS
+    : CHAT_CONNECTORS.filter(({ id }) => isVisibleInChatConnectorsList(id, connectedIds));
   const statusById = new Map((statuses ?? []).map((status) => [status.id, status]));
   const statusesFromApi = statusSource === "api";
 

@@ -11,6 +11,7 @@ import {
 } from "./lib/marketingPreview";
 import {
   seedMarketingHandoffPreview,
+  seedMarketingLandingHero,
   seedMarketingNotesPreview,
   seedMarketingPreview,
   seedMarketingRecordingPreview,
@@ -38,7 +39,7 @@ if (scene === "recording") {
 } else if (scene === "spotify") {
   seedMarketingSpotifyPreview();
 } else {
-  seedMarketingPreview();
+  seedMarketingLandingHero();
 }
 
 applyDocumentTheme();

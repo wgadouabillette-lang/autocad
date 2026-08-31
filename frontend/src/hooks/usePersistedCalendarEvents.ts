@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { refreshPersistedCalendarEvents } from "../lib/calendarEventsApi";
+import { isMarketingPreview } from "../lib/marketingPreview";
 import { useAuthStore } from "../store/useAuthStore";
 import { useCalendarStore } from "../store/useCalendarStore";
 
@@ -12,6 +13,7 @@ export function usePersistedCalendarEvents() {
   const setUserEvents = useCalendarStore((s) => s.setUserEvents);
 
   const refresh = useCallback(async () => {
+    if (isMarketingPreview()) return;
     if (!authReady || !isAuthenticated) {
       setUserEvents([]);
       return;

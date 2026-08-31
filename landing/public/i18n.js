@@ -21,7 +21,7 @@
       "nav.resources": "Resources",
       "nav.openApp": "Open on web",
       "nav.openAppDesktopOnly": "Meetra is available on desktop only",
-      "hero.title": "AI-powered collaborative<br />workspace for teams",
+      "hero.title": "AI-powered collaborative<br />workspace for remote teams",
       "hero.lead":
         "A collaborative workspace application that helps teams communicate, organize meetings, manage tasks, and connect productivity tools.",
       "hero.cta.start": "Get started",

@@ -8,7 +8,11 @@ import {
   MARKETING_PREVIEW_WORKSPACE_ID,
   readMarketingPreviewRecordingActiveParam,
 } from "./marketingPreview";
-import type { TheaterState } from "./theater";
+import {
+  THEATER_BENCH_COUNT,
+  THEATER_BENCH_SEAT_COUNT,
+  type TheaterState,
+} from "./theater";
 import type { ChatMessage, ChatSession } from "../store/useStore";
 import type { CalendarEvent } from "../store/useCalendarStore";
 import type { FollowUpDraft } from "./followUps";
@@ -29,8 +33,9 @@ import { useCalendarOverlayStore } from "../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../store/useCalendarStore";
 import { usePeopleStore } from "../store/usePeopleStore";
 import { usePresenceActivityStore } from "../store/usePresenceActivityStore";
+import { useNotificationsStore } from "../store/useNotificationsStore";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
-import { CHAT_CONNECTORS } from "../components/chat/chatConnectors";
+import { CHAT_CONNECTORS, isConnectorComingSoon } from "../components/chat/chatConnectors";
 import { presenceActivityKey, type PresenceActivityId } from "./presenceActivity";
 import { toDateKey } from "./daySchedule";
 import { pickWorkspaceAccent } from "./workspaces";
@@ -134,6 +139,73 @@ const PREVIEW_NOTE_BODY_HTML = [
   "<h2>Next</h2>",
   "<p>Thursday 10:00 — standup in Salon vocal. Lock the sprint 14 board before then.</p>",
 ].join("");
+
+const LANDING_HERO_NOTE_TITLE = "Design review";
+const LANDING_HERO_NOTE_HTML = [
+  "<h2>Context</h2>",
+  "<p>Design review in Salon vocal with You, Jordan, Sam, Riley, and Morgan. Goal is to lock the dashboard layout and connector order before sprint 14.</p>",
+  "<h2>Decisions</h2>",
+  "<ul>",
+  "<li>Keep Salon vocal as the default workspace home.</li>",
+  "<li>Ship calendar two-way sync in <mark>sprint 14</mark>.</li>",
+  "<li>Landing preview must show the real workspace shell, not a static mock.</li>",
+  "</ul>",
+  "<h2>Connectors</h2>",
+  "<p>Jordan is mid-OAuth review. Gmail is still the blocker; Calendar should land first if the redirect URLs stay clean.</p>",
+  "<h3>Also decided</h3>",
+  "<ul>",
+  "<li>Defer Theater recording until September.</li>",
+  "<li>Spotify stays in the bottom bar; no now-playing until someone starts DJ.</li>",
+  "<li>Polls stay on the agent panel with the Thursday standup vote.</li>",
+  "</ul>",
+  "<ul>",
+  "<li>Enable Spotify, Google Calendar, then Gmail.</li>",
+  "<li>Outlook follows once the redirect URLs are approved.</li>",
+  "</ul>",
+  "<h2>Action items</h2>",
+  "<ul>",
+  "<li><strong>You</strong> — lock the dashboard layout <mark>this week</mark>.</li>",
+  "<li><strong>Jordan</strong> — finish Gmail + Calendar OAuth and QA the Gmail connector <mark>by Wednesday</mark>.</li>",
+  "<li><strong>Sam</strong> — polish the Notes empty state and validate open-channel join <mark>before Friday’s demo</mark>.</li>",
+  "<li><strong>Riley</strong> — send the recap to leadership and book the follow-up.</li>",
+  "<li><strong>Morgan</strong> — check the five-person voice grid on the landing cut.</li>",
+  "</ul>",
+  "<h3>What we walked through</h3>",
+  "<p>Voice grid, landing dashboard preview, Notes empty state, and the order we turn connectors on. Team agreed the lounge stays the home, and the landing chip demos must use the real app chrome.</p>",
+  "<table><thead><tr><th>Connector</th><th>Owner</th><th>Status</th></tr></thead><tbody>",
+  "<tr><td>Spotify</td><td>You</td><td>Ready for the landing demo</td></tr>",
+  "<tr><td>Google Calendar</td><td>Jordan</td><td>Two-way sync in sprint 14</td></tr>",
+  "<tr><td>Gmail</td><td>Jordan</td><td>OAuth still pending</td></tr>",
+  "<tr><td>Outlook</td><td>Sam</td><td>After redirect URLs are approved</td></tr>",
+  "</tbody></table>",
+  "<h2>Risks</h2>",
+  "<ul>",
+  "<li>Gmail OAuth can slip the connector sequence if the redirect URLs fail review.</li>",
+  "<li>Notes empty state still looks unfinished on first open — Sam is on it before Friday.</li>",
+  "<li>Theater recording stays parked so it does not block the landing cut.</li>",
+  "</ul>",
+  "<h2>Next</h2>",
+  "<p>Thursday <mark>10:00</mark> — standup in Salon vocal. Lock the sprint 14 board before then and send the recap after this call.</p>",
+  "<h3>Open questions</h3>",
+  "<ul>",
+  "<li>Do we keep Follow-up as its own tab or fold it into Notes for the landing pass?</li>",
+  "<li>Should Riley’s leadership recap include the connector table or just the decisions?</li>",
+  "</ul>",
+  "<h2>Parking lot</h2>",
+  "<p>Morgan will re-cut the five-person salon still if the mute badge on Sam is hard to read at landing scale.</p>",
+  "<p>Riley drafts the leadership one-pager after this call. Include the connector table if Gmail is still pending.</p>",
+  "<p>You send the recap in Notes history so the recording and the structured note stay on the same thread.</p>",
+].join("");
+
+const LANDING_HERO_BLINDING_LIGHTS = {
+  id: "0VjIjW4GlUZAMYd2vXMi3b",
+  name: "Blinding Lights",
+  artists: "The Weeknd",
+  album: "After Hours",
+  url: "https://open.spotify.com/track/0VjIjW4GlUZAMYd2vXMi3b",
+  imageUrl: MARKETING_PREVIEW_BLINDING_LIGHTS_COVER_URL,
+  durationMs: 200040,
+};
 
 function memberBlock(userId: string, name: string, inCall = false): CallBlock {
   const isLocal = userId === "local";
@@ -331,6 +403,9 @@ function buildManualNoteSession(): ChatSession {
 }
 
 function buildPreviewCalendarEvents(today: string): CalendarEvent[] {
+  const nextWeekDate = new Date(`${today}T12:00:00`);
+  nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+  const nextWeek = toDateKey(nextWeekDate);
   return [
     {
       id: "preview-cal-1",
@@ -421,6 +496,24 @@ function buildPreviewCalendarEvents(today: string): CalendarEvent[] {
       startMinutes: 17 * 60 + 45,
       endMinutes: 18 * 60 + 15,
       title: "Demo dry run",
+      source: "user",
+    },
+    {
+      id: "preview-cal-next-1",
+      dateKey: nextWeek,
+      startMinutes: 9 * 60,
+      endMinutes: 9 * 60 + 30,
+      title: "Team standup",
+      detail: "Design Team",
+      source: "google",
+      googleEventId: "preview-g-next-1",
+    },
+    {
+      id: "preview-cal-next-2",
+      dateKey: nextWeek,
+      startMinutes: 11 * 60,
+      endMinutes: 11 * 60 + 45,
+      title: "Riley · 1:1",
       source: "user",
     },
   ];
@@ -531,14 +624,17 @@ function seedConnectors(): void {
     outlook: "Alex",
   };
   useConnectorsStore.setState({
-    statuses: CHAT_CONNECTORS.map(({ id, label }) => ({
-      id,
-      label,
-      provider: id,
-      connected: true,
-      configured: true,
-      accountLabel: accountById[id],
-    })),
+    statuses: CHAT_CONNECTORS.map(({ id, label }) => {
+      const comingSoon = isConnectorComingSoon(id);
+      return {
+        id,
+        label,
+        provider: id,
+        connected: !comingSoon,
+        configured: !comingSoon,
+        accountLabel: comingSoon ? undefined : accountById[id],
+      };
+    }),
     statusSource: "visual",
     loading: false,
     error: null,
@@ -554,19 +650,12 @@ function seedSpotifyPlayback(): void {
     results: [],
     searching: false,
     searchError: null,
-    currentTrack: {
-      id: "0VjIjW4GlUZAMYd2vXMi3b",
-      name: "Blinding Lights",
-      artists: "The Weeknd",
-      album: "After Hours",
-      url: "https://open.spotify.com/track/0VjIjW4GlUZAMYd2vXMi3b",
-      imageUrl: MARKETING_PREVIEW_BLINDING_LIGHTS_COVER_URL,
-    },
+    currentTrack: null,
     lastPlayedTrack: null,
     queue: [],
     history: [],
-    playing: true,
-    playbackMode: "full",
+    playing: false,
+    playbackMode: null,
     premiumAvailable: true,
     streamingScopeAvailable: true,
     playerNotice: null,
@@ -576,7 +665,7 @@ function seedSpotifyPlayback(): void {
 
 function seedHallDj(): void {
   useHallDjStore.setState({
-    active: true,
+    active: false,
     loading: false,
     error: null,
     feedbackResolvedTrackId: null,
@@ -706,8 +795,13 @@ export function seedMarketingPreview(): void {
   });
 
   const manualNote = buildManualNoteSession();
-  const { tabs, activeId, activeMessages, pendingPrompt } = buildAgentChatTabs();
-  const chatSessions = [manualNote, ...tabs];
+  const emptyAgentTab = {
+    id: "preview-chat-empty",
+    title: "New",
+    messages: [],
+    updatedAt: Date.now(),
+    kind: "discussion" as const,
+  };
 
   useStore.setState({
     activeRoomId: MARKETING_PREVIEW_WORKSPACE_ID,
@@ -720,30 +814,19 @@ export function seedMarketingPreview(): void {
     billingManaged: false,
     workspaceEnterpriseActive: false,
     llmEnabled: true,
-    chat: activeMessages,
-    openChatTabs: tabs,
-    activeChatTabId: activeId,
-    chatNavStack: tabs.map((tab) => tab.id),
+    chat: [],
+    openChatTabs: [emptyAgentTab],
+    activeChatTabId: emptyAgentTab.id,
+    chatNavStack: [emptyAgentTab.id],
     chatNavPointer: 0,
-    chatSessions,
+    chatSessions: [manualNote],
     activeManualNoteId: MARKETING_PREVIEW_NOTE_ID,
     showChatHistory: false,
     colorTheme: "dark",
     aiModel: "claude-opus-4-7",
-    busy: true,
-    activeAiRequests: 1,
-    aiRun: {
-      id: "preview-ai-run",
-      prompt: pendingPrompt,
-      workMode: "agent",
-      aiModel: "claude-opus-4-7",
-      status: "running",
-      expand: "peek",
-      startedAt: Date.now(),
-      steps: [{ id: "1", label: "Processing…", status: "active" }],
-      runKind: "chat",
-      summary: "Processing…",
-    },
+    busy: false,
+    activeAiRequests: 0,
+    aiRun: null,
   });
 
   useCallsStore.setState({
@@ -767,6 +850,175 @@ export function seedMarketingPreview(): void {
   seedCalendar();
   seedPeopleThreads();
   seedFollowUp();
+}
+
+const LANDING_HERO_LISTENER_COUNT = 24;
+
+function landingHeroAudienceMembers(): { id: string; name: string }[] {
+  const seen = new Set(["local", "jordan"]);
+  const members: { id: string; name: string }[] = [];
+  for (const member of [
+    { id: "sam", name: "Sam" },
+    { id: "riley", name: "Riley" },
+    { id: "morgan", name: "Morgan" },
+    ...DEMO_MEMBERS,
+    ...THEATER_AUDIENCE_EXTRA,
+  ]) {
+    if (seen.has(member.id)) continue;
+    seen.add(member.id);
+    members.push({ id: member.id, name: member.name });
+    if (members.length >= LANDING_HERO_LISTENER_COUNT) break;
+  }
+  return members;
+}
+
+function scatterAudienceSeats(ids: string[]): Record<string, number> {
+  const seats: Record<string, number> = {};
+  ids.forEach((id, index) => {
+    const bench = index % THEATER_BENCH_COUNT;
+    const slot = Math.floor(index / THEATER_BENCH_COUNT);
+    seats[id] = bench * THEATER_BENCH_SEAT_COUNT + slot;
+  });
+  return seats;
+}
+
+function buildLandingHeroTheaterState(): TheaterState {
+  const speakers = [
+    { ...LOCAL_USER, role: "speaker" as const },
+    { id: "jordan", name: "Jordan", role: "speaker" as const },
+  ];
+  const audience = landingHeroAudienceMembers().map((member) => ({
+    ...member,
+    role: "audience" as const,
+  }));
+  return {
+    workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
+    speakers,
+    audience,
+    audienceSeatByUserId: scatterAudienceSeats(audience.map((member) => member.id)),
+    question: null,
+    handRaises: [],
+    localRole: "speaker",
+  };
+}
+
+/** Frozen landing hero: Theater (2 speakers + benches), AI Notes, recording toast. */
+export function seedMarketingLandingHero(): void {
+  seedMarketingPreview();
+
+  const recordingId = "preview-rec-landing";
+  const recordedAt = Date.now() - 90_000;
+
+  useCallsStore.setState((state) => {
+    const room = state.callsByRoom[MARKETING_PREVIEW_WORKSPACE_ID];
+    return {
+      localInCallByRoom: {
+        ...state.localInCallByRoom,
+        [MARKETING_PREVIEW_WORKSPACE_ID]: false,
+      },
+      localOpenChannelByRoom: {
+        ...state.localOpenChannelByRoom,
+        [MARKETING_PREVIEW_WORKSPACE_ID]: null,
+      },
+      muted: false,
+      mutedByParticipant: { ...state.mutedByParticipant, sam: true },
+      recording: false,
+      recordingBusy: false,
+      mediaError: null,
+      callsViewModeByWorkspace: {
+        ...state.callsViewModeByWorkspace,
+        [MARKETING_PREVIEW_WORKSPACE_ID]: "theater",
+      },
+      theaterByWorkspace: {
+        ...state.theaterByWorkspace,
+        [MARKETING_PREVIEW_WORKSPACE_ID]: buildLandingHeroTheaterState(),
+      },
+      callsByRoom: room
+        ? {
+            ...state.callsByRoom,
+            [MARKETING_PREVIEW_WORKSPACE_ID]: {
+              ...room,
+              openChannels: room.openChannels.map((channel) => ({
+                ...channel,
+                inCall: false,
+                participants: channel.participants.filter((person) => !person.isLocal),
+              })),
+            },
+          }
+        : state.callsByRoom,
+    };
+  });
+
+  useStore.setState((state) => ({
+    chatPanelOpen: true,
+    chatPanelMode: "ai-notes",
+    chatPanelExpanded: false,
+    chatPanelLeaveAnimating: false,
+    showChatHistory: false,
+    busy: false,
+    activeAiRequests: 0,
+    aiRun: null,
+    activeManualNoteId: MARKETING_PREVIEW_NOTE_ID,
+    chatSessions: [
+      {
+        id: MARKETING_PREVIEW_NOTE_ID,
+        title: LANDING_HERO_NOTE_TITLE,
+        messages: [{ role: "user" as const, text: LANDING_HERO_NOTE_HTML }],
+        updatedAt: Date.now(),
+        kind: "note" as const,
+        manualNoteTitle: LANDING_HERO_NOTE_TITLE,
+        manualNoteBody: LANDING_HERO_NOTE_HTML,
+      },
+      {
+        id: recordingId,
+        title: "Recording 30 Aug, 3:12 PM",
+        messages: [],
+        updatedAt: recordedAt,
+        kind: "recording" as const,
+        recordingId,
+        durationMs: 4000,
+      },
+      ...state.chatSessions.filter(
+        (session) => session.id !== MARKETING_PREVIEW_NOTE_ID && session.id !== recordingId,
+      ),
+    ],
+  }));
+
+  useNotificationsStore.setState({
+    items: [
+      {
+        id: "n-preview-rec-landing",
+        kind: "recording",
+        category: "Recordings",
+        title: "Recording saved",
+        body: "Available in your notes history.",
+        recordingSessionId: recordingId,
+        createdAt: recordedAt,
+        read: false,
+      },
+    ],
+    panelOpen: true,
+    panelOpenGeneration: 1,
+    currentIndex: 0,
+  });
+
+  useHallDjStore.setState({
+    active: true,
+    loading: false,
+    error: null,
+    feedbackResolvedTrackId: null,
+    feedbackBusy: false,
+  });
+  useSpotifyPlayerStore.setState({
+    currentTrack: LANDING_HERO_BLINDING_LIGHTS,
+    lastPlayedTrack: null,
+    playing: true,
+    playbackMode: "full",
+    playerNotice: null,
+    panelOpen: false,
+    premiumAvailable: true,
+    streamingScopeAvailable: true,
+  });
 }
 
 export function seedMarketingRecordingPreview(): void {

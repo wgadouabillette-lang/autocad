@@ -240,6 +240,14 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
   },
 
   startDj: async () => {
+    const { isMarketingPreview } = await import("../lib/marketingPreview");
+    if (isMarketingPreview()) {
+      const { beginMarketingPreviewDjFromClick } = await import(
+        "../lib/marketingPreviewSpotifyDemo"
+      );
+      beginMarketingPreviewDjFromClick();
+      return;
+    }
     if (get().loading || hallDjStartInFlight) return;
     hallDjStartInFlight = true;
     const session = ++hallDjSession;

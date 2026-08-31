@@ -165,6 +165,16 @@ export const useAiNotesStore = create<AiNotesState>((set, get) => ({
   sessionId: null,
 
   stop: async () => {
+    const { isMarketingPreview } = await import("../lib/marketingPreview");
+    if (isMarketingPreview()) {
+      clearStructureLoop();
+      set({
+        active: false,
+        busy: false,
+        nextStructureAt: null,
+      });
+      return;
+    }
     if (!get().active && !get().busy) return;
 
     const { lines, interimText, sessionId, structuredHtml } = get();
@@ -198,6 +208,18 @@ export const useAiNotesStore = create<AiNotesState>((set, get) => ({
   },
 
   toggle: async (workspaceId, manualNoteId) => {
+    const { isMarketingPreview } = await import("../lib/marketingPreview");
+    if (isMarketingPreview()) {
+      if (get().active) {
+        await get().stop();
+        return;
+      }
+      const { beginMarketingPreviewAiNotesFromClick } = await import(
+        "../lib/marketingPreviewNotesDemo"
+      );
+      beginMarketingPreviewAiNotesFromClick(workspaceId, manualNoteId);
+      return;
+    }
     if (get().busy) return;
 
     if (get().active) {

@@ -15,6 +15,7 @@ function cleanUrlsMiddleware(req, res, next) {
     pathname.startsWith("/app") ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/downloads") ||
+    pathname.startsWith("/desktop-updates") ||
     pathname.startsWith("/@") ||
     pathname.startsWith("/node_modules")
   ) {

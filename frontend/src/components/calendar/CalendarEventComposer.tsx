@@ -12,6 +12,7 @@ import { fetchGoogleCalendarStatus } from "../../lib/calendarSync";
 import { notifyCalendarEventsChanged } from "../../hooks/usePersistedCalendarEvents";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
+import { isMarketingPreview } from "../../lib/marketingPreview";
 import { usePeopleStore } from "../../store/usePeopleStore";
 
 function pad2(value: number): string {
@@ -106,6 +107,29 @@ export default function CalendarEventComposer() {
     }
 
     const detailTrimmed = detail.trim();
+
+    if (isMarketingPreview()) {
+      const invitedNames = sortedFriends
+        .filter((friend) => invitedIds.has(friend.id))
+        .map((friend) => friend.name)
+        .join(" · ");
+      const previewDetail = [detailTrimmed, invitedNames].filter(Boolean).join(" · ");
+      void createUserCalendarEvents(
+        [
+          {
+            title: trimmedTitle,
+            detail: previewDetail || undefined,
+            dateKey: eventDate,
+            startMinutes,
+            endMinutes,
+          },
+        ],
+        "user",
+      ).then(() => {
+        closeComposer();
+      });
+      return;
+    }
 
     void createUserCalendarEvents(
       [

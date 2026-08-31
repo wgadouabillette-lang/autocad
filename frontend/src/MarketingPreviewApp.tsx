@@ -10,6 +10,7 @@ import {
   isMarketingHandoffPreviewScene,
   isMarketingNotesPreviewScene,
 } from "./lib/marketingPreview";
+import { useCallsStore } from "./store/useCallsStore";
 import { useStore } from "./store/useStore";
 
 export default function MarketingPreviewApp() {
@@ -19,9 +20,12 @@ export default function MarketingPreviewApp() {
   const chatPanelOpen = useStore((s) => s.chatPanelOpen);
   const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
   const chatPanelLeaveAnimating = useStore((s) => s.chatPanelLeaveAnimating);
+  const chatPanelMode = useStore((s) => s.chatPanelMode);
   const sidePanelSide = useStore((s) => s.sidePanelSide);
+  const recording = useCallsStore((s) => s.recording);
   const panelOnLeft = sidePanelSide === "left";
   const chatFullscreenOverlay = chatPanelExpanded || chatPanelLeaveAnimating;
+  const notesShowcase = chatPanelMode === "ai-notes" && chatPanelExpanded;
 
   const layoutStyle = {
     "--app-chat-col": chatPanelOpen ? "var(--forma-chat-panel-width)" : "0px",
@@ -31,8 +35,11 @@ export default function MarketingPreviewApp() {
     <div
       className={clsx(
         "app-shell marketing-preview-shell",
-        (isMarketingNotesPreviewScene() || isMarketingHandoffPreviewScene()) &&
+        (isMarketingNotesPreviewScene() ||
+          isMarketingHandoffPreviewScene() ||
+          notesShowcase) &&
           "marketing-preview-shell--notes",
+        recording && "marketing-preview-shell--recording",
       )}
       aria-hidden="true"
     >
@@ -52,6 +59,7 @@ export default function MarketingPreviewApp() {
         <BottomHeader />
         {chatPanelOpen ? <ChatPanelShell key={sidePanelSide} /> : null}
       </div>
+      {recording ? <div className="app-recording-frame" aria-hidden /> : null}
     </div>
   );
 }

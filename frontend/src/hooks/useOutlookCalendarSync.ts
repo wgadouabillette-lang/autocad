@@ -5,6 +5,7 @@ import {
   type OutlookCalendarStatus,
 } from "../lib/outlookCalendarSync";
 import { useCalendarStore } from "../store/useCalendarStore";
+import { isMarketingPreview } from "../lib/marketingPreview";
 import { useAuthStore } from "../store/useAuthStore";
 
 export function useOutlookCalendarSync(selectedDate: string) {
@@ -16,6 +17,7 @@ export function useOutlookCalendarSync(selectedDate: string) {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    if (isMarketingPreview()) return;
     if (!authReady || !isAuthenticated) return;
     setLoading(true);
     try {

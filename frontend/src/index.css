@@ -878,15 +878,58 @@ html:not(.app-loading-splash) #root {
     max-width: var(--forma-chat-fullscreen-width);
     margin-inline: auto;
   }
+  .marketing-preview-shell .chat-panel--expanded.chat-panel--mode-ai-notes .chat-panel-mode-tabs {
+    border-bottom: none;
+  }
+  .marketing-preview-shell .chat-panel__content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .marketing-preview-shell .voice-assist-panel,
+  .marketing-preview-shell .manual-notes-panel {
+    min-height: 0;
+    max-height: 100%;
+    height: 100%;
+  }
+  .marketing-preview-shell .manual-notes-panel__editor-wrap {
+    isolation: isolate;
+    min-height: 0;
+  }
+  .marketing-preview-shell .manual-notes-panel__editor-scroll {
+    padding-bottom: var(--forma-bottom-bar-height);
+  }
+  .marketing-preview-shell .manual-notes-panel__editor-wrap::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    height: var(--forma-bottom-bar-height);
+    pointer-events: none;
+    background: linear-gradient(
+      to top,
+      var(--forma-content-bg) 0%,
+      var(--forma-content-bg) 48%,
+      rgba(26, 26, 26, 0) 100%
+    );
+  }
+  .marketing-preview-shell .manual-notes-panel {
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
   .marketing-preview-shell .calls-view {
     justify-content: center;
     overflow-x: clip;
   }
-  .marketing-preview-shell .calls-view__stage {
+  .marketing-preview-shell .calls-view__stage:not(.calls-view__stage--theater) {
     flex: 1;
+    min-height: 0;
+  }
+  .marketing-preview-shell .calls-view:not(.calls-view--theater) .calls-view__stage {
     align-items: center;
     justify-content: center;
-    min-height: 0;
     padding: 0.5rem 0 0.75rem;
   }
   .marketing-preview-shell .calls-view__grid {
@@ -963,6 +1006,26 @@ html:not(.app-loading-splash) #root {
       inset 0 0 0 1px rgb(250 204 21 / 0.35),
       inset 0 0 28px rgb(250 204 21 / 0.07);
   }
+  .marketing-preview-cursor {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 80;
+    width: 28px;
+    height: 28px;
+    pointer-events: none;
+    filter: drop-shadow(0 3px 8px rgb(0 0 0 / 0.55));
+    transform: translate(-40px, -40px);
+    transition: transform 720ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+  .marketing-preview-cursor.is-clicking {
+    transition-duration: 90ms;
+  }
+  .marketing-preview-cursor svg {
+    display: block;
+  }
+
   .marketing-preview-shell--recording-static
     .open-voice-in-call__grid
     > .voice-participant-tile {
@@ -4411,6 +4474,75 @@ html:not(.app-loading-splash) #root {
   }
   .theater-view__present-label {
     @apply text-sm text-muted-400;
+  }
+  /*
+   * Marketing Theater: one in-flow 3-row grid (stage / actions / benches).
+   * Lives after the real Theater rules so header padding is not overwritten.
+   * Never unset .theater-view__stage min-height — content-box + aspect-ratio
+   * cards then resolve to height 0 and overflow:visible paints over the benches.
+   */
+  .marketing-preview-shell .calls-view--theater {
+    align-items: stretch;
+    justify-content: flex-start;
+    overflow-x: clip;
+    overflow-y: hidden;
+    padding-top: 0;
+  }
+  .marketing-preview-shell .calls-view__stage.calls-view__stage--theater {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-top: calc(var(--forma-top-toolbar-height) + 1.25rem);
+    padding-right: 0;
+    padding-bottom: 0.625rem;
+    padding-left: 0;
+    overflow: visible;
+  }
+  .marketing-preview-shell .calls-view__stage--theater .theater-view {
+    display: grid;
+    grid-template-areas:
+      "stage"
+      "controls"
+      "audience";
+    grid-template-rows: max-content max-content minmax(0, 1fr);
+    align-content: start;
+    gap: 0.375rem;
+    --theater-section-gap: 0.375rem;
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
+  }
+  .marketing-preview-shell .theater-view__stage {
+    grid-area: stage;
+    align-items: flex-start;
+    height: max-content;
+    min-height: min(var(--theater-speaker-height), 34vh);
+    overflow: hidden;
+    container-type: inline-size;
+  }
+  .marketing-preview-shell .theater-speaker-card {
+    width: min(100cqi, var(--forma-call-media-max-width));
+    max-width: min(100cqi, var(--forma-call-media-max-width));
+    height: calc(min(100cqi, var(--forma-call-media-max-width)) * 9 / 16);
+    overflow: hidden;
+  }
+  .marketing-preview-shell .theater-view__controls {
+    grid-area: controls;
+  }
+  .marketing-preview-shell .theater-view__stage-actions {
+    display: flex;
+    padding-bottom: 1px;
+  }
+  .marketing-preview-shell .theater-view__audience {
+    grid-area: audience;
+    justify-content: flex-start;
+    padding-top: 0;
+  }
+  .marketing-preview-shell .theater-view__audience-benches {
+    flex: none;
+    align-content: start;
   }
   .theater-tile {
     @apply forma-capsule relative flex w-[9.5rem] flex-col items-center gap-2 overflow-visible rounded-[1.75rem]
@@ -8824,9 +8956,27 @@ html:not(.app-loading-splash) #root {
   }
   .manual-notes-panel__editor-wrap {
     @apply relative mx-4 mb-0 mt-2 flex min-h-0 flex-1 flex-col overflow-hidden;
+    isolation: isolate;
   }
   .manual-notes-panel__editor-scroll {
     @apply min-h-0 flex-1 overflow-y-auto;
+    padding-bottom: var(--forma-bottom-bar-height);
+  }
+  .manual-notes-panel__editor-wrap::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    height: var(--forma-bottom-bar-height);
+    pointer-events: none;
+    background: linear-gradient(
+      to top,
+      var(--forma-content-bg) 0%,
+      var(--forma-content-bg) 48%,
+      rgba(26, 26, 26, 0) 100%
+    );
   }
   .manual-notes-panel__editor-wrap .manual-notes-panel__editor {
     @apply mx-0 mb-0 mt-0 min-h-0;

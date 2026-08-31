@@ -2,7 +2,7 @@
   var PREVIEW_WIDTH = 1680;
   var PREVIEW_HEIGHT = 940;
   var WINDOW_SCALE = 0.81;
-  var WINDOW_SCALE_MOBILE = 0.91;
+  var TITLE_BAR_PX = 23;
   var LOAD_TIMEOUT_MS = 8000;
   var NAV_MESSAGE = "lyte-marketing-preview-nav";
   var DESKTOP_WALLPAPER =
@@ -25,111 +25,39 @@
     return true;
   }
 
-  var FEATURES = {
-    polls: { label: "Polls" },
-    recording: { label: "Recording" },
-    "follows-up": { label: "Follows-up" },
-    spotify: { label: "Spotify" },
-    calendar: { label: "Calendar" },
-    "ai-notes": { label: "AI Notes" },
-    messages: { label: "Messages" },
-  };
-
-  function pulsePreviewWindow() {
-    var mount = document.getElementById("workspaces-preview");
-    if (!mount) return;
-    var targets = mount.querySelectorAll(
-      ".hero__dashboard-preview-scaler, .hero__shot--dashboard > .hero__shot-img",
-    );
-    for (var i = 0; i < targets.length; i++) {
-      targets[i].classList.remove("is-showcasing");
-      void targets[i].offsetWidth;
-      targets[i].classList.add("is-showcasing");
-    }
-  }
-
-  function featureOverlayHost(mount) {
-    return (
-      mount.querySelector(".hero__dashboard-preview-scaler") ||
-      mount
-    );
-  }
-
-  function ensureFeatureOverlay(mount) {
-    var host = featureOverlayHost(mount);
-    var veil = host.querySelector("[data-feature-veil]");
-    var callout = host.querySelector("[data-feature-callout]");
-    if (!veil) {
-      veil = document.createElement("div");
-      veil.className = "hero__feature-veil";
-      veil.setAttribute("data-feature-veil", "");
-      veil.setAttribute("aria-hidden", "true");
-      host.appendChild(veil);
-    }
-    if (!callout) {
-      callout = document.createElement("div");
-      callout.className = "hero__feature-callout";
-      if (!host.classList.contains("hero__dashboard-preview-scaler")) {
-        callout.classList.add("hero__feature-callout--fallback");
-      }
-      callout.setAttribute("data-feature-callout", "");
-      callout.setAttribute("aria-live", "polite");
-      host.appendChild(callout);
-    }
-    return { veil: veil, callout: callout };
-  }
-
-  function showcaseOnWindow(feature) {
-    var mount = document.getElementById("workspaces-preview");
-    var meta = FEATURES[feature];
-    if (!mount || !meta) return;
-    var overlay = ensureFeatureOverlay(mount);
-    overlay.callout.textContent = meta.label;
-    overlay.veil.classList.remove("is-visible");
-    overlay.callout.classList.remove("is-visible");
-    void overlay.callout.offsetWidth;
-    overlay.veil.classList.add("is-visible");
-    overlay.callout.classList.add("is-visible");
-  }
-
-  function setActiveFeatureChip(feature) {
-    var chips = document.querySelectorAll("[data-feature-chip]");
-    for (var i = 0; i < chips.length; i++) {
-      var on = chips[i].getAttribute("data-feature-chip") === feature;
-      chips[i].classList.toggle("is-active", on);
-      if (on) chips[i].setAttribute("aria-pressed", "true");
-      else chips[i].setAttribute("aria-pressed", "false");
-    }
-  }
-
-  function showFeature(feature) {
-    if (!FEATURES[feature]) return false;
-    setActiveFeatureChip(feature);
-    pulsePreviewWindow();
-    showcaseOnWindow(feature);
-    return true;
-  }
-
   window.HallCompactPreview = {
     showSection: function (sectionId) {
       if (sectionId === "connectors") return postPreviewNavAction("open-connectors");
       if (sectionId === "skills") return postPreviewNavAction("open-skills");
       if (sectionId === "music") return postPreviewNavAction("play-music");
-      if (FEATURES[sectionId]) return showFeature(sectionId);
-      return postPreviewNavAction("show-dashboard");
+      return false;
     },
-    showFeature: showFeature,
+    showFeature: function () {
+      return false;
+    },
   };
 
   function desktopWallpaperHtml() {
     return DESKTOP_WALLPAPER;
   }
 
+  function createMacTitleBar() {
+    var bar = document.createElement("div");
+    bar.className = "hero__preview-titlebar";
+    bar.setAttribute("aria-hidden", "true");
+    var kinds = ["close", "min", "max"];
+    for (var i = 0; i < kinds.length; i++) {
+      var dot = document.createElement("span");
+      dot.className = "hero__preview-titlebar__dot hero__preview-titlebar__dot--" + kinds[i];
+      bar.appendChild(dot);
+    }
+    return bar;
+  }
+
   function showFallback(mount) {
     mount.innerHTML =
       desktopWallpaperHtml() +
       '<img class="hero__shot-img" src="app-preview.png" alt="Meetra workspace preview" loading="eager" decoding="async" />';
-    ensureFeatureOverlay(mount);
   }
 
   function isMobilePreview() {
@@ -174,19 +102,46 @@
     var height = mount.clientHeight;
     if (width <= 0 || height <= 0) return false;
 
-    var inset = isMobilePreview() ? WINDOW_SCALE_MOBILE : WINDOW_SCALE;
-    var scale = Math.min(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT) * inset;
+    if (isMobilePreview()) {
+      var bodyH = Math.max(height - TITLE_BAR_PX, 1);
+      var coverScale = Math.max(width / PREVIEW_WIDTH, bodyH / PREVIEW_HEIGHT);
+      var coverW = PREVIEW_WIDTH * coverScale;
+      var coverH = PREVIEW_HEIGHT * coverScale;
+
+      wrapper.style.inset = "0";
+      wrapper.style.width = "100%";
+      wrapper.style.height = "100%";
+      wrapper.style.left = "0";
+      wrapper.style.top = "0";
+      wrapper.style.right = "0";
+      wrapper.style.bottom = "0";
+      wrapper.style.transform = "none";
+
+      scaleLayer.style.width = PREVIEW_WIDTH + "px";
+      scaleLayer.style.height = PREVIEW_HEIGHT + "px";
+      scaleLayer.style.left = (width - coverW) / 2 + "px";
+      scaleLayer.style.top = (bodyH - coverH) / 2 + "px";
+      scaleLayer.style.transform = "scale(" + coverScale + ")";
+      return true;
+    }
+
+    var scale = Math.min(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT) * WINDOW_SCALE;
     var scaledW = PREVIEW_WIDTH * scale;
     var scaledH = PREVIEW_HEIGHT * scale;
 
+    wrapper.style.inset = "";
+    wrapper.style.right = "";
+    wrapper.style.bottom = "";
     wrapper.style.width = scaledW + "px";
-    wrapper.style.height = scaledH + "px";
+    wrapper.style.height = scaledH + TITLE_BAR_PX + "px";
     wrapper.style.left = "50%";
-    wrapper.style.top = "46%";
+    wrapper.style.top = "50%";
     wrapper.style.transform = "translate(-50%, -50%)";
 
     scaleLayer.style.width = PREVIEW_WIDTH + "px";
     scaleLayer.style.height = PREVIEW_HEIGHT + "px";
+    scaleLayer.style.left = "0";
+    scaleLayer.style.top = "0";
     scaleLayer.style.transform = "scale(" + scale + ")";
     return true;
   }
@@ -214,7 +169,11 @@
     activeIframe = iframe;
 
     scaleLayer.appendChild(iframe);
-    wrapper.appendChild(scaleLayer);
+    var windowBody = document.createElement("div");
+    windowBody.className = "hero__preview-window";
+    windowBody.appendChild(scaleLayer);
+    wrapper.appendChild(createMacTitleBar());
+    wrapper.appendChild(windowBody);
     mount.appendChild(wrapper);
 
     var loaded = false;
@@ -252,20 +211,6 @@
     }
 
     iframe.src = href;
-
-    ensureFeatureOverlay(mount);
-    bindFeatureChips();
-  }
-
-  function bindFeatureChips() {
-    var row = document.querySelector("[data-feature-chips]");
-    if (!row || row.dataset.bound === "1") return;
-    row.dataset.bound = "1";
-    row.addEventListener("click", function (event) {
-      var button = event.target.closest("[data-feature-chip]");
-      if (!button || !row.contains(button)) return;
-      showFeature(button.getAttribute("data-feature-chip"));
-    });
   }
 
   function bootPreview() {

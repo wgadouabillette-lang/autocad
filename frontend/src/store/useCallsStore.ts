@@ -997,15 +997,17 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const localUser = localBlock?.participants.find((p) => p.isLocal);
     if (!localUser) return;
 
-    try {
-      if (!hasLiveAudioTrack()) {
-        await acquireLocalMedia({ audio: true, video: get().cameraOn });
+    if (!isMarketingPreview()) {
+      try {
+        if (!hasLiveAudioTrack()) {
+          await acquireLocalMedia({ audio: true, video: get().cameraOn });
+        }
+        setMicrophoneEnabled(!get().muted);
+        syncStreamState(set);
+      } catch (error) {
+        set({ mediaError: mediaMessage(error, "Impossible d'accéder au micro.") });
+        return;
       }
-      setMicrophoneEnabled(!get().muted);
-      syncStreamState(set);
-    } catch (error) {
-      set({ mediaError: mediaMessage(error, "Impossible d'accéder au micro.") });
-      return;
     }
 
     set((s) => {
@@ -1046,8 +1048,10 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         mediaError: null,
       };
     });
-    pushVoicePresence(get, roomId);
-    playVoiceJoinSound();
+    if (!isMarketingPreview()) {
+      pushVoicePresence(get, roomId);
+      playVoiceJoinSound();
+    }
   },
 
   prefetchVoiceMedia: async () => {
@@ -1849,13 +1853,27 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   toggleRecording: async () => {
     if (get().recordingBusy) return;
 
-    const { isMarketingRecordingPreviewScene } = await import("../lib/marketingPreview");
+    const { isMarketingPreview, isMarketingRecordingPreviewScene } = await import(
+      "../lib/marketingPreview"
+    );
     if (isMarketingRecordingPreviewScene()) {
       set({
         recording: !get().recording,
         recordingBusy: false,
         mediaError: null,
       });
+      return;
+    }
+    if (isMarketingPreview()) {
+      if (get().recording) {
+        set({ recording: false, recordingBusy: false, mediaError: null });
+        const { finishMarketingPreviewRecording } = await import(
+          "../lib/marketingPreviewRecordingDemo"
+        );
+        finishMarketingPreviewRecording();
+        return;
+      }
+      set({ recording: true, recordingBusy: false, mediaError: null });
       return;
     }
 

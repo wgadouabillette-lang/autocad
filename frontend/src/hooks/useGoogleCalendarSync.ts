@@ -7,6 +7,7 @@ import {
 } from "../lib/calendarSync";
 import { useCalendarStore } from "../store/useCalendarStore";
 import { useAuthStore } from "../store/useAuthStore";
+import { isMarketingPreview } from "../lib/marketingPreview";
 
 export function useGoogleCalendarSync(selectedDate: string) {
   const authReady = useAuthStore((s) => s.ready);
@@ -19,6 +20,7 @@ export function useGoogleCalendarSync(selectedDate: string) {
   const [needsReconnect, setNeedsReconnect] = useState(false);
 
   const refresh = useCallback(async () => {
+    if (isMarketingPreview()) return;
     if (!authReady || !isAuthenticated) return;
     setLoading(true);
     try {
@@ -52,6 +54,7 @@ export function useGoogleCalendarSync(selectedDate: string) {
   }, [authReady, isAuthenticated, selectedDate, setGoogleEvents, setUserEvents]);
 
   useEffect(() => {
+    if (isMarketingPreview()) return;
     if (!authReady || !isAuthenticated) return;
     void refresh();
   }, [authReady, isAuthenticated, refresh]);

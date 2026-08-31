@@ -15,6 +15,7 @@ import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
 import { useStore } from "../../store/useStore";
 import { deleteCalendarEventById } from "../../lib/calendarEventDelete";
+import { isMarketingPreview } from "../../lib/marketingPreview";
 import CalendarEventComposer from "./CalendarEventComposer";
 
 const HOUR_HEIGHT = 48;
@@ -138,7 +139,7 @@ export default function DaySchedulePanel() {
         )}
       </div>
 
-      {(googleNeedsReconnect || googleSyncError) && (
+      {!isMarketingPreview() && (googleNeedsReconnect || googleSyncError) && (
         <div className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">
           <span>
             {googleSyncError ??

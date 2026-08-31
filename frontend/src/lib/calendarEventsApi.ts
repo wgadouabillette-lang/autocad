@@ -68,6 +68,21 @@ export async function createUserCalendarEvents(
   if (events.length === 0) {
     return { events: [], googleConnected: false, googleSynced: 0, googleError: null };
   }
+  const { isMarketingPreview } = await import("./marketingPreview");
+  if (isMarketingPreview()) {
+    const { useCalendarStore } = await import("../store/useCalendarStore");
+    const created = events.map((event, index) => ({
+      id: `preview-cal-created-${Date.now()}-${index}`,
+      title: event.title,
+      detail: event.detail,
+      dateKey: event.dateKey,
+      startMinutes: event.startMinutes,
+      endMinutes: event.endMinutes,
+      source,
+    }));
+    useCalendarStore.getState().addEvents(created);
+    return { events: created, googleConnected: false, googleSynced: 0, googleError: null };
+  }
   const r = await fetch(apiUrl(BASE), {
     method: "POST",
     headers: await authHeaders(true),

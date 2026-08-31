@@ -15,7 +15,14 @@ export type MarketingPreviewNavAction =
   | "show-dashboard"
   | "open-connectors"
   | "open-skills"
-  | "play-music";
+  | "play-music"
+  | "show-polls"
+  | "show-recording"
+  | "show-follow-up"
+  | "show-spotify"
+  | "show-calendar"
+  | "show-notes"
+  | "show-messages";
 
 /** Frozen Spotify progress shown in the marketing dashboard preview. */
 export const MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC = 32;
@@ -44,7 +51,14 @@ export function parseMarketingPreviewNavAction(data: unknown): MarketingPreviewN
     payload.action === "show-dashboard" ||
     payload.action === "open-connectors" ||
     payload.action === "open-skills" ||
-    payload.action === "play-music"
+    payload.action === "play-music" ||
+    payload.action === "show-polls" ||
+    payload.action === "show-recording" ||
+    payload.action === "show-follow-up" ||
+    payload.action === "show-spotify" ||
+    payload.action === "show-calendar" ||
+    payload.action === "show-notes" ||
+    payload.action === "show-messages"
   ) {
     return payload.action;
   }

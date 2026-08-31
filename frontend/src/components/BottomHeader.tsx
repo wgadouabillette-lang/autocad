@@ -331,6 +331,10 @@ export default function BottomHeader() {
           });
           return;
         }
+        if (isMarketingPreview()) {
+          void startHallDj();
+          return;
+        }
         void (async () => {
           // Keep Spotify activateElement in the click gesture chain (cold DJ start).
           await activateSpotifyPlaybackFromUserGesture();
@@ -339,7 +343,10 @@ export default function BottomHeader() {
       }}
       disabled={showHallDjLoading || connectingId === "spotify"}
       active={showHallDjSkip || showHallDjLoading}
-      className={hallDjNeedsPremium && !showHallDjSkip ? "bottom-bar-btn--wide-signet" : undefined}
+      className={clsx(
+        hallDjNeedsPremium && !showHallDjSkip ? "bottom-bar-btn--wide-signet" : undefined,
+        isMarketingPreview() && "marketing-preview-dj-btn",
+      )}
     >
       {showHallDjLoading ? (
         <span
@@ -514,6 +521,7 @@ export default function BottomHeader() {
         active={recording}
         recording={recording}
         signetAlign="inward-end"
+        className={isMarketingPreview() ? "marketing-preview-record-btn" : undefined}
       >
         <Circle size={ICON_SIZE} className={clsx(recording && "fill-current")} />
       </BottomBarButton>
