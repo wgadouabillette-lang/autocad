@@ -96,6 +96,7 @@ export type MarketingPreviewScene =
   | "theater"
   | "notes"
   | "handoff"
+  | "follow-up"
   | "spotify";
 
 export function readMarketingPreviewSceneParam(): MarketingPreviewScene {
@@ -105,6 +106,7 @@ export function readMarketingPreviewSceneParam(): MarketingPreviewScene {
   if (raw === "theater") return "theater";
   if (raw === "notes") return "notes";
   if (raw === "handoff") return "handoff";
+  if (raw === "follow-up") return "follow-up";
   if (raw === "spotify") return "spotify";
   return "dashboard";
 }
@@ -137,6 +139,10 @@ export function isMarketingHandoffPreviewScene(): boolean {
 
 export function isMarketingSpotifyPreviewScene(): boolean {
   return isMarketingPreview() && readMarketingPreviewSceneParam() === "spotify";
+}
+
+export function isMarketingFollowUpPreviewScene(): boolean {
+  return isMarketingPreview() && readMarketingPreviewSceneParam() === "follow-up";
 }
 
 export function applyMarketingPreviewThemeFromUrl(): void {

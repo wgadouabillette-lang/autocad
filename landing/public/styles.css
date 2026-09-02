@@ -1,5 +1,5 @@
 :root {
-  --meetra-gutter-bust: 18;
+  --meetra-gutter-bust: 19;
   --bg: #141414;
   --surface: #161616;
   --surface-elevated: #1e1e1e;
@@ -3057,6 +3057,45 @@ body.landing-locked .hero__cta {
   gap: 0.65rem;
   min-width: 0;
   padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+.hero__feature-copy--spotify {
+  position: relative;
+  isolation: isolate;
+}
+
+.hero__feature-copy--spotify > :not(.hero__feature-spotify-wash) {
+  position: relative;
+  z-index: 1;
+}
+
+.hero__feature-spotify-wash {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: min(20rem, 100%);
+  height: min(11.25rem, 78%);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transform: scale(0.975);
+  transform-origin: left bottom;
+  background:
+    radial-gradient(
+      ellipse 125% 98% at 0% 100%,
+      rgb(30 215 96 / 0.5) 0%,
+      rgb(29 185 84 / 0.3) 32%,
+      rgb(29 185 84 / 0.13) 52%,
+      transparent 82%
+    );
+  transition:
+    opacity 140ms ease-out,
+    transform 160ms ease-out;
+}
+
+.hero__feature-copy--spotify.is-spotify-playing .hero__feature-spotify-wash {
+  opacity: 0.38;
+  transform: scale(1);
 }
 
 .hero__feature-title {

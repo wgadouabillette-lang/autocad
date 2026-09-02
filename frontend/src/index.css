@@ -1054,6 +1054,14 @@ html:not(.app-loading-splash) #root {
     pointer-events: auto;
     cursor: pointer;
   }
+  .marketing-preview-shell--follow-up-static .app-bottom-header .bottom-bar-btn {
+    pointer-events: none;
+    cursor: default;
+  }
+  .marketing-preview-shell--follow-up-static .marketing-preview-followup-btn .forma-signet {
+    opacity: 1;
+    transform: translate(var(--signet-x), var(--signet-y-active));
+  }
   .marketing-preview-shell--theater-feature {
     display: flex;
     flex-direction: column;
@@ -2845,6 +2853,43 @@ html:not(.app-loading-splash) #root {
   }
   .calls-view__stage--theater .theater-view {
     @apply min-h-0 flex-1;
+  }
+  .marketing-preview-shell--follow-up-static {
+    --forma-calls-lift: 0px;
+  }
+  .marketing-preview-shell--follow-up-static .calls-view:not(.calls-view--theater):not(.calls-view--loading) {
+    justify-content: flex-end;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  .marketing-preview-shell--follow-up-static .calls-view__stage:not(.calls-view__stage--theater) {
+    flex: 0 1 auto;
+    justify-content: flex-end;
+    align-items: center;
+    --calls-stage-pad-top: 0px;
+    padding: 0;
+    margin-bottom: -0.5rem;
+  }
+  .marketing-preview-shell--follow-up-static .calls-view__open-channel-panel {
+    flex: 0 1 auto;
+  }
+  .marketing-preview-shell--follow-up-static .open-voice-in-call {
+    flex: 0 1 auto;
+    gap: 0;
+  }
+  .marketing-preview-shell--follow-up-static
+    .open-voice-in-call__grid
+    > .voice-participant-tile {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .marketing-preview-shell--follow-up-static .open-voice-in-call__grid {
+    flex: 0 0 auto;
+    transform: scale(0.94) translateY(calc(-1.75rem - 75px));
+    transform-origin: center bottom;
+    max-width: min(42rem, 100%);
+    margin-inline: auto;
   }
   .calls-view--open-channel .calls-view__open-channel-panel {
     @apply flex min-h-0 flex-1 flex-col;

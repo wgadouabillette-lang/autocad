@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { type CSSProperties } from "react";
+import { type CSSProperties, useEffect } from "react";
 import AppChromeRow from "./components/AppChromeRow";
 import BottomHeader from "./components/BottomHeader";
 import CallsView from "./components/calls/CallsView";
@@ -7,15 +7,27 @@ import ChatPanelShell from "./components/ChatPanelShell";
 import { useAccentColor } from "./hooks/useAccentColor";
 import { useColorTheme } from "./hooks/useColorTheme";
 import {
+  isMarketingFollowUpPreviewScene,
   isMarketingHandoffPreviewScene,
   isMarketingNotesPreviewScene,
+  isMarketingSpotifyPreviewScene,
 } from "./lib/marketingPreview";
+import {
+  cancelMarketingPreviewSpotifyDemo,
+  startMarketingPreviewSpotifyDemo,
+} from "./lib/marketingPreviewSpotifyDemo";
 import { useCallsStore } from "./store/useCallsStore";
 import { useStore } from "./store/useStore";
 
 export default function MarketingPreviewApp() {
   useColorTheme();
   useAccentColor();
+
+  useEffect(() => {
+    if (!isMarketingSpotifyPreviewScene()) return;
+    startMarketingPreviewSpotifyDemo();
+    return () => cancelMarketingPreviewSpotifyDemo();
+  }, []);
 
   const chatPanelOpen = useStore((s) => s.chatPanelOpen);
   const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
@@ -39,6 +51,7 @@ export default function MarketingPreviewApp() {
           isMarketingHandoffPreviewScene() ||
           notesShowcase) &&
           "marketing-preview-shell--notes",
+        isMarketingFollowUpPreviewScene() && "marketing-preview-shell--follow-up-static",
         recording && "marketing-preview-shell--recording",
       )}
       aria-hidden="true"

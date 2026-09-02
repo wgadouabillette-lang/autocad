@@ -473,6 +473,7 @@ export default function ChatPanel() {
   const recapFileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const insertSkillTemplateRef = useRef<(skill: ChatSkillDef) => void>(() => {});
+  const syncComposerMenuRef = useRef<(value: string, caret: number) => void>(() => {});
   const meetingAttendeesRef = useRef<HTMLTextAreaElement>(null);
   const mailRecipientsRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -674,6 +675,7 @@ export default function ChatPanel() {
   }, [setAiComposerEngaged, setPresenceActivity]);
 
   const scrollChatToLatest = useCallback(() => {
+    if (isMarketingPreview() && readMarketingPreviewSceneParam() === "spotify") return;
     const scrollEl = messagesScrollRef.current;
     if (!scrollEl) return;
     scrollEl.scrollTo({
@@ -776,6 +778,18 @@ export default function ChatPanel() {
     Boolean(firebaseUid) &&
     !isMarketingPreview() &&
     openaiKeyConfigured === false;
+
+  useEffect(() => {
+    if (!isMarketingPreview()) return;
+    const onComposerText = (event: Event) => {
+      const text = (event as CustomEvent<string>).detail;
+      if (typeof text !== "string") return;
+      setText(text);
+      syncComposerMenuRef.current(text, text.length);
+    };
+    window.addEventListener("lyte-marketing-composer-text", onComposerText);
+    return () => window.removeEventListener("lyte-marketing-composer-text", onComposerText);
+  }, []);
 
   useEffect(() => {
     if (!isMarketingPreview()) return;
@@ -1418,6 +1432,7 @@ export default function ChatPanel() {
     setSlashOpen(false);
     syncMentionMenu(value, caret);
   };
+  syncComposerMenuRef.current = syncComposerMenu;
 
   const syncMentionMenu = (value: string, caret: number) => {
     const mq = mentionQueryAt(value, caret);

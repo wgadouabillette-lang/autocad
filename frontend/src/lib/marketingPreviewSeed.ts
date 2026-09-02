@@ -19,6 +19,7 @@ import type { FollowUpDraft } from "./followUps";
 import { useAuthStore } from "../store/useAuthStore";
 import { useCallsStore } from "../store/useCallsStore";
 import { useConnectorsStore } from "../store/useConnectorsStore";
+import { useFollowUpCaptureStore } from "../store/useFollowUpCaptureStore";
 import { useFollowUpsStore } from "../store/useFollowUpsStore";
 import { useHallDjStore } from "../store/useHallDjStore";
 import { useHandoffStore } from "../store/useHandoffStore";
@@ -1089,6 +1090,89 @@ export function seedMarketingTheaterPreview(): void {
   });
 }
 
+/** Duo salon call with bottom dock (Follow-up active) for the landing card crop. */
+export function seedMarketingFollowUpPreview(): void {
+  seedMarketingPreview();
+
+  useStore.setState({
+    chatPanelOpen: false,
+    chatPanelMode: "agent",
+    chatPanelExpanded: false,
+    chatPanelLeaveAnimating: false,
+    showChatHistory: false,
+    billingManaged: true,
+  });
+
+  const workspaceId = MARKETING_PREVIEW_WORKSPACE_ID;
+  const salonChannelId = `${workspaceId}-open-main`;
+  const salonLocal = { id: "local", name: "You", isLocal: true as const };
+  const salonParticipants = [salonLocal, { id: "jordan", name: "Jordan" }];
+  const salonMemberIds = ["jordan"];
+
+  useFollowUpCaptureStore.setState({
+    active: true,
+    busy: false,
+    transcriptLines: [],
+    workspaceId,
+    captureId: "preview-followup-capture",
+  });
+
+  const now = Date.now();
+  useWorkspacePresenceStore.setState((state) => {
+    const existing = state.membersByWorkspace[workspaceId] ?? {};
+    const members = { ...existing };
+    for (const memberId of salonMemberIds) {
+      const member = members[memberId];
+      if (!member) continue;
+      members[memberId] = {
+        ...member,
+        lastSeenMs: now,
+        online: true,
+        voice: {
+          inPrivateCall: false,
+          openChannelId: salonChannelId,
+        },
+      };
+    }
+    return {
+      membersByWorkspace: {
+        ...state.membersByWorkspace,
+        [workspaceId]: members,
+      },
+    };
+  });
+
+  useCallsStore.setState((state) => {
+    const room = state.callsByRoom[workspaceId];
+    if (!room) return state;
+    return {
+      localInCallByRoom: { ...state.localInCallByRoom, [workspaceId]: true },
+      localOpenChannelByRoom: { ...state.localOpenChannelByRoom, [workspaceId]: salonChannelId },
+      mutedByParticipant: { ...state.mutedByParticipant },
+      speakingByParticipant: { jordan: true },
+      callsViewModeByWorkspace: {
+        ...state.callsViewModeByWorkspace,
+        [workspaceId]: "blocks",
+      },
+      callsByRoom: {
+        ...state.callsByRoom,
+        [workspaceId]: {
+          ...room,
+          openChannels: room.openChannels.map((channel) =>
+            channel.id === salonChannelId
+              ? {
+                  ...channel,
+                  inCall: true,
+                  participants: salonParticipants,
+                }
+              : channel,
+          ),
+        },
+      },
+    };
+  });
+}
+
 /** Full app chrome with the Notes tab open on a just-finished meeting. */
 export function seedMarketingNotesPreview(): void {
   seedMarketingPreview();
@@ -1249,7 +1333,7 @@ const SPOTIFY_PREVIEW_STARBOY = {
   durationMs: 230453,
 };
 
-/** Same workspace as the hero, with Starboy in the composer now-playing bar. */
+/** Same workspace as the hero, with Spotify idle until /play. */
 export function seedMarketingSpotifyPreview(): void {
   seedMarketingPreview();
 
@@ -1264,10 +1348,12 @@ export function seedMarketingSpotifyPreview(): void {
   );
 
   useSpotifyPlayerStore.setState({
-    currentTrack: SPOTIFY_PREVIEW_STARBOY,
+    currentTrack: null,
     lastPlayedTrack: null,
-    playing: true,
-    playbackMode: "full",
+    playing: false,
+    playbackMode: null,
+    playerNotice: null,
+    panelOpen: false,
   });
 
   useStore.setState({

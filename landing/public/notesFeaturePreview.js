@@ -1,24 +1,26 @@
 (function () {
   var PREVIEW_WIDTH = 1680;
   var PREVIEW_HEIGHT = 940;
-  var VISIBLE_WIDTH = 980;
-  var VISIBLE_HEIGHT = 680;
-  var VISIBLE_LEFT = (PREVIEW_WIDTH - VISIBLE_WIDTH) / 2;
-  var VISIBLE_TOP = 0;
-  var TOP_PAD = 15;
+  // Tight bottom crop: duo salon grid + dock (Follow-up signet visible).
+  var VISIBLE_WIDTH = 920;
+  var VISIBLE_HEIGHT = 560;
+  var VISIBLE_LEFT = 380;
+  var VISIBLE_TOP = PREVIEW_HEIGHT - VISIBLE_HEIGHT - 8;
+  var TOP_PAD = 0;
+  var BOTTOM_PAD = 72;
   var LOAD_TIMEOUT_MS = 8000;
 
   function resolvePreviewHref() {
     var params = new URLSearchParams();
     var theme = document.documentElement.dataset.theme || "dark";
     params.set("theme", theme);
-    params.set("scene", "notes");
+    params.set("scene", "follow-up");
     return "/app/preview.html?" + params.toString();
   }
 
   function showFallback(mount) {
     mount.innerHTML =
-      '<img class="hero__feature-img" src="app-preview.png" alt="Meetra Notes preview" loading="eager" decoding="async" />';
+      '<img class="hero__feature-img" src="app-preview.png" alt="Meetra follow-up preview" loading="eager" decoding="async" />';
   }
 
   function scalePreview(mount, wrapper, scaleLayer) {
@@ -28,7 +30,7 @@
 
     var scale = Math.max(width / VISIBLE_WIDTH, height / VISIBLE_HEIGHT);
     var offsetX = -VISIBLE_LEFT * scale + (width - VISIBLE_WIDTH * scale) / 2;
-    var offsetY = -VISIBLE_TOP * scale + TOP_PAD;
+    var offsetY = -VISIBLE_TOP * scale + TOP_PAD - BOTTOM_PAD;
 
     wrapper.style.width = width + "px";
     wrapper.style.height = height + "px";
@@ -54,7 +56,7 @@
 
     var iframe = document.createElement("iframe");
     iframe.className = "hero__theater-feature-frame";
-    iframe.title = "Meetra Notes preview";
+    iframe.title = "Meetra follow-up preview";
     iframe.loading = "eager";
     iframe.tabIndex = -1;
     iframe.setAttribute("aria-hidden", "true");

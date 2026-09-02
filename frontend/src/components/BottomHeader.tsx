@@ -41,7 +41,10 @@ import { useSpotifyAudioPulse } from "../hooks/useSpotifyAudioPulse";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
 import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
 import { useHallDjStore } from "../store/useHallDjStore";
-import { isMarketingPreview } from "../lib/marketingPreview";
+import {
+  isMarketingFollowUpPreviewScene,
+  isMarketingPreview,
+} from "../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { warmSpotifyWebPlayer, activateSpotifyPlaybackFromUserGesture } from "../lib/spotifyWebPlayback";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
@@ -480,6 +483,9 @@ export default function BottomHeader() {
           onClick={() => void toggleFollowUp(activeRoomId)}
           active={followUpActive}
           disabled={followUpBusy}
+          className={
+            isMarketingFollowUpPreviewScene() ? "marketing-preview-followup-btn" : undefined
+          }
         >
           <ListTodo size={ICON_SIZE} />
         </BottomBarButton>

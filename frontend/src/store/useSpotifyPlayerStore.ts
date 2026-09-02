@@ -318,6 +318,17 @@ async function startPlayback(
 ): Promise<boolean> {
   if (stopEpoch !== playbackStopEpoch) return false;
 
+  const { isMarketingPreview } = await import("../lib/marketingPreview");
+  if (isMarketingPreview()) {
+    const { applyMarketingPreviewPlayback } = await import("../lib/marketingPreviewSpotifyDemo");
+    applyMarketingPreviewPlayback({
+      ...track,
+      imageUrl: track.imageUrl ?? undefined,
+      durationMs: track.durationMs ?? undefined,
+    });
+    return true;
+  }
+
   suppressTrackEnded = true;
   cancelSpotifyPlaybackEnded();
   clearSpotifyFullPlaybackLock();

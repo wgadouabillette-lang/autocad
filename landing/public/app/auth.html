@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en" class="is-busy">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="dark" />
+    <title>Meetra</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #111;
+        color: #e5e5e5;
+        font: 15px/1.45 "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .panel {
+        display: none;
+        max-width: 22rem;
+        width: calc(100% - 2rem);
+        padding: 1.5rem;
+        text-align: center;
+      }
+      html.is-busy .panel--busy,
+      html.is-choose .panel--choose,
+      html.is-done .panel--done,
+      html.is-error .panel--error {
+        display: block;
+      }
+      .panel p {
+        margin: 0;
+      }
+      .panel--choose p {
+        margin-bottom: 0.35rem;
+      }
+      .choose-title {
+        display: none;
+        margin: 0 0 0.4rem;
+        color: #fff;
+        font-size: 1.5rem;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+      }
+      html.is-choose.has-account .panel--choose {
+        max-width: calc(34rem - 80px);
+        text-align: left;
+        transform: translateY(40px);
+      }
+      html.is-choose.has-account .choose-title {
+        display: block;
+      }
+      html.is-choose.has-account #choose-lead {
+        margin: 0 0 0.9rem;
+        color: #8a8a8a;
+        font-size: 0.875rem;
+        line-height: 1.4;
+        white-space: nowrap;
+      }
+      .panel__actions {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.65rem;
+        margin-top: 1.25rem;
+      }
+      html.is-choose.has-account .panel__actions {
+        align-items: stretch;
+        margin-top: 0;
+        gap: 0.55rem;
+      }
+      .panel button {
+        -webkit-appearance: none;
+           -moz-appearance: none;
+                appearance: none;
+        min-height: 2.5rem;
+        padding: 0.55rem 1.25rem;
+        border: 1px solid #404040;
+        border-radius: 999px;
+        background: #121212;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+      html.is-error .panel button {
+        margin-top: 1.25rem;
+      }
+      .panel button[hidden] {
+        display: none;
+      }
+      .panel button.btn-secondary {
+        border-color: transparent;
+        background: transparent;
+        color: #a3a3a3;
+      }
+      .panel button.account-card {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 4.25rem;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid #2a2a2a;
+        border-radius: 12px;
+        background: #0d0d0d;
+        text-align: left;
+      }
+      .panel button.account-card:hover {
+        background: #161616;
+        border-color: #3a3a3a;
+      }
+      .account-card__avatar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        flex-shrink: 0;
+        overflow: hidden;
+        border-radius: 11px;
+        background: #262626;
+        color: #e0e0e0;
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .account-card__avatar img {
+        width: 100%;
+        height: 100%;
+        -o-object-fit: cover;
+           object-fit: cover;
+      }
+      .account-card__meta {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 0.1rem;
+      }
+      .account-card__name {
+        overflow: hidden;
+        color: #f0f0f0;
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .account-card__email {
+        overflow: hidden;
+        color: #808080;
+        font-size: 0.8125rem;
+        line-height: 1.35;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      html.is-choose.has-account #use-another.btn-secondary {
+        align-self: flex-start;
+        min-height: 0;
+        margin: 0;
+        padding: 0.2rem 0;
+        border: 0;
+        background: transparent;
+        color: #a3a3a3;
+      }
+      html.is-choose.has-account #use-another.btn-secondary:hover {
+        color: #e5e5e5;
+      }
+    </style>
+    <script type="module" crossorigin src="/app/assets/auth-DILxc36b.js"></script>
+    <link rel="modulepreload" crossorigin href="/app/assets/resolveAuthDomain-als4YcJH.js">
+  </head>
+  <body>
+    <div class="panel panel--busy">
+      <p>Signing in with Google…</p>
+    </div>
+    <div class="panel panel--choose">
+      <h1 id="choose-title" class="choose-title" hidden>Sign in to Meetra Desktop</h1>
+      <p id="choose-lead">Sign in with Google to continue.</p>
+      <div class="panel__actions">
+        <button type="button" id="continue-same" class="account-card" hidden>
+          <span class="account-card__avatar" id="account-avatar" aria-hidden="true"></span>
+          <span class="account-card__meta">
+            <span class="account-card__name" id="account-name"></span>
+            <span class="account-card__email" id="account-email"></span>
+          </span>
+        </button>
+        <button type="button" id="use-another" class="btn-secondary">Use another account</button>
+      </div>
+    </div>
+    <div class="panel panel--done">
+      <p id="done-lead">You can reopen the app. Your account is synced.</p>
+    </div>
+    <div class="panel panel--error">
+      <p id="error-lead">Sign-in failed.</p>
+      <button type="button" id="retry">Continue with Google</button>
+    </div>
+  </body>
+</html>
