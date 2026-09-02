@@ -3291,28 +3291,8 @@ body.landing-locked .hero__cta {
     border-radius: var(--radius) 0 0 var(--radius);
   }
 
-  /* Spotify green wash: anchor to preview image bottom-left (not text block above). */
-  .hero__feature-card:has(.hero__feature-copy--spotify) {
-    position: relative;
-  }
-
-  .hero__feature-copy--spotify {
-    position: static;
-    isolation: auto;
-  }
-
-  .hero__feature-copy--spotify .hero__feature-spotify-wash {
-    position: absolute;
-    left: clamp(1rem, 3vw, 1.25rem);
-    bottom: clamp(1.25rem, 4vw, 1.5rem);
-    width: min(20rem, 72vw);
-    height: min(11.25rem, 42vw);
-    z-index: 2;
-  }
-
-  .hero__feature-card:has(.hero__feature-copy--spotify) .hero__feature-media {
-    position: relative;
-    z-index: 1;
+  .hero__feature-spotify-wash {
+    display: none;
   }
 }
 
