@@ -1,0 +1,1 @@
+import{aE as r,bu as s,q as i,s as u}from"./index-uQtODgYO.js";import"./resolveAuthDomain-als4YcJH.js";function o(e,t){r()&&s.setState({active:!0,busy:!1,error:null,structureError:null,lines:[],interimText:"",structuredHtml:"",structuring:!1,nextStructureAt:Date.now()+4e3,startedAt:Date.now(),workspaceId:e??u,sessionId:t??i})}export{o as beginMarketingPreviewAiNotesFromClick};

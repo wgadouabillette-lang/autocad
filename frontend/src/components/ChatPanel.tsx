@@ -782,13 +782,21 @@ export default function ChatPanel() {
   useEffect(() => {
     if (!isMarketingPreview()) return;
     const onComposerText = (event: Event) => {
-      const text = (event as CustomEvent<string>).detail;
-      if (typeof text !== "string") return;
-      setText(text);
-      syncComposerMenuRef.current(text, text.length);
+      const next = (event as CustomEvent<string>).detail;
+      if (typeof next !== "string") return;
+      setText(next);
+      syncComposerMenuRef.current(next, next.length);
+    };
+    const onSkillRunClear = () => {
+      setActiveSkillRun(null);
+      setText("");
     };
     window.addEventListener("lyte-marketing-composer-text", onComposerText);
-    return () => window.removeEventListener("lyte-marketing-composer-text", onComposerText);
+    window.addEventListener("lyte-marketing-skill-run-clear", onSkillRunClear);
+    return () => {
+      window.removeEventListener("lyte-marketing-composer-text", onComposerText);
+      window.removeEventListener("lyte-marketing-skill-run-clear", onSkillRunClear);
+    };
   }, []);
 
   useEffect(() => {
@@ -1457,6 +1465,13 @@ export default function ChatPanel() {
       handoffRunPendingRef.current = true;
       setActiveSkillRun(buildSkillRun("handoff", HANDOFF_TIMELINE_STEPS));
       void submitSegmentHandoff(chat, activeChatTabId);
+      return;
+    }
+    if (text.trim() === HANDOFF_SKILL_TEMPLATE) {
+      enterHandoffSelection();
+      setActiveComposerSkill(null);
+      setText("");
+      setSlashOpen(false);
       return;
     }
     if (activeComposerSkill === "recap") {

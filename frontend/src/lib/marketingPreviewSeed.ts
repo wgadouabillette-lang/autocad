@@ -1231,9 +1231,13 @@ const HANDOFF_PREVIEW_MESSAGES: ChatMessage[] = [
       "Thursday 10:00 standup in Salon vocal. Lock the sprint 14 board before then.",
     ].join("\n"),
   },
+  {
+    role: "user",
+    text: "Also flag Jordan’s Wednesday QA deadline and the Thursday standup.",
+  },
 ];
 
-/** Agent tab with an AI-written file selected, handing it off to Jordan. */
+/** Agent tab with a Q3 one-pager ready — cursor demo types /handoff to start selection. */
 export function seedMarketingHandoffPreview(): void {
   seedMarketingPreview();
 
@@ -1289,7 +1293,7 @@ export function seedMarketingHandoffPreview(): void {
   useStore.setState({
     chatPanelOpen: true,
     chatPanelMode: "agent",
-    chatPanelExpanded: true,
+    chatPanelExpanded: false,
     chatPanelLeaveAnimating: false,
     showChatHistory: false,
     busy: false,
@@ -1306,20 +1310,19 @@ export function seedMarketingHandoffPreview(): void {
     ],
   });
 
+  // Idle chat — handoff selection starts from the cursor demo typing /handoff.
   useHandoffStore.setState({
-    selectionMode: true,
-    selectionSource: "ai",
+    selectionMode: false,
+    selectionSource: null,
     peopleThreadId: null,
-    selectedIndices: new Set([0, 1]),
-    target: {
-      targetType: "dm",
-      recipientUid: "jordan",
-      displayName: "Jordan",
-    },
+    selectedIndices: new Set(),
+    target: null,
     submitting: false,
     error: null,
     preview: null,
     noteHandoffOpen: false,
+    noteHandoffTitle: "",
+    noteHandoffBodyHtml: "",
   });
 }
 

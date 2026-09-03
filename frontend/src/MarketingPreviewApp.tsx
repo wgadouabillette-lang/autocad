@@ -13,6 +13,10 @@ import {
   isMarketingSpotifyPreviewScene,
 } from "./lib/marketingPreview";
 import {
+  cancelMarketingPreviewHandoffDemo,
+  startMarketingPreviewHandoffDemo,
+} from "./lib/marketingPreviewHandoffDemo";
+import {
   cancelMarketingPreviewSpotifyDemo,
   startMarketingPreviewSpotifyDemo,
 } from "./lib/marketingPreviewSpotifyDemo";
@@ -27,6 +31,12 @@ export default function MarketingPreviewApp() {
     if (!isMarketingSpotifyPreviewScene()) return;
     startMarketingPreviewSpotifyDemo();
     return () => cancelMarketingPreviewSpotifyDemo();
+  }, []);
+
+  useEffect(() => {
+    if (!isMarketingHandoffPreviewScene()) return;
+    startMarketingPreviewHandoffDemo();
+    return () => cancelMarketingPreviewHandoffDemo();
   }, []);
 
   const chatPanelOpen = useStore((s) => s.chatPanelOpen);

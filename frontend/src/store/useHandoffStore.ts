@@ -172,6 +172,12 @@ export const useHandoffStore = create<HandoffStore>((set, get) => ({
 
     set({ submitting: true, error: null });
     try {
+      const { isMarketingPreview } = await import("../lib/marketingPreview");
+      if (isMarketingPreview()) {
+        await new Promise((resolve) => window.setTimeout(resolve, 900));
+        get().exitSelectionMode();
+        return;
+      }
       await ensureDevSubscriptionSyncedForHandoff();
       const indices = [...selectedIndices].sort((a, b) => a - b);
       const result = await api.createHandoff({
