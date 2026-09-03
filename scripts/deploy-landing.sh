@@ -8,13 +8,14 @@ if [[ -d desktop/release ]]; then
   ./scripts/prepare-landing-downloads.sh || true
 fi
 
-# nav.js / footer.js live in landing/; public/ copies stay aligned for Vite.
+# nav.js / footer.js / auth.js live in landing/; public/ copies stay aligned for Vite.
 cp landing/nav.js landing/public/nav.js
 cp landing/footer.js landing/public/footer.js
+cp landing/auth.js landing/public/auth.js
 
 if [[ "${SKIP_LANDING_PREVIEW_SYNC:-}" != "1" ]]; then
   ./scripts/sync-landing-dashboard-preview.sh
 fi
 
 echo "Déploiement Firebase Hosting (landing/)…"
-firebase deploy --only hosting --message "Hall landing $(date +%Y-%m-%d)"
+firebase deploy --only hosting --message "Meetra landing $(date +%Y-%m-%d)"

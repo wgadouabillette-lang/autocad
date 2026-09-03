@@ -8,6 +8,7 @@ export const CLEAN_URL_SLUGS = [
   "privacy",
   "subprocessors",
   "google-limited-use",
+  "affiliate",
 ];
 
 export const CLEAN_URL_SLUG_SET = new Set(CLEAN_URL_SLUGS);

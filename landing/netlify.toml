@@ -47,6 +47,11 @@
   status = 301
 
 [[redirects]]
+  from = "/affiliate.html"
+  to = "/affiliate"
+  status = 301
+
+[[redirects]]
   from = "/compact.html"
   to = "/"
   status = 301
@@ -94,6 +99,11 @@
 [[redirects]]
   from = "/google-limited-use"
   to = "/google-limited-use.html"
+  status = 200
+
+[[redirects]]
+  from = "/affiliate"
+  to = "/affiliate.html"
   status = 200
 
 [[headers]]

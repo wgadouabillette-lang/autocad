@@ -9,6 +9,8 @@ app = FastAPI(title="Meetra API")
 _FALLBACK_CORS_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:5190",
+    "http://127.0.0.1:5190",
     "http://localhost:47831",
     "http://127.0.0.1:47831",
     "http://localhost:47832",
@@ -69,11 +71,13 @@ except Exception as exc:  # noqa: BLE001 — keep health alive if plugins fail t
 
 try:
     from app.api.account import router as account_router
+    from app.api.affiliate import router as affiliate_router
     from app.api.billing import router as billing_router
     from app.api.desktop_auth import router as desktop_auth_router
     from app.api.handoffs import router as handoffs_router
 
     app.include_router(account_router)
+    app.include_router(affiliate_router)
     app.include_router(billing_router)
     app.include_router(desktop_auth_router)
     app.include_router(handoffs_router)

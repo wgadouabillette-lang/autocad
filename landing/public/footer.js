@@ -6,12 +6,14 @@
     return key;
   }
 
-  function link(href, labelKey, external) {
+  function link(href, labelKey, options) {
     var label = t(labelKey);
+    var external = options === true;
+    var newTab = external || (options && options.newTab);
     var ext = external
       ? '<span class="footer-link__ext" aria-hidden="true">&nbsp;↗</span>'
       : "";
-    var attrs = external ? ' target="_blank" rel="noopener noreferrer"' : "";
+    var attrs = newTab ? ' target="_blank" rel="noopener noreferrer"' : "";
     return (
       '<li><a class="footer-link" href="' +
       href +
@@ -145,7 +147,7 @@
         link("/ressources", "footer.resources") +
           link("/auth", "footer.signIn") +
           link("/ressources", "footer.guides") +
-          disabledLink("nav.affiliate", "nav.affiliateSoon"),
+          link("/affiliate", "nav.affiliate", { newTab: true }),
       ),
       column(
         "footer.legal",

@@ -49,14 +49,18 @@ function cleanUrlsMiddleware(req, res, next) {
   next();
 }
 
+function prependMiddleware(middlewares, handle) {
+  middlewares.stack.unshift({ route: "", handle });
+}
+
 export function cleanUrlsPlugin() {
   return {
     name: "hall-clean-urls",
     configureServer(server) {
-      server.middlewares.use(cleanUrlsMiddleware);
+      prependMiddleware(server.middlewares, cleanUrlsMiddleware);
     },
     configurePreviewServer(server) {
-      server.middlewares.use(cleanUrlsMiddleware);
+      prependMiddleware(server.middlewares, cleanUrlsMiddleware);
     },
   };
 }

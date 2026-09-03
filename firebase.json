@@ -28,11 +28,23 @@
     "providers": {
       "emailPassword": true,
       "googleSignIn": {
-        "oAuthBrandDisplayName": "Hall",
+        "oAuthBrandDisplayName": "Meetra",
         "supportEmail": "wgadouabillette@gmail.com",
         "authorizedRedirectUris": [
+          "https://forma-cad-dev.firebaseapp.com",
+          "https://forma-cad-dev.firebaseapp.com/__/auth/handler",
+          "https://forma-cad-dev.web.app",
+          "https://forma-cad-dev.web.app/__/auth/handler",
+          "https://meetra.cc",
+          "https://meetra.cc/__/auth/handler",
+          "https://www.meetra.cc",
+          "https://www.meetra.cc/__/auth/handler",
           "https://forma.app",
-          "https://autocad-blue.vercel.app"
+          "https://forma.app/__/auth/handler",
+          "https://autocad-blue.vercel.app",
+          "https://autocad-blue.vercel.app/__/auth/handler",
+          "http://localhost",
+          "http://127.0.0.1"
         ]
       }
     },
@@ -42,6 +54,8 @@
       "forma-cad-dev.web.app",
       "forma-cad-dev.firebaseapp.com",
       "forma.app",
+      "meetra.cc",
+      "www.meetra.cc",
       "autocad-blue.vercel.app"
     ]
   },
@@ -65,7 +79,8 @@
       { "source": "/terms", "destination": "/terms.html" },
       { "source": "/privacy", "destination": "/privacy.html" },
       { "source": "/subprocessors", "destination": "/subprocessors.html" },
-      { "source": "/google-limited-use", "destination": "/google-limited-use.html" }
+      { "source": "/google-limited-use", "destination": "/google-limited-use.html" },
+      { "source": "/affiliate", "destination": "/affiliate.html" }
     ],
     "redirects": [
       { "source": "/index.html", "destination": "/", "type": 301 },
@@ -77,16 +92,22 @@
       { "source": "/privacy.html", "destination": "/privacy", "type": 301 },
       { "source": "/subprocessors.html", "destination": "/subprocessors", "type": 301 },
       { "source": "/google-limited-use.html", "destination": "/google-limited-use", "type": 301 },
+      { "source": "/affiliate.html", "destination": "/affiliate", "type": 301 },
       { "source": "/compact", "destination": "/", "type": 301 },
       { "source": "/compact.html", "destination": "/", "type": 301 },
       {
+        "source": "/downloads/Meetra.exe",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media",
+        "type": 302
+      },
+      {
         "source": "/downloads/Hall.exe",
-        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall.exe?alt=media",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media",
         "type": 302
       },
       {
         "source": "/downloads/Hall-windows.exe",
-        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall.exe?alt=media",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media",
         "type": 302
       },
       {
@@ -95,8 +116,18 @@
         "type": 302
       },
       {
+        "source": "/downloads/Meetra-linux.AppImage",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra-linux.AppImage?alt=media",
+        "type": 302
+      },
+      {
         "source": "/downloads/Hall-linux.AppImage",
-        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-linux.AppImage?alt=media",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra-linux.AppImage?alt=media",
+        "type": 302
+      },
+      {
+        "source": "/desktop-updates/:file",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/desktop-updates%2F:file?alt=media",
         "type": 302
       }
     ],

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Apply to the Meetra Affiliate Program. Promote Meetra and earn a commission on new subscriptions you refer."
+    />
+    <title>Meetra Affiliate Program</title>
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <link rel="icon" type="image/png" href="icon.png" />
+    <link rel="stylesheet" href="affiliate.css?v=1" />
+  </head>
+  <body>
+    <form class="affiliate" id="affiliate-form">
+      <div class="affiliate__canvas">
+        <header class="affiliate__header">
+          <img
+            class="affiliate__logo"
+            src="/meetra-wordmark.png"
+            alt="Meetra"
+            width="140"
+            height="32"
+          />
+          <h1 class="affiliate__title">Meetra Affiliate Program</h1>
+          <p class="affiliate__lead">
+            Apply to join the Meetra Affiliate Program. Promote Meetra to your audience and earn a
+            commission on new subscriptions you refer.
+          </p>
+        </header>
+
+        <div class="affiliate__success" id="affiliate-success">
+          <h2 class="affiliate__success-title">Thanks for applying</h2>
+          <p class="affiliate__success-lead">
+            We’ll review your application and get back to you by email.
+          </p>
+        </div>
+
+        <hr class="affiliate__rule" />
+
+        <div class="affiliate__fields">
+          <div class="affiliate__field">
+            <div class="affiliate__label-row">
+              <label class="affiliate__label" for="affiliate-first-name">First name</label>
+              <span class="affiliate__req" aria-hidden="true">*</span>
+            </div>
+            <input
+              class="affiliate__control"
+              id="affiliate-first-name"
+              name="firstName"
+              type="text"
+              autocomplete="given-name"
+              required
+              aria-required="true"
+            />
+          </div>
+
+          <div class="affiliate__field">
+            <div class="affiliate__label-row">
+              <label class="affiliate__label" for="affiliate-last-name">Last name</label>
+              <span class="affiliate__req" aria-hidden="true">*</span>
+            </div>
+            <input
+              class="affiliate__control"
+              id="affiliate-last-name"
+              name="lastName"
+              type="text"
+              autocomplete="family-name"
+              required
+              aria-required="true"
+            />
+          </div>
+
+          <div class="affiliate__field">
+            <div class="affiliate__label-row">
+              <label class="affiliate__label" for="affiliate-email">Email</label>
+              <span class="affiliate__req" aria-hidden="true">*</span>
+            </div>
+            <input
+              class="affiliate__control"
+              id="affiliate-email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              required
+              aria-required="true"
+            />
+          </div>
+
+          <div class="affiliate__field">
+            <div class="affiliate__label-row">
+              <label class="affiliate__label" for="affiliate-company">Company name</label>
+              <span class="affiliate__req" aria-hidden="true">*</span>
+            </div>
+            <input
+              class="affiliate__control"
+              id="affiliate-company"
+              name="company"
+              type="text"
+              autocomplete="organization"
+              required
+              aria-required="true"
+            />
+          </div>
+
+          <div class="affiliate__field">
+            <div class="affiliate__label-row">
+              <label class="affiliate__label" for="affiliate-channel">Your website/channel</label>
+              <span class="affiliate__req" aria-hidden="true">*</span>
+            </div>
+            <p class="affiliate__hint" id="affiliate-channel-hint">
+              The link where you expect to promote Meetra. This could be a YouTube channel,
+              community, newsletter, or site.
+            </p>
+            <input
+              class="affiliate__control"
+              id="affiliate-channel"
+              name="channel"
+              type="text"
+              inputmode="url"
+              autocomplete="url"
+              required
+              aria-required="true"
+              aria-describedby="affiliate-channel-hint"
+            />
+          </div>
+
+          <div class="affiliate__field">
+            <div class="affiliate__label-row">
+              <label class="affiliate__label" for="affiliate-about">About you</label>
+              <span class="affiliate__req" aria-hidden="true">*</span>
+            </div>
+            <p class="affiliate__hint" id="affiliate-about-hint">
+              Tell us a little about you, how your audience ties into Meetra, and how you expect to
+              promote it.
+            </p>
+            <textarea
+              class="affiliate__control"
+              id="affiliate-about"
+              name="about"
+              rows="6"
+              required
+              aria-required="true"
+              aria-describedby="affiliate-about-hint"
+            ></textarea>
+          </div>
+
+          <div class="affiliate__field">
+            <div class="affiliate__label-row">
+              <label class="affiliate__label" for="affiliate-code"
+                >What do you want your discount code/referral link to be?</label
+              >
+            </div>
+            <p class="affiliate__hint" id="affiliate-code-hint">
+              This is what your coupon code and referral link will be. One word only (e.g. STUDIO,
+              REMOTE, ALEX).
+            </p>
+            <input
+              class="affiliate__control"
+              id="affiliate-code"
+              name="referralCode"
+              type="text"
+              maxlength="32"
+              spellcheck="false"
+              autocomplete="off"
+              aria-describedby="affiliate-code-hint"
+            />
+          </div>
+        </div>
+
+        <div class="affiliate__actions">
+          <button class="affiliate__clear" type="reset">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M3.2 6.2A5.2 5.2 0 1 1 2.8 9"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+              <path
+                d="M3.2 3.2v3h3"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            Clear form
+          </button>
+          <button class="affiliate__submit" type="submit" id="affiliate-submit">
+            Submit
+          </button>
+        </div>
+
+        <p class="affiliate__error" id="affiliate-error" hidden role="alert"></p>
+        <p class="affiliate__note">Do not submit passwords through this form.</p>
+      </div>
+    </form>
+    <script>
+      (function () {
+        var form = document.getElementById("affiliate-form");
+        if (!form) return;
+        var submitBtn = document.getElementById("affiliate-submit");
+        var errorEl = document.getElementById("affiliate-error");
+        var apiBase =
+          (typeof window !== "undefined" &&
+            window.FORMA_API_BASE &&
+            String(window.FORMA_API_BASE).replace(/\/$/, "")) ||
+          "";
+
+        function showError(message) {
+          if (!errorEl) return;
+          errorEl.hidden = false;
+          errorEl.textContent = message;
+        }
+
+        function clearError() {
+          if (!errorEl) return;
+          errorEl.hidden = true;
+          errorEl.textContent = "";
+        }
+
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          clearError();
+          if (!form.reportValidity()) return;
+
+          var data = {
+            firstName: (form.elements.firstName.value || "").trim(),
+            lastName: (form.elements.lastName.value || "").trim(),
+            email: (form.elements.email.value || "").trim(),
+            company: (form.elements.company.value || "").trim(),
+            channel: (form.elements.channel.value || "").trim(),
+            about: (form.elements.about.value || "").trim(),
+            referralCode: (form.elements.referralCode.value || "").trim() || null,
+          };
+
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Submitting…";
+          }
+
+          fetch(apiBase + "/api/affiliate/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify(data),
+          })
+            .then(function (res) {
+              if (res.ok) {
+                form.classList.add("is-submitted");
+                return;
+              }
+              return res
+                .json()
+                .catch(function () {
+                  return {};
+                })
+                .then(function (payload) {
+                  var detail =
+                    (payload && (payload.detail || payload.message)) ||
+                    "Unable to send your application. Please try again.";
+                  if (Array.isArray(detail)) {
+                    detail = detail
+                      .map(function (item) {
+                        return item && item.msg ? item.msg : String(item);
+                      })
+                      .join(" ");
+                  }
+                  throw new Error(
+                    typeof detail === "string"
+                      ? detail
+                      : "Unable to send your application."
+                  );
+                });
+            })
+            .catch(function (err) {
+              showError(
+                (err && err.message) ||
+                  "Unable to send your application. Please try again."
+              );
+            })
+            .finally(function () {
+              if (submitBtn && !form.classList.contains("is-submitted")) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Submit";
+              }
+            });
+        });
+      })();
+    </script>
+  </body>
+</html>

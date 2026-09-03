@@ -220,8 +220,8 @@
           {
             id: "affiliate",
             labelKey: "nav.affiliate",
-            disabled: true,
-            titleKey: "nav.affiliateSoon",
+            href: "/affiliate",
+            target: "_blank",
           },
         ]
       : [
@@ -232,8 +232,8 @@
           {
             id: "affiliate",
             labelKey: "nav.affiliate",
-            disabled: true,
-            titleKey: "nav.affiliateSoon",
+            href: "/affiliate",
+            target: "_blank",
           },
         ];
 
@@ -249,12 +249,15 @@
           );
         }
         var isActive = tab.id === active;
+        var targetAttrs =
+          tab.target === "_blank" ? ' target="_blank" rel="noopener noreferrer"' : "";
         return (
           '<li><a class="nav__tab' +
           (isActive ? " nav__tab--active" : "") +
           '" href="' +
           tab.href +
           '"' +
+          targetAttrs +
           (isActive ? ' aria-current="page"' : "") +
           ">" +
           t(tab.labelKey) +

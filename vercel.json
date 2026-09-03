@@ -91,6 +91,10 @@
       "destination": "/google-limited-use.html"
     },
     {
+      "source": "/affiliate",
+      "destination": "/affiliate.html"
+    },
+    {
       "source": "/app",
       "destination": "/app/"
     }
