@@ -1,6 +1,6 @@
 import type { UserPreferences } from "./userPreferences";
 
-/** Palette UI + viewport (dark). */
+/** Palette UI + viewport. */
 export interface ThemePalette {
   bg: string;
   bgPanel: string;
@@ -63,9 +63,10 @@ export const MATERIAL_VIEW: Record<
   nylon: { color: "#c0c0c0", metalness: 0.0, roughness: 0.82 },
 };
 
+/** App appearance is dark-only. */
 export type ColorThemePreference = "dark";
 
-export function normalizeColorThemePreference(_value: unknown): ColorThemePreference {
+export function normalizeColorThemePreference(_value?: unknown): ColorThemePreference {
   return "dark";
 }
 
@@ -73,11 +74,11 @@ export function readColorThemePreference(): ColorThemePreference {
   return "dark";
 }
 
-export function getThemePalette(): ThemePalette {
+export function getThemePalette(_theme?: ColorThemePreference): ThemePalette {
   return THEME;
 }
 
-export function applyDocumentTheme(): void {
+export function applyDocumentTheme(_theme?: ColorThemePreference): void {
   const root = document.documentElement;
   root.dataset.theme = "dark";
   const splash = root.classList.contains("app-loading-splash");
@@ -91,5 +92,5 @@ export function applyDocumentTheme(): void {
 }
 
 export function bootstrapDocumentTheme(_prefs?: Pick<UserPreferences, "colorTheme">): void {
-  applyDocumentTheme();
+  applyDocumentTheme("dark");
 }

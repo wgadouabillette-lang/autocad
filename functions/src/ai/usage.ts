@@ -162,7 +162,7 @@ export function usageLimitMessage(err: UsageLimitError): string {
   if (err.scope === "enterprise") {
     return (
       `Le quota IA Entreprise de ce workspace est épuisé (${used} $ / ${allowance} $ ` +
-      "au tarif Hall, partagé entre tous les membres). " +
+      "au tarif Meetra, partagé entre tous les membres). " +
       "Contactez le propriétaire du workspace pour augmenter les sièges ou attendre le renouvellement."
     );
   }
@@ -176,12 +176,12 @@ export function usageLimitMessage(err: UsageLimitError): string {
       );
     }
     return (
-      `Votre quota IA Pro est épuisé (${used} $ / ${allowance} $ au tarif Hall). ` +
+      `Votre quota IA Pro est épuisé (${used} $ / ${allowance} $ au tarif Meetra). ` +
       "Activez l'**usage à la demande** dans Paramètres → Plan & Usage pour continuer."
     );
   }
   return (
-    `Votre quota IA Pro est épuisé (${used} $ / ${allowance} $ au tarif Hall). ` +
+    `Votre quota IA Pro est épuisé (${used} $ / ${allowance} $ au tarif Meetra). ` +
     "Renouvellement au prochain cycle de facturation."
   );
 }
@@ -333,17 +333,24 @@ export async function recordLlmUsage(
 export async function maybeSyncUsagePeriod(
   uid: string,
   subscription: { current_period_start?: number; current_period_end?: number },
+  allowanceUsd?: number,
 ): Promise<void> {
   const stripeStart = subscription.current_period_start;
   if (!stripeStart) return;
   const ref = await userUsageRef(uid);
   const existing = await loadUserUsageDoc(uid);
-  if (existing.stripePeriodStart === stripeStart) return;
+  const allowance = typeof allowanceUsd === "number" ? allowanceUsd : proUsageAllowanceUsd();
+  if (existing.stripePeriodStart === stripeStart) {
+    if (existing.allowanceUsdRetail !== allowance) {
+      await ref.set({ allowanceUsdRetail: allowance }, { merge: true });
+    }
+    return;
+  }
 
   const periodEnd = subscription.current_period_end;
   await ref.set(
     {
-      allowanceUsdRetail: proUsageAllowanceUsd(),
+      allowanceUsdRetail: allowance,
       usedUsdRetail: 0,
       onDemandUsedUsdRetail: 0,
       usedUsdProvider: 0,

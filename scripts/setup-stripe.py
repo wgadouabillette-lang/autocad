@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Crée les produits/prix Stripe Hall (Pro + usage à la demande) et met à jour backend/.env."""
+"""Crée les produits/prix Stripe Meetra (Pro + usage à la demande) et met à jour backend/.env."""
 from __future__ import annotations
 
 import argparse
@@ -14,6 +14,7 @@ ENV_FILE = BACKEND_DIR / ".env"
 
 PRODUCT_META_KEY = "forma_billing"
 PRO_META_VALUE = "pro"
+PRO_PLUS_META_VALUE = "pro_plus"
 ON_DEMAND_META_VALUE = "on_demand"
 ENTERPRISE_META_VALUE = "enterprise"
 
@@ -242,15 +243,21 @@ def _ensure_enterprise_seat_price(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Configure les produits/prix Stripe pour Hall.")
+    parser = argparse.ArgumentParser(description="Configure les produits/prix Stripe pour Meetra.")
     parser.add_argument("--dry-run", action="store_true", help="Affiche les actions sans appeler Stripe.")
     parser.add_argument("--no-env", action="store_true", help="Ne modifie pas backend/.env.")
     parser.add_argument("--currency", default=os.getenv("STRIPE_CURRENCY", "usd"))
     parser.add_argument(
         "--pro-amount",
         type=int,
-        default=int(os.getenv("STRIPE_PRO_AMOUNT_CENTS", "2500")),
-        help="Montant Pro en centimes (défaut : 2500 = 25,00 $).",
+        default=int(os.getenv("STRIPE_PRO_AMOUNT_CENTS", "3300")),
+        help="Montant Pro en centimes (défaut : 3300 = 33,00 $).",
+    )
+    parser.add_argument(
+        "--pro-plus-amount",
+        type=int,
+        default=int(os.getenv("STRIPE_PRO_PLUS_AMOUNT_CENTS", "5300")),
+        help="Montant Pro+ en centimes (défaut : 5300 = 53,00 $).",
     )
     parser.add_argument(
         "--on-demand-unit",
@@ -261,8 +268,8 @@ def main() -> int:
     parser.add_argument(
         "--enterprise-seat-amount",
         type=int,
-        default=int(os.getenv("STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS", "1800")),
-        help="Montant Entreprise par siège en centimes (défaut : 1800 = 18,00 $).",
+        default=int(os.getenv("STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS", "2400")),
+        help="Montant Entreprise par siège en centimes (défaut : 2400 = 24,00 $).",
     )
     args = parser.parse_args()
 
@@ -271,21 +278,28 @@ def main() -> int:
 
     pro_product = _ensure_product(
         stripe,
-        name="Hall Pro",
+        name="Meetra Pro",
         description="Abonnement mensuel — assistant IA, connecteurs, AI Notes et Follow-up.",
         meta_value=PRO_META_VALUE,
         dry_run=args.dry_run,
     )
+    pro_plus_product = _ensure_product(
+        stripe,
+        name="Meetra Pro+",
+        description="Abonnement mensuel — même accès que Pro, avec le double de crédit IA utilisable.",
+        meta_value=PRO_PLUS_META_VALUE,
+        dry_run=args.dry_run,
+    )
     on_demand_product = _ensure_product(
         stripe,
-        name="Hall — Usage à la demande",
+        name="Meetra — Usage à la demande",
         description="Add-on metered — crédits IA facturés au fil des requêtes (Pro requis).",
         meta_value=ON_DEMAND_META_VALUE,
         dry_run=args.dry_run,
     )
     enterprise_product = _ensure_product(
         stripe,
-        name="Hall Entreprise",
+        name="Meetra Entreprise",
         description="Abonnement mensuel par siège — pool IA partagé pour un workspace.",
         meta_value=ENTERPRISE_META_VALUE,
         dry_run=args.dry_run,
@@ -295,6 +309,13 @@ def main() -> int:
         stripe,
         pro_product["id"],
         args.pro_amount,
+        args.currency,
+        args.dry_run,
+    )
+    pro_plus_price = _ensure_pro_price(
+        stripe,
+        pro_plus_product["id"],
+        args.pro_plus_amount,
         args.currency,
         args.dry_run,
     )
@@ -316,6 +337,7 @@ def main() -> int:
     print("")
     print("IDs à utiliser :")
     print(f"  STRIPE_PRO_PRICE_ID={pro_price['id']}")
+    print(f"  STRIPE_PRO_PLUS_PRICE_ID={pro_plus_price['id']}")
     print(f"  STRIPE_ON_DEMAND_PRICE_ID={on_demand_price['id']}")
     print(f"  STRIPE_ENTERPRISE_SEAT_PRICE_ID={enterprise_price['id']}")
     print("")
@@ -333,6 +355,11 @@ def main() -> int:
                 "STRIPE_PRO_PRICE_LABEL": f"${args.pro_amount / 100:.0f} / month"
                 if args.pro_amount % 100 == 0
                 else f"${args.pro_amount / 100:.2f} / month",
+                "STRIPE_PRO_PLUS_PRICE_ID": str(pro_plus_price["id"]),
+                "STRIPE_PRO_PLUS_AMOUNT_CENTS": str(args.pro_plus_amount),
+                "STRIPE_PRO_PLUS_PRICE_LABEL": f"${args.pro_plus_amount / 100:.0f} / month"
+                if args.pro_plus_amount % 100 == 0
+                else f"${args.pro_plus_amount / 100:.2f} / month",
                 "STRIPE_ON_DEMAND_PRICE_ID": str(on_demand_price["id"]),
                 "STRIPE_ENTERPRISE_SEAT_PRICE_ID": str(enterprise_price["id"]),
                 "STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS": str(args.enterprise_seat_amount),

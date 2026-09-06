@@ -9,15 +9,17 @@ from email.message import EmailMessage
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
+
+from app.core.rate_limit import rate_limit_request
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/affiliate", tags=["affiliate"])
 
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
-_DEFAULT_NOTIFY_TO = "wgadouabillette@gmail.com"
+_DEFAULT_NOTIFY_TO = ""  # require AFFILIATE_NOTIFY_EMAIL — no personal inbox in repo
 _MAX_ABOUT = 8000
 
 
@@ -63,7 +65,12 @@ class AffiliateApplication(BaseModel):
 
 
 def _notify_to() -> str:
-    return (os.getenv("AFFILIATE_NOTIFY_EMAIL") or _DEFAULT_NOTIFY_TO).strip()
+    configured = (os.getenv("AFFILIATE_NOTIFY_EMAIL") or _DEFAULT_NOTIFY_TO).strip()
+    if configured:
+        return configured
+    if _dry_run() or not _require_real_email():
+        return "affiliates-dry-run@meetra.cc"
+    raise RuntimeError("AFFILIATE_NOTIFY_EMAIL is not configured")
 
 
 def _from_email() -> str:
@@ -236,8 +243,20 @@ def _provider_configured() -> str | None:
 
 
 @router.post("/apply")
-async def apply_affiliate(body: AffiliateApplication):
+async def apply_affiliate(request: Request, body: AffiliateApplication):
     """Accept an affiliate application and email it to the program inbox."""
+    rate_limit_request(request, "affiliate_apply", limit=3, window_sec=3600)
+
+    try:
+        notify = _notify_to()
+    except RuntimeError as exc:
+        logger.error("Affiliate apply rejected: %s", exc)
+        raise HTTPException(
+            503,
+            "Affiliate applications are temporarily unavailable. Please try again later.",
+        ) from exc
+    _ = notify
+
     text, html = _build_bodies(body)
     provider = _provider_configured()
 

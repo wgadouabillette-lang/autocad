@@ -1,6 +1,7 @@
 /** Dismiss / reappear schedule for the fullscreen Notes Pro promo. */
 
 import { hasAiNotesAccess } from "./subscriptionPlans";
+import { sanitizeNoteHtml } from "./sanitizeHtml";
 
 const STORAGE_KEY = "forma-notes-fullscreen-promo-dismissed-at";
 
@@ -49,7 +50,7 @@ export function plainTextFromNoteHtml(html: string): string {
     return html.replace(/<[^>]+>/g, " ");
   }
   const tmp = document.createElement("div");
-  tmp.innerHTML = html;
+  tmp.innerHTML = sanitizeNoteHtml(html);
   return tmp.innerText || tmp.textContent || "";
 }
 

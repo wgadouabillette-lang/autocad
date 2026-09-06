@@ -47,9 +47,34 @@ FORMA_MAC_ARCH=arm64 ./scripts/build-desktop-mac.sh
 2. Glissez **Hall** dans **Applications**
 3. Lancez depuis le Launchpad (comme n’importe quelle app Mac)
 
-> Au premier lancement, macOS peut afficher « développeur non identifié » (signature ad hoc, sans compte Apple Developer) :  
+Au premier lancement, macOS peut afficher « développeur non identifié » **si** le build est encore en signature ad hoc.
+
+### Signature Developer ID + notarisation (recommandé)
+
+1. Certificat **Developer ID Application** installé (`security find-identity -v -p codesigning`).
+2. Clé API App Store Connect (`.p8`) + env local (hors git) :
+
+```bash
+# Créé automatiquement si tu as suivi le setup agent :
+#   ~/.meetra/apple-notarize.env
+#   ~/private/AuthKey_*.p8
+source ~/.meetra/apple-notarize.env
+./scripts/build-desktop-mac.sh
+```
+
+Le script signe avec Developer ID, notarise via `notarytool`, puis produit le `.dmg`.
+
+Vérifier :
+
+```bash
+xcrun stapler validate desktop/release/Meetra-*.dmg
+```
+
+Sans `~/.meetra/apple-notarize.env`, le script retombe sur la signature **ad hoc** (comme avant).
+
+> Au premier lancement ad hoc, macOS peut afficher « développeur non identifié » :  
 > **Réglages Système → Confidentialité et sécurité → Ouvrir quand même**,  
-> ou clic droit sur Hall → **Ouvrir**.
+> ou clic droit sur Meetra → **Ouvrir**.
 
 ### Publier le .dmg (téléchargement utilisateurs)
 
@@ -197,7 +222,7 @@ Le script :
 gh workflow run "Release Windows Desktop"
 ```
 
-Artefact : **Hall-windows-installer** → `Hall-windows.exe`
+Artefact : **Meetra-windows-installer** → `Meetra.exe`
 
 > **Icône bureau / barre des tâches Windows :** `win.signAndEditExecutable` doit rester `true`, `build/icon.ico` doit être en BMP (pas PNG-in-ICO — `scripts/generate-app-icon.py`), et `afterPack.cjs` ré-injecte l’icône dans `Hall.exe` avant la signature Azure. La signature Azure continue via `azureSignOptions`.
 
@@ -221,7 +246,7 @@ Publier :
 ./scripts/upload-desktop-downloads.sh
 ```
 
-URL : `https://forma.app/downloads/Hall-windows.exe`
+URL : `https://meetra.cc/downloads/Meetra.exe`
 
 ### Mises à jour in-app
 
@@ -258,7 +283,7 @@ Au premier lancement Windows, Hall démarre une fenêtre WebView2 cachée qui s�
 gh workflow run "Release Linux Desktop"
 ```
 
-Artefact : **Hall-linux-AppImage** → `Hall-linux.AppImage`  
+Artefact : **Meetra-linux-AppImage** → `Meetra-linux.AppImage`  
 Secrets requis : `EVS_ACCOUNT_NAME`, `EVS_PASSWD` (Castlabs EVS / Widevine — mêmes que macOS).
 
 Sur une release GitHub (`release` published), le workflow attache aussi l’AppImage à la release. Ensuite :
@@ -267,11 +292,11 @@ Sur une release GitHub (`release` published), le workflow attache aussi l’AppI
 # depuis l’artefact CI
 ./scripts/upload-desktop-downloads.sh \
   landing/public/downloads/Hall-mac.dmg \
-  landing/public/downloads/Hall-windows.exe \
-  landing/public/downloads/Hall-linux.AppImage
+  landing/public/downloads/Meetra.exe \
+  landing/public/downloads/Meetra-linux.AppImage
 ```
 
-URL : `https://forma.app/downloads/Hall-linux.AppImage`
+URL : `https://meetra.cc/downloads/Meetra-linux.AppImage`
 
 Sur une machine Linux (optionnel) :
 
@@ -280,7 +305,7 @@ Sur une machine Linux (optionnel) :
 ```
 
 Config utilisateur : `~/.config/forma-desktop/forma-data/.env`  
-L’AppImage est portable : `chmod +x Hall-linux.AppImage && ./Hall-linux.AppImage`
+L’AppImage est portable : `chmod +x Meetra-linux.AppImage && ./Meetra-linux.AppImage`
 
 ### Spotify (Linux)
 

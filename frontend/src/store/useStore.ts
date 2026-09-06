@@ -414,6 +414,8 @@ interface State {
   subscriptionPlan: SubscriptionPlan;
   onDemandUsageEnabled: boolean;
   billingManaged: boolean;
+  /** "" | "pro" | "proPlus" — meaningful only when subscriptionPlan is pro + billingManaged. */
+  subscriptionTier: "" | "pro" | "proPlus";
   workspaceEnterpriseActive: boolean;
   agentChatInstructions: string;
   agentFollowUpInstructions: string;
@@ -733,6 +735,7 @@ export const useStore = create<State>((set, get) => ({
   subscriptionPlan: bootUserPreferences.subscriptionPlan ?? "free",
   onDemandUsageEnabled: bootUserPreferences.onDemandUsageEnabled ?? false,
   billingManaged: bootUserPreferences.billingManaged ?? false,
+  subscriptionTier: "",
   workspaceEnterpriseActive: false,
   chatPanelExpanded: false,
   chatPanelLeaveAnimating: false,
@@ -839,6 +842,7 @@ export const useStore = create<State>((set, get) => ({
       subscriptionPlan: normalized,
       billingManaged,
       onDemandUsageEnabled: onDemand,
+      subscriptionTier: normalized === "pro" ? "pro" : "",
     });
     writeUserPreferences(
       userPreferencesSnapshot({

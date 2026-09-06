@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import type { ChatConnectorId } from "../components/chat/chatConnectors";
-import { CHAT_CONNECTORS, isConnectorComingSoon } from "../components/chat/chatConnectors";
+import {
+  CHAT_CONNECTORS,
+  isConnectorComingSoon,
+} from "../components/chat/chatConnectors";
 import {
   disconnectConnector as apiDisconnectConnector,
   fetchConnectorStatuses,
@@ -57,7 +60,8 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
   connectingId: null,
   inflight: null,
 
-  setVisualOnly: () => set({ statuses: VISUAL_STATUSES, statusSource: "visual", loading: false, error: null }),
+  setVisualOnly: () =>
+    set({ statuses: VISUAL_STATUSES, statusSource: "visual", loading: false, error: null }),
 
   refresh: async (force = false) => {
     const current = get().inflight;
@@ -139,7 +143,6 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
         const { resetSpotifyWebPlayer } = await import("../lib/spotifyWebPlayback");
         resetSpotifyWebPlayer();
       }
-      // Optimistic UI — don't wait on refresh if the DELETE already succeeded.
       set((state) => ({
         statuses: state.statuses.map((s) =>
           s.id === id

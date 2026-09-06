@@ -482,7 +482,7 @@ export default function App() {
         )}
         style={layoutStyle}
       >
-        {!settingsOpen && !inVoiceCall && <AppChromeRow />}
+        {!settingsOpen && <AppChromeRow immersive={inVoiceCall} />}
         <main className="app-layout__main">
           {!settingsOpen && inVoiceCall ? (
             <div className="app-voice-settings-floating">

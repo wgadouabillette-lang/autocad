@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from app.ai.usage import user_has_ai_access
 from app.core.auth_deps import require_firebase_user
 from app.core.firebase import FirebaseUser
+from app.core.html_sanitize import sanitize_note_html
 
 router = APIRouter(prefix="/api/handoffs", tags=["handoffs"])
 
@@ -151,7 +152,7 @@ def create_handoff(
 
     normalized_messages: List[Dict[str, str]] = []
     note_title = (body.note_title or "").strip()
-    note_html = body.note_body_html or ""
+    note_html = sanitize_note_html(body.note_body_html or "")
 
     if body.kind == "ai-segment":
         _assert_sender_can_handoff_ai_segment(

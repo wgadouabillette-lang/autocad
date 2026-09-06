@@ -64,11 +64,12 @@ Options utiles :
 
 Le script crée (ou réutilise) :
 
-- **Hall Pro** — prix récurrent mensuel (**30 $/mois** par défaut, USD)
-- **Hall — Usage à la demande** — prix metered (`usage_type: metered`)
-- **Hall Entreprise** — prix récurrent mensuel **par siège** (**18 $/siège/mois** par défaut)
+- **Meetra Pro** — prix récurrent mensuel (**33 $/mois** par défaut, USD)
+- **Meetra Pro+** — prix récurrent mensuel (**53 $/mois**, double crédit Pro)
+- **Meetra — Usage à la demande** — prix metered (`usage_type: metered`)
+- **Meetra Entreprise** — prix récurrent mensuel **par siège** (**24 $/siège/mois** par défaut)
 
-Il écrit `STRIPE_PRO_PRICE_ID`, `STRIPE_ON_DEMAND_PRICE_ID` et `STRIPE_ENTERPRISE_SEAT_PRICE_ID` dans `backend/.env`.
+Il écrit `STRIPE_PRO_PRICE_ID`, `STRIPE_PRO_PLUS_PRICE_ID`, `STRIPE_ON_DEMAND_PRICE_ID` et `STRIPE_ENTERPRISE_SEAT_PRICE_ID` dans `backend/.env`.
 
 ### Création manuelle (Dashboard)
 
@@ -143,6 +144,7 @@ https://northamerica-northeast1-forma-cad-dev.cloudfunctions.net/stripeWebhook
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...        # rempli après création de l'endpoint Stripe
 STRIPE_PRO_PRICE_ID=price_...
+STRIPE_PRO_PLUS_PRICE_ID=price_...
 STRIPE_ON_DEMAND_PRICE_ID=price_...
 STRIPE_ENTERPRISE_SEAT_PRICE_ID=price_...
 STRIPE_ENTERPRISE_MIN_MEMBERS=2
@@ -203,6 +205,7 @@ Exemples :
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_PRO_PRICE_ID=price_...
+STRIPE_PRO_PLUS_PRICE_ID=price_...
 STRIPE_ON_DEMAND_PRICE_ID=price_...
 STRIPE_ENTERPRISE_SEAT_PRICE_ID=price_...
 STRIPE_ENTERPRISE_MIN_MEMBERS=2
@@ -239,7 +242,7 @@ En cas d'échec : consulter les logs backend et le code HTTP renvoyé (400 = sig
 
 ## 5. Portail client Stripe
 
-Le bouton **Gérer l'abonnement** ouvre le portail Stripe.
+Le bouton **Add Seats** (Team actif) ouvre le portail Stripe pour augmenter les sièges.
 
 1. [Dashboard → Settings → Billing → Customer portal](https://dashboard.stripe.com/settings/billing/portal)
 2. Activez : mise à jour du moyen de paiement, consultation des factures, annulation d'abonnement
@@ -256,6 +259,7 @@ Le bouton **Gérer l'abonnement** ouvre le portail Stripe.
 | `STRIPE_PAYMENT_METHOD_CONFIGURATION` | Optionnel | ID `pmc_…` (PayPal / Link via Dashboard — dynamic payment methods) |
 | `STRIPE_WEBHOOK_SECRET` | Oui | Secret de signature webhook (`whsec_...`) |
 | `STRIPE_PRO_PRICE_ID` | Oui | ID du prix mensuel Pro |
+| `STRIPE_PRO_PLUS_PRICE_ID` | Pro+ | ID du prix mensuel Pro+ ($40) |
 | `STRIPE_ON_DEMAND_PRICE_ID` | Recommandé | ID du prix metered on-demand |
 | `STRIPE_ENTERPRISE_SEAT_PRICE_ID` | Entreprise | ID du prix mensuel par siège |
 | `STRIPE_ENTERPRISE_MIN_MEMBERS` | Entreprise | Membres minimum (défaut : 2) |

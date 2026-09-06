@@ -9,6 +9,7 @@ export interface ConnectorStatus {
   configured: boolean;
   accountLabel?: string | null;
   canSend?: boolean;
+  authType?: "oauth";
 }
 
 const BASE = "/api/connectors";

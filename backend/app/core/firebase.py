@@ -17,7 +17,7 @@ _app = None
 _db = None
 _db_unavailable = False
 _token_cache: Dict[str, Tuple["FirebaseUser", float]] = {}
-_TOKEN_CACHE_TTL_SECONDS = 300
+_TOKEN_CACHE_TTL_SECONDS = 45
 _billing_cache: Dict[str, Tuple[float, Dict[str, object]]] = {}
 _BILLING_CACHE_TTL_SECONDS = 120
 
@@ -181,12 +181,12 @@ def verify_bearer_token(token: str) -> Optional[FirebaseUser]:
         try:
             from firebase_admin import auth
 
-            decoded = auth.verify_id_token(token, check_revoked=False)
+            decoded = auth.verify_id_token(token, check_revoked=True)
             user = FirebaseUser(uid=str(decoded["uid"]), email=decoded.get("email"))
         except Exception as exc:
             logger.warning("Firebase Admin token verification failed: %s", exc)
 
-    if user is None:
+    if user is None and _app is None:
         try:
             import requests as req_lib
             from google.auth.transport import requests as google_requests
@@ -218,6 +218,9 @@ def verify_bearer_token(token: str) -> Optional[FirebaseUser]:
                 user = FirebaseUser(uid=str(uid), email=str(email) if email else None)
         except Exception as exc:
             logger.warning("Firebase token verification failed: %s", exc)
+    elif user is None and _app is not None:
+        # Admin SDK is configured — do not fall back to a path without revocation checks.
+        logger.warning("Firebase Admin token verification failed; refusing insecure fallback")
 
     if user is not None:
         if len(_token_cache) > 256:
@@ -646,6 +649,7 @@ def update_user_subscription_profile(
     subscription_plan: str,
     on_demand_usage_enabled: bool,
     billing_managed: bool = True,
+    subscription_tier: str = "",
 ) -> None:
     _ensure_db()
     if _db is None:
@@ -653,15 +657,19 @@ def update_user_subscription_profile(
     try:
         from firebase_admin import firestore
 
-        _db.collection("users").document(uid).set(
-            {
-                "subscriptionPlan": subscription_plan,
-                "onDemandUsageEnabled": on_demand_usage_enabled,
-                "billingManaged": billing_managed,
-                "updatedAt": firestore.SERVER_TIMESTAMP,
-            },
-            merge=True,
-        )
+        payload: Dict[str, object] = {
+            "subscriptionPlan": subscription_plan,
+            "onDemandUsageEnabled": on_demand_usage_enabled,
+            "billingManaged": billing_managed,
+            "updatedAt": firestore.SERVER_TIMESTAMP,
+        }
+        if subscription_plan == "pro" and billing_managed:
+            payload["subscriptionTier"] = (
+                "proPlus" if subscription_tier == "proPlus" else "pro"
+            )
+        else:
+            payload["subscriptionTier"] = ""
+        _db.collection("users").document(uid).set(payload, merge=True)
     except Exception as exc:
         logger.warning("Failed to update subscription profile for %s: %s", uid, exc)
 

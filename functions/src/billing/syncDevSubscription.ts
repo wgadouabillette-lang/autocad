@@ -11,7 +11,10 @@ export async function syncDevSubscriptionPlan(
   uid: string,
   data: SyncDevSubscriptionRequest,
 ): Promise<{ ok: true; plan: "free" | "pro" }> {
-  if (process.env.ALLOW_DEV_PLAN_SYNC === "0") {
+  // Default-deny: must explicitly opt in with ALLOW_DEV_PLAN_SYNC=1 (or true/on/yes).
+  const raw = (process.env.ALLOW_DEV_PLAN_SYNC ?? "0").trim().toLowerCase();
+  const allowed = raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+  if (!allowed) {
     throw new HttpsError("failed-precondition", "Dev plan sync is disabled.");
   }
 

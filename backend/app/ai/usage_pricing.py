@@ -52,21 +52,23 @@ _MODEL_PRICING_ALIASES: Dict[str, str] = {
 
 
 def usage_markup_multiplier() -> float:
-    raw = os.getenv("FORMA_USAGE_MARKUP", "1.25").strip()
+    # Défaut 1.333 = +1/3 de profit vs ancienne marge 1.25 (profit 0.25 → 0.333).
+    raw = os.getenv("FORMA_USAGE_MARKUP", "1.333").strip()
     try:
         value = float(raw)
     except ValueError:
-        value = 1.25
+        value = 1.333
     return max(value, 1.0)
 
 
 def on_demand_usage_markup_multiplier() -> float:
     """Marge retail au-delà du forfait Pro (usage à la demande)."""
-    raw = os.getenv("FORMA_ON_DEMAND_USAGE_MARKUP", "1.65").strip()
+    # Défaut 1.867 = +1/3 de profit vs ancienne marge 1.65 (profit 0.65 → 0.867).
+    raw = os.getenv("FORMA_ON_DEMAND_USAGE_MARKUP", "1.867").strip()
     try:
         value = float(raw)
     except ValueError:
-        value = 1.65
+        value = 1.867
     return max(value, 1.0)
 
 
@@ -77,6 +79,15 @@ def pro_usage_allowance_usd() -> float:
     except ValueError:
         value = 30.0
     return max(value, 0.0)
+
+
+def pro_plus_usage_allowance_usd() -> float:
+    """Pro+ included credit is 2× the current Pro allowance."""
+    return pro_usage_allowance_usd() * 2.0
+
+
+def personal_usage_allowance_usd(*, plus: bool = False) -> float:
+    return pro_plus_usage_allowance_usd() if plus else pro_usage_allowance_usd()
 
 
 def enterprise_usage_allowance_per_seat_usd() -> float:
@@ -243,7 +254,7 @@ def split_retail_charge(
     allowance_usd: float,
     on_demand_enabled: bool,
 ) -> tuple[float, float]:
-    """Répartit le coût fournisseur entre forfait (× marge incluse) et on-demand (×1.65)."""
+    """Répartit le coût fournisseur entre forfait (× marge incluse) et on-demand (× marge on-demand)."""
     if provider_cost <= 0:
         return 0.0, 0.0
     included_markup = usage_markup_multiplier()

@@ -9,6 +9,7 @@ import {
 } from "firebase/database";
 import { rtdb } from "./client";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
+import { ensureWorkspaceRtdbAcl, clearWorkspaceRtdbAclCache } from "./workspaceRtdbAcl";
 
 import type { PresenceActivityId } from "../presenceActivity";
 import type { SpotifyNowPlayingSnapshot } from "../spotifyNowPlaying";
@@ -101,11 +102,13 @@ function voiceFromDoc(data: WorkspacePresenceDoc): WorkspaceVoicePresence {
 }
 
 function presencePath(workspaceId: string, uid?: string) {
-  return uid ? `presence/${workspaceId}/${uid}` : `presence/${workspaceId}`;
+  // Must match Cloud Function ACL keys (always lowercased).
+  const wid = workspaceId.trim().toLowerCase();
+  return uid ? `presence/${wid}/${uid}` : `presence/${wid}`;
 }
 
 function presenceKey(workspaceId: string, uid: string) {
-  return `${workspaceId}/${uid}`;
+  return `${workspaceId.trim().toLowerCase()}/${uid}`;
 }
 
 function lastSeenToMs(lastSeen: WorkspacePresenceDoc["lastSeen"]): number {
@@ -170,21 +173,60 @@ export function watchWorkspacePresence(
     return () => {};
   }
 
-  return onValue(
-    ref(rtdb, presencePath(workspaceId)),
-    (snap) => {
-      const value = snap.val() as Record<string, WorkspacePresenceDoc> | null;
-      if (!value) {
-        onChange([]);
-        return;
+  let unsub: Unsubscribe | null = null;
+  let cancelled = false;
+
+  void ensureWorkspaceRtdbAcl(workspaceId)
+    .then(() => {
+      if (cancelled) return;
+      unsub = onValue(
+        ref(rtdb, presencePath(workspaceId)),
+        (snap) => {
+          const value = snap.val() as Record<string, WorkspacePresenceDoc> | null;
+          if (!value) {
+            onChange([]);
+            return;
+          }
+          const members = Object.entries(value).map(([uid, data]) => memberFromEntry(uid, data));
+          onChange(members);
+        },
+        (error) => {
+          onError?.(error);
+        },
+      );
+    })
+    .catch(async (error) => {
+      // ACL callable may be briefly unavailable right after join — retry once.
+      try {
+        clearWorkspaceRtdbAclCache(workspaceId);
+        await ensureWorkspaceRtdbAcl(workspaceId);
+        if (cancelled) return;
+        unsub = onValue(
+          ref(rtdb, presencePath(workspaceId)),
+          (snap) => {
+            const value = snap.val() as Record<string, WorkspacePresenceDoc> | null;
+            if (!value) {
+              onChange([]);
+              return;
+            }
+            const members = Object.entries(value).map(([uid, data]) =>
+              memberFromEntry(uid, data),
+            );
+            onChange(members);
+          },
+          (watchError) => {
+            onError?.(watchError);
+          },
+        );
+      } catch {
+        onError?.(error instanceof Error ? error : new Error(String(error)));
       }
-      const members = Object.entries(value).map(([uid, data]) => memberFromEntry(uid, data));
-      onChange(members);
-    },
-    (error) => {
-      onError?.(error);
-    },
-  );
+    });
+
+  return () => {
+    cancelled = true;
+    unsub?.();
+  };
 }
 
 export async function touchWorkspacePresence(
@@ -196,6 +238,8 @@ export async function touchWorkspacePresence(
   spotifyNowPlaying?: SpotifyNowPlayingSnapshot | null,
 ): Promise<void> {
   if (!workspaceId || !uid) return;
+
+  await ensureWorkspaceRtdbAcl(workspaceId);
 
   const displayName = profile.displayName.trim() || "Membre";
   const photoURL = profile.photoURL ? profile.photoURL : null;

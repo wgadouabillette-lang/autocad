@@ -5,7 +5,7 @@ import logging
 import re
 import threading
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -60,7 +60,7 @@ def _create_custom_token(uid: str) -> str:
 
 
 def _publish_session_to_firestore(session_id: str, uid: str, custom_token: str) -> None:
-    """Mirror the in-memory session so Electron can claim via Firestore."""
+    """Mirror the session so Electron can claim via Admin (backend or Functions)."""
     try:
         from app.core.firebase import firestore_available
 
@@ -87,6 +87,68 @@ def _purge_expired(now: float) -> None:
     ]
     for session_id in expired:
         _sessions.pop(session_id, None)
+
+
+def _claim_from_firestore(session_id: str) -> Optional[dict[str, Any]]:
+    """One-shot claim via Admin SDK (docs are not client-readable)."""
+    try:
+        from app.core.firebase import firestore_available
+
+        if not firestore_available():
+            return None
+        from firebase_admin import firestore
+    except Exception:
+        return None
+
+    db = firestore.client()
+    ref = db.document(f"desktopAuthSessions/{session_id}")
+
+    @firestore.transactional
+    def _txn(transaction: Any) -> Optional[dict[str, Any]]:
+        snap = ref.get(transaction=transaction)
+        if not snap.exists:
+            return None
+        data = snap.to_dict() or {}
+        created = data.get("createdAt")
+        created_ms = 0
+        if created is not None and hasattr(created, "timestamp"):
+            created_ms = int(created.timestamp() * 1000)
+        if created_ms and time.time() * 1000 - created_ms > SESSION_TTL_SECONDS * 1000:
+            transaction.delete(ref)
+            raise HTTPException(410, "Desktop auth session expired.")
+
+        custom_token = data.get("token") or data.get("customToken")
+        if isinstance(custom_token, str) and custom_token:
+            transaction.delete(ref)
+            return {"status": "ready", "customToken": custom_token}
+
+        provider = data.get("provider")
+        id_token = data.get("idToken")
+        if (
+            provider in ("google", "microsoft", "facebook")
+            and isinstance(id_token, str)
+            and id_token
+        ):
+            access = data.get("accessToken")
+            transaction.delete(ref)
+            payload: dict[str, Any] = {
+                "status": "ready",
+                "provider": provider,
+                "idToken": id_token,
+            }
+            if isinstance(access, str) and access:
+                payload["accessToken"] = access
+            return payload
+
+        return None
+
+    try:
+        return _txn(db.transaction())
+    except HTTPException:
+        raise
+    except Exception:
+        logger.warning("Desktop auth Firestore claim failed for %s", session_id, exc_info=True)
+        return None
 
 
 @router.post("/complete")
@@ -117,15 +179,19 @@ def claim_desktop_auth(sessionId: str = Query(..., min_length=36, max_length=36)
         _purge_expired(now)
         entry = _sessions.pop(session_id, None)
 
-    if entry is None:
-        return {"status": "pending"}
+    if entry is not None:
+        expires_at = float(entry.get("expiresAt", 0))
+        if expires_at <= now:
+            raise HTTPException(410, "Desktop auth session expired.")
 
-    expires_at = float(entry.get("expiresAt", 0))
-    if expires_at <= now:
-        raise HTTPException(410, "Desktop auth session expired.")
+        token = entry.get("token")
+        if not isinstance(token, str) or not token:
+            raise HTTPException(500, "Desktop auth session is invalid.")
 
-    token = entry.get("token")
-    if not isinstance(token, str) or not token:
-        raise HTTPException(500, "Desktop auth session is invalid.")
+        return {"status": "ready", "customToken": token}
 
-    return {"status": "ready", "customToken": token}
+    firestore_claim = _claim_from_firestore(session_id)
+    if firestore_claim is not None:
+        return firestore_claim
+
+    return {"status": "pending"}

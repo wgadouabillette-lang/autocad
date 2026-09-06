@@ -271,7 +271,8 @@
       active +
       '">' +
       '<a class="nav__logo" href="/" aria-label="Meetra">' +
-      '<img src="/meetra-wordmark.png" alt="Meetra" class="nav__logo-wordmark" />' +
+      '<img src="/meetra-mark.svg" alt="" class="nav__logo-mark" draggable="false" />' +
+      '<span class="nav__logo-wordmark">Meetra</span>' +
       "</a>" +
       '<ul class="nav__tabs" role="list">' +
       tabsHtml +

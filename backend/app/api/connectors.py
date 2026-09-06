@@ -11,9 +11,12 @@ from app.connectors.registry import (
     COMING_SOON_CONNECTORS,
     CONNECTOR_IDS,
     CONNECTORS,
+    connector_auth_type,
     connector_configured,
     frontend_app_url,
     frontend_origin,
+    sanitize_oauth_return_origin,
+    sanitize_oauth_return_path,
 )
 from app.connectors.tokens import connection_account_label
 from app.connectors.user_store import (
@@ -50,6 +53,7 @@ def list_connectors(user: FirebaseUser = Depends(require_firebase_user)):
                 "id": connector_id,
                 "label": spec.label,
                 "provider": spec.provider,
+                "authType": connector_auth_type(connector_id),
                 "connected": configured and is_connected_from_items(items, connector_id),
                 "configured": configured,
                 "accountLabel": connection_account_label(
@@ -63,6 +67,7 @@ def list_connectors(user: FirebaseUser = Depends(require_firebase_user)):
                 "id": connector_id,
                 "label": label,
                 "provider": connector_id,
+                "authType": "oauth",
                 "connected": False,
                 "configured": False,
             }
@@ -88,8 +93,8 @@ def authorize_connector(
             f"OAuth credentials missing for {CONNECTORS[connector_id].label}. "
             "Add client id/secret to backend/.env (see .env.example).",
         )
-    safe_origin = return_origin.strip().rstrip("/") if return_origin else None
-    safe_path = return_path.strip() if return_path else None
+    safe_origin = sanitize_oauth_return_origin(return_origin)
+    safe_path = sanitize_oauth_return_path(return_path)
     _, url = create_authorize_session(
         connector_id,
         user.uid,
@@ -178,8 +183,10 @@ def _callback_html(
     }
     import json
 
+    safe_origin = sanitize_oauth_return_origin(return_origin) or default_origin.rstrip("/")
+    safe_path = sanitize_oauth_return_path(return_path)
     data = json.dumps(payload)
-    opener_origin = (return_origin or default_origin).rstrip("/")
+    opener_origin = json.dumps(safe_origin)
     query_parts = [f"connector_oauth={status}"]
     if connector_id:
         query_parts.append(f"connector_id={connector_id}")
@@ -187,10 +194,12 @@ def _callback_html(
         from urllib.parse import quote
 
         query_parts.append(f"connector_oauth_message={quote(message)}")
-    redirect = frontend_app_url(
-        "&".join(query_parts),
-        origin=return_origin or default_origin,
-        base_path=return_path,
+    redirect = json.dumps(
+        frontend_app_url(
+            "&".join(query_parts),
+            origin=safe_origin,
+            base_path=safe_path,
+        )
     )
     return f"""<!doctype html>
 <html lang="en">
@@ -200,8 +209,8 @@ def _callback_html(
 <script>
   const payload = {data};
   const storageKey = "forma-connector-oauth-result";
-  const openerOrigin = "{opener_origin}";
-  const redirect = "{redirect}";
+  const openerOrigin = {opener_origin};
+  const redirect = {redirect};
 
   try {{
     localStorage.setItem(storageKey, JSON.stringify(payload));

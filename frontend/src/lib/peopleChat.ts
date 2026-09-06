@@ -21,7 +21,7 @@ export interface PeopleMessage {
   text: string;
   at: number;
   mine?: boolean;
-  kind?: "text" | "handoff" | "manage" | "meeting";
+  kind?: "text" | "handoff" | "manage" | "meeting" | "workspace_invite";
   handoffId?: string;
   handoffTitle?: string;
   handoffPreview?: string;
@@ -33,6 +33,8 @@ export interface PeopleMessage {
   meetingStartTime?: string;
   meetingEndTime?: string;
   meetingOrganizerName?: string;
+  workspaceInviteId?: string;
+  workspaceInviteName?: string;
   mentionedUids?: string[];
   mentionBroadcast?: "here" | "everyone";
 }

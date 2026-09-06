@@ -27,6 +27,11 @@ export function peopleManageMessagePreview(message: PeopleMessage): string {
   if (message.kind === "manage") {
     return message.manageDisplayText?.trim() || message.text;
   }
+  if (message.kind === "workspace_invite") {
+    return message.workspaceInviteName?.trim()
+      ? `Invitation · ${message.workspaceInviteName.trim()}`
+      : message.text.trim() || "Invitation workspace";
+  }
   return message.text;
 }
 

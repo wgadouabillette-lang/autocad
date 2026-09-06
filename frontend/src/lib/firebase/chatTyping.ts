@@ -9,6 +9,29 @@ import {
 import type { ChatTypingScope } from "../chatTypingScope";
 import { chatTypingScopeKey } from "../chatTypingScope";
 import { rtdb } from "./client";
+import { ensureWorkspaceRtdbAcl } from "./workspaceRtdbAcl";
+import { ensureGroupRtdbAcl } from "./groupRtdbAcl";
+import { httpsCallable } from "firebase/functions";
+import { auth, functions } from "./client";
+import { partnerUidFromChatId } from "./friendChats";
+
+async function ensureTypingAcl(scope: ChatTypingScope): Promise<void> {
+  if (scope.kind === "theater" || scope.kind === "workspace-channel") {
+    await ensureWorkspaceRtdbAcl(scope.workspaceId);
+  } else if (scope.kind === "group") {
+    await ensureGroupRtdbAcl(scope.groupId);
+  } else if (scope.kind === "friend") {
+    const me = auth.currentUser?.uid;
+    if (!me) return;
+    const other = partnerUidFromChatId(scope.chatId, me);
+    if (!other) return;
+    const ensure = httpsCallable<{ otherUid: string }, { ok: boolean }>(
+      functions,
+      "ensureFriendship",
+    );
+    await ensure({ otherUid: other });
+  }
+}
 
 export interface CloudChatTyper {
   userId: string;
@@ -21,8 +44,24 @@ const TYPING_STALE_MS = 5_000;
 const armedTypingDisconnect = new Set<string>();
 
 function typingPath(scope: ChatTypingScope, uid?: string) {
-  const scopeKey = chatTypingScopeKey(scope);
-  return uid ? `typing/${scopeKey}/${uid}` : `typing/${scopeKey}`;
+  switch (scope.kind) {
+    case "theater": {
+      const base = `typing/theater/${scope.workspaceId.trim().toLowerCase()}`;
+      return uid ? `${base}/${uid}` : base;
+    }
+    case "friend": {
+      const base = `typing/friend/${scope.chatId}`;
+      return uid ? `${base}/${uid}` : base;
+    }
+    case "group": {
+      const base = `typing/group/${scope.groupId}`;
+      return uid ? `${base}/${uid}` : base;
+    }
+    case "workspace-channel": {
+      const base = `typing/channel/${scope.workspaceId}/${scope.channelId}`;
+      return uid ? `${base}/${uid}` : base;
+    }
+  }
 }
 
 function typingDisconnectKey(scope: ChatTypingScope, uid: string) {
@@ -64,6 +103,7 @@ export async function setChatTyping(
 ): Promise<void> {
   if (!uid) return;
 
+  await ensureTypingAcl(scope);
   await set(ref(rtdb, typingPath(scope, uid)), {
     authorUid: uid,
     authorName: authorName.trim() || "Membre",
@@ -88,23 +128,38 @@ export function watchChatTyping(
   onChange: (typers: CloudChatTyper[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  return onValue(
-    ref(rtdb, typingPath(scope)),
-    (snap) => {
-      const value = snap.val() as Record<string, unknown> | null;
-      if (!value) {
-        onChange([]);
-        return;
-      }
-      const typers = Object.entries(value)
-        .map(([uid, data]) => mapTypingEntry(uid, data))
-        .filter((typer): typer is CloudChatTyper => typer !== null);
-      onChange(typers);
-    },
-    (error) => {
-      onError?.(error);
-    },
-  );
+  let unsub: Unsubscribe | null = null;
+  let cancelled = false;
+
+  void ensureTypingAcl(scope)
+    .then(() => {
+      if (cancelled) return;
+      unsub = onValue(
+        ref(rtdb, typingPath(scope)),
+        (snap) => {
+          const value = snap.val() as Record<string, unknown> | null;
+          if (!value) {
+            onChange([]);
+            return;
+          }
+          const typers = Object.entries(value)
+            .map(([uid, data]) => mapTypingEntry(uid, data))
+            .filter((typer): typer is CloudChatTyper => typer !== null);
+          onChange(typers);
+        },
+        (error) => {
+          onError?.(error);
+        },
+      );
+    })
+    .catch((error) => {
+      onError?.(error instanceof Error ? error : new Error(String(error)));
+    });
+
+  return () => {
+    cancelled = true;
+    unsub?.();
+  };
 }
 
 export { TYPING_STALE_MS };

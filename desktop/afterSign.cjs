@@ -1,10 +1,15 @@
 /**
- * VMP-sign Electron Castlabs package on Windows (afterPack on macOS).
- * Windows: VMP must run AFTER Authenticode signing — see Castlabs EVS wiki.
+ * afterSign hook:
+ * - macOS: notarize is done by electron-builder (APPLE_API_KEY / ISSUER / KEY_ID env)
+ * - Windows: Castlabs EVS VMP after Authenticode
  */
 const { resolveEvsPython, signVmpPackage } = require("./evs-sign.cjs");
 
 exports.default = async function afterSign(context) {
+  if (context.electronPlatformName === "darwin") {
+    return;
+  }
+
   if (context.electronPlatformName !== "win32") return;
 
   const appOutDir = context.appOutDir;

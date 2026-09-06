@@ -28,7 +28,7 @@ try:
 except Exception:
     CORS_ORIGIN_REGEX = (
         r"https://([a-z0-9-]+\.)*meetra\.cc"
-        r"|https://([a-z0-9-]+\.)*vercel\.app"
+        r"|https://autocad-blue\.vercel\.app"
         r"|http://(localhost|127\.0\.0\.1):\d+"
     )
     _cors_origins = _FALLBACK_CORS_ORIGINS
@@ -75,12 +75,14 @@ try:
     from app.api.billing import router as billing_router
     from app.api.desktop_auth import router as desktop_auth_router
     from app.api.handoffs import router as handoffs_router
+    from app.api.transcribe import router as transcribe_router
 
     app.include_router(account_router)
     app.include_router(affiliate_router)
     app.include_router(billing_router)
     app.include_router(desktop_auth_router)
     app.include_router(handoffs_router)
+    app.include_router(transcribe_router)
 except Exception as exc:  # noqa: BLE001 — payments/auth must not take down connectors
     @app.get("/api/boot-extra-error")
     def boot_extra_error():

@@ -45,7 +45,7 @@ export default function EnterpriseCheckoutOverlay() {
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
   const [workspaceId, setWorkspaceId] = useState("");
   const [seatCount, setSeatCount] = useState(1);
-  const [unitCents, setUnitCents] = useState(1800);
+  const [unitCents, setUnitCents] = useState(2400);
   const [minMembers, setMinMembers] = useState(1);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [publishableKey, setPublishableKey] = useState<string | null>(null);
@@ -145,7 +145,7 @@ export default function EnterpriseCheckoutOverlay() {
           billingApi.enterpriseWorkspaces(),
         ]);
         if (cancelled) return;
-        setUnitCents(config.enterpriseSeatUnitAmountCents ?? 1800);
+        setUnitCents(config.enterpriseSeatUnitAmountCents ?? 2400);
         setMinMembers(config.enterpriseMinMembers ?? 1);
         const selectable = list.filter(
           (workspace) => !workspace.enterpriseActive && workspace.isOwner !== false,

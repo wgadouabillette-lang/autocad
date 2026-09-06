@@ -19,6 +19,7 @@ import {
   plainTextFromNoteHtml,
   publishNotesEditorDraft,
 } from "../../lib/notesFullscreenPromo";
+import { sanitizeNoteHtml } from "../../lib/sanitizeHtml";
 import { hasAiNotesAccess } from "../../lib/subscriptionPlans";
 import { useAiNotesStore } from "../../store/useAiNotesStore";
 import { useRecapStore } from "../../store/useRecapStore";
@@ -142,7 +143,7 @@ export default function ManualNotesPanel() {
 
   useLayoutEffect(() => {
     if (!initializedRef.current && editorRef.current) {
-      editorRef.current.innerHTML = initialBody;
+      editorRef.current.innerHTML = sanitizeNoteHtml(initialBody);
       initializedRef.current = true;
     }
     publishLiveNoteDraft(title, editorRef.current, initialBody);

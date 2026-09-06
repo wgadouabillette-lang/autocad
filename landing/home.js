@@ -7,8 +7,10 @@
     return key;
   }
 
-  function configureDownloadLink(link, labelEl, locale) {
-    if (!link || !labelEl) return;
+  function configureDownloadLink(link, labelEl, locale, options) {
+    if (!link) return;
+    options = options || {};
+    var preserveLabel = Boolean(options.preserveLabel);
 
     var lang = locale === "fr" ? "fr" : "en";
     var icon = link.querySelector("svg");
@@ -22,14 +24,16 @@
         typeof window.HallUnavailableLabel === "function"
           ? window.HallUnavailableLabel()
           : "Unavailable on mobile";
-      labelEl.textContent = unavailable;
+      if (labelEl && !preserveLabel) {
+        labelEl.textContent = unavailable;
+      }
       link.classList.add("is-unavailable");
       link.removeAttribute("href");
       link.removeAttribute("download");
       link.setAttribute("role", "note");
       link.setAttribute("aria-disabled", "true");
       link.setAttribute("aria-label", unavailable);
-      if (icon) {
+      if (icon && !preserveLabel) {
         icon.outerHTML =
           typeof window.HallUnavailableIcon === "function"
             ? window.HallUnavailableIcon("hero__cta-icon")
@@ -54,9 +58,11 @@
     link.removeAttribute("aria-disabled");
     link.href = target.href;
     link.setAttribute("download", "");
-    labelEl.textContent = window.HallLandingI18n
-      ? window.HallLandingI18n.t(target.labelKey, lang)
-      : target.fallbackLabel;
+    if (labelEl && !preserveLabel) {
+      labelEl.textContent = window.HallLandingI18n
+        ? window.HallLandingI18n.t(target.labelKey, lang)
+        : target.fallbackLabel;
+    }
     link.setAttribute(
       "aria-label",
       window.HallLandingI18n
@@ -64,8 +70,33 @@
         : target.fallbackAria,
     );
     icon = link.querySelector("svg");
-    if (icon && typeof window.HallDownloadArrowIcon === "function") {
-      icon.outerHTML = window.HallDownloadArrowIcon("hero__cta-icon");
+    if (icon && !preserveLabel) {
+      if (
+        link.id === "hero-download" &&
+        typeof window.HallDownloadPlatformIcon === "function"
+      ) {
+        var platformIcon = window.HallDownloadPlatformIcon(
+          target.platform || "mac",
+          "hero__cta-platform-icon",
+        );
+        icon.outerHTML = platformIcon;
+        var labelNode = labelEl || link.querySelector("#hero-download-label");
+        var inserted = link.querySelector(".hero__cta-platform-icon");
+        if (inserted && labelNode && inserted.nextSibling !== labelNode) {
+          link.insertBefore(inserted, labelNode);
+        }
+      } else if (typeof window.HallDownloadArrowIcon === "function") {
+        icon.outerHTML = window.HallDownloadArrowIcon("hero__cta-icon");
+      }
+    }
+  }
+
+  function refreshFeatureExploreLinks(locale) {
+    var links = document.querySelectorAll("a.hero__feature-link");
+    for (var i = 0; i < links.length; i++) {
+      var link = links[i];
+      var labelEl = link.querySelector("[data-i18n]") || link.querySelector("span");
+      configureDownloadLink(link, labelEl, locale, { preserveLabel: true });
     }
   }
 
@@ -88,6 +119,7 @@
         locale,
       );
     }
+    refreshFeatureExploreLinks(locale);
   }
 
   var grid = document.getElementById("highlights-grid");

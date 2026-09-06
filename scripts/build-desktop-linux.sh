@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Construit Hall-linux.AppImage (sur une machine Linux) + copie vers landing/downloads/
+# Construit Meetra-linux.AppImage (sur une machine Linux) + copie vers landing/downloads/
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -37,18 +37,18 @@ node scripts/prepare-desktop-resources.cjs
 echo "[4/5] Construction de l'AppImage…"
 (cd desktop && npx electron-builder --linux AppImage --publish never)
 
-echo "[5/5] Copie vers landing/downloads (nom stable Hall-linux.AppImage)…"
+echo "[5/5] Copie vers landing/downloads (nom stable Meetra-linux.AppImage)…"
 mkdir -p landing/public/downloads landing/downloads
 APPIMAGE="$(ls -1t desktop/release/Meetra-*-linux.AppImage desktop/release/Hall-*-linux.AppImage desktop/release/*.AppImage 2>/dev/null | head -1 || true)"
 if [[ -z "$APPIMAGE" || ! -f "$APPIMAGE" ]]; then
   echo "AppImage introuvable dans desktop/release/"
   exit 1
 fi
-cp -f "$APPIMAGE" landing/public/downloads/Hall-linux.AppImage
-cp -f "$APPIMAGE" landing/downloads/Hall-linux.AppImage 2>/dev/null || true
-chmod +x landing/public/downloads/Hall-linux.AppImage
+cp -f "$APPIMAGE" landing/public/downloads/Meetra-linux.AppImage
+cp -f "$APPIMAGE" landing/downloads/Meetra-linux.AppImage 2>/dev/null || true
+chmod +x landing/public/downloads/Meetra-linux.AppImage
 
 echo ""
-echo "OK → landing/public/downloads/Hall-linux.AppImage"
+echo "OK → landing/public/downloads/Meetra-linux.AppImage"
 echo "Publier : ./scripts/upload-desktop-downloads.sh"
 echo "Dev local : ./scripts/desktop-dev.sh"

@@ -1,3 +1,5 @@
+import { sanitizeNoteHtml } from "./sanitizeHtml";
+
 const BLOCK_IN_MS = 110;
 const CHAR_IN_MS = 14;
 const MIN_BLOCK_MS = 180;
@@ -13,7 +15,7 @@ function blockDelay(textLength: number): number {
 
 function parseBlocks(html: string): Element[] {
   const template = document.createElement("div");
-  template.innerHTML = html.trim();
+  template.innerHTML = sanitizeNoteHtml(html).trim();
   return Array.from(template.children);
 }
 
@@ -53,9 +55,10 @@ export function animateStructuredHtmlInto(
       return;
     }
 
-    const targetBlocks = parseBlocks(html);
+    const safeHtml = sanitizeNoteHtml(html);
+    const targetBlocks = parseBlocks(safeHtml);
     if (targetBlocks.length === 0) {
-      if (html.trim()) editor.innerHTML = html;
+      if (safeHtml.trim()) editor.innerHTML = safeHtml;
       resolve();
       return;
     }
@@ -84,7 +87,7 @@ export function animateStructuredHtmlInto(
 
     const onAbort = () => {
       window.clearTimeout(timeoutId);
-      editor.innerHTML = html;
+      editor.innerHTML = sanitizeNoteHtml(html);
       scrollEditorToFollow(editor);
       resolve();
     };

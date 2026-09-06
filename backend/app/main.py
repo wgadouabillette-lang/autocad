@@ -26,6 +26,7 @@ from app.api.outlook_calendar_sync import router as outlook_calendar_sync_router
 from app.api.connector_resources import router as connector_resources_router
 from app.api.connectors import router as connectors_router
 from app.api.desktop_auth import router as desktop_auth_router
+from app.api.transcribe import router as transcribe_router
 from app.api.user_calendar_events import router as user_calendar_events_router
 from app.core.config import CORS_ORIGIN_REGEX, ensure_desktop_env, settings
 
@@ -80,6 +81,7 @@ app.include_router(calendar_sync_router)
 app.include_router(outlook_calendar_sync_router)
 app.include_router(user_calendar_events_router)
 app.include_router(desktop_auth_router)
+app.include_router(transcribe_router)
 
 _STATIC_DIR = os.getenv("FORMA_STATIC")
 _IS_DESKTOP = os.getenv("FORMA_DESKTOP", "").strip().lower() in {"1", "true", "yes", "on"}

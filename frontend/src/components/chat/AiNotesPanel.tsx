@@ -3,6 +3,7 @@ import { Loader2, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useAiNotesStore } from "../../store/useAiNotesStore";
 import { useStore } from "../../store/useStore";
+import { sanitizeNoteHtml } from "../../lib/sanitizeHtml";
 
 function formatClock(ts: number): string {
   return new Date(ts).toLocaleTimeString("fr-FR", {
@@ -137,7 +138,7 @@ export default function AiNotesPanel() {
             <h3 className="ai-notes-panel__section-label">Notes structurées</h3>
             <div
               className="ai-notes-panel__structured-body"
-              dangerouslySetInnerHTML={{ __html: structuredHtml }}
+              dangerouslySetInnerHTML={{ __html: sanitizeNoteHtml(structuredHtml) }}
             />
           </section>
         )}

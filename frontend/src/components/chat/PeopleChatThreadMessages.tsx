@@ -5,6 +5,7 @@ import { parseManageComposerText } from "../../lib/manageSchedulePrompt";
 import { parsePromptDisplaySegments } from "../../lib/promptMentions";
 import HandoffInboxCard from "./HandoffInboxCard";
 import ManageSchedulePromptLine from "./ManageSchedulePromptLine";
+import WorkspaceInviteInboxCard from "./WorkspaceInviteInboxCard";
 import UserAvatar from "../UserAvatar";
 import { useHandoffStore } from "../../store/useHandoffStore";
 import {
@@ -129,6 +130,34 @@ function PeopleChatBubble({
           title={message.handoffTitle}
           preview={message.handoffPreview}
           onOpen={() => void openHandoffPreview(message.handoffId!)}
+        />
+      </div>
+    );
+  }
+
+  if (message.kind === "workspace_invite" && message.workspaceInviteId) {
+    return (
+      <div
+        className={clsx(
+          "people-chat-bubble-wrap",
+          mine && "people-chat-bubble-wrap--mine",
+          isFirstInGroup && "people-chat-bubble-wrap--first",
+          isLastInGroup && "people-chat-bubble-wrap--last",
+        )}
+      >
+        <PeopleChatBubbleAvatar
+          showAvatars={showAvatars}
+          mine={mine}
+          isFirstInGroup={isFirstInGroup}
+          authorUid={message.authorUid}
+          authorName={message.author}
+          getAuthorPhotoURL={getAuthorPhotoURL}
+        />
+        <WorkspaceInviteInboxCard
+          workspaceId={message.workspaceInviteId}
+          workspaceName={message.workspaceInviteName}
+          senderName={message.author}
+          mine={mine}
         />
       </div>
     );

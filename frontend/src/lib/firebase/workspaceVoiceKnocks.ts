@@ -7,6 +7,7 @@ import {
   type Unsubscribe,
 } from "firebase/database";
 import { rtdb } from "./client";
+import { ensureWorkspaceRtdbAcl } from "./workspaceRtdbAcl";
 
 export type VoiceKnockStatus = "pending" | "accepted" | "declined" | "ejected";
 
@@ -26,11 +27,11 @@ function knockId(fromUid: string, toUid: string): string {
 }
 
 function knockPath(workspaceId: string, id: string) {
-  return `voiceKnocks/${workspaceId}/${id}`;
+  return `voiceKnocks/${workspaceId.trim().toLowerCase()}/${id}`;
 }
 
 function knocksPath(workspaceId: string) {
-  return `voiceKnocks/${workspaceId}`;
+  return `voiceKnocks/${workspaceId.trim().toLowerCase()}`;
 }
 
 export async function sendVoiceKnock(
@@ -39,6 +40,7 @@ export async function sendVoiceKnock(
   fromName: string,
   toUid: string,
 ): Promise<string> {
+  await ensureWorkspaceRtdbAcl(workspaceId);
   const id = knockId(fromUid, toUid);
   await set(ref(rtdb, knockPath(workspaceId, id)), {
     id,
@@ -58,6 +60,7 @@ export async function respondVoiceKnock(
   toUid: string,
   accept: boolean,
 ): Promise<void> {
+  await ensureWorkspaceRtdbAcl(workspaceId);
   await update(ref(rtdb, knockPath(workspaceId, knockId(fromUid, toUid))), {
     status: accept ? "accepted" : "declined",
     respondedAt: Date.now(),
@@ -78,6 +81,7 @@ export async function sendVoiceEject(
   hostName: string,
   remoteUid: string,
 ): Promise<void> {
+  await ensureWorkspaceRtdbAcl(workspaceId);
   const id = `eject_${hostUid}_${remoteUid}`;
   await set(ref(rtdb, knockPath(workspaceId, id)), {
     id,
@@ -95,20 +99,35 @@ function watchKnocksCollection(
   onChange: (knocks: VoiceKnockDoc[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  return onValue(
-    ref(rtdb, knocksPath(workspaceId)),
-    (snap) => {
-      const value = snap.val() as Record<string, VoiceKnockDoc> | null;
-      if (!value) {
-        onChange([]);
-        return;
-      }
-      onChange(Object.values(value));
-    },
-    (error) => {
-      onError?.(error);
-    },
-  );
+  let unsub: Unsubscribe | null = null;
+  let cancelled = false;
+
+  void ensureWorkspaceRtdbAcl(workspaceId)
+    .then(() => {
+      if (cancelled) return;
+      unsub = onValue(
+        ref(rtdb, knocksPath(workspaceId)),
+        (snap) => {
+          const value = snap.val() as Record<string, VoiceKnockDoc> | null;
+          if (!value) {
+            onChange([]);
+            return;
+          }
+          onChange(Object.values(value));
+        },
+        (error) => {
+          onError?.(error);
+        },
+      );
+    })
+    .catch((error) => {
+      onError?.(error instanceof Error ? error : new Error(String(error)));
+    });
+
+  return () => {
+    cancelled = true;
+    unsub?.();
+  };
 }
 
 export function watchVoiceEjects(

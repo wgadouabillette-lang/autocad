@@ -38,21 +38,32 @@ export interface ModelUsageRate {
 }
 
 export function usageMarkupMultiplier(): number {
-  const raw = process.env.FORMA_USAGE_MARKUP ?? "1.25";
+  // Default 1.333 = +1/3 profit vs prior 1.25 margin (0.25 → 0.333).
+  const raw = process.env.FORMA_USAGE_MARKUP ?? "1.333";
   const value = Number.parseFloat(raw);
-  return Number.isFinite(value) ? Math.max(value, 1) : 1.25;
+  return Number.isFinite(value) ? Math.max(value, 1) : 1.333;
 }
 
 export function onDemandUsageMarkupMultiplier(): number {
-  const raw = process.env.FORMA_ON_DEMAND_USAGE_MARKUP ?? "1.65";
+  // Default 1.867 = +1/3 profit vs prior 1.65 margin (0.65 → 0.867).
+  const raw = process.env.FORMA_ON_DEMAND_USAGE_MARKUP ?? "1.867";
   const value = Number.parseFloat(raw);
-  return Number.isFinite(value) ? Math.max(value, 1) : 1.65;
+  return Number.isFinite(value) ? Math.max(value, 1) : 1.867;
 }
 
 export function proUsageAllowanceUsd(): number {
   const raw = process.env.FORMA_PRO_USAGE_ALLOWANCE_USD ?? "30";
   const value = Number.parseFloat(raw);
   return Number.isFinite(value) ? Math.max(value, 0) : 30;
+}
+
+/** Pro+ included credit is 2× the current Pro allowance. */
+export function proPlusUsageAllowanceUsd(): number {
+  return proUsageAllowanceUsd() * 2;
+}
+
+export function personalUsageAllowanceUsd(plus = false): number {
+  return plus ? proPlusUsageAllowanceUsd() : proUsageAllowanceUsd();
 }
 
 export function enterpriseUsageAllowancePerSeatUsd(): number {

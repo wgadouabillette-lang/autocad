@@ -22,6 +22,7 @@ export default function PlanSettingsSection() {
   const proCard = cards.find((card) => card.id === "pro");
   const proPlusCard = cards.find((card) => card.id === "proPlus");
   const teamCard = cards.find((card) => card.id === "team");
+  const storeTier = useStore((s) => s.subscriptionTier);
   const {
     stripeEnabled,
     proPlusEnabled,
@@ -39,8 +40,9 @@ export default function PlanSettingsSection() {
     loadEnterpriseWorkspaces,
     prefetchCheckout,
     setBillingError,
-    subscriptionTier,
+    subscriptionTier: billingTier,
   } = useBilling();
+  const subscriptionTier = billingTier || storeTier;
   const isProPlus = isPro && subscriptionTier === "proPlus";
   const isProOnly = isPro && !isProPlus;
 
@@ -88,6 +90,7 @@ export default function PlanSettingsSection() {
             }
           : null);
 
+      // Team actif → portail Stripe pour ajouter des sièges (plus d'usage pool).
       if (preferred && (preferred.enterpriseActive || workspaceEnterpriseActive)) {
         void openEnterprisePortal(preferred.workspaceId);
         return;
@@ -134,9 +137,9 @@ export default function PlanSettingsSection() {
           price={proPrice}
           description={proCard.description}
           features={proCard.features}
-          active={isProOnly && !workspaceEnterpriseActive}
+          active={isProOnly}
           ctaLabel={
-            loadingCta ?? (isProOnly && !workspaceEnterpriseActive ? copy.ctaCurrent : copy.ctaPro)
+            loadingCta ?? (isProOnly ? copy.ctaCurrent : copy.ctaPro)
           }
           ctaDisabled={loading || !isAuthenticated}
           onCtaClick={handleSelectPro}
@@ -149,9 +152,9 @@ export default function PlanSettingsSection() {
           price={proPlusPrice}
           description={proPlusCard.description}
           features={proPlusCard.features}
-          active={isProPlus && !workspaceEnterpriseActive}
+          active={isProPlus}
           ctaLabel={
-            loadingCta ?? (isProPlus && !workspaceEnterpriseActive ? copy.ctaCurrent : copy.ctaProPlus)
+            loadingCta ?? (isProPlus ? copy.ctaCurrent : copy.ctaProPlus)
           }
           ctaDisabled={loading || !isAuthenticated || !proPlusEnabled}
           onCtaClick={handleSelectProPlus}
@@ -166,12 +169,12 @@ export default function PlanSettingsSection() {
           features={teamCard.features}
           active={workspaceEnterpriseActive}
           ctaLabel={
-            loadingCta ?? (workspaceEnterpriseActive ? copy.ctaTeamManage : copy.ctaTeam)
+            loadingCta ?? (workspaceEnterpriseActive ? copy.ctaTeamAddSeats : copy.ctaTeam)
           }
           ctaDisabled={loading || !isAuthenticated}
           onCtaClick={handleTeamClick}
           onPrefetch={prefetchCheckout}
-          ariaLabel={workspaceEnterpriseActive ? copy.teamManageAria : copy.teamAria}
+          ariaLabel={workspaceEnterpriseActive ? copy.teamAddSeatsAria : copy.teamAria}
         />
       </div>
       <BoostedWorkspacesList

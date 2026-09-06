@@ -27,14 +27,14 @@ const DEFAULT_CONFIG: BillingConfig = {
   enabled: false,
   onDemandAvailable: false,
   billingManaged: false,
-  proPriceLabel: "$25 / month",
+  proPriceLabel: "$33 / month",
   proPlusEnabled: false,
-  proPlusPriceLabel: "$40 / month",
-  proPlusPriceUsdCents: 4000,
+  proPlusPriceLabel: "$53 / month",
+  proPlusPriceUsdCents: 5300,
   enterpriseEnabled: false,
   enterpriseMinMembers: 2,
-  enterpriseSeatPriceLabel: "$18 / seat",
-  enterpriseSeatUnitAmountCents: 1800,
+  enterpriseSeatPriceLabel: "$24 / seat",
+  enterpriseSeatUnitAmountCents: 2400,
   publishableKey: "",
 };
 
@@ -85,9 +85,9 @@ export function useBilling() {
     const locale = resolveClientLocale();
     const country = resolveClientCountry();
     const currency = resolveClientCurrency();
-    const proCents = value.proPriceUsdCents ?? 2500;
-    const plusCents = value.proPlusPriceUsdCents ?? 4000;
-    const seatCents = value.enterpriseSeatUnitAmountCents ?? 1800;
+    const proCents = value.proPriceUsdCents ?? 3300;
+    const plusCents = value.proPlusPriceUsdCents ?? 5300;
+    const seatCents = value.enterpriseSeatUnitAmountCents ?? 2400;
     try {
       const [pro, plus, seat] = await Promise.all([
         billingApi.localizeAmount({
@@ -203,10 +203,17 @@ export function useBilling() {
         subscriptionPlan === "pro" && profile.subscriptionTier === "proPlus" ? "proPlus" : subscriptionPlan === "pro" ? "pro" : "",
       );
       useStore.setState((state) => {
+        const nextTier =
+          subscriptionPlan === "pro" && profile.subscriptionTier === "proPlus"
+            ? "proPlus"
+            : subscriptionPlan === "pro"
+              ? "pro"
+              : "";
         const patch: Partial<{
           subscriptionPlan: typeof subscriptionPlan;
           onDemandUsageEnabled: boolean;
           billingManaged: boolean;
+          subscriptionTier: "" | "pro" | "proPlus";
         }> = {};
         if (subscriptionPlan !== state.subscriptionPlan) {
           patch.subscriptionPlan = subscriptionPlan;
@@ -216,6 +223,9 @@ export function useBilling() {
         }
         if (managed !== state.billingManaged) {
           patch.billingManaged = managed;
+        }
+        if (nextTier !== state.subscriptionTier) {
+          patch.subscriptionTier = nextTier;
         }
         return Object.keys(patch).length > 0 ? patch : state;
       });
@@ -240,6 +250,12 @@ export function useBilling() {
       subscriptionPlan,
       onDemandUsageEnabled,
       billingManaged: managed,
+      subscriptionTier:
+        subscriptionPlan === "pro" && profile.subscriptionTier === "proPlus"
+          ? "proPlus"
+          : subscriptionPlan === "pro"
+            ? "pro"
+            : "",
     });
     setSubscriptionTier(
       subscriptionPlan === "pro" && profile.subscriptionTier === "proPlus"
@@ -260,6 +276,12 @@ export function useBilling() {
         subscriptionPlan,
         onDemandUsageEnabled: status.onDemandUsageEnabled,
         billingManaged: status.billingManaged,
+        subscriptionTier:
+          subscriptionPlan === "pro" && status.subscriptionTier === "proPlus"
+            ? "proPlus"
+            : subscriptionPlan === "pro"
+              ? "pro"
+              : "",
       });
       setSubscriptionTier(
         subscriptionPlan === "pro" && status.subscriptionTier === "proPlus"
@@ -449,7 +471,7 @@ export function useBilling() {
       localizedEnterpriseSeatLabel ??
       config?.enterpriseSeatPriceLabel ??
       DEFAULT_CONFIG.enterpriseSeatPriceLabel,
-    enterpriseSeatUnitAmountCents: config?.enterpriseSeatUnitAmountCents ?? 1800,
+    enterpriseSeatUnitAmountCents: config?.enterpriseSeatUnitAmountCents ?? 2400,
     billingManaged,
     onDemandAvailable: Boolean(config?.onDemandAvailable),
     subscriptionTier,

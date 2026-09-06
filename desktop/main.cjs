@@ -137,11 +137,60 @@ const OAUTH_POPUP_PREFIXES = [
   "https://billing.stripe.com/",
 ];
 
+const EXTERNAL_URL_ALLOWLIST = [
+  ...OAUTH_POPUP_PREFIXES,
+  "https://meetra.cc/",
+  "https://www.meetra.cc/",
+  "https://autocad-blue.vercel.app/",
+  "https://forma-cad-dev.web.app/",
+  "https://forma-cad-dev.firebaseapp.com/",
+  "https://dashboard.stripe.com/",
+  "https://pay.stripe.com/",
+  "https://js.stripe.com/",
+  "https://hooks.stripe.com/",
+  "mailto:",
+];
+
 /** Shared cookie jar so Spotify can silently re-approve after the first login. */
 const OAUTH_PARTITION = "persist:forma-oauth";
 
 function isOAuthPopupUrl(url) {
   return typeof url === "string" && OAUTH_POPUP_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
+function isAllowedExternalUrl(url) {
+  if (typeof url !== "string") return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  // System settings URLs used for screen-capture permissions.
+  if (
+    trimmed.startsWith("x-apple.systempreferences:") ||
+    trimmed.startsWith("ms-settings:")
+  ) {
+    return true;
+  }
+  if (!/^https?:\/\//i.test(trimmed) && !trimmed.startsWith("mailto:")) {
+    return false;
+  }
+  try {
+    if (/^https?:\/\//i.test(trimmed)) {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+      const host = parsed.hostname.toLowerCase();
+      if (host === "localhost" || host === "127.0.0.1") return true;
+    }
+  } catch {
+    return false;
+  }
+  return EXTERNAL_URL_ALLOWLIST.some((prefix) => trimmed.startsWith(prefix));
+}
+
+async function openExternalSafe(url) {
+  if (!isAllowedExternalUrl(url)) {
+    console.warn("[hall] blocked openExternal", url);
+    throw new Error("External URL not allowed.");
+  }
+  await shell.openExternal(url);
 }
 
 function oauthPopupBrowserOptions() {
@@ -165,7 +214,7 @@ function attachOAuthPopupNavigation(win) {
       void contents.loadURL(url);
       return { action: "deny" };
     }
-    shell.openExternal(url);
+    void openExternalSafe(url).catch(() => {});
     return { action: "deny" };
   });
   contents.on("did-create-window", (childWindow) => {
@@ -909,7 +958,7 @@ function createWindow() {
         overrideBrowserWindowOptions: oauthPopupBrowserOptions(),
       };
     }
-    shell.openExternal(url);
+    void openExternalSafe(url).catch(() => {});
     return { action: "deny" };
   });
   mainWindow.webContents.on("did-create-window", (childWindow, details) => {
@@ -1105,7 +1154,7 @@ async function openScreenCaptureSettings() {
     ];
     for (const url of urls) {
       try {
-        await shell.openExternal(url);
+        await openExternalSafe(url);
         return true;
       } catch {
         // essayer l'URL suivante (anciennes versions de macOS)
@@ -1127,7 +1176,7 @@ async function openScreenCaptureSettings() {
     ];
     for (const url of urls) {
       try {
-        await shell.openExternal(url);
+        await openExternalSafe(url);
         return true;
       } catch {
         // essayer l'URL suivante
@@ -1207,7 +1256,7 @@ ipcMain.handle("forma:open-external", async (_event, url) => {
     throw new Error("Invalid external URL.");
   }
   console.log("[hall] openExternal", url);
-  await shell.openExternal(url);
+  await openExternalSafe(url);
 });
 
 ipcMain.handle("forma:get-app-window-source-id", async () => {

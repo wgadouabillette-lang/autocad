@@ -340,4 +340,13 @@ run(python, ["-c", "import uvicorn; from app.main import app"], {
   },
 });
 
+// Developer ID codesign treats Python3 + pyvenv.cfg as a broken bundle.
+if (process.platform === "darwin") {
+  const cfgPath = path.join(venvOut, "pyvenv.cfg");
+  if (fs.existsSync(cfgPath)) {
+    fs.unlinkSync(cfgPath);
+    console.log("→ pyvenv.cfg retiré (codesign Developer ID / notarize).");
+  }
+}
+
 console.log("Desktop resources ready in desktop/build-resources/");

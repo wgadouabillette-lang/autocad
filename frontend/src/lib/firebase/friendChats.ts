@@ -14,7 +14,8 @@ import {
   type QueryDocumentSnapshot,
   type Unsubscribe,
 } from "firebase/firestore";
-import { db } from "./client";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "./client";
 import type { PeopleManageScheduleEvent } from "../peopleChat";
 import { cloudMessageSortKey } from "../firestoreTime";
 
@@ -25,7 +26,7 @@ export interface CloudFriendMessage {
   text: string;
   clientCreatedAt?: number;
   createdAt?: { seconds: number; nanoseconds: number } | null;
-  kind?: "text" | "handoff" | "manage" | "meeting";
+  kind?: "text" | "handoff" | "manage" | "meeting" | "workspace_invite";
   handoffId?: string;
   handoffTitle?: string;
   handoffPreview?: string;
@@ -37,6 +38,8 @@ export interface CloudFriendMessage {
   meetingStartTime?: string;
   meetingEndTime?: string;
   meetingOrganizerName?: string;
+  workspaceInviteId?: string;
+  workspaceInviteName?: string;
   mentionedUids?: string[];
   mentionBroadcast?: "here" | "everyone";
 }
@@ -47,7 +50,7 @@ export interface CloudFriendChat {
   updatedAt?: { seconds: number; nanoseconds: number } | null;
   lastPreview?: string;
   lastMessageAuthorUid?: string;
-  lastMessageKind?: "text" | "handoff" | "manage" | "meeting";
+  lastMessageKind?: "text" | "handoff" | "manage" | "meeting" | "workspace_invite";
   lastHandoffTitle?: string;
 }
 
@@ -74,6 +77,22 @@ function messagesCol(chatId: string) {
 export async function ensureFriendChat(uidA: string, uidB: string): Promise<string> {
   const participants = [uidA, uidB].sort();
   const chatId = participants.join("_");
+
+  try {
+    const { auth } = await import("./client");
+    const me = auth.currentUser?.uid;
+    if (me && (me === uidA || me === uidB)) {
+      const otherUid = me === uidA ? uidB : uidA;
+      const ensure = httpsCallable<{ otherUid: string }, { ok: boolean }>(
+        functions,
+        "ensureFriendship",
+      );
+      await ensure({ otherUid });
+    }
+  } catch {
+    // create may still succeed if friendship already materialized
+  }
+
   await setDoc(
     chatRef(chatId),
     { participants, updatedAt: serverTimestamp() },
@@ -89,7 +108,7 @@ export async function sendFriendChatMessage(
   participants: string[],
   text: string,
   extras?: {
-    kind?: "text" | "handoff" | "manage" | "meeting";
+    kind?: "text" | "handoff" | "manage" | "meeting" | "workspace_invite";
     handoffId?: string;
     handoffTitle?: string;
     handoffPreview?: string;
@@ -101,6 +120,8 @@ export async function sendFriendChatMessage(
     meetingStartTime?: string;
     meetingEndTime?: string;
     meetingOrganizerName?: string;
+    workspaceInviteId?: string;
+    workspaceInviteName?: string;
   },
 ): Promise<void> {
   const trimmed = text.trim();
@@ -112,7 +133,11 @@ export async function sendFriendChatMessage(
         ? extras.manageDisplayText?.trim() || trimmed
         : extras?.kind === "meeting"
           ? extras.meetingTitle?.trim() || trimmed
-          : trimmed;
+          : extras?.kind === "workspace_invite"
+            ? extras.workspaceInviteName?.trim()
+              ? `Invitation · ${extras.workspaceInviteName.trim()}`
+              : trimmed
+            : trimmed;
   await addDoc(messagesCol(chatId), {
     authorUid,
     authorName: authorName.trim() || authorUid,
@@ -146,6 +171,13 @@ export async function sendFriendChatMessage(
           meetingOrganizerName: extras.meetingOrganizerName ?? authorName,
         }
       : {}),
+    ...(extras?.kind === "workspace_invite" && extras.workspaceInviteId
+      ? {
+          kind: "workspace_invite",
+          workspaceInviteId: extras.workspaceInviteId,
+          workspaceInviteName: extras.workspaceInviteName ?? "",
+        }
+      : {}),
   });
   await setDoc(
     chatRef(chatId),
@@ -161,7 +193,9 @@ export async function sendFriendChatMessage(
             ? "manage"
             : extras?.kind === "meeting"
               ? "meeting"
-              : "text",
+              : extras?.kind === "workspace_invite"
+                ? "workspace_invite"
+                : "text",
       ...(extras?.kind === "handoff" && extras.handoffTitle
         ? { lastHandoffTitle: extras.handoffTitle.slice(0, 200) }
         : {}),
@@ -185,6 +219,7 @@ function mapChatDoc(docSnap: QueryDocumentSnapshot<DocumentData>): CloudFriendCh
       data.lastMessageKind === "handoff" ||
       data.lastMessageKind === "manage" ||
       data.lastMessageKind === "meeting" ||
+      data.lastMessageKind === "workspace_invite" ||
       data.lastMessageKind === "text"
         ? data.lastMessageKind
         : undefined,

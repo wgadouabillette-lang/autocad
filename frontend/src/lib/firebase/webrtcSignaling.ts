@@ -7,6 +7,7 @@ import {
   type Unsubscribe,
 } from "firebase/database";
 import { rtdb } from "./client";
+import { ensureWorkspaceRtdbAcl } from "./workspaceRtdbAcl";
 
 export type RtcSignalType = "offer" | "answer" | "candidate";
 
@@ -33,6 +34,7 @@ export async function sendRtcSignal(
   sessionId: string,
   signal: Omit<RtcSignalDoc, "id" | "createdAt">,
 ): Promise<void> {
+  await ensureWorkspaceRtdbAcl(workspaceId);
   const listRef = ref(rtdb, signalsPath(workspaceId, sessionId, signal.toUid));
   const signalRef = push(listRef);
   await set(signalRef, {
@@ -62,15 +64,30 @@ export function watchIncomingRtcSignals(
     return () => {};
   }
 
-  return onChildAdded(
-    ref(rtdb, signalsPath(workspaceId, sessionId, localUid)),
-    (snap) => {
-      const data = snap.val() as Omit<RtcSignalDoc, "id"> | null;
-      if (!data || typeof data.fromUid !== "string" || typeof data.type !== "string") return;
-      onSignal({ id: snap.key ?? undefined, ...data, toUid: localUid });
-    },
-    (error) => {
-      onError?.(error);
-    },
-  );
+  let unsub: Unsubscribe | null = null;
+  let cancelled = false;
+
+  void ensureWorkspaceRtdbAcl(workspaceId)
+    .then(() => {
+      if (cancelled) return;
+      unsub = onChildAdded(
+        ref(rtdb, signalsPath(workspaceId, sessionId, localUid)),
+        (snap) => {
+          const data = snap.val() as Omit<RtcSignalDoc, "id"> | null;
+          if (!data || typeof data.fromUid !== "string" || typeof data.type !== "string") return;
+          onSignal({ id: snap.key ?? undefined, ...data, toUid: localUid });
+        },
+        (error) => {
+          onError?.(error);
+        },
+      );
+    })
+    .catch((error) => {
+      onError?.(error instanceof Error ? error : new Error(String(error)));
+    });
+
+  return () => {
+    cancelled = true;
+    unsub?.();
+  };
 }

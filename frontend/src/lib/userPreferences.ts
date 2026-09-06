@@ -2,6 +2,7 @@ import type { SelectableWorkMode } from "./workModes";
 import type { SubscriptionPlan } from "./subscriptionPlans";
 
 import type { ColorThemePreference } from "./theme";
+import { normalizeColorThemePreference } from "./theme";
 import type { AccentColorPreference } from "./accentColor";
 import { normalizeAccentColorPreference } from "./accentColor";
 import { DEFAULT_HALL_DJ_GENRE, normalizeHallDjGenre } from "./hallDjGenres";
@@ -185,7 +186,7 @@ export function readUserPreferences(): UserPreferences {
       data.calendarWorkEndMinutes,
     );
     return {
-      colorTheme: "dark",
+      colorTheme: normalizeColorThemePreference(data.colorTheme),
       accentColor: normalizeAccentColorPreference(data.accentColor),
       chatWorkMode,
       autoWorkModeSwitch: Boolean(data.autoWorkModeSwitch),

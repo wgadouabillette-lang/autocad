@@ -13,17 +13,30 @@ from typing import Any
 _STATE_TTL_SEC = 600
 
 
+def _is_production_runtime() -> bool:
+    if (os.getenv("VERCEL") or "").strip():
+        return True
+    if (os.getenv("VERCEL_ENV") or "").strip().lower() in {"production", "preview"}:
+        return True
+    env = (os.getenv("FORMA_ENV") or os.getenv("ENV") or "").strip().lower()
+    return env in {"production", "prod", "staging"}
+
+
 def _state_secret() -> bytes:
     for key in (
         "FORMA_OAUTH_STATE_SECRET",
         "SPOTIFY_CLIENT_SECRET",
         "GOOGLE_CLIENT_SECRET",
         "MICROSOFT_OAUTH_CLIENT_SECRET",
-        "FIREBASE_SERVICE_ACCOUNT_JSON",
     ):
         raw = (os.getenv(key) or "").strip()
         if raw:
             return raw.encode()
+    if _is_production_runtime():
+        raise RuntimeError(
+            "OAuth state secret missing: set FORMA_OAUTH_STATE_SECRET "
+            "(or a connector client secret) in production."
+        )
     return b"forma-oauth-dev-insecure"
 
 
@@ -67,8 +80,13 @@ def parse_oauth_state(state: str) -> dict[str, Any] | None:
         raw = _b64url_decode(body)
         expected = hmac.new(_state_secret(), raw, hashlib.sha256).digest()
         got = _b64url_decode(mac)
-        if not hmac.compare_digest(expected, got):
-            return None
+    except RuntimeError:
+        return None
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if not hmac.compare_digest(expected, got):
+        return None
+    try:
         payload = json.loads(raw.decode())
     except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
         return None

@@ -10,6 +10,7 @@ from app.ai.usage_pricing import (
     enterprise_usage_allowance_usd,
     normalize_pricing_model,
     on_demand_usage_markup_multiplier,
+    personal_usage_allowance_usd,
     pricing_model_label,
     pro_usage_allowance_usd,
     split_retail_charge,
@@ -96,7 +97,7 @@ class UsageSnapshot:
     on_demand_enabled: bool
     plan: str
     markup_multiplier: float
-    on_demand_markup_multiplier: float = 1.65
+    on_demand_markup_multiplier: float = 1.867
     scope: UsageScope = "pro"
     workspace_id: Optional[str] = None
     seat_count: Optional[int] = None
@@ -629,13 +630,54 @@ def init_usage_period_for_pro(
     period_start: Optional[str] = None,
     period_end: Optional[str] = None,
     stripe_period_start: Optional[int] = None,
+    allowance_usd: Optional[float] = None,
 ) -> None:
     reset_user_usage_period(
         uid,
-        allowance_usd=pro_usage_allowance_usd(),
+        allowance_usd=float(allowance_usd) if allowance_usd is not None else pro_usage_allowance_usd(),
         period_start=period_start,
         period_end=period_end,
         stripe_period_start=stripe_period_start,
+    )
+
+
+def maybe_sync_usage_period(
+    uid: str,
+    subscription: dict,
+    *,
+    allowance_usd: Optional[float] = None,
+) -> None:
+    period_start_ts = subscription.get("current_period_start")
+    if not period_start_ts:
+        return
+    stripe_start = int(period_start_ts)
+    doc = load_user_usage(uid)
+    allowance = (
+        float(allowance_usd) if allowance_usd is not None else personal_usage_allowance_usd()
+    )
+    if doc.get("stripePeriodStart") == stripe_start:
+        stored = doc.get("allowanceUsdRetail")
+        if not isinstance(stored, (int, float)) or abs(float(stored) - allowance) > 1e-9:
+            from app.core.firebase import _usage_ref
+
+            ref = _usage_ref(uid)
+            if ref is not None:
+                ref.set({"allowanceUsdRetail": allowance}, merge=True)
+        return
+
+    period_end_ts = subscription.get("current_period_end")
+    period_start_iso = datetime.fromtimestamp(stripe_start, tz=timezone.utc).isoformat()
+    period_end_iso = (
+        datetime.fromtimestamp(int(period_end_ts), tz=timezone.utc).isoformat()
+        if period_end_ts
+        else None
+    )
+    init_usage_period_for_pro(
+        uid,
+        period_start=period_start_iso,
+        period_end=period_end_iso,
+        stripe_period_start=stripe_start,
+        allowance_usd=allowance,
     )
 
 
@@ -654,30 +696,6 @@ def init_usage_period_for_workspace(
         period_start=period_start,
         period_end=period_end,
         stripe_period_start=stripe_period_start,
-    )
-
-
-def maybe_sync_usage_period(uid: str, subscription: dict) -> None:
-    period_start_ts = subscription.get("current_period_start")
-    if not period_start_ts:
-        return
-    stripe_start = int(period_start_ts)
-    doc = load_user_usage(uid)
-    if doc.get("stripePeriodStart") == stripe_start:
-        return
-
-    period_end_ts = subscription.get("current_period_end")
-    period_start_iso = datetime.fromtimestamp(stripe_start, tz=timezone.utc).isoformat()
-    period_end_iso = (
-        datetime.fromtimestamp(int(period_end_ts), tz=timezone.utc).isoformat()
-        if period_end_ts
-        else None
-    )
-    init_usage_period_for_pro(
-        uid,
-        period_start=period_start_iso,
-        period_end=period_end_iso,
-        stripe_period_start=stripe_start,
     )
 
 

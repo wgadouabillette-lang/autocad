@@ -72,9 +72,29 @@ def _price_id(item: Dict[str, Any]) -> str:
     return ""
 
 
+def _personal_price_ids() -> tuple[str, str]:
+    return (
+        settings.stripe_pro_price_id.strip(),
+        settings.stripe_pro_plus_price_id.strip(),
+    )
+
+
+def _is_personal_price(price_id: str) -> bool:
+    if not price_id:
+        return False
+    pro_price, plus_price = _personal_price_ids()
+    return price_id == pro_price or (bool(plus_price) and price_id == plus_price)
+
+
+def _subscription_is_pro_plus(subscription: Dict[str, Any]) -> bool:
+    plus_price = settings.stripe_pro_plus_price_id.strip()
+    if not plus_price:
+        return False
+    return any(_price_id(item) == plus_price for item in _subscription_items(subscription))
+
+
 def _subscription_state(subscription: Dict[str, Any]) -> Tuple[str, bool, str]:
     status = str(subscription.get("status") or "")
-    pro_price = settings.stripe_pro_price_id.strip()
     on_demand_price = settings.stripe_on_demand_price_id.strip()
     has_pro = False
     has_on_demand = False
@@ -82,7 +102,7 @@ def _subscription_state(subscription: Dict[str, Any]) -> Tuple[str, bool, str]:
 
     for item in _subscription_items(subscription):
         price_id = _price_id(item)
-        if price_id == pro_price:
+        if _is_personal_price(price_id):
             has_pro = True
         if on_demand_price and price_id == on_demand_price:
             has_on_demand = True
@@ -151,12 +171,18 @@ def sync_subscription_for_uid(uid: str, subscription: Dict[str, Any]) -> None:
     # Pro uniquement si l'abonnement est réellement actif (paiement OK).
     # incomplete / canceled → free, sans billingManaged.
     billing_managed = plan == "pro"
+    subscription_tier = (
+        "proPlus" if billing_managed and _subscription_is_pro_plus(subscription) else "pro"
+        if billing_managed
+        else ""
+    )
 
     update_user_subscription_profile(
         uid,
         subscription_plan=plan,
         on_demand_usage_enabled=on_demand if billing_managed else False,
         billing_managed=billing_managed,
+        subscription_tier=subscription_tier,
     )
     save_user_billing(
         uid,
@@ -169,8 +195,14 @@ def sync_subscription_for_uid(uid: str, subscription: Dict[str, Any]) -> None:
     )
     if plan == "pro":
         from app.ai.usage import maybe_sync_usage_period
+        from app.ai.usage_pricing import personal_usage_allowance_usd
 
-        maybe_sync_usage_period(uid, subscription)
+        maybe_sync_usage_period(
+            uid,
+            subscription,
+            allowance_usd=personal_usage_allowance_usd(plus=subscription_tier == "proPlus"),
+        )
+        _cancel_other_personal_subscriptions(customer_id, subscription_id)
     logger.info(
         "Synced Stripe subscription for %s: plan=%s on_demand=%s status=%s managed=%s",
         uid,
@@ -330,11 +362,23 @@ def handle_subscription_deleted(subscription: Dict[str, Any]) -> None:
     uid = _resolve_uid(customer_id=customer_id)
     if not uid:
         return
+    billing = load_user_billing(uid)
+    current_sub = str(billing.get("stripeSubscriptionId") or "").strip()
+    deleted_id = str(subscription.get("id") or "").strip()
+    if current_sub and deleted_id and current_sub != deleted_id:
+        logger.info(
+            "Ignoring deleted subscription %s for %s; current is %s",
+            deleted_id,
+            uid,
+            current_sub,
+        )
+        return
     update_user_subscription_profile(
         uid,
         subscription_plan="free",
         on_demand_usage_enabled=False,
         billing_managed=False,
+        subscription_tier="",
     )
     save_user_billing(
         uid,
@@ -524,28 +568,54 @@ def purge_stripe_for_deleted_account(uid: str, email: Optional[str] = None) -> N
 
 
 def _pick_user_subscription(subscriptions: list[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Choisit un abonnement Pro actif uniquement (ignore incomplete / unpaid)."""
+    """Choisit un abonnement Pro / Pro+ actif uniquement (ignore incomplete / unpaid)."""
     if not subscriptions:
         return None
-    pro_price = settings.stripe_pro_price_id.strip()
 
-    def has_pro_item(sub: Dict[str, Any]) -> bool:
-        if not pro_price:
-            return False
+    def has_personal_item(sub: Dict[str, Any]) -> bool:
         for item in _subscription_items(sub):
-            if _price_id(item) == pro_price:
+            if _is_personal_price(_price_id(item)):
                 return True
         return False
 
     active = [
         s
         for s in subscriptions
-        if str(s.get("status") or "") in ACTIVE_SUBSCRIPTION_STATUSES and has_pro_item(s)
+        if str(s.get("status") or "") in ACTIVE_SUBSCRIPTION_STATUSES and has_personal_item(s)
     ]
     if not active:
         return None
     active.sort(key=lambda s: int(s.get("created") or 0), reverse=True)
     return active[0]
+
+
+def _cancel_other_personal_subscriptions(customer_id: str, keep_subscription_id: str) -> None:
+    """Évite un double prélèvement Pro + Pro+ sur le même client."""
+    cid = (customer_id or "").strip()
+    keep = (keep_subscription_id or "").strip()
+    if not cid or not keep:
+        return
+    try:
+        stripe = _stripe()
+        listing = stripe.Subscription.list(customer=cid, status="all", limit=10)
+        for sub in listing.get("data") or []:
+            if not isinstance(sub, dict):
+                continue
+            sub_id = str(sub.get("id") or "").strip()
+            status = str(sub.get("status") or "")
+            if not sub_id or sub_id == keep:
+                continue
+            if status not in ACTIVE_SUBSCRIPTION_STATUSES:
+                continue
+            if not any(_is_personal_price(_price_id(item)) for item in _subscription_items(sub)):
+                continue
+            try:
+                stripe.Subscription.cancel(sub_id)
+                logger.info("Canceled extra personal subscription %s (kept %s)", sub_id, keep)
+            except Exception as exc:
+                logger.warning("Failed to cancel extra personal subscription %s: %s", sub_id, exc)
+    except Exception as exc:
+        logger.debug("List subscriptions for cancel-other failed: %s", exc)
 
 
 def sync_user_subscription_from_stripe(uid: str, email: Optional[str] = None) -> Dict[str, Any]:
@@ -561,6 +631,7 @@ def sync_user_subscription_from_stripe(uid: str, email: Optional[str] = None) ->
             "subscriptionPlan": "free",
             "stripeSubscriptionStatus": None,
             "billingManaged": False,
+            "subscriptionTier": "",
         }
 
     stripe = _stripe()
@@ -584,6 +655,7 @@ def sync_user_subscription_from_stripe(uid: str, email: Optional[str] = None) ->
             subscription_plan="free",
             on_demand_usage_enabled=False,
             billing_managed=False,
+            subscription_tier="",
         )
         save_user_billing(
             uid,
@@ -598,16 +670,23 @@ def sync_user_subscription_from_stripe(uid: str, email: Optional[str] = None) ->
             "subscriptionPlan": "free",
             "stripeSubscriptionStatus": None,
             "billingManaged": False,
+            "subscriptionTier": "",
         }
 
     sync_subscription_for_uid(uid, chosen)
     plan, on_demand, _ = _subscription_state(chosen)
     billing_managed = plan == "pro"
+    subscription_tier = (
+        "proPlus" if billing_managed and _subscription_is_pro_plus(chosen) else "pro"
+        if billing_managed
+        else ""
+    )
     return {
         "subscriptionPlan": plan,
         "stripeSubscriptionStatus": str(chosen.get("status") or "") or None,
         "billingManaged": billing_managed,
         "onDemandUsageEnabled": on_demand if billing_managed else False,
+        "subscriptionTier": subscription_tier,
     }
 
 
@@ -686,14 +765,28 @@ def _subscription_client_secret(subscription: Dict[str, Any]) -> str:
     raise ValueError("Impossible d'initialiser le paiement Stripe (client_secret manquant).")
 
 
-def create_pro_subscription_intent(uid: str, email: Optional[str]) -> Dict[str, str]:
-    """Crée un abonnement Pro incomplete et renvoie le client_secret pour Payment Element."""
+def create_pro_subscription_intent(
+    uid: str, email: Optional[str], *, plus: bool = False
+) -> Dict[str, str]:
+    """Crée un abonnement Pro / Pro+ incomplete et renvoie le client_secret pour Payment Element."""
     publishable = settings.stripe_publishable_key.strip()
     if not publishable:
         raise ValueError("STRIPE_PUBLISHABLE_KEY is not configured.")
-    pro_price = settings.stripe_pro_price_id.strip()
-    if not pro_price:
-        raise ValueError("STRIPE_PRO_PRICE_ID is not configured.")
+    price_id = (
+        settings.stripe_pro_plus_price_id.strip() if plus else settings.stripe_pro_price_id.strip()
+    )
+    if not price_id:
+        raise ValueError(
+            "STRIPE_PRO_PLUS_PRICE_ID is not configured."
+            if plus
+            else "STRIPE_PRO_PRICE_ID is not configured."
+        )
+    intent = "pro_plus" if plus else "pro"
+    already_msg = (
+        "Un abonnement Pro+ est déjà actif. Utilisez le portail de facturation."
+        if plus
+        else "Un abonnement Pro est déjà actif. Utilisez le portail de facturation."
+    )
 
     stripe = _stripe()
     # Sync live: évite un faux « déjà Pro » après suppression/recréation de compte.
@@ -703,9 +796,19 @@ def create_pro_subscription_intent(uid: str, email: Optional[str]) -> Dict[str, 
         and bool(live.get("billingManaged"))
         and str(live.get("stripeSubscriptionStatus") or "") in ACTIVE_SUBSCRIPTION_STATUSES
     ):
-        raise ValueError(
-            "Un abonnement Pro est déjà actif. Utilisez le portail de facturation."
-        )
+        billing = load_user_billing(uid)
+        existing_sub_id = str(billing.get("stripeSubscriptionId") or "").strip()
+        already_plus = False
+        if existing_sub_id:
+            try:
+                existing = stripe.Subscription.retrieve(
+                    existing_sub_id, expand=["items.data.price"]
+                )
+                already_plus = _subscription_is_pro_plus(existing)
+            except Exception:
+                already_plus = False
+        if plus == already_plus:
+            raise ValueError(already_msg)
 
     customer_id = create_or_get_customer(uid, email)
 
@@ -720,12 +823,11 @@ def create_pro_subscription_intent(uid: str, email: Optional[str]) -> Dict[str, 
         for sub in incomplete.get("data") or []:
             if not isinstance(sub, dict):
                 continue
-            plan, _, _ = _subscription_state(sub)
-            if plan == "pro" or any(_price_id(item) == pro_price for item in _subscription_items(sub)):
+            if any(_is_personal_price(_price_id(item)) for item in _subscription_items(sub)):
                 try:
                     stripe.Subscription.cancel(str(sub.get("id") or ""))
                 except Exception as exc:
-                    logger.debug("Cancel incomplete Pro sub failed: %s", exc)
+                    logger.debug("Cancel incomplete personal sub failed: %s", exc)
     except Exception as exc:
         logger.debug("List incomplete subscriptions failed for %s: %s", uid, exc)
 
@@ -734,12 +836,12 @@ def create_pro_subscription_intent(uid: str, email: Optional[str]) -> Dict[str, 
     pmc = settings.stripe_payment_method_configuration.strip()
     create_params: Dict[str, Any] = {
         "customer": customer_id,
-        "items": [{"price": pro_price}],
+        "items": [{"price": price_id}],
         "payment_behavior": "default_incomplete",
         "payment_settings": {
             "save_default_payment_method": "on_subscription",
         },
-        "metadata": {"firebase_uid": uid, "intent": "pro"},
+        "metadata": {"firebase_uid": uid, "intent": intent},
         "expand": ["latest_invoice.confirmation_secret", "pending_setup_intent"],
     }
     if pmc:
@@ -954,17 +1056,17 @@ def sync_workspace_subscription_from_stripe(workspace_id: str) -> Dict[str, Any]
 
 
 def _enterprise_seat_unit_cents() -> int:
-    raw = (os.getenv("STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS") or "1800").strip()
+    raw = (os.getenv("STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS") or "2400").strip()
     try:
         return max(1, int(raw))
     except ValueError:
-        return 1800
+        return 2400
 
 
 def _enterprise_seat_price_label() -> str:
     return (
-        os.getenv("STRIPE_ENTERPRISE_SEAT_PRICE_LABEL", "$18 / seat").strip()
-        or "$18 / seat"
+        os.getenv("STRIPE_ENTERPRISE_SEAT_PRICE_LABEL", "$24 / seat").strip()
+        or "$24 / seat"
     )
 
 
@@ -1342,7 +1444,7 @@ def _on_demand_overage_units(overage_usd: float) -> int:
 
 
 def report_on_demand_stripe_usage(uid: str, on_demand_used_usd: float) -> None:
-    """Envoie à Stripe la consommation on-demand (tarif ×1.65, add-on metered)."""
+    """Envoie à Stripe la consommation on-demand (tarif × marge on-demand, add-on metered)."""
     if not settings.stripe_on_demand_price_id.strip():
         return
     target_units = _on_demand_overage_units(on_demand_used_usd)

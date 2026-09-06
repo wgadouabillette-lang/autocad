@@ -7,6 +7,7 @@ from typing import Literal
 from urllib.parse import urlencode
 
 ProviderId = Literal["google", "microsoft", "spotify"]
+AuthType = Literal["oauth"]
 
 CONNECTOR_IDS = ("calendar", "gmail", "outlook", "spotify")
 
@@ -23,6 +24,7 @@ class ConnectorDef:
     label: str
     provider: ProviderId
     scopes: tuple[str, ...]
+    auth_type: AuthType = "oauth"
 
 
 CONNECTORS: dict[str, ConnectorDef] = {
@@ -181,6 +183,72 @@ def frontend_origin() -> str:
     return _env_or_default("FORMA_FRONTEND_ORIGIN", default)
 
 
+def is_allowed_oauth_return_origin(origin: str | None) -> bool:
+    """Allow only known frontend origins (no open redirect after OAuth)."""
+    from urllib.parse import urlparse
+
+    raw = (origin or "").strip().rstrip("/")
+    if not raw:
+        return False
+    parsed = urlparse(raw)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment or parsed.username:
+        return False
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False
+
+    allowed = {
+        frontend_origin().rstrip("/").lower(),
+        "https://meetra.cc",
+        "https://www.meetra.cc",
+        "https://autocad-blue.vercel.app",
+    }
+    for item in (os.getenv("FORMA_CORS") or "").split(","):
+        o = item.strip().rstrip("/").lower()
+        if o:
+            allowed.add(o)
+
+    candidate = raw.lower()
+    if candidate in allowed:
+        return True
+
+    if host in {"localhost", "127.0.0.1"} and parsed.scheme == "http" and parsed.port:
+        return True
+
+    if parsed.scheme == "https" and (
+        host == "meetra.cc"
+        or host.endswith(".meetra.cc")
+        or host == "autocad-blue.vercel.app"
+    ):
+        return True
+
+    for item in (os.getenv("FORMA_OAUTH_RETURN_ORIGINS") or "").split(","):
+        if item.strip().rstrip("/").lower() == candidate:
+            return True
+
+    return False
+
+
+def sanitize_oauth_return_origin(origin: str | None) -> str | None:
+    raw = (origin or "").strip().rstrip("/")
+    if not raw:
+        return None
+    return raw if is_allowed_oauth_return_origin(raw) else None
+
+
+def sanitize_oauth_return_path(path: str | None) -> str | None:
+    raw = (path or "").strip()
+    if not raw:
+        return None
+    if not raw.startswith("/") or raw.startswith("//") or "\\" in raw or ".." in raw:
+        return None
+    if any(ch in raw for ch in ("?", "#", "\n", "\r", '"', "'", "<", ">")):
+        return None
+    return raw.rstrip("/") or "/app"
+
+
 def frontend_base_path() -> str:
     raw = os.getenv("FORMA_FRONTEND_BASE_PATH", "/app").strip() or "/app"
     if not raw.startswith("/"):
@@ -237,6 +305,13 @@ def connector_configured(connector_id: str) -> bool:
     if not spec:
         return False
     return provider_configured(spec.provider)
+
+
+def connector_auth_type(connector_id: str) -> AuthType:
+    spec = CONNECTORS.get(connector_id)
+    if not spec:
+        return "oauth"
+    return spec.auth_type
 
 
 def google_authorize_url(

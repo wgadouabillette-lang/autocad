@@ -53,16 +53,20 @@ async function updateUserSubscriptionProfile(
   uid: string,
   subscriptionPlan: string,
   onDemandUsageEnabled: boolean,
+  subscriptionTier = "",
 ): Promise<void> {
-  await db.doc(`users/${uid}`).set(
-    {
-      subscriptionPlan,
-      onDemandUsageEnabled,
-      billingManaged: true,
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true },
-  );
+  const payload: Record<string, unknown> = {
+    subscriptionPlan,
+    onDemandUsageEnabled,
+    billingManaged: true,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (subscriptionPlan === "pro") {
+    payload.subscriptionTier = subscriptionTier === "proPlus" ? "proPlus" : "pro";
+  } else {
+    payload.subscriptionTier = "";
+  }
+  await db.doc(`users/${uid}`).set(payload, { merge: true });
 }
 
 async function updateWorkspaceEnterpriseProfile(
@@ -158,17 +162,23 @@ function subscriptionState(subscription: Stripe.Subscription): {
   plan: string;
   onDemand: boolean;
   onDemandItemId: string;
+  plus: boolean;
 } {
   const status = subscription.status ?? "";
   const proPrice = process.env.STRIPE_PRO_PRICE_ID?.trim() ?? "";
+  const proPlusPrice = process.env.STRIPE_PRO_PLUS_PRICE_ID?.trim() ?? "";
   const onDemandPrice = process.env.STRIPE_ON_DEMAND_PRICE_ID?.trim() ?? "";
   let hasPro = false;
+  let plus = false;
   let hasOnDemand = false;
   let onDemandItemId = "";
 
   for (const item of subscription.items?.data ?? []) {
     const priceId = item.price?.id ?? "";
-    if (priceId === proPrice) hasPro = true;
+    if (priceId && (priceId === proPrice || (proPlusPrice && priceId === proPlusPrice))) {
+      hasPro = true;
+    }
+    if (proPlusPrice && priceId === proPlusPrice) plus = true;
     if (onDemandPrice && priceId === onDemandPrice) {
       hasOnDemand = true;
       onDemandItemId = item.id;
@@ -178,7 +188,7 @@ function subscriptionState(subscription: Stripe.Subscription): {
   const isActive = ACTIVE_SUBSCRIPTION_STATUSES.has(status);
   const plan = isActive && hasPro ? "pro" : "free";
   const onDemand = isActive && hasPro && hasOnDemand;
-  return { plan, onDemand, onDemandItemId };
+  return { plan, onDemand, onDemandItemId, plus: isActive && plus };
 }
 
 function enterpriseSubscriptionState(subscription: Stripe.Subscription): {
@@ -203,12 +213,43 @@ function enterpriseSubscriptionState(subscription: Stripe.Subscription): {
   return { plan, seatCount };
 }
 
+async function cancelOtherPersonalSubscriptions(
+  customerId: string,
+  keepSubscriptionId: string,
+): Promise<void> {
+  const cid = customerId.trim();
+  const keep = keepSubscriptionId.trim();
+  if (!cid || !keep) return;
+  const proPrice = process.env.STRIPE_PRO_PRICE_ID?.trim() ?? "";
+  const proPlusPrice = process.env.STRIPE_PRO_PLUS_PRICE_ID?.trim() ?? "";
+  try {
+    const stripe = stripeClient();
+    const listing = await stripe.subscriptions.list({ customer: cid, status: "all", limit: 10 });
+    for (const sub of listing.data) {
+      if (sub.id === keep) continue;
+      if (!ACTIVE_SUBSCRIPTION_STATUSES.has(sub.status)) continue;
+      const personal = (sub.items?.data ?? []).some((item) => {
+        const priceId = item.price?.id ?? "";
+        return Boolean(priceId) && (priceId === proPrice || (proPlusPrice && priceId === proPlusPrice));
+      });
+      if (!personal) continue;
+      try {
+        await stripe.subscriptions.cancel(sub.id);
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 async function syncSubscriptionForUid(uid: string, subscription: Stripe.Subscription): Promise<void> {
-  const { plan, onDemand, onDemandItemId } = subscriptionState(subscription);
+  const { plan, onDemand, onDemandItemId, plus } = subscriptionState(subscription);
   const customerId =
     typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id ?? "";
 
-  await updateUserSubscriptionProfile(uid, plan, onDemand);
+  await updateUserSubscriptionProfile(uid, plan, onDemand, plus ? "proPlus" : plan === "pro" ? "pro" : "");
   await saveUserBilling(uid, {
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscription.id,
@@ -217,7 +258,9 @@ async function syncSubscriptionForUid(uid: string, subscription: Stripe.Subscrip
   });
   if (plan === "pro") {
     const { maybeSyncUsagePeriod } = await import("../ai/usage");
-    await maybeSyncUsagePeriod(uid, subscription);
+    const { personalUsageAllowanceUsd } = await import("../ai/usagePricing");
+    await maybeSyncUsagePeriod(uid, subscription, personalUsageAllowanceUsd(plus));
+    await cancelOtherPersonalSubscriptions(customerId, subscription.id);
   }
 }
 
@@ -363,7 +406,17 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
   const uid = await resolveUid({ customerId });
   if (!uid) return;
 
-  await updateUserSubscriptionProfile(uid, "free", false);
+  const billingSnap = await billingRef(uid).get();
+  const currentSub = String(billingSnap.data()?.stripeSubscriptionId ?? "").trim();
+  const deletedId = String(subscription.id ?? "").trim();
+  if (currentSub && deletedId && currentSub !== deletedId) {
+    console.info(
+      `Ignoring deleted subscription ${deletedId} for ${uid}; current is ${currentSub}`,
+    );
+    return;
+  }
+
+  await updateUserSubscriptionProfile(uid, "free", false, "");
   await saveUserBilling(uid, {
     stripeSubscriptionId: "",
     stripeOnDemandItemId: "",

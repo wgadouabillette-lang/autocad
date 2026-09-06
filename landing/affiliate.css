@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap");
+
 :root {
   --affiliate-bg: #fff;
   --affiliate-text: #1b1d21;
@@ -52,14 +54,30 @@ body {
 }
 
 .affiliate__logo {
-  display: block;
-  height: 32px;
-  width: auto;
-  max-width: 140px;
-  max-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 16px;
+}
+
+.affiliate__logo-mark {
+  display: block;
+  height: 16px;
+  width: auto;
+  max-width: 2rem;
   object-fit: contain;
+  transform: scaleX(0.86);
+  transform-origin: center;
   filter: invert(1);
+}
+
+.affiliate__logo-wordmark {
+  font-family: "Space Grotesk", var(--affiliate-font);
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: var(--affiliate-text);
 }
 
 .affiliate__title {
@@ -285,7 +303,11 @@ textarea.affiliate__control {
     font-size: 1.625rem;
   }
 
-  .affiliate__logo {
-    height: 28px;
+  .affiliate__logo-mark {
+    height: 14px;
+  }
+
+  .affiliate__logo-wordmark {
+    font-size: 1rem;
   }
 }

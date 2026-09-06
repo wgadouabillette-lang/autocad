@@ -44,6 +44,20 @@ service cloud.firestore {
           && workspaceMembersCanInvite(workspaceId));
     }
 
+    function hasPendingWorkspaceInvite(workspaceId) {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)/incomingWorkspaceInvites/$(workspaceId));
+    }
+
+    function isValidWorkspaceMemberWrite(memberUid) {
+      return request.resource.data.uid == memberUid
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 1
+        && request.resource.data.displayName.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 320
+        && request.resource.data.joinedAt is timestamp;
+    }
+
     function isValidProfile() {
       let data = request.resource.data;
       return data.keys().hasAll(['email', 'userDisplayName', 'updatedAt'])
@@ -110,6 +124,34 @@ service cloud.firestore {
         && request.resource.data.status in ['accepted', 'declined']
         && request.resource.data.respondedAt is timestamp
         && request.resource.data.toUid == request.auth.uid;
+    }
+
+    function areMutualFriends(uidA, uidB) {
+      return exists(/databases/$(database)/documents/users/$(uidA)/friends/$(uidB))
+        && exists(/databases/$(database)/documents/users/$(uidB)/friends/$(uidA));
+    }
+
+    function friendshipPairId(uidA, uidB) {
+      return uidA < uidB ? uidA + '_' + uidB : uidB + '_' + uidA;
+    }
+
+    function hasAcceptedFriendship(uidA, uidB) {
+      return exists(/databases/$(database)/documents/friendships/$(friendshipPairId(uidA, uidB)))
+        || areMutualFriends(uidA, uidB);
+    }
+
+    function friendChatOtherParticipant(participants) {
+      return participants[0] == request.auth.uid ? participants[1] : participants[0];
+    }
+
+    function isValidFriendChatCreate() {
+      let parts = request.resource.data.participants;
+      return parts is list
+        && parts.size() == 2
+        && request.auth.uid in parts
+        && parts[0] != parts[1]
+        && parts[0] < parts[1]
+        && hasAcceptedFriendship(request.auth.uid, friendChatOtherParticipant(parts));
     }
 
     function isFriendChatMember(chatId) {
@@ -400,7 +442,27 @@ service cloud.firestore {
       }
 
       match /friends/{friendUid} {
-        allow read, write: if isOwner(uid);
+        allow read: if isOwner(uid);
+        // Écritures client désactivées — edges créés par onFriendRequestAccepted (Admin).
+        allow write: if false;
+      }
+
+      // Workspace invites: manager sends; invitee accepts/declines via notification.
+      match /incomingWorkspaceInvites/{workspaceId} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isSignedIn()
+          && canManageWorkspaceInvites(workspaceId)
+          && request.resource.data.workspaceId == workspaceId
+          && request.resource.data.invitedByUid == request.auth.uid
+          && request.resource.data.workspaceName is string
+          && request.resource.data.workspaceName.size() >= 1
+          && request.resource.data.workspaceName.size() <= 120
+          && request.resource.data.invitedByName is string
+          && request.resource.data.invitedByName.size() >= 1
+          && request.resource.data.invitedByName.size() <= 120
+          && request.resource.data.status == 'pending'
+          && request.resource.data.createdAt is timestamp;
+        allow update: if false;
       }
 
       match /private/{document=**} {
@@ -471,14 +533,19 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /friendships/{pairId} {
+      allow read: if isSignedIn()
+        && resource.data.participants is list
+        && request.auth.uid in resource.data.participants;
+      // Créé uniquement par Cloud Function (Admin SDK) à l’acceptation d’une demande.
+      allow create, update, delete: if false;
+    }
+
     match /friendChats/{chatId} {
       allow read: if isSignedIn()
         && resource.data.participants is list
         && request.auth.uid in resource.data.participants;
-      allow create: if isSignedIn()
-        && request.resource.data.participants is list
-        && request.resource.data.participants.size() == 2
-        && request.auth.uid in request.resource.data.participants;
+      allow create: if isSignedIn() && isValidFriendChatCreate();
       allow update: if isSignedIn()
         && request.auth.uid in resource.data.participants
         && request.resource.data.participants == resource.data.participants;
@@ -500,7 +567,9 @@ service cloud.firestore {
           && request.resource.data.createdAt is timestamp
           && isValidHandoffMessage();
         allow update: if false;
-        allow delete: if isSignedIn() && isFriendChatMember(chatId);
+        allow delete: if isSignedIn()
+          && isFriendChatMember(chatId)
+          && resource.data.authorUid == request.auth.uid;
       }
 
       match /typing/{uid} {
@@ -523,15 +592,22 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
         && request.resource.data.name.size() <= 80;
+      // Members may rename; only creator may change participants.
       allow update: if isSignedIn()
         && request.auth.uid in resource.data.participants
         && request.resource.data.participants is list
         && request.resource.data.participants.size() >= 2
         && request.resource.data.participants.size() <= 32
-        && request.auth.uid in request.resource.data.participants;
+        && request.auth.uid in request.resource.data.participants
+        && request.resource.data.creatorUid == resource.data.creatorUid
+        && (
+          request.resource.data.participants == resource.data.participants
+          || resource.data.creatorUid == request.auth.uid
+        );
       allow delete: if isSignedIn()
         && resource.data.participants is list
-        && request.auth.uid in resource.data.participants;
+        && request.auth.uid in resource.data.participants
+        && resource.data.creatorUid == request.auth.uid;
 
       match /messages/{messageId} {
         allow read: if isSignedIn()
@@ -551,7 +627,8 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if isSignedIn()
           && get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants is list
-          && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants;
+          && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants
+          && resource.data.authorUid == request.auth.uid;
       }
 
       match /typing/{uid} {
@@ -564,17 +641,22 @@ service cloud.firestore {
     }
 
     match /desktopAuthSessions/{sessionId} {
+      // Electron claims via backend Admin claim or Cloud Function (never client read).
+      // Client create: authenticated browser deposits OAuth tokens after web sign-in.
       allow create: if request.auth != null
         && request.resource.data.keys().hasAll(["provider", "idToken", "createdAt"])
         && request.resource.data.provider in ["google", "microsoft", "facebook"]
         && request.resource.data.idToken is string
         && request.resource.data.idToken.size() > 100;
-      allow read, delete: if true;
-      allow update: if false;
+      allow read, update, delete: if false;
     }
 
     match /workspacesShared/{workspaceId} {
-      allow read: if isSignedIn();
+      // Metadata: membres, invites en attente, ou demandeur de join (pas tout user auth).
+      allow read: if isSharedWorkspaceMember(workspaceId)
+        || hasPendingWorkspaceInvite(workspaceId)
+        || (isSignedIn()
+          && exists(/databases/$(database)/documents/workspacesShared/$(workspaceId)/joinRequests/$(request.auth.uid)));
       allow create: if isSignedIn() && isValidSharedWorkspaceCreate(workspaceId);
       allow update: if isSharedWorkspaceOwner(workspaceId) && isValidSharedWorkspaceUpdate();
       allow delete: if isSharedWorkspaceOwner(workspaceId);
@@ -594,14 +676,10 @@ service cloud.firestore {
           request.auth.uid == memberUid
           || isSharedWorkspaceMember(workspaceId)
         );
-        allow create, update: if canManageWorkspaceInvites(workspaceId)
-          && request.resource.data.uid == memberUid
-          && request.resource.data.displayName is string
-          && request.resource.data.displayName.size() >= 1
-          && request.resource.data.displayName.size() <= 120
-          && request.resource.data.email is string
-          && request.resource.data.email.size() <= 320
-          && request.resource.data.joinedAt is timestamp;
+        allow create, update: if isValidWorkspaceMemberWrite(memberUid) && (
+          canManageWorkspaceInvites(workspaceId)
+          || (request.auth.uid == memberUid && hasPendingWorkspaceInvite(workspaceId))
+        );
         allow delete: if isSharedWorkspaceOwner(workspaceId);
       }
 
@@ -612,57 +690,66 @@ service cloud.firestore {
 
       match /presence/{uid} {
         // Migrated to Realtime Database — deny Firestore writes.
-        allow read: if isSignedIn();
+        allow read: if isSharedWorkspaceMember(workspaceId);
         allow write: if false;
       }
 
       match /voiceKnocks/{knockId} {
         // Migrated to Realtime Database — deny Firestore writes.
-        allow read: if isSignedIn();
+        allow read: if isSharedWorkspaceMember(workspaceId);
         allow write: if false;
       }
 
       match /openVoiceChannels/{channelId} {
-        allow read: if isSignedIn();
-        allow create, update: if isSignedIn() && isValidOpenVoiceChannelWrite(workspaceId, channelId);
-        allow delete: if isSignedIn();
+        allow read: if isSharedWorkspaceMember(workspaceId);
+        allow create, update: if isSharedWorkspaceMember(workspaceId)
+          && isValidOpenVoiceChannelWrite(workspaceId, channelId);
+        allow delete: if isSharedWorkspaceOwner(workspaceId)
+          || isSharedWorkspaceMember(workspaceId);
       }
 
       match /textChannels/{channelId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn() && isValidTextChannelWrite(workspaceId, channelId);
-        allow update: if isSignedIn() && isValidTextChannelWrite(workspaceId, channelId);
+        allow read: if isSharedWorkspaceMember(workspaceId);
+        allow create: if isSharedWorkspaceMember(workspaceId)
+          && isValidTextChannelWrite(workspaceId, channelId);
+        allow update: if isSharedWorkspaceMember(workspaceId)
+          && isValidTextChannelWrite(workspaceId, channelId);
         allow delete: if isSharedWorkspaceOwner(workspaceId);
 
         match /messages/{messageId} {
-          allow read: if isSignedIn();
-          allow create: if isSignedIn() && isValidTextChannelMessageCreate();
+          allow read: if isSharedWorkspaceMember(workspaceId);
+          allow create: if isSharedWorkspaceMember(workspaceId)
+            && isValidTextChannelMessageCreate();
           allow update: if false;
-          allow delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
+          allow delete: if isSharedWorkspaceMember(workspaceId)
+            && resource.data.authorUid == request.auth.uid;
         }
 
         match /typing/{uid} {
           // Migrated to Realtime Database — deny Firestore writes.
-          allow read: if isSignedIn();
+          allow read: if isSharedWorkspaceMember(workspaceId);
           allow write: if false;
         }
       }
 
       match /voicePoll/{pollId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn()
+        allow read: if isSharedWorkspaceMember(workspaceId);
+        allow create: if isSharedWorkspaceMember(workspaceId)
           && isValidVoicePollWrite()
           && request.resource.data.createdByUserId == request.auth.uid;
-        allow update: if isSignedIn() && (
+        allow update: if isSharedWorkspaceMember(workspaceId) && (
           isValidVoicePollPatch()
           || isValidVoicePollReplace()
         );
-        allow delete: if isSignedIn();
+        allow delete: if isSharedWorkspaceMember(workspaceId) && (
+          resource.data.createdByUserId == request.auth.uid
+          || isSharedWorkspaceOwner(workspaceId)
+        );
       }
 
       match /theaterChat/{messageId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn()
+        allow read: if isSharedWorkspaceMember(workspaceId);
+        allow create: if isSharedWorkspaceMember(workspaceId)
           && request.resource.data.authorUid == request.auth.uid
           && request.resource.data.kind in ["text", "hand_raise"]
           && request.resource.data.authorName is string
@@ -670,23 +757,23 @@ service cloud.firestore {
           && request.resource.data.authorName.size() <= 120
           && request.resource.data.clientCreatedAt is number;
         allow update: if false;
-        allow delete: if isSignedIn()
+        allow delete: if isSharedWorkspaceMember(workspaceId)
           && resource.data.authorUid == request.auth.uid
           && resource.data.kind == "hand_raise";
       }
 
       match /theaterTyping/{uid} {
         // Migrated to Realtime Database — deny Firestore writes.
-        allow read: if isSignedIn();
+        allow read: if isSharedWorkspaceMember(workspaceId);
         allow write: if false;
       }
 
       match /voiceRtc/{sessionId} {
         // Migrated to Realtime Database — deny Firestore writes.
-        allow read: if isSignedIn();
+        allow read: if isSharedWorkspaceMember(workspaceId);
 
         match /signals/{signalId} {
-          allow read: if isSignedIn();
+          allow read: if isSharedWorkspaceMember(workspaceId);
           allow write: if false;
         }
       }

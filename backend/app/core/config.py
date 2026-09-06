@@ -134,11 +134,11 @@ _DEFAULT_CORS_ORIGINS = (
     "https://autocad-blue.vercel.app",
 )
 
-# Packaged Electron (127.0.0.1:47832) and Vercel preview hosts must be able
-# to send Authorization: Bearer <Firebase ID token> to this API.
+# Packaged Electron (127.0.0.1:47832) and known production hosts.
+# Do NOT allow arbitrary *.vercel.app — pin autocad-blue + meetra only.
 CORS_ORIGIN_REGEX = (
     r"https://([a-z0-9-]+\.)*meetra\.cc"
-    r"|https://([a-z0-9-]+\.)*vercel\.app"
+    r"|https://autocad-blue\.vercel\.app"
     r"|http://(localhost|127\.0\.0\.1):\d+"
 )
 
@@ -221,6 +221,9 @@ class Settings:
     stripe_pro_price_id: str = field(
         default_factory=lambda: os.getenv("STRIPE_PRO_PRICE_ID", "")
     )
+    stripe_pro_plus_price_id: str = field(
+        default_factory=lambda: os.getenv("STRIPE_PRO_PLUS_PRICE_ID", "")
+    )
     stripe_payment_method_configuration: str = field(
         default_factory=lambda: os.getenv("STRIPE_PAYMENT_METHOD_CONFIGURATION", "")
     )
@@ -241,6 +244,10 @@ class Settings:
     def stripe_checkout_enabled(self) -> bool:
         """Checkout Pro : clé secrète + price ID Pro (webhook non requis)."""
         return bool(self.stripe_secret_key.strip() and self.stripe_pro_price_id.strip())
+
+    @property
+    def stripe_pro_plus_checkout_enabled(self) -> bool:
+        return bool(self.stripe_secret_key.strip() and self.stripe_pro_plus_price_id.strip())
 
     @property
     def stripe_enterprise_enabled(self) -> bool:

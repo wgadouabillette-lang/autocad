@@ -104,7 +104,7 @@ export default function CallBlock({
       fixedAvatarSlots={CALL_BLOCK_PRIVATE_AVATAR_SLOTS}
       activityUserId={activityUserId}
       activityIsLocal={activityIsLocal}
-      showActivity={!(isLocal && inOpenChannelOnly)}
+      showActivity={false}
       aiStroke={aiStroke}
       standby={isOffline}
       trailing={

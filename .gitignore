@@ -29,6 +29,8 @@ landing/downloads/*.exe
 landing/public/downloads/*.dmg
 landing/public/downloads/*.exe
 desktop/secrets/
+*.p8
+AuthKey_*.p8
 
 # Divers
 .DS_Store

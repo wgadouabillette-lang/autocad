@@ -8,10 +8,7 @@ import {
   type UserCredential,
 } from "firebase/auth";
 import {
-  deleteDoc,
   doc,
-  getDocFromServer,
-  onSnapshot,
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
@@ -25,7 +22,6 @@ import { auth, db, functions, type FirebaseAuthProvider } from "./client";
 
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
-const SESSION_TTL_MS = 10 * 60 * 1000;
 const FORCE_ACCOUNT_CHOICE_KEY = "meetraDesktopAuthForceChoice";
 const LAST_DESKTOP_EMAIL_KEY = "meetraDesktopAuthLastEmail";
 
@@ -346,27 +342,6 @@ async function claimDesktopAuthSessionViaBackend(
   return completionFromSessionFields(data);
 }
 
-async function claimDesktopAuthSessionViaFirestore(
-  sessionId: string,
-): Promise<DesktopAuthCompletion | null> {
-  const ref = doc(db, "desktopAuthSessions", sessionId);
-  const snap = await getDocFromServer(ref);
-  if (!snap.exists()) return null;
-
-  const data = snap.data();
-  const createdAt = data.createdAt?.toDate?.()?.getTime?.() ?? 0;
-  if (createdAt && Date.now() - createdAt > SESSION_TTL_MS) {
-    await deleteDoc(ref);
-    return null;
-  }
-
-  const completion = completionFromSessionFields(data);
-  if (!completion) return null;
-
-  await deleteDoc(ref);
-  return completion;
-}
-
 async function claimDesktopAuthSessionViaFunctions(
   sessionId: string,
 ): Promise<DesktopAuthCompletion | null> {
@@ -382,106 +357,40 @@ function logClaimFailure(channel: string, error: unknown): void {
   console.info("[desktop-auth] claim failed", channel, message);
 }
 
-function waitForFirestoreSession(
-  sessionId: string,
-  signal: AbortSignal,
-): Promise<DesktopAuthCompletion> {
-  return new Promise((resolve, reject) => {
-    const ref = doc(db, "desktopAuthSessions", sessionId);
-    const unsub = onSnapshot(
-      ref,
-      (snap) => {
-        if (!snap.exists()) return;
-        const data = snap.data();
-        const createdAt = data.createdAt?.toDate?.()?.getTime?.() ?? 0;
-        if (createdAt && Date.now() - createdAt > SESSION_TTL_MS) {
-          void deleteDoc(ref);
-          return;
-        }
-        const completion = completionFromSessionFields(data);
-        if (!completion) return;
-        cleanup();
-        void deleteDoc(ref).catch(() => undefined);
-        resolve(completion);
-      },
-      (error) => {
-        logClaimFailure("firestore-watch", error);
-      },
-    );
-    const onAbort = () => {
-      cleanup();
-      reject(new DesktopWebAuthCancelledError());
-    };
-    const cleanup = () => {
-      unsub();
-      signal.removeEventListener("abort", onAbort);
-    };
-    if (signal.aborted) {
-      cleanup();
-      reject(new DesktopWebAuthCancelledError());
-      return;
-    }
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
 async function pollDesktopAuthSession(
   sessionId: string,
   signal: AbortSignal,
 ): Promise<DesktopAuthCompletion> {
   const started = Date.now();
-  const firestoreWatch = waitForFirestoreSession(sessionId, signal).then((completion) => {
-    console.info("[desktop-auth] claimed session via firestore watch");
-    return completion;
-  });
-  firestoreWatch.catch((error) => {
-    if (!isDesktopWebAuthCancelled(error)) {
-      logClaimFailure("firestore-watch", error);
-    }
-  });
 
-  const poll = (async () => {
-    while (Date.now() - started < POLL_TIMEOUT_MS) {
-      throwIfAborted(signal);
+  while (Date.now() - started < POLL_TIMEOUT_MS) {
+    throwIfAborted(signal);
 
-      const backendResult = await claimDesktopAuthSessionViaBackend(sessionId, signal).catch(
-        (error) => {
-          logClaimFailure("backend", error);
-          return null;
-        },
-      );
-      if (backendResult) {
-        console.info("[desktop-auth] claimed session via backend");
-        return backendResult;
-      }
-
-      throwIfAborted(signal);
-      const firestoreResult = await claimDesktopAuthSessionViaFirestore(sessionId).catch((error) => {
-        logClaimFailure("firestore", error);
+    const backendResult = await claimDesktopAuthSessionViaBackend(sessionId, signal).catch(
+      (error) => {
+        logClaimFailure("backend", error);
         return null;
-      });
-      if (firestoreResult) {
-        console.info("[desktop-auth] claimed session via firestore");
-        return firestoreResult;
-      }
-
-      throwIfAborted(signal);
-      const functionsResult = await claimDesktopAuthSessionViaFunctions(sessionId).catch((error) => {
-        logClaimFailure("function", error);
-        return null;
-      });
-      if (functionsResult) {
-        console.info("[desktop-auth] claimed session via function");
-        return functionsResult;
-      }
-
-      await sleep(POLL_INTERVAL_MS, signal);
+      },
+    );
+    if (backendResult) {
+      console.info("[desktop-auth] claimed session via backend");
+      return backendResult;
     }
 
-    throw new Error("Connexion expirée. Fermez le navigateur et réessayez.");
-  })();
+    throwIfAborted(signal);
+    const functionsResult = await claimDesktopAuthSessionViaFunctions(sessionId).catch((error) => {
+      logClaimFailure("function", error);
+      return null;
+    });
+    if (functionsResult) {
+      console.info("[desktop-auth] claimed session via function");
+      return functionsResult;
+    }
 
-  return Promise.race([poll, firestoreWatch]);
+    await sleep(POLL_INTERVAL_MS, signal);
+  }
+
+  throw new Error("Connexion expirée. Fermez le navigateur et réessayez.");
 }
 
 async function applyDesktopAuthCompletion(completion: DesktopAuthCompletion): Promise<void> {

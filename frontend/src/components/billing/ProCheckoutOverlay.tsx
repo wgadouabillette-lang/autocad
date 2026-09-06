@@ -29,9 +29,9 @@ export default function ProCheckoutOverlay() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [publishableKey, setPublishableKey] = useState<string | null>(null);
   const [priceLabel, setPriceLabel] = useState(
-    checkoutPlan === "proPlus" ? "$40 / month" : "$25 / month",
+    checkoutPlan === "proPlus" ? "$53 / month" : "$33 / month",
   );
-  const [usdCents, setUsdCents] = useState(checkoutPlan === "proPlus" ? 4000 : 2500);
+  const [usdCents, setUsdCents] = useState(checkoutPlan === "proPlus" ? 5300 : 3300);
   const { localized } = useLocalizedUsdPrice(open ? usdCents : null);
   const [loadingIntent, setLoadingIntent] = useState(false);
   const [intentError, setIntentError] = useState<string | null>(null);

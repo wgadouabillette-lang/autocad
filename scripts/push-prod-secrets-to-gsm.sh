@@ -26,9 +26,9 @@ trap cleanup EXIT
 if [[ -f backend/.env ]]; then
   TMP_BACKEND="$(mktemp)"
   sed \
-    -e 's|^FORMA_OAUTH_REDIRECT_BASE=.*|FORMA_OAUTH_REDIRECT_BASE=https://autocad-blue.vercel.app|' \
-    -e 's|^FORMA_FRONTEND_ORIGIN=.*|FORMA_FRONTEND_ORIGIN=https://autocad-blue.vercel.app|' \
-    -e 's|^FORMA_CORS=.*|FORMA_CORS=https://autocad-blue.vercel.app,http://localhost:5173,http://127.0.0.1:5173|' \
+    -e 's|^FORMA_OAUTH_REDIRECT_BASE=.*|FORMA_OAUTH_REDIRECT_BASE=https://meetra.cc|' \
+    -e 's|^FORMA_FRONTEND_ORIGIN=.*|FORMA_FRONTEND_ORIGIN=https://meetra.cc|' \
+    -e 's|^FORMA_CORS=.*|FORMA_CORS=https://meetra.cc,https://www.meetra.cc,https://autocad-blue.vercel.app,http://localhost:5173,http://127.0.0.1:5173,http://localhost:47832,http://127.0.0.1:47832|' \
     backend/.env > "$TMP_BACKEND"
   "$PY" "$SYNC" --push --target backend --env-file "$TMP_BACKEND"
 else

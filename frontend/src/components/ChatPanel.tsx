@@ -48,6 +48,7 @@ import { activeStepLabel } from "../lib/aiRun";
 import StructuredAssistantMessage, {
   AssistantPendingBubble,
 } from "./chat/StructuredAssistantMessage";
+import { sanitizeNoteHtml } from "../lib/sanitizeHtml";
 import ChatPollComposer from "./chat/ChatPollComposer";
 import ChatPollVotePanel from "./chat/ChatPollVotePanel";
 import { useActiveVoicePoll } from "../hooks/useActiveVoicePoll";
@@ -2051,7 +2052,9 @@ export default function ChatPanel() {
                 ) : null}
                 <div
                   className="handoff-preview-note__body manual-notes-panel__editor"
-                  dangerouslySetInnerHTML={{ __html: handoffPreview.noteBodyHtml }}
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeNoteHtml(handoffPreview.noteBodyHtml),
+                  }}
                 />
               </div>
             ) : (

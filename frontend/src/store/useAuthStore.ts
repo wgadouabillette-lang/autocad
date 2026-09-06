@@ -45,6 +45,7 @@ import {
 } from "../lib/userPreferences";
 import { normalizeHallDjGenre } from "../lib/hallDjGenres";
 import { applyDocumentAccentColor, normalizeAccentColorPreference } from "../lib/accentColor";
+import { applyDocumentTheme, normalizeColorThemePreference } from "../lib/theme";
 import type { AiModel } from "../lib/aiModels";
 import { isValidAiModel } from "../lib/aiModels";
 import { isLegacyPublicWorkspaceId } from "../lib/workspaces";
@@ -163,6 +164,14 @@ function applyLocalProfile(profile: UserProfileDoc) {
   const onDemandUsageEnabled = cloudManaged
     ? effectiveOnDemandUsage(subscriptionPlan, profile.onDemandUsageEnabled, true)
     : currentState.onDemandUsageEnabled;
+  const subscriptionTier =
+    cloudManaged && subscriptionPlan === "pro"
+      ? profile.subscriptionTier === "proPlus"
+        ? "proPlus"
+        : "pro"
+      : cloudManaged
+        ? ""
+        : currentState.subscriptionTier;
   const calendarHours = resolveCalendarWorkingHours(
     profile.calendarWorkStartMinutes ?? currentState.calendarWorkStartMinutes,
     profile.calendarWorkEndMinutes ?? currentState.calendarWorkEndMinutes,
@@ -185,11 +194,12 @@ function applyLocalProfile(profile: UserProfileDoc) {
     audioNoiseSuppression: profile.audioNoiseSuppression !== false,
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
-    colorTheme: "dark",
+    colorTheme: normalizeColorThemePreference(profile.colorTheme ?? currentState.colorTheme),
     accentColor: normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
     subscriptionPlan,
     billingManaged,
     onDemandUsageEnabled,
+    subscriptionTier,
     agentChatInstructions: profile.agentChatInstructions ?? "",
     agentFollowUpInstructions: profile.agentFollowUpInstructions ?? "",
     agentAiNotesInstructions: profile.agentAiNotesInstructions ?? "",
@@ -204,6 +214,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
   applyDocumentAccentColor(
     normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
   );
+  applyDocumentTheme(normalizeColorThemePreference(profile.colorTheme ?? currentState.colorTheme));
   writeUserPreferences({
     chatWorkMode: profile.chatWorkMode,
     autoWorkModeSwitch: profile.autoWorkModeSwitch,
@@ -219,7 +230,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
     audioNoiseSuppression: profile.audioNoiseSuppression !== false,
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
-    colorTheme: "dark",
+    colorTheme: normalizeColorThemePreference(profile.colorTheme ?? currentState.colorTheme),
     accentColor: normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
     subscriptionPlan,
     billingManaged,
@@ -825,6 +836,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       subscriptionPlan: "free",
       onDemandUsageEnabled: false,
       billingManaged: false,
+      subscriptionTier: "",
+      workspaceEnterpriseActive: false,
     });
     set({
       isAuthenticated: false,

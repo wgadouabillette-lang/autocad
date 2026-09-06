@@ -4,6 +4,7 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { runAiChat, assertAuthenticated } from "./ai/chat";
+import { runAiTranscribe } from "./ai/transcribe";
 import { platformKeyStatus } from "./ai/keys";
 import { syncDevSubscriptionPlan as applyDevSubscriptionPlan } from "./billing/syncDevSubscription";
 import { ensureFunctionsSecretsLoaded } from "./loadSecrets";
@@ -12,6 +13,19 @@ import { FUNCTIONS_REGION } from "./region";
 
 /** Webhook Stripe (Checkout + abonnements Pro / Entreprise). */
 export { stripeWebhook } from "./billing/stripeWebhook";
+
+/** ACL RTDB (presence / knocks / typing workspace). */
+export {
+  ensureWorkspaceAcl,
+  onWorkspaceMemberAclWrite,
+  onWorkspaceSharedAclWrite,
+} from "./workspaceAcl";
+
+/** Amitiés (DM) matérialisées à l’acceptation. */
+export { ensureFriendship, onFriendRequestAccepted } from "./friendship";
+
+/** ACL RTDB typing groupes. */
+export { ensureGroupAcl, onGroupChatAclWrite } from "./groupAcl";
 
 initializeApp();
 
@@ -112,6 +126,13 @@ export const aiChat = onCall({ cors: true, timeoutSeconds: 120 }, async (request
   assertAuthenticated(request.auth?.uid);
   await ensureFunctionsSecretsLoaded();
   return runAiChat(request.auth.uid, request.data ?? {});
+});
+
+/** Live notes STT — Whisper. Electron Web Speech fails with error "network". */
+export const aiTranscribe = onCall({ cors: true, timeoutSeconds: 60 }, async (request) => {
+  assertAuthenticated(request.auth?.uid);
+  await ensureFunctionsSecretsLoaded();
+  return runAiTranscribe(request.auth.uid, request.data ?? {});
 });
 
 /** Sync plan Pro local (Stripe désactivé) vers Firestore pour le quota IA. */

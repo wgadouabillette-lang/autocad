@@ -101,7 +101,7 @@ function firestoreUpdatedAtMillis(
 }
 
 function previewFromDocMeta(meta: {
-  lastMessageKind?: "text" | "handoff" | "manage" | "meeting";
+  lastMessageKind?: "text" | "handoff" | "manage" | "meeting" | "workspace_invite";
   lastHandoffTitle?: string;
   lastPreview?: string;
 }): string {
@@ -110,6 +110,9 @@ function previewFromDocMeta(meta: {
   }
   if (meta.lastMessageKind === "meeting") {
     return meta.lastPreview?.trim() || "Invitation à une réunion";
+  }
+  if (meta.lastMessageKind === "workspace_invite") {
+    return meta.lastPreview?.trim() || "Invitation workspace";
   }
   return meta.lastPreview?.trim() || "";
 }
@@ -134,6 +137,8 @@ function mapCloudPeopleMessage(message: CloudFriendMessage, uid: string): People
     meetingStartTime: message.meetingStartTime,
     meetingEndTime: message.meetingEndTime,
     meetingOrganizerName: message.meetingOrganizerName,
+    workspaceInviteId: message.workspaceInviteId,
+    workspaceInviteName: message.workspaceInviteName,
     mentionedUids: message.mentionedUids,
     mentionBroadcast: message.mentionBroadcast,
   };

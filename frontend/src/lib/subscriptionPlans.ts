@@ -132,19 +132,19 @@ export function planSettingsCopy(locale = resolveClientLocale()) {
       proAria: "Ouvrir le paiement Pro",
       proPlusAria: "Ouvrir le paiement Pro+",
       teamAria: "Souscrire au forfait Team pour le workspace sélectionné",
-      teamManageAria: "Gérer l'abonnement Team via Stripe",
+      teamAddSeatsAria: "Ajouter des sièges Team pour plus d'utilisation",
       ctaPro: "Passer à Pro",
       ctaProPlus: "Passer à Pro+",
       ctaTeam: "Choisir les sièges",
       ctaCurrent: "Plan actuel",
-      ctaTeamManage: "Gérer l'abonnement",
+      ctaTeamAddSeats: "Add Seats",
       ctaOpening: "Ouverture de Stripe…",
       ctaWaiting: "En attente de confirmation Stripe…",
       errorSignInPro: "Connectez-vous pour souscrire à Pro.",
       errorSignInTeam: "Connectez-vous pour souscrire à Team.",
-      proPriceFallback: "25 $ / mois",
-      proPlusPriceFallback: "40 $ / mois",
-      teamPriceFallback: "18 $ / siège",
+      proPriceFallback: "33 $ / mois",
+      proPlusPriceFallback: "53 $ / mois",
+      teamPriceFallback: "24 $ / siège",
     };
   }
   return {
@@ -155,19 +155,19 @@ export function planSettingsCopy(locale = resolveClientLocale()) {
     proAria: "Open Pro checkout",
     proPlusAria: "Open Pro+ checkout",
     teamAria: "Subscribe to Team for the selected workspace",
-    teamManageAria: "Manage Team subscription via Stripe",
+    teamAddSeatsAria: "Add Team seats for more usage",
     ctaPro: "Upgrade to Pro",
     ctaProPlus: "Upgrade to Pro+",
     ctaTeam: "Choose seats",
     ctaCurrent: "Current plan",
-    ctaTeamManage: "Manage subscription",
+    ctaTeamAddSeats: "Add Seats",
     ctaOpening: "Opening Stripe…",
     ctaWaiting: "Waiting for Stripe confirmation…",
     errorSignInPro: "Sign in to subscribe to Pro.",
     errorSignInTeam: "Sign in to subscribe to Team.",
-    proPriceFallback: "$25 / month",
-    proPlusPriceFallback: "$40 / month",
-    teamPriceFallback: "$18 / seat",
+    proPriceFallback: "$33 / month",
+    proPlusPriceFallback: "$53 / month",
+    teamPriceFallback: "$24 / seat",
   };
 }
 
@@ -190,7 +190,7 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
   {
     id: "pro",
     label: "Pro",
-    price: "25 $ / mois",
+    price: "33 $ / mois",
     description: "Assistant IA personnel avec crédits mensuels.",
     features: [
       "Serveurs personnels illimités",
@@ -203,11 +203,11 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
   {
     id: "enterprise",
     label: "Entreprise",
-    price: "18 $ / siège",
+    price: "24 $ / siège",
     description: "IA partagée pour tout le workspace.",
     features: [
       "IA pour tous les membres du workspace",
-      "Pool IA partagé (18 $ × siège / mois)",
+      "Pool IA partagé (24 $ × siège / mois)",
       "AI Notes et Follow-up workspace",
       "Facturation centralisée",
     ],
@@ -218,6 +218,29 @@ export const FREE_OWNED_WORKSPACE_LIMIT = 3;
 
 export function planLabel(plan: SubscriptionPlan): string {
   return plan === "pro" ? "Pro" : "Gratuit";
+}
+
+export type PlanBadgeKind = "free" | "pro" | "proPlus" | "teams" | "teamsPro" | "teamsProPlus";
+
+/** Label capsule header (support / settings). */
+export function resolvePlanBadgeLabel(opts: {
+  subscriptionPlan: SubscriptionPlan;
+  billingManaged?: boolean;
+  subscriptionTier?: string | null;
+  workspaceEnterpriseActive?: boolean;
+}): { kind: PlanBadgeKind; label: string } {
+  const isPro =
+    opts.billingManaged === true &&
+    effectiveSubscriptionPlan(opts.subscriptionPlan, opts.billingManaged) === "pro";
+  const isProPlus = isPro && opts.subscriptionTier === "proPlus";
+  const isTeams = opts.workspaceEnterpriseActive === true;
+
+  if (isTeams && isProPlus) return { kind: "teamsProPlus", label: "Teams + Pro+" };
+  if (isTeams && isPro) return { kind: "teamsPro", label: "Teams + Pro" };
+  if (isTeams) return { kind: "teams", label: "teams" };
+  if (isProPlus) return { kind: "proPlus", label: "pro+" };
+  if (isPro) return { kind: "pro", label: "pro" };
+  return { kind: "free", label: "free" };
 }
 
 /** Pro uniquement si billingManaged est actif (paiement confirmé ou toggle dev local). */

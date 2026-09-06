@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { chatPanelModeTabs } from "../../lib/chatPanelModes";
 import type { ChatPanelMode } from "../../lib/voiceAssistPanel";
 import { useCallsStore } from "../../store/useCallsStore";
+import { useNotificationsStore } from "../../store/useNotificationsStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
 
@@ -21,6 +22,9 @@ export default function ChatPanelModeTabs() {
     (s) => s.colleagueThreadsByWorkspace,
   );
   const friendsTabSeenAt = usePeopleStore((s) => s.friendsTabSeenAt);
+  const pendingWorkspaceInvites = useNotificationsStore(
+    (s) => s.items.filter((n) => n.kind === "workspace_invite").length,
+  );
   const unreadPeopleChats = useMemo(() => {
     const personIds = new Set<string>();
     const track = (thread: { unread: number; updatedAt: number; personId: string }) => {
@@ -34,7 +38,8 @@ export default function ChatPanelModeTabs() {
     }
     return personIds.size;
   }, [friendThreads, colleagueThreadsByWorkspace, friendsTabSeenAt]);
-  const hasUnreadPeopleMessages = unreadPeopleChats > 0;
+  const messagesBadgeCount = unreadPeopleChats + pendingWorkspaceInvites;
+  const hasMessagesBadge = messagesBadgeCount > 0;
   const tabs = chatPanelModeTabs(
     subscriptionPlan,
     inTheaterView,
@@ -83,7 +88,7 @@ export default function ChatPanelModeTabs() {
             {tabs.map((tab) => {
               const active = chatPanelMode === tab.id;
               const Icon = tab.icon;
-              const showUnreadBadge = tab.id === "friends" && hasUnreadPeopleMessages;
+              const showUnreadBadge = tab.id === "friends" && hasMessagesBadge;
               return (
                 <button
                   key={tab.id}
@@ -95,7 +100,7 @@ export default function ChatPanelModeTabs() {
                   aria-pressed={active}
                   aria-label={
                     showUnreadBadge
-                      ? `Messages, ${unreadPeopleChats} unread chat${unreadPeopleChats > 1 ? "s" : ""}`
+                      ? `Messages, ${messagesBadgeCount} notification${messagesBadgeCount > 1 ? "s" : ""}`
                       : tab.label
                   }
                 >
@@ -105,7 +110,7 @@ export default function ChatPanelModeTabs() {
                   <span>{tab.label}</span>
                   {showUnreadBadge && (
                     <span className="chat-panel-mode-tabs__unread-badge" aria-hidden>
-                      {unreadPeopleChats}
+                      {messagesBadgeCount}
                     </span>
                   )}
                 </button>

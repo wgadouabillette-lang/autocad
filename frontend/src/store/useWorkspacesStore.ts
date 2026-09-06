@@ -39,9 +39,11 @@ import {
   fetchIncomingWorkspaceInvite,
   findUserDirectoryByEmail,
 } from "../lib/firebase/userData";
+import { ensureFriendChat, sendFriendChatMessage } from "../lib/firebase/friendChats";
 import { syncWorkspacesToCloudNow } from "../lib/firebase/workspaceCloudSync";
 import { resolveActiveWorkspaceId } from "../lib/lastActiveWorkspace";
 import { useCallsStore } from "./useCallsStore";
+import { usePeopleStore } from "./usePeopleStore";
 import { useStore } from "./useStore";
 
 const STORAGE_KEY = "forma-server-memberships";
@@ -643,12 +645,15 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       return { ok: false, error: "Une invitation est déjà en attente pour cette personne." };
     }
 
+    const workspaceName = workspace?.name?.trim() || "Workspace";
+    const invitedByName = useStore.getState().userDisplayName.trim() || "Membre";
+
     try {
       await createIncomingWorkspaceInvite(directoryUser.uid, {
         workspaceId: normalized,
-        workspaceName: workspace?.name?.trim() || "Workspace",
+        workspaceName,
         invitedByUid: currentUser.uid,
-        invitedByName: useStore.getState().userDisplayName.trim() || "Membre",
+        invitedByName,
       });
     } catch (error) {
       const message =
@@ -657,6 +662,33 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
           : "Impossible d'envoyer l'invitation.";
       return { ok: false, error: message };
     }
+
+    // Best-effort DM card so the invitee can join from Messages.
+    try {
+      const chatId = await ensureFriendChat(currentUser.uid, directoryUser.uid);
+      const inviteText = `${invitedByName} vous invite à rejoindre ${workspaceName}.`;
+      await sendFriendChatMessage(
+        chatId,
+        currentUser.uid,
+        invitedByName,
+        [currentUser.uid, directoryUser.uid],
+        inviteText,
+        {
+          kind: "workspace_invite",
+          workspaceInviteId: normalized,
+          workspaceInviteName: workspaceName,
+        },
+      );
+      const inviteeName = directoryUser.displayName.trim() || emailNorm.split("@")[0] || "Contact";
+      usePeopleStore.getState().ensureFriendThread({
+        id: directoryUser.uid,
+        name: inviteeName,
+        handle: emailNorm,
+      });
+    } catch {
+      // Invite + notification still stand if DM delivery fails.
+    }
+
     return { ok: true };
   },
 

@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -174,10 +174,6 @@ html[data-theme="dark"] {
   --forma-scrim: rgb(0 0 0 / 0.55);
   --forma-scrim-strong: var(--forma-drop-88);
 }
-html[data-theme="dark"]:not(.app-loading-splash) {
-  color-scheme: dark;
-}
-
 html:not(.app-loading-splash) {
   color-scheme: dark;
 }
@@ -1183,7 +1179,9 @@ html:not(.app-loading-splash) #root {
   .app-chrome-row--immersive .app-chrome-row__leading {
     pointer-events: auto;
   }
-  .app-chrome-row--immersive .app-chrome-row__brand,
+  .app-chrome-row--immersive .app-chrome-row__brand {
+    pointer-events: none;
+  }
   .app-chrome-row--immersive .app-chrome-row__actions {
     display: none;
   }
@@ -1231,12 +1229,20 @@ html:not(.app-loading-splash) #root {
     -webkit-app-region: no-drag;
   }
   .app-chrome-row__brand {
-    @apply pointer-events-none absolute inset-y-0 left-1/2 z-0 flex items-center gap-1.5;
+    @apply pointer-events-none absolute inset-y-0 left-1/2 z-0 flex items-center gap-2;
     transform: translateX(-50%);
   }
   .app-chrome-row__brand-logo {
-    @apply h-[18px] w-auto shrink-0 object-contain;
-    max-width: 6.5rem;
+    @apply h-[13px] w-auto shrink-0 object-contain;
+    max-width: 1.65rem;
+    transform: scaleX(0.86);
+    transform-origin: center;
+  }
+  .app-chrome-row__brand-wordmark {
+    @apply select-none text-[13px] font-semibold leading-none text-muted-100;
+    font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
   .app-chrome-row__workspace-brand-group {
     @apply inline-flex h-6 max-w-full min-w-0 items-center gap-0.5;
@@ -1363,6 +1369,86 @@ html:not(.app-loading-splash) #root {
   .header-toolbar-actions {
     @apply flex h-6 items-center gap-1.5;
     overflow: visible;
+  }
+  .plan-badge {
+    --plan-badge-stroke: var(--forma-border);
+    --plan-badge-stroke-hi: #c4c4c4;
+    --plan-badge-shimmer-angle: 0deg;
+    position: relative;
+    display: inline-flex;
+    height: 1.5rem;
+    max-width: 9.5rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.875rem;
+    border-radius: 9999px;
+    background: var(--forma-panel);
+    color: #d4d4d4;
+    -webkit-app-region: no-drag;
+    isolation: isolate;
+  }
+  .plan-badge__label {
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    text-transform: none;
+  }
+  .plan-badge::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid var(--plan-badge-stroke);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .plan-badge.plan-badge--shimmer::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: 9999px;
+    pointer-events: none;
+    z-index: 2;
+    padding: 1px;
+    background: conic-gradient(
+      from var(--plan-badge-shimmer-angle),
+      transparent 0deg,
+      transparent 250deg,
+      var(--plan-badge-stroke-hi) 290deg,
+      #ffffff 310deg,
+      var(--plan-badge-stroke-hi) 330deg,
+      transparent 360deg
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: plan-badge-stroke-shimmer 2s linear 1;
+  }
+  @property --plan-badge-shimmer-angle {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+  }
+  @keyframes plan-badge-stroke-shimmer {
+    to {
+      --plan-badge-shimmer-angle: 360deg;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .plan-badge.plan-badge--shimmer::after {
+      animation: none;
+    }
   }
   .workspace-switcher-capsule {
     @apply relative inline-flex h-6 w-6 shrink-0 items-center justify-center overflow-visible border-0;
@@ -2237,6 +2323,9 @@ html:not(.app-loading-splash) #root {
   .settings-section__label {
     @apply text-[11px] font-semibold uppercase tracking-wide text-muted-500;
   }
+  .settings-section__label-sep {
+    @apply font-normal text-muted-500;
+  }
   .settings-section__hint {
     @apply mt-1 text-xs text-muted-400;
   }
@@ -2734,11 +2823,20 @@ html:not(.app-loading-splash) #root {
   .settings-usage-summary {
     @apply flex flex-col gap-2;
   }
+  .settings-usage-summary--percent-only {
+    @apply mt-3 gap-2;
+  }
   .settings-usage-summary__row {
     @apply flex items-center justify-between gap-3 text-sm text-muted-200;
   }
   .settings-usage-summary__row--muted {
     @apply text-xs text-muted-400;
+  }
+  .settings-usage-summary__row--percent {
+    @apply justify-end;
+  }
+  .settings-usage-summary__percent {
+    @apply text-sm font-medium tabular-nums text-muted-200;
   }
   .settings-usage-bar {
     @apply h-2 w-full overflow-hidden rounded-full bg-white/10;
@@ -3758,57 +3856,6 @@ html:not(.app-loading-splash) #root {
   .call-block--theater .call-block__title {
     @apply text-[12px] leading-none;
   }
-  /* Stroke live : reflet pâle qui fait le tour sur un bout de trait */
-  .call-block.call-block--theater-live {
-    --forma-theater-live-stroke: #f91880;
-    --forma-theater-live-stroke-hi: #ff6aad;
-    --theater-shimmer-angle: 0deg;
-    overflow: visible;
-  }
-  .call-block.call-block--theater-live::after {
-    content: "";
-    position: absolute;
-    inset: -2px;
-    border-radius: calc(1.125rem + 2px);
-    pointer-events: none;
-    z-index: 4;
-    padding: 2px;
-    background: conic-gradient(
-      from var(--theater-shimmer-angle),
-      var(--forma-theater-live-stroke) 0deg,
-      var(--forma-theater-live-stroke) 290deg,
-      #fc3d90 308deg,
-      var(--forma-theater-live-stroke-hi) 322deg,
-      #fc3d90 336deg,
-      var(--forma-theater-live-stroke) 350deg,
-      var(--forma-theater-live-stroke) 360deg
-    );
-    animation: call-block-theater-stroke-shimmer 5.5s linear infinite;
-    -webkit-mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-  }
-  @property --theater-shimmer-angle {
-    syntax: "<angle>";
-    inherits: false;
-    initial-value: 0deg;
-  }
-  @keyframes call-block-theater-stroke-shimmer {
-    to {
-      --theater-shimmer-angle: 360deg;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .call-block.call-block--theater-live::after {
-      animation: none;
-      background: var(--forma-theater-live-stroke);
-    }
-  }
   .theater-block-preview {
     @apply flex w-full flex-col gap-1.5;
   }
@@ -3861,11 +3908,22 @@ html:not(.app-loading-splash) #root {
     min-height: var(--forma-calls-private-header-h);
     max-height: var(--forma-calls-private-header-h);
     align-items: center;
-    padding-right: 1.35rem;
+    justify-content: center;
+    padding-right: 0;
+  }
+  .call-block--private .call-block__title {
+    @apply flex-none text-center text-[12px] leading-none;
+    width: 100%;
+    max-width: 100%;
+    padding-inline: 1.25rem;
   }
   .call-block--private .call-block__header-trailing {
-    /* Keep mute/camera badges in-flow without growing the private capsule. */
+    /* Keep mute/kick controls without shifting the centered name. */
+    position: absolute;
+    top: 50%;
+    right: 0;
     max-height: var(--forma-calls-private-header-h);
+    transform: translateY(-50%);
   }
   .call-block--private .call-block__media-status-item {
     height: 1rem;
@@ -3875,9 +3933,6 @@ html:not(.app-loading-splash) #root {
   .call-block--private .call-block__media-status-item svg {
     height: 0.7rem;
     width: 0.7rem;
-  }
-  .call-block--private .call-block__title {
-    @apply text-[12px] leading-none;
   }
   .call-block--private .call-block__row--avatars-fixed {
     display: flex;
@@ -3891,17 +3946,6 @@ html:not(.app-loading-splash) #root {
   .call-block--private .call-block__row--avatars-fixed .call-block__avatar {
     height: var(--forma-calls-private-avatar-size);
     width: var(--forma-calls-private-avatar-size);
-  }
-  .call-block--private .call-block__activity-overlay {
-    top: -0.35rem;
-    right: -0.35rem;
-    z-index: 3;
-  }
-  .call-block--private .call-block__activity-glyph-shell,
-  .call-block--private .call-block__activity-glyph,
-  .call-block--private .call-block__activity-glyph--icon {
-    height: 2.5rem;
-    width: 2.5rem;
   }
   .call-block--invite {
     @apply cursor-pointer;
@@ -9442,6 +9486,31 @@ html:not(.app-loading-splash) #root {
   }
   .handoff-inbox-card__open {
     @apply mt-2 rounded-md bg-ink-750 px-2.5 py-1 text-[10px] font-semibold text-muted-100 transition-colors hover:bg-ink-700;
+  }
+  .workspace-invite-inbox-card {
+    @apply flex w-full max-w-[18rem] gap-2 rounded-xl border border-ink-700 bg-ink-850 p-3;
+  }
+  .workspace-invite-inbox-card__icon {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-200;
+    background-color: rgb(255 255 255 / 0.06);
+  }
+  .workspace-invite-inbox-card__body {
+    @apply min-w-0 flex-1;
+  }
+  .workspace-invite-inbox-card__title {
+    @apply text-[12px] font-semibold text-muted-100;
+  }
+  .workspace-invite-inbox-card__subtitle {
+    @apply mt-0.5 text-[11px] font-medium text-muted-300;
+  }
+  .workspace-invite-inbox-card__join {
+    @apply mt-2 rounded-md bg-ink-750 px-2.5 py-1 text-[10px] font-semibold text-muted-100 transition-colors hover:bg-ink-700 disabled:opacity-50;
+  }
+  .workspace-invite-inbox-card__status {
+    @apply mt-2 inline-block text-[10px] font-medium text-muted-500;
+  }
+  .workspace-invite-inbox-card__error {
+    @apply mt-1.5 text-[10px] leading-snug text-red-300;
   }
   .handoff-preview-banner {
     @apply flex items-start gap-3 rounded-xl border border-ink-700 bg-ink-850 px-3 py-2.5;

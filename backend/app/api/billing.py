@@ -41,10 +41,10 @@ class EnterpriseCheckoutIntentResponse(BaseModel):
     memberCount: int = 0
     minSeats: int = 1
     seatPriceLabel: str
-    unitAmountCents: int = 1800
-    totalAmountCents: int = 1800
-    unitAmountLabel: str = "$18"
-    totalAmountLabel: str = "$18"
+    unitAmountCents: int = 2400
+    totalAmountCents: int = 2400
+    unitAmountLabel: str = "$24"
+    totalAmountLabel: str = "$24"
     priceLabel: str
 
 
@@ -76,12 +76,15 @@ class BillingConfigResponse(BaseModel):
     enabled: bool
     onDemandAvailable: bool
     billingManaged: bool
-    proPriceLabel: str = "$25 / month"
-    proPriceUsdCents: int = 2500
+    proPriceLabel: str = "$33 / month"
+    proPriceUsdCents: int = 3300
+    proPlusEnabled: bool = False
+    proPlusPriceLabel: str = "$53 / month"
+    proPlusPriceUsdCents: int = 5300
     enterpriseEnabled: bool = False
     enterpriseMinMembers: int = 2
-    enterpriseSeatPriceLabel: str = "$18 / seat"
-    enterpriseSeatUnitAmountCents: int = 1800
+    enterpriseSeatPriceLabel: str = "$24 / seat"
+    enterpriseSeatUnitAmountCents: int = 2400
     publishableKey: str = ""
 
 
@@ -108,6 +111,7 @@ class BillingStatusResponse(BaseModel):
     onDemandLimitUsd: Optional[float] = None
     billingManaged: bool
     stripeSubscriptionStatus: Optional[str] = None
+    subscriptionTier: str = ""
 
 
 class DevPlanSyncRequest(BaseModel):
@@ -213,18 +217,22 @@ def billing_config(user: Optional[FirebaseUser] = Depends(optional_firebase_user
                 profile = snap.to_dict() or {}
                 billing_managed = bool(profile.get("billingManaged"))
 
-    pro_usd = int(os.getenv("STRIPE_PRO_AMOUNT_CENTS", "2500") or "2500")
+    pro_usd = int(os.getenv("STRIPE_PRO_AMOUNT_CENTS", "3300") or "3300")
+    plus_usd = int(os.getenv("STRIPE_PRO_PLUS_AMOUNT_CENTS", "5300") or "5300")
     return BillingConfigResponse(
         enabled=settings.stripe_checkout_enabled,
         onDemandAvailable=bool(settings.stripe_on_demand_price_id.strip()),
         billingManaged=billing_managed,
-        proPriceLabel=os.getenv("STRIPE_PRO_PRICE_LABEL", "$25 / month"),
+        proPriceLabel=os.getenv("STRIPE_PRO_PRICE_LABEL", "$33 / month"),
         proPriceUsdCents=max(0, pro_usd),
+        proPlusEnabled=settings.stripe_pro_plus_checkout_enabled,
+        proPlusPriceLabel=os.getenv("STRIPE_PRO_PLUS_PRICE_LABEL", "$53 / month"),
+        proPlusPriceUsdCents=max(0, plus_usd),
         enterpriseEnabled=settings.stripe_enterprise_enabled,
         enterpriseMinMembers=settings.stripe_enterprise_min_members,
         enterpriseSeatPriceLabel=os.getenv(
             "STRIPE_ENTERPRISE_SEAT_PRICE_LABEL",
-            "$18 / seat",
+            "$24 / seat",
         ),
         enterpriseSeatUnitAmountCents=stripe_service._enterprise_seat_unit_cents(),
         publishableKey=settings.stripe_publishable_key.strip(),
@@ -277,6 +285,10 @@ def billing_status(user: FirebaseUser = Depends(require_firebase_user)):
     raw_plan = profile.get("subscriptionPlan")
     billing_managed = bool(profile.get("billingManaged"))
     plan = "pro" if raw_plan == "pro" and billing_managed else "free"
+    raw_tier = str(profile.get("subscriptionTier") or "").strip()
+    subscription_tier = (
+        "proPlus" if plan == "pro" and raw_tier == "proPlus" else "pro" if plan == "pro" else ""
+    )
     on_demand = profile.get("onDemandUsageEnabled")
     raw_limit = profile.get("onDemandLimitUsd")
     on_demand_limit = (
@@ -290,6 +302,7 @@ def billing_status(user: FirebaseUser = Depends(require_firebase_user)):
         onDemandLimitUsd=on_demand_limit if bool(on_demand) else None,
         billingManaged=billing_managed,
         stripeSubscriptionStatus=str(billing.get("stripeSubscriptionStatus") or "") or None,
+        subscriptionTier=subscription_tier,
     )
 
 
@@ -301,16 +314,18 @@ def dev_plan_sync(
     """Sync local Pro toggle to Firestore for dev / when Stripe webhooks are not active."""
     import os
 
-    # Avec Stripe checkout actif, le plan Pro ne doit venir que du webhook (paiement OK).
-    default_allow = "0" if settings.stripe_checkout_enabled else "1"
-    allow_dev_sync = os.getenv("ALLOW_DEV_PLAN_SYNC", default_allow).strip().lower() not in {
-        "0",
-        "false",
-        "no",
-        "off",
+    # Default-deny sauf opt-in explicite. Avec Stripe checkout, reste bloqué même si
+    # ALLOW_DEV_PLAN_SYNC est omis (default_allow="0"). Sans Stripe, default "1" pour le
+    # toggle local — toujours overridable par ALLOW_DEV_PLAN_SYNC=0.
+    default_allow = "0"
+    allow_dev_sync = os.getenv("ALLOW_DEV_PLAN_SYNC", default_allow).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
     }
-    if settings.stripe_checkout_enabled and not allow_dev_sync:
-        raise HTTPException(403, "Dev plan sync is disabled while Stripe checkout is enabled.")
+    if not allow_dev_sync:
+        raise HTTPException(403, "Dev plan sync is disabled.")
 
     from app.ai.usage import init_usage_period_for_pro
     from app.core.firebase import load_user_usage, update_user_subscription_profile
@@ -515,6 +530,31 @@ def checkout_pro_intent(user: FirebaseUser = Depends(require_firebase_user)):
     return ProCheckoutIntentResponse(**result)
 
 
+@router.post("/checkout/pro-plus/intent", response_model=ProCheckoutIntentResponse)
+def checkout_pro_plus_intent(user: FirebaseUser = Depends(require_firebase_user)):
+    """Crée un abonnement Pro+ incomplete pour Stripe Payment Element (overlay)."""
+    _require_stripe()
+    if not settings.stripe_pro_plus_checkout_enabled:
+        raise HTTPException(503, "STRIPE_PRO_PLUS_PRICE_ID is not configured.")
+    if not settings.stripe_publishable_key.strip():
+        raise HTTPException(503, "STRIPE_PUBLISHABLE_KEY is not configured.")
+    req_start = time.perf_counter()
+    try:
+        result = stripe_service.create_pro_subscription_intent(user.uid, user.email, plus=True)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Pro+ subscription intent failed for %s", user.uid)
+        raise HTTPException(502, "Unable to start Pro+ checkout.") from exc
+    if timing_enabled():
+        logger.info(
+            "checkout/pro-plus/intent http_total=%.0fms uid=%s",
+            (time.perf_counter() - req_start) * 1000,
+            user.uid,
+        )
+    return ProCheckoutIntentResponse(**result)
+
+
 @router.get("/enterprise/workspaces", response_model=EnterpriseWorkspacesResponse)
 def enterprise_workspaces(user: FirebaseUser = Depends(require_firebase_user)):
     if not settings.stripe_enterprise_enabled:
@@ -708,6 +748,7 @@ def sync_billing(user: FirebaseUser = Depends(require_firebase_user)):
         stripeSubscriptionStatus=(
             str(result.get("stripeSubscriptionStatus") or "") or None
         ),
+        subscriptionTier=str(result.get("subscriptionTier") or "") if plan == "pro" else "",
     )
 
 
