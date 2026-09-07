@@ -37,17 +37,28 @@ async function embedWindowsIcon(context) {
   }
 
   console.log("[icon] Embedding Meetra icon into", exePath);
+  const pkgVersion = (() => {
+    try {
+      return require("./package.json").version || "0.0.0";
+    } catch {
+      return "0.0.0";
+    }
+  })();
   await run(exePath, {
     icon: iconPath,
+    "file-version": pkgVersion,
+    "product-version": pkgVersion,
     "version-string": {
       ProductName: "Meetra",
       FileDescription: "Meetra",
       CompanyName: "Meetra",
       InternalName: "Meetra",
       OriginalFilename: `${productName}.exe`,
+      ProductVersion: pkgVersion,
+      FileVersion: pkgVersion,
     },
   });
-  console.log("[icon] Meetra.exe icon OK");
+  console.log("[icon] Meetra.exe icon OK", pkgVersion);
 }
 
 function stripArchSpecificVmpSignatures(appOutDir) {
@@ -133,6 +144,33 @@ exports.default = async function afterPack(context) {
     console.log("[evs] skip VMP on universal arch temp:", appOutDir);
     return;
   }
+
+  // Bust macOS icon-services cache: rename icon.icns → meetra.icns and point Info.plist at it.
+  try {
+    const appDir = fs.readdirSync(appOutDir).find((name) => name.endsWith(".app"));
+    if (appDir) {
+      const resources = path.join(appOutDir, appDir, "Contents", "Resources");
+      const infoPlist = path.join(appOutDir, appDir, "Contents", "Info.plist");
+      const fromIcns = path.join(resources, "icon.icns");
+      const toIcns = path.join(resources, "meetra.icns");
+      if (fs.existsSync(fromIcns)) {
+        if (fs.existsSync(toIcns)) fs.unlinkSync(toIcns);
+        fs.renameSync(fromIcns, toIcns);
+        execFileSync(
+          "plutil",
+          ["-replace", "CFBundleIconFile", "-string", "meetra", infoPlist],
+          { stdio: "pipe" },
+        );
+        console.log("[icon] macOS CFBundleIconFile → meetra.icns");
+      }
+    }
+  } catch (err) {
+    console.warn(
+      "[icon] macOS icon rename skipped:",
+      err instanceof Error ? err.message : err,
+    );
+  }
+
   const evsPython = resolveEvsPython();
   console.log(
     `[evs] VMP signing ${context.electronPlatformName} (before packaging):`,

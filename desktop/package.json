@@ -1,6 +1,6 @@
 {
   "name": "forma-desktop",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "private": true,
   "description": "Meetra",
   "main": "main.cjs",
@@ -73,6 +73,12 @@
         ]
       }
     ],
+    "extraFiles": [
+      {
+        "from": "build/icon.ico",
+        "to": "Meetra.ico"
+      }
+    ],
     "mac": {
       "category": "public.app-category.developer-tools",
       "x64ArchFiles": "**",
@@ -88,6 +94,7 @@
       "notarize": true,
       "artifactName": "Meetra-${version}-mac.${ext}",
       "extendInfo": {
+        "CFBundleIconFile": "meetra",
         "NSScreenCaptureUsageDescription": "Meetra a besoin d'accéder à l'écran pour le partage d'écran et l'enregistrement.",
         "NSCameraUsageDescription": "Meetra utilise la caméra pour les appels vidéo.",
         "NSMicrophoneUsageDescription": "Meetra utilise le micro pour les appels vocaux."
@@ -126,7 +133,8 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",
-      "createDesktopShortcut": true,
+      "include": "build/installer-custom.nsh",
+      "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "shortcutName": "Meetra",
       "artifactName": "Meetra.${ext}"

@@ -620,6 +620,111 @@ function resolveAppIconPath() {
   return undefined;
 }
 
+/** Rewrite Windows .lnk files so desktop/taskbar pick up the current Meetra.ico. */
+function refreshWindowsShellShortcuts() {
+  if (process.platform !== "win32" || !app.isPackaged) return;
+  try {
+    const exePath = process.execPath;
+    const exeDir = path.dirname(exePath);
+    const icoBeside = path.join(exeDir, "Meetra.ico");
+    const iconPath = fs.existsSync(icoBeside) ? icoBeside : exePath;
+    const targets = [];
+
+    const desktop = app.getPath("desktop");
+    targets.push(path.join(desktop, "Meetra.lnk"));
+    targets.push(path.join(desktop, "Hall.lnk"));
+
+    const publicDesktop = process.env.PUBLIC
+      ? path.join(process.env.PUBLIC, "Desktop")
+      : "C:\\Users\\Public\\Desktop";
+    targets.push(path.join(publicDesktop, "Meetra.lnk"));
+    targets.push(path.join(publicDesktop, "Hall.lnk"));
+
+    const programs = path.join(
+      process.env.PROGRAMDATA || "C:\\ProgramData",
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs",
+    );
+    targets.push(path.join(programs, "Meetra.lnk"));
+    targets.push(path.join(programs, "Hall.lnk"));
+
+    const userPrograms = path.join(
+      app.getPath("appData"),
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs",
+    );
+    targets.push(path.join(userPrograms, "Meetra.lnk"));
+
+    const taskBar = path.join(
+      app.getPath("appData"),
+      "Microsoft",
+      "Internet Explorer",
+      "Quick Launch",
+      "User Pinned",
+      "TaskBar",
+    );
+    try {
+      for (const name of fs.readdirSync(taskBar)) {
+        if (!/\.lnk$/i.test(name)) continue;
+        if (!/meetra|hall/i.test(name)) continue;
+        targets.push(path.join(taskBar, name));
+      }
+    } catch {
+      // no pinned taskbar folder
+    }
+
+    const linkOpts = {
+      target: exePath,
+      cwd: exeDir,
+      description: "Meetra",
+      icon: iconPath,
+      iconIndex: 0,
+      appUserModelId: "com.forma.cad",
+    };
+
+    for (const lnk of targets) {
+      const base = path.basename(lnk).toLowerCase();
+      try {
+        if (base === "hall.lnk") {
+          if (fs.existsSync(lnk)) fs.unlinkSync(lnk);
+          continue;
+        }
+        const operation = fs.existsSync(lnk) ? "replace" : "create";
+        // Only create Meetra.lnk on known desktop / start-menu paths, not invent taskbar pins.
+        if (operation === "create" && /TaskBar/i.test(lnk)) continue;
+        if (operation === "create" && !/Meetra\.lnk$/i.test(lnk)) continue;
+        shell.writeShortcutLink(lnk, operation, linkOpts);
+      } catch (err) {
+        console.warn("[icon] shortcut refresh skip", lnk, err instanceof Error ? err.message : err);
+      }
+    }
+
+    exec("ie4uinit.exe -show", { windowsHide: true }, () => {});
+  } catch (err) {
+    console.warn("[icon] Windows shortcut refresh failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** Touch the .app / icns so Dock/Finder drop a stale icon-services entry after update. */
+function refreshMacOsAppIcon() {
+  if (process.platform !== "darwin" || !app.isPackaged) return;
+  try {
+    const appPath = path.resolve(process.execPath, "..", "..", "..");
+    const now = new Date();
+    fs.utimesSync(appPath, now, now);
+    for (const name of ["meetra.icns", "icon.icns"]) {
+      const icns = path.join(appPath, "Contents", "Resources", name);
+      if (fs.existsSync(icns)) fs.utimesSync(icns, now, now);
+    }
+  } catch (err) {
+    console.warn("[icon] macOS icon touch failed:", err instanceof Error ? err.message : err);
+  }
+}
+
 const SPLASH_WINDOW_SIZE = { width: 340, height: 340 };
 const APP_WINDOW_SIZE = { width: 1440, height: 900 };
 const APP_WINDOW_MIN_SIZE = { width: 1024, height: 640 };
@@ -1320,6 +1425,8 @@ ipcMain.handle("forma:spotify-widevine-status", () => getWidevineStatus());
 
 app.whenReady().then(async () => {
   if (!gotTheLock) return;
+  refreshWindowsShellShortcuts();
+  refreshMacOsAppIcon();
   // Screen share / recording: always grant the primary display (full desktop),
   // not just the Meetra window — so Chrome/Google etc. appear in the recording.
   session.defaultSession.setDisplayMediaRequestHandler(
