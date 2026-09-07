@@ -73,12 +73,6 @@
         ]
       }
     ],
-    "extraFiles": [
-      {
-        "from": "build/icon.ico",
-        "to": "Meetra.ico"
-      }
-    ],
     "mac": {
       "category": "public.app-category.developer-tools",
       "x64ArchFiles": "**",
@@ -106,7 +100,13 @@
       ],
       "icon": "build/icon.ico",
       "signAndEditExecutable": true,
-      "verifyUpdateCodeSignature": false
+      "verifyUpdateCodeSignature": false,
+      "extraFiles": [
+        {
+          "from": "build/icon.ico",
+          "to": "Meetra.ico"
+        }
+      ]
     },
     "linux": {
       "target": [
