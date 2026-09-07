@@ -87,10 +87,17 @@ echo "Terminé."
 echo "  DMG : desktop/release/Meetra-*.dmg"
 echo "  Lien site : landing/public/downloads/Hall-mac.dmg"
 if [[ "$USE_NOTARY" -eq 1 ]]; then
-  DMG="$(find desktop/release -maxdepth 1 -name '*.dmg' -type f | head -1 || true)"
+  # Prefer the DMG matching package.json version (avoid stapling an older leftover).
+  PKG_VER="$(node -p "require('./desktop/package.json').version" 2>/dev/null || true)"
+  DMG=""
+  if [[ -n "$PKG_VER" && -f "desktop/release/Meetra-${PKG_VER}-mac.dmg" ]]; then
+    DMG="desktop/release/Meetra-${PKG_VER}-mac.dmg"
+  else
+    DMG="$(ls -t desktop/release/Meetra-*-mac.dmg 2>/dev/null | head -1 || true)"
+  fi
   if [[ -n "$DMG" ]]; then
     echo ""
-    echo "→ Notarize + staple du .dmg…"
+    echo "→ Notarize + staple du .dmg ($DMG)…"
     xcrun notarytool submit "$DMG" \
       --key "$APPLE_API_KEY" \
       --key-id "$APPLE_API_KEY_ID" \
