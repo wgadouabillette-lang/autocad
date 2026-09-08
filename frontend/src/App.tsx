@@ -56,6 +56,7 @@ import { scheduleSyncWorkspacesToCloud } from "./lib/firebase/workspaceCloudSync
 import { LOCAL_USER_ID } from "./lib/workspaces";
 import { billingApi } from "./lib/billingApi";
 import { debugLog } from "./lib/debugLog";
+import { Analytics } from "@vercel/analytics/react";
 
 let appRenderCount = 0;
 
@@ -495,6 +496,7 @@ export default function App() {
         {!settingsOpen && <BottomHeader />}
         {chatPanelOpen && <ChatPanelShell key={sidePanelSide} />}
       </div>
+      <Analytics />
     </div>
   );
 }
