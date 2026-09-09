@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { AGENT_PANEL_TITLE } from "../../lib/appBrand";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Calendar, Hash, History, Maximize2, Minimize2, Plus, Users, UsersRound } from "lucide-react";
 import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { isVoiceAssistPanelMode } from "../../lib/voiceAssistPanel";
@@ -13,6 +14,7 @@ import UserAvatar from "../UserAvatar";
 import CreateGroupChatOverlay from "./CreateGroupChatOverlay";
 
 export default function ChatPanelHeader() {
+  const { t } = useTranslation();
   const isMobileLayout = useMobileLayout();
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const startNewChat = useStore((s) => s.startNewChat);
@@ -79,8 +81,8 @@ export default function ChatPanelHeader() {
             type="button"
             className="toolbar-btn"
             onClick={() => setActiveFriendThread(null)}
-            title="Back to messages"
-            aria-label="Back to messages"
+            title={t("chat.backToMessages")}
+            aria-label={t("chat.backToMessages")}
           >
             <ArrowLeft size={14} />
           </button>
@@ -90,8 +92,8 @@ export default function ChatPanelHeader() {
             type="button"
             className="toolbar-btn"
             onClick={() => setCreateGroupOpen(true)}
-            title="Créer un groupe"
-            aria-label="Créer un groupe"
+            title={t("chat.createGroup")}
+            aria-label={t("chat.createGroup")}
           >
             <UsersRound size={14} />
           </button>
@@ -101,8 +103,8 @@ export default function ChatPanelHeader() {
             type="button"
             className="toolbar-btn"
             onClick={() => openCalendarComposer()}
-            title="Nouvel événement"
-            aria-label="Nouvel événement"
+            title={t("chat.newEvent")}
+            aria-label={t("chat.newEvent")}
           >
             <Plus size={14} />
           </button>
@@ -113,8 +115,8 @@ export default function ChatPanelHeader() {
               type="button"
               className="toolbar-btn"
               onClick={() => startNewChat()}
-              title="New conversation"
-              aria-label="New conversation"
+              title={t("chat.newConversation")}
+              aria-label={t("chat.newConversation")}
             >
               <Plus size={14} />
             </button>
@@ -122,8 +124,8 @@ export default function ChatPanelHeader() {
               type="button"
               className={clsx("toolbar-btn", showChatHistory && "is-active")}
               onClick={() => toggleChatHistory()}
-              title="Discussions"
-              aria-label="Discussions"
+              title={t("chat.discussions")}
+              aria-label={t("chat.discussions")}
               aria-pressed={showChatHistory}
             >
               <History size={14} />
@@ -136,8 +138,8 @@ export default function ChatPanelHeader() {
               type="button"
               className="toolbar-btn"
               onClick={() => startNewManualNote()}
-              title="New note"
-              aria-label="New note"
+              title={t("chat.newNote")}
+              aria-label={t("chat.newNote")}
             >
               <Plus size={14} />
             </button>
@@ -145,8 +147,8 @@ export default function ChatPanelHeader() {
               type="button"
               className={clsx("toolbar-btn", showChatHistory && "is-active")}
               onClick={() => toggleChatHistory()}
-              title="Saved notes"
-              aria-label="Saved notes"
+              title={t("chat.savedNotes")}
+              aria-label={t("chat.savedNotes")}
               aria-pressed={showChatHistory}
             >
               <History size={14} />
@@ -157,7 +159,7 @@ export default function ChatPanelHeader() {
 
       <h2 className="chat-panel-header__title pointer-events-none min-w-0 select-none text-xs font-semibold tracking-wide text-muted-200">
         {friendsSplit ? (
-          "Friends"
+          t("chat.friends")
         ) : inFriendThread && activeFriendThread ? (
           <span className="chat-panel-header__thread-identity">
             {inGroupThread ? (
@@ -187,16 +189,16 @@ export default function ChatPanelHeader() {
             </span>
           </span>
         ) : friendsMode ? (
-          "Friends"
+          t("chat.friends")
         ) : theaterMode ? (
-          "Theater chat"
+          t("chat.theaterChat")
         ) : calendarMode ? (
           <span className="inline-flex items-center gap-1.5">
             <Calendar size={13} className="text-muted-400" aria-hidden />
-            Calendar
+            {t("chat.calendarTitle")}
           </span>
         ) : voiceAssistMode ? (
-          chatPanelMode === "follow-up" ? "Follow-up" : "AI Notes"
+          chatPanelMode === "follow-up" ? t("chat.followUp") : t("chat.aiNotes")
         ) : (
           AGENT_PANEL_TITLE
         )}
@@ -207,8 +209,8 @@ export default function ChatPanelHeader() {
           type="button"
           className={clsx("toolbar-btn", friendsMode && "is-active")}
           onClick={() => toggleFriendsChatMode()}
-          title={friendsMode ? "Back to agent" : "Friends and colleagues messages"}
-          aria-label={friendsMode ? "Back to agent" : "Friends and colleagues messages"}
+          title={friendsMode ? t("chat.backToAgent") : t("chat.friendsMessages")}
+          aria-label={friendsMode ? t("chat.backToAgent") : t("chat.friendsMessages")}
           aria-pressed={friendsMode}
         >
           <Users size={14} />
@@ -218,8 +220,9 @@ export default function ChatPanelHeader() {
             type="button"
             className={clsx("toolbar-btn", chatPanelExpanded && "is-active")}
             onClick={() => toggleChatPanelExpanded()}
-            title={chatPanelExpanded ? "Collapse panel" : "Expand panel"}
-            aria-label={chatPanelExpanded ? "Collapse panel" : "Expand panel"}
+            title={chatPanelExpanded ? t("chat.collapsePanel") : t("chat.expandPanel")}
+            aria-label={chatPanelExpanded ? t("chat.collapsePanel") : t("chat.expandPanel")}
+            data-expand-panel={!chatPanelExpanded || undefined}
             aria-pressed={chatPanelExpanded}
           >
             {chatPanelExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}

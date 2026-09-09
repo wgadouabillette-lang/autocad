@@ -7,6 +7,7 @@ import {
   type CSSProperties,
 } from "react";
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 import { ArrowUp, Plus, User, X, FileImage } from "lucide-react";
 import { presenceActivityFromModel } from "../lib/aiModelStroke";
 import { useAiComposerStore } from "../store/useAiComposerStore";
@@ -199,6 +200,7 @@ function ApplyToCalendarButton({
   chatIndex: number;
   applied?: boolean;
 }) {
+  const { t } = useTranslation();
   const applyManageEventsForChatMessage = useStore(
     (s) => s.applyManageEventsForChatMessage,
   );
@@ -209,7 +211,7 @@ function ApplyToCalendarButton({
       disabled={applied}
       onClick={() => applyManageEventsForChatMessage(chatIndex)}
     >
-      {applied ? "Appliqué au calendrier" : "Appliquer au calendrier"}
+      {applied ? t("chat.appliedToCalendar") : t("chat.applyToCalendar")}
     </button>
   );
 }
@@ -354,6 +356,7 @@ export default function ChatPanel() {
     );
   }
   // #endregion
+  const { t } = useTranslation();
   const isMobileLayout = useMobileLayout();
   const {
     submitAssistantPrompt,
@@ -1633,7 +1636,7 @@ export default function ChatPanel() {
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
-  const placeholder = 'Type "/" for free in-app skills!';
+  const placeholder = t("chat.typeSkills");
 
   const composerBlock = handoffPreview ? null : (
     <div className="pointer-events-auto relative">
@@ -2008,8 +2011,9 @@ export default function ChatPanel() {
                 type="button"
                 onClick={submit}
                 disabled={!canSubmitResolved}
-                title={handoffSelectionMode ? "Send handoff" : "Send"}
-                aria-label={handoffSelectionMode ? "Send handoff" : "Send"}
+                data-action="send"
+                title={handoffSelectionMode ? t("chat.sendHandoff") : t("chat.send")}
+                aria-label={handoffSelectionMode ? t("chat.sendHandoff") : t("chat.send")}
                 className={clsx(
                   "inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full border border-ink-600 bg-ink-750 text-muted-200 transition-colors hover:bg-ink-700 disabled:opacity-30",
                 )}

@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 import {
   ArrowUp,
   ChevronDown,
@@ -120,27 +121,23 @@ function buildAttachment(file: File): ComposerAttachment {
 
 const MESSAGE_PANEL_CATEGORIES: {
   id: MessagePanelCategoryId;
-  label: string;
-  hint: string;
-  emptyLabel: string;
+  labelKey: string;
+  emptyKey: string;
 }[] = [
   {
     id: "friends",
-    label: "Friends",
-    hint: "Same list across all workspaces",
-    emptyLabel: "No friends yet. Add friends by email in settings.",
+    labelKey: "chat.categories.friends",
+    emptyKey: "chat.categories.friendsEmpty",
   },
   {
     id: "colleague",
-    label: "Colleagues",
-    hint: "Members of the active workspace",
-    emptyLabel: "No colleagues in this workspace yet.",
+    labelKey: "chat.categories.colleagues",
+    emptyKey: "chat.categories.colleaguesEmpty",
   },
   {
     id: "workspace",
-    label: "Workspace",
-    hint: "Text channels for this workspace",
-    emptyLabel: "Create a text channel to start chatting.",
+    labelKey: "chat.categories.workspace",
+    emptyKey: "chat.categories.workspaceEmpty",
   },
 ];
 
@@ -267,6 +264,7 @@ function MessagePanelPersonRow({
 
 
 export default function FriendsChatPanel() {
+  const { t } = useTranslation();
   const isMobileLayout = useMobileLayout();
   const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
   const splitLayout = !isMobileLayout && chatPanelExpanded;
@@ -1083,8 +1081,8 @@ export default function FriendsChatPanel() {
           : draft.trim().length > 0 || attachments.length > 0;
   const composerPlaceholder = thread
     ? thread.section === "groups" || thread.section === "workspace-channels"
-      ? `Écrire dans ${thread.groupName ?? thread.personName}…`
-      : `Write to ${thread.personName}…`
+      ? t("chat.writeIn", { name: thread.groupName ?? thread.personName })
+      : t("chat.writeTo", { name: thread.personName })
     : "";
   const inGroupThread = thread?.section === "groups";
   const inWorkspaceChannelThread = thread?.section === "workspace-channels";
@@ -1456,8 +1454,8 @@ export default function FriendsChatPanel() {
               />
             ) : null}
             <MessagePanelCategory
-              label={category.label}
-              emptyLabel={category.emptyLabel}
+              label={t(category.labelKey)}
+              emptyLabel={t(category.emptyKey)}
               count={count}
               expanded={expanded}
               alwaysShowBody={category.id === "workspace"}

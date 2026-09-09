@@ -18,11 +18,9 @@ export default function AppChromeRow({ immersive = false }: { immersive?: boolea
           />
           <span className="app-chrome-row__brand-wordmark">Meetra</span>
         </div>
-        {!immersive ? (
-          <div className="app-chrome-row__actions">
-            <PanelToolbarButtons />
-          </div>
-        ) : null}
+        <div className="app-chrome-row__actions" aria-hidden={immersive || undefined}>
+          {!immersive ? <PanelToolbarButtons /> : null}
+        </div>
       </div>
     </header>
   );

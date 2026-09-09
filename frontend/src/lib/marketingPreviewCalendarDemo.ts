@@ -135,7 +135,7 @@ function buttonCenter(target: Element): { x: number; y: number } {
 function findCalendarTab(): HTMLButtonElement | null {
   return (
     document.querySelector<HTMLButtonElement>(
-      '.chat-panel-mode-tabs__btn[aria-label="Calendar"]',
+      '.chat-panel-mode-tabs__btn[data-mode="calendar"]',
     ) ?? document.querySelector<HTMLButtonElement>('[aria-label="Calendrier"]')
   );
 }

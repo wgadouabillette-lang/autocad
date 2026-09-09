@@ -1,4 +1,5 @@
 import { ArrowUpRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
   CHAT_CONNECTORS,
   isConnectorComingSoon,
@@ -31,6 +32,7 @@ export default function ChatConnectorsList({
   onDisconnect?: (id: ChatConnectorId) => void;
   onInsertSlash: (slash: string) => void;
 }) {
+  const { t } = useTranslation();
   const isSettings = variant === "settings";
   const items = isSettings
     ? CHAT_CONNECTORS
@@ -41,20 +43,18 @@ export default function ChatConnectorsList({
   const unavailableTitle = (configured: boolean, status: ConnectorStatus | undefined) => {
     if (configured) return undefined;
     if (statusesFromApi && status && !status.configured) {
-      return "Ajoutez les clés OAuth dans backend/.env";
+      return t("chat.connectors.oauthMissing");
     }
     if (statusSource === "visual") {
-      return isSettings
-        ? "Connectez-vous pour lier un connecteur"
-        : "Sign in to connect";
+      return t("chat.connectors.signInToLink");
     }
     return undefined;
   };
 
   const unavailableLabel = (configured: boolean) => {
-    if (configured) return isSettings ? "Connecter" : "Connect";
-    if (statusesFromApi) return isSettings ? "Indisponible" : "Unavailable";
-    return isSettings ? "Chargement…" : "Loading…";
+    if (configured) return t("chat.connectors.connect");
+    if (statusesFromApi) return t("chat.connectors.unavailable");
+    return t("common.loading");
   };
 
   return (
@@ -65,7 +65,7 @@ export default function ChatConnectorsList({
           : "chat-connectors-list chat-connectors-list--from-bottom"
       }
       role="list"
-      aria-label="Connectors"
+      aria-label={t("chat.connectors.aria")}
     >
       {!locked && connectError && (
         <p className="chat-connectors-error px-0.5 pb-1 text-[11px] leading-snug text-red-400/90">
@@ -90,12 +90,10 @@ export default function ChatConnectorsList({
                 <span className="chat-connectors-row__meta">{accountLabel}</span>
               )}
               {comingSoon && (
-                <span className="chat-connectors-row__meta">
-                  {isSettings ? "Bientôt disponible" : "Coming soon"}
-                </span>
+                <span className="chat-connectors-row__meta">{t("chat.connectors.comingSoon")}</span>
               )}
               {!comingSoon && !configured && isSettings && statusesFromApi && (
-                <span className="chat-connectors-row__meta">Non configuré sur le serveur</span>
+                <span className="chat-connectors-row__meta">{t("chat.connectors.notConfigured")}</span>
               )}
             </span>
           </div>
@@ -107,18 +105,18 @@ export default function ChatConnectorsList({
           </span>
         ) : isSettings && connected ? (
           <div className="flex shrink-0 items-center gap-2">
-            <span className="text-[11px] text-muted-400">Connecté</span>
+            <span className="text-[11px] text-muted-400">{t("chat.connectors.connected")}</span>
             <button
               type="button"
               className="chat-connectors-row__connect"
               onClick={() => onDisconnect?.(id)}
             >
-              Déconnecter
+              {t("chat.connectors.disconnect")}
             </button>
           </div>
         ) : isSettings ? (
           comingSoon ? (
-            <span className="text-[11px] text-muted-500">Pas encore disponible</span>
+            <span className="text-[11px] text-muted-500">{t("chat.connectors.notYet")}</span>
           ) : (
             <button
               type="button"
@@ -127,7 +125,7 @@ export default function ChatConnectorsList({
               disabled={connecting || !configured || !statusesFromApi}
               title={unavailableTitle(configured, status)}
             >
-              {connecting ? "Connexion…" : unavailableLabel(configured)}
+              {connecting ? t("chat.connectors.connecting") : unavailableLabel(configured)}
               {!connecting && configured && (
                 <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
               )}
@@ -137,13 +135,14 @@ export default function ChatConnectorsList({
           <button
             type="button"
             className="chat-connectors-row__slash"
-            title={`Insert ${slash}`}
+            title={t("chat.connectors.insertSlash", { slash })}
             onClick={() => onInsertSlash(slash)}
           >
-            use <span className="chat-connectors-row__slash-cmd">{slash}</span>
+            {t("chat.connectors.use")}{" "}
+            <span className="chat-connectors-row__slash-cmd">{slash}</span>
           </button>
         ) : comingSoon ? (
-          <span className="text-[11px] text-muted-500">Coming soon</span>
+          <span className="text-[11px] text-muted-500">{t("chat.connectors.comingSoon")}</span>
         ) : (
           <button
             type="button"
@@ -152,7 +151,7 @@ export default function ChatConnectorsList({
             disabled={connecting || !configured || !statusesFromApi}
             title={unavailableTitle(configured, status)}
           >
-            {connecting ? "Connecting…" : unavailableLabel(configured)}
+            {connecting ? t("chat.connectors.connecting") : unavailableLabel(configured)}
             {!connecting && configured && (
               <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
             )}

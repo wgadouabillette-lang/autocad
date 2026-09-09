@@ -212,12 +212,12 @@ function findSalonJoinControl(): HTMLElement | null {
 
 function findNotesTab(): HTMLButtonElement | null {
   return document.querySelector<HTMLButtonElement>(
-    '.chat-panel-mode-tabs__btn[aria-label="Notes"]',
+    '.chat-panel-mode-tabs__btn[data-mode="ai-notes"]',
   );
 }
 
 function findExpandButton(): HTMLButtonElement | null {
-  return document.querySelector<HTMLButtonElement>('[aria-label="Expand panel"]');
+  return document.querySelector<HTMLButtonElement>('[data-expand-panel], [aria-label="Expand panel"]');
 }
 
 function prepareBlankLiveNote(): void {

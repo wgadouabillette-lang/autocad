@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { chatPanelModeTabs } from "../../lib/chatPanelModes";
 import type { ChatPanelMode } from "../../lib/voiceAssistPanel";
 import { useCallsStore } from "../../store/useCallsStore";
@@ -8,6 +9,7 @@ import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
 
 export default function ChatPanelModeTabs() {
+  const { t } = useTranslation();
   const chatPanelMode = useStore((s) => s.chatPanelMode);
   const switchChatPanelMode = useStore((s) => s.switchChatPanelMode);
   const activeRoomId = useStore((s) => s.activeRoomId);
@@ -83,31 +85,33 @@ export default function ChatPanelModeTabs() {
           <nav
             className="chat-panel-mode-tabs__nav"
             role="tablist"
-            aria-label="Panel views"
+            aria-label={t("chat.panelViews")}
           >
             {tabs.map((tab) => {
               const active = chatPanelMode === tab.id;
               const Icon = tab.icon;
+              const label = t(tab.labelKey);
               const showUnreadBadge = tab.id === "friends" && hasMessagesBadge;
               return (
                 <button
                   key={tab.id}
                   type="button"
                   role="tab"
+                  data-mode={tab.id}
                   className={clsx("chat-panel-mode-tabs__btn", active && "is-active")}
                   onClick={() => selectTab(tab.id)}
                   aria-selected={active}
                   aria-pressed={active}
                   aria-label={
                     showUnreadBadge
-                      ? `Messages, ${messagesBadgeCount} notification${messagesBadgeCount > 1 ? "s" : ""}`
-                      : tab.label
+                      ? t("chat.messagesBadge", { count: messagesBadgeCount })
+                      : label
                   }
                 >
                   <span className="chat-panel-mode-tabs__icon-wrap">
                     <Icon size={11} aria-hidden />
                   </span>
-                  <span>{tab.label}</span>
+                  <span>{label}</span>
                   {showUnreadBadge && (
                     <span className="chat-panel-mode-tabs__unread-badge" aria-hidden>
                       {messagesBadgeCount}

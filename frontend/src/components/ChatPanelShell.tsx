@@ -1,6 +1,7 @@
 import { AGENT_PANEL_TITLE } from "../lib/appBrand";
 import clsx from "clsx";
 import { useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { isRecordingSession } from "../lib/chatSessionKinds";
 import { isNotesEditorPromoSurface } from "../lib/notesFullscreenPromo";
@@ -24,6 +25,7 @@ import RecordingPlaybackView from "./chat/RecordingPlaybackView";
 const LEAVE_ANIM_MS = 540;
 
 export default function ChatPanelShell() {
+  const { t } = useTranslation();
   const isMobileLayout = useMobileLayout();
   const chatPanelOpen = useStore((s) => s.chatPanelOpen);
   const closeChatPanel = useStore((s) => s.closeChatPanel);
@@ -113,13 +115,13 @@ export default function ChatPanelShell() {
 
   const panelLabel =
     chatPanelMode === "calendar"
-      ? "Calendar"
+      ? t("chat.calendarTitle")
       : chatPanelMode === "friends"
-        ? "Friends"
+        ? t("chat.friends")
         : chatPanelMode === "theater"
-          ? "Theater chat"
+          ? t("chat.theaterChat")
           : isVoiceAssistPanelMode(chatPanelMode)
-            ? "Voice assist"
+            ? t("chat.voiceAssist")
             : AGENT_PANEL_TITLE;
 
   const isOverlay = !isMobileLayout && (chatPanelExpanded || leaving);
@@ -131,7 +133,7 @@ export default function ChatPanelShell() {
         <button
           type="button"
           className="chat-panel-mobile-backdrop"
-          aria-label="Close panel"
+          aria-label={t("chat.closePanel")}
           onClick={closeChatPanel}
         />
       )}

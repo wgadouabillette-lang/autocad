@@ -83,6 +83,7 @@
         font-weight: 500;
         letter-spacing: 0.02em;
         line-height: 1;
+        text-align: center;
         font-variant-numeric: tabular-nums;
         -webkit-app-region: no-drag;
       }
@@ -99,7 +100,7 @@
     <script>
       (function () {
         var params = new URLSearchParams(window.location.search);
-        var version = params.get("v") || "0.1.12";
+        var version = params.get("v") || "0.1.13";
         var versionEl = document.getElementById("version");
         if (versionEl) versionEl.textContent = version;
 

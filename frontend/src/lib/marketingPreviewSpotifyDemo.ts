@@ -252,7 +252,8 @@ function findComposerField(): HTMLTextAreaElement | null {
 }
 
 function findSendButton(): HTMLButtonElement | null {
-  return document.querySelector<HTMLButtonElement>('.chat-composer [aria-label="Send"]');
+  return document.querySelector<HTMLButtonElement>('.chat-composer [data-action="send"]')
+    ?? document.querySelector<HTMLButtonElement>('.chat-composer [aria-label="Send"]');
 }
 
 function findBlindingLightsRow(): HTMLElement | null {
