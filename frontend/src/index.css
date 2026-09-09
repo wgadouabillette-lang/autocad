@@ -5,7 +5,10 @@
 
 :root {
   /* Palette grise neutre (R=G=B) — sans teinte turquoise */
-  --meetra-splash-size: 340px;
+  --meetra-splash-width: 250px;
+  --meetra-splash-height: 300px;
+  --meetra-splash-radius: 22px;
+  --meetra-splash-size: var(--meetra-splash-width);
   --forma-bg: #1a1a1a;
   --forma-main-bg: #121212;
   --forma-shell-bg: #0a0a0a;
@@ -483,13 +486,22 @@ html:not(.app-loading-splash) #root {
   }
   .app-loading-screen__window {
     @apply relative flex shrink-0 flex-col items-center justify-center overflow-hidden;
-    width: var(--meetra-splash-size);
-    height: var(--meetra-splash-size);
-    background-color: var(--forma-content-bg);
+    width: var(--meetra-splash-width);
+    height: var(--meetra-splash-height);
+    padding-bottom: 36px;
+    background-color: var(--forma-calls-bg);
     border: 1px solid var(--forma-border);
-    border-radius: 12px;
+    border-radius: var(--meetra-splash-radius);
     box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
     -webkit-app-region: drag;
+  }
+  .app-loading-screen__window::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--forma-content-bg);
+    clip-path: polygon(100% 0, 100% 100%, 0 100%);
+    pointer-events: none;
   }
   .app-loading-screen__card {
     @apply flex w-full flex-col items-center px-4 text-center;
@@ -515,6 +527,11 @@ html:not(.app-loading-splash) #root {
     border-radius: inherit;
     background-color: rgb(200 200 200 / 0.85);
     will-change: width;
+  }
+  .app-loading-screen__version {
+    @apply absolute inset-x-0 bottom-4 m-0 select-none text-[11px] font-medium tabular-nums tracking-wide;
+    color: #666;
+    line-height: 1;
   }
   .app-loading-screen__progress--indeterminate .app-loading-screen__progress-fill {
     width: 36%;
@@ -799,13 +816,13 @@ html:not(.app-loading-splash) #root {
   }
 
   html.app-loading-splash .auth-page {
-    width: var(--meetra-splash-size);
-    height: var(--meetra-splash-size);
+    width: var(--meetra-splash-width);
+    height: var(--meetra-splash-height);
     min-height: 0;
     margin: 0 auto;
     background-color: var(--forma-content-bg);
     border: 1px solid var(--forma-border);
-    border-radius: 12px;
+    border-radius: var(--meetra-splash-radius);
     box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
     -webkit-app-region: drag;
   }

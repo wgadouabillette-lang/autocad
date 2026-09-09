@@ -1,4 +1,4 @@
-import { APP_DISPLAY_NAME, APP_TAGLINE } from "../lib/appBrand";
+import { APP_DISPLAY_NAME, APP_VERSION } from "../lib/appBrand";
 
 type AppLoadingScreenProps = {
   connectionError?: boolean;
@@ -22,7 +22,6 @@ export default function AppLoadingScreen({
       <div className="app-loading-screen__window">
         <div className="app-loading-screen__card">
           <h1 className="app-loading-screen__title">{APP_DISPLAY_NAME}</h1>
-          <p className="app-loading-screen__subtitle">{APP_TAGLINE}</p>
           {!connectionError ? (
             <div
               className={
@@ -57,6 +56,7 @@ export default function AppLoadingScreen({
             </div>
           ) : null}
         </div>
+        <p className="app-loading-screen__version">{APP_VERSION}</p>
       </div>
     </div>
   );

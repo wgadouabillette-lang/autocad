@@ -1,17 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import clsx from "clsx";
 import { ArrowUpRight, Check, Hash, Pencil, Plus, Trash2, X } from "lucide-react";
-import { resolveClientLocale } from "../../lib/billingCurrency";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../../store/useAuthStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import { useWorkspaceTextChannelsStore, EMPTY_WORKSPACE_TEXT_CHANNELS } from "../../store/useWorkspaceTextChannelsStore";
-
-function workspaceCreateChatLabel(): string {
-  return resolveClientLocale().toLowerCase().startsWith("fr")
-    ? "Créer un chat"
-    : "Create Chat";
-}
 
 interface WorkspaceTextChannelsSectionProps {
   workspaceId: string;
@@ -24,6 +18,7 @@ export default function WorkspaceTextChannelsSection({
   selectedThreadId,
   onOpenChannel,
 }: WorkspaceTextChannelsSectionProps) {
+  const { t } = useTranslation();
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const workspaceThreads = usePeopleStore((s) => s.workspaceChannelThreadsForWorkspace(workspaceId));
   const ensureWorkspaceTextChannelThread = usePeopleStore((s) => s.ensureWorkspaceTextChannelThread);
@@ -70,7 +65,7 @@ export default function WorkspaceTextChannelsSection({
   }, [renamingChannel, workspaceId]);
 
   const isEmpty = visibleChannels.length === 0;
-  const createChatLabel = workspaceCreateChatLabel();
+  const createChatLabel = t("chat.createChat");
 
   const openChannel = (channelId: string, name: string) => {
     const threadId = ensureWorkspaceTextChannelThread(workspaceId, channelId, name);

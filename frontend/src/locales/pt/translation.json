@@ -1,0 +1,138 @@
+{
+  "common": {
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "close": "Fechar",
+    "back": "Voltar",
+    "loading": "Carregando…",
+    "signOut": "Sair",
+    "signIn": "Entrar",
+    "errorGeneric": "Algo deu errado.",
+    "system": "Sistema"
+  },
+  "nav": {
+    "settingsSections": "Seções de configurações",
+    "openSettings": "Abrir configurações"
+  },
+  "settings": {
+    "tabs": {
+      "general": "Geral",
+      "friends": "Amigos",
+      "workspaces": "Workspaces",
+      "usage": "Plano e uso",
+      "billing": "Cobrança",
+      "agents": "Agentes",
+      "audio": "Áudio e vídeo",
+      "models": "Modelos",
+      "plugins": "Plugins"
+    },
+    "descriptions": {
+      "friends": "Amigos e convites.",
+      "workspaces": "Seus workspaces, convites e uso de IA Team.",
+      "usage": "Planos Pro, Pro+ e Team.",
+      "billing": "Plano atual e próxima data de cobrança.",
+      "agents": "Personalize chat, follow-ups e AI Notes.",
+      "models": "Escolha o modelo de IA para geração.",
+      "plugins": "Conectores disponíveis no chat."
+    },
+    "language": {
+      "title": "Idioma",
+      "hint": "Escolha o idioma da interface. O padrão é inglês.",
+      "aria": "Idioma da interface"
+    },
+    "profile": {
+      "changePhoto": "Alterar",
+      "removePhoto": "Remover",
+      "googlePhoto": "Foto do Google",
+      "namePlaceholder": "Seu nome",
+      "color": "Cor",
+      "colorHint": "Acento do perfil, botões e controles.",
+      "colorAria": "Cor de destaque",
+      "availability": "Disponibilidade",
+      "availabilityHint": "Dias e horários em que você está disponível.",
+      "from": "De",
+      "to": "Até",
+      "photoAriaAdd": "Adicionar foto de perfil",
+      "photoAriaChange": "Alterar foto de perfil",
+      "startBeforeEnd": "Deve ser antes do horário de término.",
+      "endAfterStart": "Deve ser depois do horário de início.",
+      "photoError": "Não foi possível salvar a foto.",
+      "removeError": "Não foi possível remover a foto.",
+      "googleError": "Não foi possível usar a foto do Google.",
+      "dayAria": "Disponível {{label}}",
+      "accent": {
+        "blue": "Azul",
+        "emerald": "Esmeralda",
+        "amber": "Âmbar",
+        "cyan": "Ciano"
+      }
+    }
+  },
+  "billing": {
+    "signIn": "Entre para assinar com o Stripe.",
+    "stripeMissing": "Stripe não está configurado no servidor.",
+    "externalCheckout": "O Stripe está aberto em outra aba. Seu plano atualiza automaticamente após a confirmação do pagamento.",
+    "proAria": "Abrir checkout Pro",
+    "proPlusAria": "Abrir checkout Pro+",
+    "teamAria": "Assinar Team para o workspace selecionado",
+    "teamAddSeatsAria": "Adicionar assentos Team",
+    "ctaPro": "Assinar Pro",
+    "ctaProPlus": "Assinar Pro+",
+    "ctaTeam": "Escolher assentos",
+    "ctaCurrent": "Plano atual",
+    "ctaTeamAddSeats": "Adicionar assentos",
+    "ctaOpening": "Abrindo Stripe…",
+    "ctaWaiting": "Aguardando confirmação do Stripe…",
+    "errorSignInPro": "Entre para assinar o Pro.",
+    "errorSignInTeam": "Entre para assinar o Team.",
+    "proPriceFallback": "US$ 33 / mês",
+    "proPlusPriceFallback": "US$ 53 / mês",
+    "teamPriceFallback": "US$ 24 / assento",
+    "plans": {
+      "personal": "Pessoal",
+      "workspace": "Workspace",
+      "proDesc": "Plano pessoal — o mesmo acesso que o Pro+.",
+      "proPlusDesc": "Mesmo acesso que o Pro, com o dobro de crédito.",
+      "teamDesc": "Pague pelo número de assentos que quiser.",
+      "proCredit": "US$ {{amount}} de crédito de IA / mês",
+      "proPlusCredit": "US$ {{amount}} de crédito de IA / mês",
+      "teamCredit": "US$ {{amount}} de crédito por assento / mês",
+      "unlimitedServers": "Servidores pessoais ilimitados",
+      "aiAssistant": "Assistente de IA em todo o Meetra",
+      "aiNotesFollowup": "AI Notes e Follow-up",
+      "aiModelChoice": "Escolha do modelo de IA",
+      "chooseSeats": "Escolha quantos assentos pagar",
+      "aiForMembers": "IA para todos os membros",
+      "workspaceAiNotes": "AI Notes e Follow-up do workspace",
+      "centralizedBilling": "Cobrança centralizada"
+    },
+    "ownedLimitPro": "Servidores pessoais ilimitados com Pro.",
+    "ownedLimitFree": "Até {{limit}} servidores pessoais no plano gratuito. Assine o Pro para criar mais.",
+    "planFree": "Grátis",
+    "planPro": "Pro"
+  },
+  "chat": {
+    "channels": "Canais",
+    "friends": "Amigos",
+    "messages": "Mensagens",
+    "typeMessage": "Digite uma mensagem…",
+    "send": "Enviar",
+    "notesPromoTitle": "Notas automáticas",
+    "notesPromoBody": "Assine o Pro para notas automáticas com Assistência de IA.",
+    "notesPromoCta": "Assinar Pro",
+    "notesPromoAria": "Assinar Pro para notas automáticas",
+    "notesPromoDismiss": "Ocultar promoção",
+    "createChat": "Criar chat"
+  },
+  "calls": {
+    "mute": "Silenciar",
+    "unmute": "Ativar microfone",
+    "leave": "Sair",
+    "camera": "Câmera",
+    "screenShare": "Compartilhar tela",
+    "raiseHand": "Levantar a mão",
+    "micMuted": "Microfone silenciado",
+    "connecting": "Conectando…",
+    "inCall": "Em chamada"
+  }
+}

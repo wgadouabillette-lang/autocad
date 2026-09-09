@@ -1,0 +1,55 @@
+---
+description: How the in-app Boost workspace promo bandeau worked (removed). Restore from this when re-enabling ads/promos in Calls.
+alwaysApply: false
+globs:
+  - frontend/src/components/calls/**
+  - frontend/src/lib/callsWorkspacePromo*
+---
+
+# Calls workspace Boost promo (removed)
+
+In-app “pubs” were **only** this Boost bandeau above voice channels. No AdSense/AdMob. Removed on request; restore via git history + this recipe.
+
+## What it was
+
+- **UI**: `frontend/src/components/calls/CallsWorkspacePromo.tsx` — “Boostez ce workspace” + CTA Boost + dismiss (X).
+- **Dismiss logic**: `frontend/src/lib/callsWorkspacePromo.ts`
+  - localStorage key: `forma-calls-workspace-promo-dismissed-at`
+  - cooldown: 7 days (`CALLS_WORKSPACE_PROMO_COOLDOWN_MS`)
+  - helpers: `isCallsWorkspacePromoDismissed`, `dismissCallsWorkspacePromo`, `clearCallsWorkspacePromoDismissal`
+- **Mount**: `CallsView.tsx` when:
+  - `viewMode === "blocks"`
+  - not in open voice channel
+  - not solo/present media layout
+  - not workspace switching
+  - then class `calls-view__stage--with-promo` + `<CallsWorkspacePromo />`
+- **Hide inside component if**: marketing preview, dismissed (cooldown), `workspaceEnterpriseActive`, or `!enterpriseEnabled` from `useBilling()`.
+- **CTA**: `checkoutEnterprise()` / `prefetchCheckout` from `useBilling()`.
+- **Styles**: `.calls-promo*` block in `frontend/src/index.css` (absolute in stage top padding so voice grid layout doesn’t shift).
+- **Account wipe**: key was listed in `clearLocalAccountData.ts` `LOCAL_STORAGE_PREFIXES`.
+
+## Restore checklist
+
+1. Recover deleted files from git, e.g. before the removal commit:
+   - `git show <parent>:frontend/src/components/calls/CallsWorkspacePromo.tsx`
+   - `git show <parent>:frontend/src/lib/callsWorkspacePromo.ts`
+   - CSS: `.calls-promo*` block lived in `frontend/src/index.css` just after `.calls-view__stage` padding rules (known good tip: commit `e6b44aa`).
+2. In `CallsView.tsx`:
+   ```tsx
+   import CallsWorkspacePromo from "./CallsWorkspacePromo";
+   const showWorkspacePromo =
+     viewMode === "blocks" &&
+     !inOpenChannel &&
+     !showPresentLayout &&
+     !showSoloInCallMedia &&
+     !workspaceSwitching;
+   // on stage:
+   className={clsx("calls-view__stage", ..., showWorkspacePromo && "calls-view__stage--with-promo")}
+   {showWorkspacePromo ? <CallsWorkspacePromo /> : null}
+   ```
+3. Re-add `forma-calls-workspace-promo-dismissed-at` to `clearLocalAccountData.ts` `LOCAL_STORAGE_PREFIXES`.
+4. Leave Stripe / settings plan CTAs alone — those are product billing, not this promo.
+
+## Not pubs (do not remove as “ads”)
+
+- Chat `UpgradeProButton`, settings Plan/Stripe, workspace “Passer à Pro” limits, handoff/calendar banners, theater “promote” (speaker role).

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Camera } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import UserAvatar from "../UserAvatar";
 import { ACCENT_COLOR_OPTIONS, type AccentColorPreference } from "../../lib/accentColor";
-import { resolveClientLocale } from "../../lib/billingCurrency";
+import { intlLocaleForAppLocale, resolveAppLocale } from "../../lib/appLocale";
 import { auth } from "../../lib/firebase/client";
 import { googleProviderPhotoURL } from "../../lib/firebase/profilePhoto";
 import {
@@ -18,53 +19,6 @@ import { useStore } from "../../store/useStore";
 import SettingsPicker, { SettingsTimeInput } from "./SettingsControls";
 
 const ACCEPTED_IMAGE_TYPES = "image/jpeg,image/png,image/webp";
-
-function isFrenchLocale(locale: string): boolean {
-  return locale.toLowerCase().startsWith("fr");
-}
-
-function profileCopy(locale: string) {
-  const fr = isFrenchLocale(locale);
-  return {
-    changePhoto: fr ? "Changer" : "Change",
-    removePhoto: fr ? "Retirer" : "Remove",
-    googlePhoto: fr ? "Photo Google" : "Google photo",
-    namePlaceholder: fr ? "Votre nom" : "Your name",
-    color: fr ? "Couleur" : "Color",
-    colorHint: fr
-      ? "Accent du profil, des boutons et des contrôles."
-      : "Profile accent, buttons, and primary controls.",
-    colorAria: fr ? "Couleur d'accent" : "Accent color",
-    availability: fr ? "Disponibilité" : "Availability",
-    availabilityHint: fr
-      ? "Jours et heures où vous êtes disponible."
-      : "Days and hours you are available.",
-    from: fr ? "De" : "From",
-    to: fr ? "À" : "To",
-    photoAriaAdd: fr ? "Ajouter une photo de profil" : "Add a profile photo",
-    photoAriaChange: fr ? "Changer la photo de profil" : "Change profile photo",
-    startBeforeEnd: fr ? "Doit être avant l'heure de fin." : "Must be before the end time.",
-    endAfterStart: fr ? "Doit être après l'heure de début." : "Must be after the start time.",
-    photoError: fr ? "Impossible d'enregistrer la photo." : "Could not save the photo.",
-    removeError: fr ? "Impossible de retirer la photo." : "Could not remove the photo.",
-    googleError: fr ? "Impossible d'utiliser la photo Google." : "Could not use the Google photo.",
-    dayAria: (label: string) =>
-      fr ? `Disponible ${label}` : `Available ${label}`,
-  };
-}
-
-function accentTitle(id: AccentColorPreference, fr: boolean): string {
-  if (!fr) {
-    return ACCENT_COLOR_OPTIONS.find((option) => option.id === id)?.title ?? id;
-  }
-  const titles: Record<AccentColorPreference, string> = {
-    blue: "Bleu",
-    emerald: "Émeraude",
-    amber: "Ambre",
-    cyan: "Cyan",
-  };
-  return titles[id];
-}
 
 function weekdayChipLabels(locale: string): { day: number; label: string; full: string }[] {
   const resolved = locale.trim() || "en-US";
@@ -95,10 +49,10 @@ function weekdayChipLabels(locale: string): { day: number; label: string; full: 
 }
 
 export default function SettingsProfileCard() {
-  const locale = resolveClientLocale();
-  const copy = useMemo(() => profileCopy(locale), [locale]);
-  const fr = isFrenchLocale(locale);
-  const weekdayLabels = useMemo(() => weekdayChipLabels(locale), [locale]);
+  const { t } = useTranslation();
+  const localePref = useStore((s) => s.locale);
+  const intlLocale = intlLocaleForAppLocale(resolveAppLocale(localePref));
+  const weekdayLabels = useMemo(() => weekdayChipLabels(intlLocale), [intlLocale]);
 
   const userDisplayName = useStore((s) => s.userDisplayName);
   const setUserDisplayName = useStore((s) => s.setUserDisplayName);
@@ -162,7 +116,7 @@ export default function SettingsProfileCard() {
     try {
       await uploadAndSyncProfilePhoto(file);
     } catch (error) {
-      setPhotoError(error instanceof Error ? error.message : copy.photoError);
+      setPhotoError(error instanceof Error ? error.message : t("settings.profile.photoError"));
     } finally {
       setPhotoBusy(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -175,7 +129,7 @@ export default function SettingsProfileCard() {
     try {
       await removeAndSyncProfilePhoto();
     } catch (error) {
-      setPhotoError(error instanceof Error ? error.message : copy.removeError);
+      setPhotoError(error instanceof Error ? error.message : t("settings.profile.removeError"));
     } finally {
       setPhotoBusy(false);
     }
@@ -187,7 +141,7 @@ export default function SettingsProfileCard() {
     try {
       await restoreGoogleProfilePhoto();
     } catch (error) {
-      setPhotoError(error instanceof Error ? error.message : copy.googleError);
+      setPhotoError(error instanceof Error ? error.message : t("settings.profile.googleError"));
     } finally {
       setPhotoBusy(false);
     }
@@ -199,7 +153,7 @@ export default function SettingsProfileCard() {
     const parsed = parseCalendarWorkTimeInput(value, startMinutes);
     const next = resolveCalendarWorkingHours(parsed, endMinutes);
     if (next.endMinutes <= next.startMinutes) {
-      setStartError(copy.startBeforeEnd);
+      setStartError(t("settings.profile.startBeforeEnd"));
       return;
     }
     setCalendarWorkingHours(next.startMinutes, next.endMinutes);
@@ -211,7 +165,7 @@ export default function SettingsProfileCard() {
     const parsed = parseCalendarWorkTimeInput(value, endMinutes);
     const next = resolveCalendarWorkingHours(startMinutes, parsed);
     if (next.endMinutes <= next.startMinutes) {
-      setEndError(copy.endAfterStart);
+      setEndError(t("settings.profile.endAfterStart"));
       return;
     }
     setCalendarWorkingHours(next.startMinutes, next.endMinutes);
@@ -238,7 +192,7 @@ export default function SettingsProfileCard() {
               className="settings-profile-photo__trigger settings-profile-card__avatar-btn"
               disabled={photoBusy || !isAuthenticated}
               onClick={() => fileInputRef.current?.click()}
-              aria-label={photoURL ? copy.photoAriaChange : copy.photoAriaAdd}
+              aria-label={photoURL ? t("settings.profile.photoAriaChange") : t("settings.profile.photoAriaAdd")}
             >
               <UserAvatar
                 userId="local"
@@ -257,7 +211,7 @@ export default function SettingsProfileCard() {
                 disabled={photoBusy || !isAuthenticated}
                 onClick={() => fileInputRef.current?.click()}
               >
-                {copy.changePhoto}
+                {t("settings.profile.changePhoto")}
               </button>
               {showGooglePhoto ? (
                 <button
@@ -266,7 +220,7 @@ export default function SettingsProfileCard() {
                   disabled={photoBusy || !isAuthenticated}
                   onClick={() => void handleGooglePhoto()}
                 >
-                  {copy.googlePhoto}
+                  {t("settings.profile.googlePhoto")}
                 </button>
               ) : null}
               {photoURL ? (
@@ -276,7 +230,7 @@ export default function SettingsProfileCard() {
                   disabled={photoBusy || !isAuthenticated}
                   onClick={() => void handleRemovePhoto()}
                 >
-                  {copy.removePhoto}
+                  {t("settings.profile.removePhoto")}
                 </button>
               ) : null}
             </div>
@@ -292,7 +246,7 @@ export default function SettingsProfileCard() {
           {photoError ? <p className="settings-profile-card__error">{photoError}</p> : null}
 
           <label className="settings-profile-card__name-wrap" id="account-name">
-            <span className="sr-only">{copy.namePlaceholder}</span>
+            <span className="sr-only">{t("settings.profile.namePlaceholder")}</span>
             <input
               type="text"
               className="settings-profile-card__name"
@@ -302,7 +256,7 @@ export default function SettingsProfileCard() {
               onKeyDown={(event) => {
                 if (event.key === "Enter") event.currentTarget.blur();
               }}
-              placeholder={copy.namePlaceholder}
+              placeholder={t("settings.profile.namePlaceholder")}
             />
           </label>
           <p className="settings-profile-card__email" id="account-email">
@@ -315,12 +269,12 @@ export default function SettingsProfileCard() {
 
       <section className="settings-profile-card__block" id="accent-color">
         <div className="settings-profile-card__block-head">
-          <h3 className="settings-profile-card__label">{copy.color}</h3>
-          <p className="settings-profile-card__hint">{copy.colorHint}</p>
+          <h3 className="settings-profile-card__label">{t("settings.profile.color")}</h3>
+          <p className="settings-profile-card__hint">{t("settings.profile.colorHint")}</p>
         </div>
         <SettingsPicker
           value={accentColor}
-          ariaLabel={copy.colorAria}
+          ariaLabel={t("settings.profile.colorAria")}
           prefix={
             <span
               className="settings-picker__swatch"
@@ -329,7 +283,7 @@ export default function SettingsProfileCard() {
           }
           options={ACCENT_COLOR_OPTIONS.map((option) => ({
             value: option.id,
-            label: accentTitle(option.id, fr),
+            label: t(`settings.profile.accent.${option.id}`),
           }))}
           onChange={(value) => setAccentColor(value as AccentColorPreference)}
         />
@@ -339,10 +293,10 @@ export default function SettingsProfileCard() {
 
       <section className="settings-profile-card__block" id="availability-hours">
         <div className="settings-profile-card__block-head">
-          <h3 className="settings-profile-card__label">{copy.availability}</h3>
-          <p className="settings-profile-card__hint">{copy.availabilityHint}</p>
+          <h3 className="settings-profile-card__label">{t("settings.profile.availability")}</h3>
+          <p className="settings-profile-card__hint">{t("settings.profile.availabilityHint")}</p>
         </div>
-        <div className="settings-profile-card__days" role="group" aria-label={copy.availability}>
+        <div className="settings-profile-card__days" role="group" aria-label={t("settings.profile.availability")}>
           {weekdayLabels.map((entry) => {
             const on = availabilityDays.includes(entry.day);
             return (
@@ -355,7 +309,7 @@ export default function SettingsProfileCard() {
                     : "settings-profile-card__day"
                 }
                 aria-pressed={on}
-                aria-label={copy.dayAria(entry.full)}
+                aria-label={t("settings.profile.dayAria", { label: entry.full })}
                 onClick={() =>
                   setAvailabilityDays(toggleAvailabilityDay(availabilityDays, entry.day))
                 }
@@ -367,18 +321,18 @@ export default function SettingsProfileCard() {
         </div>
         <div className="settings-profile-card__hours">
           <label className="settings-profile-card__time">
-            <span>{copy.from}</span>
+            <span>{t("settings.profile.from")}</span>
             <SettingsTimeInput
               value={startTime}
-              ariaLabel={copy.from}
+              ariaLabel={t("settings.profile.from")}
               onChange={handleStartChange}
             />
           </label>
           <label className="settings-profile-card__time">
-            <span>{copy.to}</span>
+            <span>{t("settings.profile.to")}</span>
             <SettingsTimeInput
               value={endTime}
-              ariaLabel={copy.to}
+              ariaLabel={t("settings.profile.to")}
               onChange={handleEndChange}
             />
           </label>

@@ -1,0 +1,138 @@
+{
+  "common": {
+    "cancel": "取消",
+    "save": "保存",
+    "close": "关闭",
+    "back": "返回",
+    "loading": "加载中…",
+    "signOut": "退出登录",
+    "signIn": "登录",
+    "errorGeneric": "出了点问题。",
+    "system": "系统"
+  },
+  "nav": {
+    "settingsSections": "设置分区",
+    "openSettings": "打开设置"
+  },
+  "settings": {
+    "tabs": {
+      "general": "通用",
+      "friends": "好友",
+      "workspaces": "工作区",
+      "usage": "套餐与用量",
+      "billing": "账单",
+      "agents": "智能体",
+      "audio": "音频与视频",
+      "models": "模型",
+      "plugins": "插件"
+    },
+    "descriptions": {
+      "friends": "好友与邀请。",
+      "workspaces": "你的工作区、邀请与 Team AI 用量。",
+      "usage": "Pro、Pro+ 与 Team 套餐。",
+      "billing": "当前套餐与下次扣款日期。",
+      "agents": "自定义聊天、跟进与 AI Notes。",
+      "models": "选择用于生成的 AI 模型。",
+      "plugins": "聊天中可用的连接器。"
+    },
+    "language": {
+      "title": "语言",
+      "hint": "选择界面语言。默认为英语。",
+      "aria": "界面语言"
+    },
+    "profile": {
+      "changePhoto": "更换",
+      "removePhoto": "移除",
+      "googlePhoto": "Google 照片",
+      "namePlaceholder": "你的姓名",
+      "color": "颜色",
+      "colorHint": "个人资料、按钮与控件的强调色。",
+      "colorAria": "强调色",
+      "availability": "可用时间",
+      "availabilityHint": "你可联系的日期与时段。",
+      "from": "从",
+      "to": "到",
+      "photoAriaAdd": "添加头像",
+      "photoAriaChange": "更换头像",
+      "startBeforeEnd": "必须早于结束时间。",
+      "endAfterStart": "必须晚于开始时间。",
+      "photoError": "无法保存照片。",
+      "removeError": "无法移除照片。",
+      "googleError": "无法使用 Google 照片。",
+      "dayAria": "{{label}} 可用",
+      "accent": {
+        "blue": "蓝色",
+        "emerald": "翠绿",
+        "amber": "琥珀",
+        "cyan": "青色"
+      }
+    }
+  },
+  "billing": {
+    "signIn": "登录后通过 Stripe 订阅。",
+    "stripeMissing": "服务器未配置 Stripe。",
+    "externalCheckout": "Stripe 已在其他标签页打开。付款确认后套餐会自动更新。",
+    "proAria": "打开 Pro 结账",
+    "proPlusAria": "打开 Pro+ 结账",
+    "teamAria": "为所选工作区订阅 Team",
+    "teamAddSeatsAria": "添加 Team 席位",
+    "ctaPro": "升级到 Pro",
+    "ctaProPlus": "升级到 Pro+",
+    "ctaTeam": "选择席位",
+    "ctaCurrent": "当前套餐",
+    "ctaTeamAddSeats": "添加席位",
+    "ctaOpening": "正在打开 Stripe…",
+    "ctaWaiting": "等待 Stripe 确认…",
+    "errorSignInPro": "登录后订阅 Pro。",
+    "errorSignInTeam": "登录后订阅 Team。",
+    "proPriceFallback": "$33 / 月",
+    "proPlusPriceFallback": "$53 / 月",
+    "teamPriceFallback": "$24 / 席位",
+    "plans": {
+      "personal": "个人",
+      "workspace": "工作区",
+      "proDesc": "个人套餐 — 与 Pro+ 相同权限。",
+      "proPlusDesc": "与 Pro 相同权限，可用额度翻倍。",
+      "teamDesc": "按所需席位数量付费。",
+      "proCredit": "每月 ${{amount}} AI 额度",
+      "proPlusCredit": "每月 ${{amount}} AI 额度",
+      "teamCredit": "每席位每月 ${{amount}} 额度",
+      "unlimitedServers": "无限个人服务器",
+      "aiAssistant": "Meetra 全站 AI 助手",
+      "aiNotesFollowup": "AI Notes 与 Follow-up",
+      "aiModelChoice": "可选 AI 模型",
+      "chooseSeats": "选择付费席位数",
+      "aiForMembers": "全体成员可用 AI",
+      "workspaceAiNotes": "工作区 AI Notes 与 Follow-up",
+      "centralizedBilling": "集中计费"
+    },
+    "ownedLimitPro": "Pro 可创建无限个人服务器。",
+    "ownedLimitFree": "免费套餐最多 {{limit}} 个个人服务器。升级 Pro 可创建更多。",
+    "planFree": "免费",
+    "planPro": "Pro"
+  },
+  "chat": {
+    "channels": "频道",
+    "friends": "好友",
+    "messages": "消息",
+    "typeMessage": "输入消息…",
+    "send": "发送",
+    "notesPromoTitle": "自动笔记",
+    "notesPromoBody": "升级到 Pro，使用 AI 助手自动生成笔记。",
+    "notesPromoCta": "升级到 Pro",
+    "notesPromoAria": "升级到 Pro 以获取自动笔记",
+    "notesPromoDismiss": "隐藏推广",
+    "createChat": "创建聊天"
+  },
+  "calls": {
+    "mute": "静音",
+    "unmute": "取消静音",
+    "leave": "离开",
+    "camera": "摄像头",
+    "screenShare": "共享屏幕",
+    "raiseHand": "举手",
+    "micMuted": "麦克风已静音",
+    "connecting": "连接中…",
+    "inCall": "通话中"
+  }
+}

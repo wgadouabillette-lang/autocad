@@ -1,0 +1,138 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "close": "Close",
+    "back": "Back",
+    "loading": "Loading…",
+    "signOut": "Sign out",
+    "signIn": "Sign in",
+    "errorGeneric": "Something went wrong.",
+    "system": "System"
+  },
+  "nav": {
+    "settingsSections": "Settings sections",
+    "openSettings": "Open settings"
+  },
+  "settings": {
+    "tabs": {
+      "general": "General",
+      "friends": "Friends",
+      "workspaces": "Workspaces",
+      "usage": "Plan & Usage",
+      "billing": "Billing",
+      "agents": "Agents",
+      "audio": "Audio & Video",
+      "models": "Models",
+      "plugins": "Plugins"
+    },
+    "descriptions": {
+      "friends": "Friends and invitations.",
+      "workspaces": "Your workspaces, invitations, and Team AI usage.",
+      "usage": "Pro, Pro+, and Team plans.",
+      "billing": "Current plan and next billing date.",
+      "agents": "Customize chat, follow-ups, and AI Notes.",
+      "models": "Choose the AI model for generation.",
+      "plugins": "Connectors available in chat."
+    },
+    "language": {
+      "title": "Language",
+      "hint": "Choose the interface language. Default is English.",
+      "aria": "Interface language"
+    },
+    "profile": {
+      "changePhoto": "Change",
+      "removePhoto": "Remove",
+      "googlePhoto": "Google photo",
+      "namePlaceholder": "Your name",
+      "color": "Color",
+      "colorHint": "Profile accent, buttons, and primary controls.",
+      "colorAria": "Accent color",
+      "availability": "Availability",
+      "availabilityHint": "Days and hours you are available.",
+      "from": "From",
+      "to": "To",
+      "photoAriaAdd": "Add a profile photo",
+      "photoAriaChange": "Change profile photo",
+      "startBeforeEnd": "Must be before the end time.",
+      "endAfterStart": "Must be after the start time.",
+      "photoError": "Could not save the photo.",
+      "removeError": "Could not remove the photo.",
+      "googleError": "Could not use the Google photo.",
+      "dayAria": "Available {{label}}",
+      "accent": {
+        "blue": "Blue",
+        "emerald": "Emerald",
+        "amber": "Amber",
+        "cyan": "Cyan"
+      }
+    }
+  },
+  "billing": {
+    "signIn": "Sign in to subscribe with Stripe.",
+    "stripeMissing": "Stripe is not configured on the server — add keys in backend/.env.",
+    "externalCheckout": "Stripe is open in another tab. Your plan updates automatically once payment is confirmed.",
+    "proAria": "Open Pro checkout",
+    "proPlusAria": "Open Pro+ checkout",
+    "teamAria": "Subscribe to Team for the selected workspace",
+    "teamAddSeatsAria": "Add Team seats for more usage",
+    "ctaPro": "Upgrade to Pro",
+    "ctaProPlus": "Upgrade to Pro+",
+    "ctaTeam": "Choose seats",
+    "ctaCurrent": "Current plan",
+    "ctaTeamAddSeats": "Add Seats",
+    "ctaOpening": "Opening Stripe…",
+    "ctaWaiting": "Waiting for Stripe confirmation…",
+    "errorSignInPro": "Sign in to subscribe to Pro.",
+    "errorSignInTeam": "Sign in to subscribe to Team.",
+    "proPriceFallback": "$33 / month",
+    "proPlusPriceFallback": "$53 / month",
+    "teamPriceFallback": "$24 / seat",
+    "plans": {
+      "personal": "Personal",
+      "workspace": "Workspace",
+      "proDesc": "Personal plan — the same access as Pro+.",
+      "proPlusDesc": "Same access as Pro, with double usable credit.",
+      "teamDesc": "Pay for the number of seats you want.",
+      "proCredit": "${{amount}} usable AI credit / month",
+      "proPlusCredit": "${{amount}} usable AI credit / month",
+      "teamCredit": "${{amount}} usable credit per seat / month",
+      "unlimitedServers": "Unlimited personal servers",
+      "aiAssistant": "AI assistant across Meetra",
+      "aiNotesFollowup": "AI Notes and Follow-up",
+      "aiModelChoice": "Choice of AI model",
+      "chooseSeats": "Choose how many seats to pay for",
+      "aiForMembers": "AI for every workspace member",
+      "workspaceAiNotes": "Workspace AI Notes and Follow-up",
+      "centralizedBilling": "Centralized billing"
+    },
+    "ownedLimitPro": "Unlimited personal servers with Pro.",
+    "ownedLimitFree": "Up to {{limit}} personal servers on the free plan. Upgrade to Pro to create more.",
+    "planFree": "Free",
+    "planPro": "Pro"
+  },
+  "chat": {
+    "channels": "Channels",
+    "friends": "Friends",
+    "messages": "Messages",
+    "typeMessage": "Type a message…",
+    "send": "Send",
+    "notesPromoTitle": "Automatic notes",
+    "notesPromoBody": "Upgrade to Pro for automatic notes with AI Assistance.",
+    "notesPromoCta": "Upgrade to Pro",
+    "notesPromoAria": "Upgrade to Pro for automatic notes",
+    "notesPromoDismiss": "Hide promotion",
+    "createChat": "Create Chat"
+  },
+  "calls": {
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "leave": "Leave",
+    "camera": "Camera",
+    "screenShare": "Share screen",
+    "raiseHand": "Raise hand",
+    "micMuted": "Microphone muted",
+    "connecting": "Connecting…",
+    "inCall": "In call"
+  }
+}

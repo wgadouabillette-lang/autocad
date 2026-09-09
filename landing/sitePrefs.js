@@ -22,13 +22,19 @@
     );
   }
 
+  var SUPPORTED = { en:1, fr:1, es:1, de:1, pt:1, it:1, ja:1, zh:1 };
+
+  function normalizeLocale(locale) {
+    var code = String(locale || DEFAULT_LANG).toLowerCase().split("-")[0];
+    return SUPPORTED[code] ? code : DEFAULT_LANG;
+  }
+
   function getLocale() {
-    var stored = localStorage.getItem(LANG_KEY);
-    return stored === "fr" ? "fr" : DEFAULT_LANG;
+    return normalizeLocale(localStorage.getItem(LANG_KEY));
   }
 
   function setLocale(locale) {
-    var next = locale === "fr" ? "fr" : DEFAULT_LANG;
+    var next = normalizeLocale(locale);
     localStorage.setItem(LANG_KEY, next);
     document.documentElement.lang = next;
     if (window.HallLandingI18n) {

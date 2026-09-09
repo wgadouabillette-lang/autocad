@@ -34,6 +34,11 @@ import {
   type SidePanelSide,
   type UserPreferences,
 } from "../lib/userPreferences";
+import {
+  normalizeLocalePreference,
+  type LocalePreference,
+} from "../lib/appLocale";
+import { applyAppLocale } from "../lib/i18n";
 import { normalizeHallDjGenre } from "../lib/hallDjGenres";
 import { hasAiAccess, type SubscriptionPlan } from "../lib/subscriptionPlans";
 import type { AnySettingsTab, SettingsTab } from "../lib/settingsSearchSuggestions";
@@ -409,6 +414,7 @@ interface State {
   audioEchoCancellation: boolean;
   audioNoiseSuppression: boolean;
   sidePanelSide: SidePanelSide;
+  locale: LocalePreference;
   colorTheme: ColorThemePreference;
   accentColor: AccentColorPreference;
   subscriptionPlan: SubscriptionPlan;
@@ -446,6 +452,7 @@ interface State {
   setAudioEchoCancellation: (enabled: boolean) => void;
   setAudioNoiseSuppression: (enabled: boolean) => void;
   setSidePanelSide: (side: SidePanelSide) => void;
+  setLocale: (locale: LocalePreference) => void;
   setAccentColor: (accent: AccentColorPreference) => void;
   setUserDisplayName: (name: string) => void;
   setUserEmail: (email: string) => void;
@@ -622,6 +629,7 @@ function userPreferencesSnapshot(state: {
   audioNoiseSuppression: boolean;
   chatPanelOpen: boolean;
   sidePanelSide: SidePanelSide;
+  locale: LocalePreference;
   colorTheme: ColorThemePreference;
   accentColor: AccentColorPreference;
   subscriptionPlan: SubscriptionPlan;
@@ -655,6 +663,7 @@ function userPreferencesSnapshot(state: {
     audioNoiseSuppression: state.audioNoiseSuppression,
     chatPanelOpen: state.chatPanelOpen,
     sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
+    locale: normalizeLocalePreference(state.locale),
     colorTheme: state.colorTheme,
     accentColor: state.accentColor,
     subscriptionPlan: state.subscriptionPlan,
@@ -805,6 +814,13 @@ export const useStore = create<State>((set, get) => ({
     const normalized = normalizeSidePanelSide(side);
     set({ sidePanelSide: normalized });
     writeUserPreferences(userPreferencesSnapshot({ ...get(), sidePanelSide: normalized }));
+  },
+
+  setLocale: (locale) => {
+    const normalized = normalizeLocalePreference(locale);
+    set({ locale: normalized });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), locale: normalized }));
+    applyAppLocale(normalized);
   },
 
   setAccentColor: (accent) => {

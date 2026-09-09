@@ -62,7 +62,10 @@
   function languageMenuHtml() {
     var locale = window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en";
     var checkIcon = window.HallFooterIcons ? window.HallFooterIcons.icon("check") : "";
-    return ["en", "fr"]
+    var codes = window.HallLandingI18n
+      ? Object.keys(window.HallLandingI18n.LOCALES)
+      : ["en", "fr", "es", "de", "pt", "it", "ja", "zh"];
+    return codes
       .map(function (code) {
         var selected = code === locale;
         return (

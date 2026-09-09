@@ -43,6 +43,8 @@ import {
   type SidePanelSide,
   type UserPreferences,
 } from "../lib/userPreferences";
+import { normalizeLocalePreference } from "../lib/appLocale";
+import { applyAppLocale } from "../lib/i18n";
 import { normalizeHallDjGenre } from "../lib/hallDjGenres";
 import { applyDocumentAccentColor, normalizeAccentColorPreference } from "../lib/accentColor";
 import { applyDocumentTheme, normalizeColorThemePreference } from "../lib/theme";
@@ -179,6 +181,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
   const availabilityDays = normalizeAvailabilityDays(
     profile.availabilityDays ?? currentState.availabilityDays,
   );
+  const locale = normalizeLocalePreference(profile.locale ?? currentState.locale);
   useStore.setState({
     chatWorkMode: profile.chatWorkMode,
     autoWorkModeSwitch: profile.autoWorkModeSwitch,
@@ -194,6 +197,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
     audioNoiseSuppression: profile.audioNoiseSuppression !== false,
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide,
+    locale,
     colorTheme: normalizeColorThemePreference(profile.colorTheme ?? currentState.colorTheme),
     accentColor: normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
     subscriptionPlan,
@@ -215,7 +219,9 @@ function applyLocalProfile(profile: UserProfileDoc) {
     normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
   );
   applyDocumentTheme(normalizeColorThemePreference(profile.colorTheme ?? currentState.colorTheme));
+  applyAppLocale(locale);
   writeUserPreferences({
+    locale,
     chatWorkMode: profile.chatWorkMode,
     autoWorkModeSwitch: profile.autoWorkModeSwitch,
     userDisplayName: profile.userDisplayName,
@@ -271,6 +277,7 @@ function profileFromStore(user: User): UserProfileDoc {
     audioNoiseSuppression: state.audioNoiseSuppression,
     chatPanelOpen: state.chatPanelOpen,
     sidePanelSide: normalizeSidePanelSide(state.sidePanelSide),
+    locale: normalizeLocalePreference(state.locale),
     colorTheme: state.colorTheme,
     accentColor: state.accentColor,
     agentChatInstructions: state.agentChatInstructions,
@@ -305,6 +312,7 @@ function profileSyncKey(profile: UserProfileDoc): string {
     recordingCameraMirrorPreview: profile.recordingCameraMirrorPreview !== false,
     chatPanelOpen: profile.chatPanelOpen,
     sidePanelSide: profile.sidePanelSide,
+    locale: profile.locale ?? null,
     colorTheme: profile.colorTheme,
     accentColor: profile.accentColor ?? null,
     agentChatInstructions: profile.agentChatInstructions ?? "",
@@ -936,6 +944,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 export function currentUserPreferencesSnapshot(): UserPreferences {
   const state = useStore.getState();
   return {
+    locale: normalizeLocalePreference(state.locale),
     chatWorkMode: state.chatWorkMode,
     autoWorkModeSwitch: state.autoWorkModeSwitch,
     userDisplayName: state.userDisplayName,

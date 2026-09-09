@@ -1,0 +1,138 @@
+{
+  "common": {
+    "cancel": "キャンセル",
+    "save": "保存",
+    "close": "閉じる",
+    "back": "戻る",
+    "loading": "読み込み中…",
+    "signOut": "サインアウト",
+    "signIn": "サインイン",
+    "errorGeneric": "問題が発生しました。",
+    "system": "システム"
+  },
+  "nav": {
+    "settingsSections": "設定セクション",
+    "openSettings": "設定を開く"
+  },
+  "settings": {
+    "tabs": {
+      "general": "一般",
+      "friends": "友達",
+      "workspaces": "ワークスペース",
+      "usage": "プランと利用量",
+      "billing": "請求",
+      "agents": "エージェント",
+      "audio": "オーディオとビデオ",
+      "models": "モデル",
+      "plugins": "プラグイン"
+    },
+    "descriptions": {
+      "friends": "友達と招待。",
+      "workspaces": "ワークスペース、招待、Team AI の利用。",
+      "usage": "Pro、Pro+、Team プラン。",
+      "billing": "現在のプランと次回請求日。",
+      "agents": "チャット、フォローアップ、AI Notes をカスタマイズ。",
+      "models": "生成に使う AI モデルを選択。",
+      "plugins": "チャットで使えるコネクタ。"
+    },
+    "language": {
+      "title": "言語",
+      "hint": "インターフェースの言語を選択します。デフォルトは英語です。",
+      "aria": "インターフェース言語"
+    },
+    "profile": {
+      "changePhoto": "変更",
+      "removePhoto": "削除",
+      "googlePhoto": "Google の写真",
+      "namePlaceholder": "名前",
+      "color": "カラー",
+      "colorHint": "プロフィール、ボタン、コントロールのアクセント。",
+      "colorAria": "アクセントカラー",
+      "availability": "空き状況",
+      "availabilityHint": "対応可能な曜日と時間。",
+      "from": "開始",
+      "to": "終了",
+      "photoAriaAdd": "プロフィール写真を追加",
+      "photoAriaChange": "プロフィール写真を変更",
+      "startBeforeEnd": "終了時刻より前である必要があります。",
+      "endAfterStart": "開始時刻より後である必要があります。",
+      "photoError": "写真を保存できませんでした。",
+      "removeError": "写真を削除できませんでした。",
+      "googleError": "Google の写真を使えませんでした。",
+      "dayAria": "{{label}} に対応可能",
+      "accent": {
+        "blue": "ブルー",
+        "emerald": "エメラルド",
+        "amber": "アンバー",
+        "cyan": "シアン"
+      }
+    }
+  },
+  "billing": {
+    "signIn": "Stripe で契約するにはサインインしてください。",
+    "stripeMissing": "サーバーに Stripe が設定されていません。",
+    "externalCheckout": "Stripe が別タブで開いています。支払い確認後にプランが自動更新されます。",
+    "proAria": "Pro チェックアウトを開く",
+    "proPlusAria": "Pro+ チェックアウトを開く",
+    "teamAria": "選択中のワークスペースで Team を契約",
+    "teamAddSeatsAria": "Team シートを追加",
+    "ctaPro": "Pro にアップグレード",
+    "ctaProPlus": "Pro+ にアップグレード",
+    "ctaTeam": "シートを選択",
+    "ctaCurrent": "現在のプラン",
+    "ctaTeamAddSeats": "シートを追加",
+    "ctaOpening": "Stripe を開いています…",
+    "ctaWaiting": "Stripe の確認を待っています…",
+    "errorSignInPro": "Pro を契約するにはサインインしてください。",
+    "errorSignInTeam": "Team を契約するにはサインインしてください。",
+    "proPriceFallback": "月額 $33",
+    "proPlusPriceFallback": "月額 $53",
+    "teamPriceFallback": "シートあたり $24",
+    "plans": {
+      "personal": "個人",
+      "workspace": "ワークスペース",
+      "proDesc": "個人プラン — Pro+ と同じアクセス。",
+      "proPlusDesc": "Pro と同じアクセスでクレジットが 2 倍。",
+      "teamDesc": "必要なシート数分だけ支払います。",
+      "proCredit": "月額 ${{amount}} の AI クレジット",
+      "proPlusCredit": "月額 ${{amount}} の AI クレジット",
+      "teamCredit": "シートあたり月額 ${{amount}} クレジット",
+      "unlimitedServers": "個人サーバー無制限",
+      "aiAssistant": "Meetra 全体の AI アシスタント",
+      "aiNotesFollowup": "AI Notes と Follow-up",
+      "aiModelChoice": "AI モデルの選択",
+      "chooseSeats": "支払うシート数を選択",
+      "aiForMembers": "全メンバー向け AI",
+      "workspaceAiNotes": "ワークスペースの AI Notes と Follow-up",
+      "centralizedBilling": "一括請求"
+    },
+    "ownedLimitPro": "Pro で個人サーバー無制限。",
+    "ownedLimitFree": "無料プランでは個人サーバー最大 {{limit}} 台。さらに作成するには Pro へ。",
+    "planFree": "無料",
+    "planPro": "Pro"
+  },
+  "chat": {
+    "channels": "チャンネル",
+    "friends": "友達",
+    "messages": "メッセージ",
+    "typeMessage": "メッセージを入力…",
+    "send": "送信",
+    "notesPromoTitle": "自動メモ",
+    "notesPromoBody": "AI アシスタンスによる自動メモは Pro へアップグレード。",
+    "notesPromoCta": "Pro にアップグレード",
+    "notesPromoAria": "自動メモのために Pro へ",
+    "notesPromoDismiss": "プロモーションを非表示",
+    "createChat": "チャットを作成"
+  },
+  "calls": {
+    "mute": "ミュート",
+    "unmute": "ミュート解除",
+    "leave": "退出",
+    "camera": "カメラ",
+    "screenShare": "画面共有",
+    "raiseHand": "挙手",
+    "micMuted": "マイクがミュートです",
+    "connecting": "接続中…",
+    "inCall": "通話中"
+  }
+}

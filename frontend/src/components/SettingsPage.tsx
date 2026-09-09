@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import {
   normalizeSettingsTab,
   type SettingsTab,
@@ -33,30 +34,6 @@ import WorkspacesSettingsSection from "./settings/WorkspacesSettingsSection";
 type NavItem =
   | { kind: "tab"; id: SettingsTab; label: string }
   | { kind: "separator" };
-
-const TAB_TITLES: Record<SettingsTab, string> = {
-  general: "General",
-  friends: "Friends",
-  workspaces: "Workspaces",
-  usage: "Plan & Usage",
-  billing: "Billing",
-  agents: "Agents",
-  audio: "Audio & Video",
-  models: "Models",
-  plugins: "Plugins",
-};
-
-const TAB_DESCRIPTIONS: Record<SettingsTab, string> = {
-  general: "",
-  friends: "Amis et invitations.",
-  workspaces: "Vos workspaces, invitations et consommation IA Entreprise.",
-  usage: "Forfaits Pro, Pro+ et Team.",
-  billing: "Forfait actuel et date de prochain prélèvement.",
-  agents: "Personnalisation du chat, des follow-ups et des AI Notes.",
-  audio: "",
-  models: "Choix du modèle IA pour la génération.",
-  plugins: "Connecteurs utilisables dans le chat.",
-};
 
 const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
   general: Settings,
@@ -82,26 +59,8 @@ const TAB_PANELS: Record<SettingsTab, () => JSX.Element> = {
   plugins: PluginsSettingsSection,
 };
 
-function buildNav(): NavItem[] {
-  const items: NavItem[] = [
-    { kind: "tab", id: "general", label: "General" },
-    { kind: "tab", id: "friends", label: "Friends" },
-    { kind: "tab", id: "workspaces", label: "Workspaces" },
-  ];
-  items.push(
-    { kind: "separator" },
-    { kind: "tab", id: "plugins", label: "Plugins" },
-    { kind: "tab", id: "agents", label: "Agents" },
-    { kind: "tab", id: "models", label: "Models" },
-    { kind: "tab", id: "audio", label: "Audio & Video" },
-    { kind: "separator" },
-    { kind: "tab", id: "usage", label: "Plan & Usage" },
-    { kind: "tab", id: "billing", label: "Billing" },
-  );
-  return items;
-}
-
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const activeTab = useStore((s) => s.settingsTab);
   const settingsScrollTarget = useStore((s) => s.settingsScrollTarget);
   const clearSettingsScrollTarget = useStore((s) => s.clearSettingsScrollTarget);
@@ -109,7 +68,32 @@ export default function SettingsPage() {
   const closePage = useStore((s) => s.closePage);
   const signOut = useAuthStore((s) => s.signOut);
   const panelBodyRef = useRef<HTMLDivElement>(null);
-  const navItems = useMemo(() => buildNav(), []);
+
+  const tabTitle = (id: SettingsTab) => t(`settings.tabs.${id}`);
+  const tabDescription = (id: SettingsTab) => {
+    const key = `settings.descriptions.${id}`;
+    const value = t(key);
+    return value === key ? "" : value;
+  };
+
+  const navItems = useMemo((): NavItem[] => {
+    const items: NavItem[] = [
+      { kind: "tab", id: "general", label: tabTitle("general") },
+      { kind: "tab", id: "friends", label: tabTitle("friends") },
+      { kind: "tab", id: "workspaces", label: tabTitle("workspaces") },
+      { kind: "separator" },
+      { kind: "tab", id: "plugins", label: tabTitle("plugins") },
+      { kind: "tab", id: "agents", label: tabTitle("agents") },
+      { kind: "tab", id: "models", label: tabTitle("models") },
+      { kind: "tab", id: "audio", label: tabTitle("audio") },
+      { kind: "separator" },
+      { kind: "tab", id: "usage", label: tabTitle("usage") },
+      { kind: "tab", id: "billing", label: tabTitle("billing") },
+    ];
+    return items;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuild when language changes via t
+  }, [t]);
+
   const resolvedTab = useMemo(() => normalizeSettingsTab(activeTab), [activeTab]);
   const Panel = TAB_PANELS[resolvedTab] ?? GeneralSettingsSection;
 
@@ -146,7 +130,7 @@ export default function SettingsPage() {
     <div className="settings-view settings-view--cascade">
       <div className="settings-view__frame">
         <div className="settings-view__layout">
-          <nav className="settings-view__nav" aria-label="Settings sections">
+          <nav className="settings-view__nav" aria-label={t("nav.settingsSections")}>
             <SettingsProfileHeader onBack={() => closePage("settings")} />
             <ul className="settings-view__tabs">
               {navItems.map((item, index) => {
@@ -195,7 +179,7 @@ export default function SettingsPage() {
                   onClick={() => void signOut()}
                 >
                   <LogOut size={14} aria-hidden />
-                  Déconnexion
+                  {t("common.signOut")}
                 </button>
               </li>
             </ul>
@@ -204,9 +188,9 @@ export default function SettingsPage() {
           <div className="settings-view__panel">
             <header className="settings-view__panel-header">
               <div className="settings-view__panel-content">
-                <h2 className="settings-view__panel-title">{TAB_TITLES[resolvedTab]}</h2>
-                {TAB_DESCRIPTIONS[resolvedTab] ? (
-                  <p className="settings-view__panel-desc">{TAB_DESCRIPTIONS[resolvedTab]}</p>
+                <h2 className="settings-view__panel-title">{tabTitle(resolvedTab)}</h2>
+                {tabDescription(resolvedTab) ? (
+                  <p className="settings-view__panel-desc">{tabDescription(resolvedTab)}</p>
                 ) : null}
               </div>
             </header>

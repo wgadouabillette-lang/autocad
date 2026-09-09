@@ -3,6 +3,7 @@ import { MicOff, MonitorUp, Radio, Video } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { getLocalBlockPresenceActivityDisplay } from "../../lib/localPresenceActivity";
 import {
   getPresenceActivityOption,
@@ -161,6 +162,7 @@ export function CallBlockMediaStatusIcons({ userId, isLocal }: { userId: string;
 }
 
 function MediaStatusIcons({ userId, isLocal }: { userId: string; isLocal: boolean }) {
+  const { t } = useTranslation();
   const localMuted = useCallsStore((s) => s.muted);
   const localCameraOn = useCallsStore((s) => s.cameraOn);
   const localScreenSharing = useCallsStore((s) => s.screenSharing);
@@ -173,19 +175,19 @@ function MediaStatusIcons({ userId, isLocal }: { userId: string; isLocal: boolea
   if (!muted && !cameraOn && !screenSharing) return null;
 
   return (
-    <div className="call-block__media-status" aria-label="État média">
+    <div className="call-block__media-status" aria-label={t("calls.inCall")}>
       {screenSharing && (
-        <span className="call-block__media-status-item call-block__media-status-item--screen" title="Partage d'écran">
+        <span className="call-block__media-status-item call-block__media-status-item--screen" title={t("calls.screenShare")}>
           <MonitorUp size={14} strokeWidth={2} aria-hidden />
         </span>
       )}
       {cameraOn && (
-        <span className="call-block__media-status-item call-block__media-status-item--camera" title="Caméra activée">
+        <span className="call-block__media-status-item call-block__media-status-item--camera" title={t("calls.camera")}>
           <Video size={14} strokeWidth={2} aria-hidden />
         </span>
       )}
       {muted && (
-        <span className="call-block__media-status-item call-block__media-status-item--muted" title="Micro coupé">
+        <span className="call-block__media-status-item call-block__media-status-item--muted" title={t("calls.micMuted")}>
           <MicOff size={14} strokeWidth={2} aria-hidden />
         </span>
       )}

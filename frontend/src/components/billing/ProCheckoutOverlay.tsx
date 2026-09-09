@@ -3,12 +3,12 @@ import { type StripeElementsOptions } from "@stripe/stripe-js";
 import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { billingApi } from "../../lib/billingApi";
 import {
   effectiveOnDemandUsage,
   effectiveSubscriptionPlan,
 } from "../../lib/subscriptionPlans";
-import { resolveClientLocale } from "../../lib/billingCurrency";
 import { getStripePromise } from "../../lib/stripeClient";
 import { useLocalizedUsdPrice } from "../../hooks/useLocalizedUsdPrice";
 import { useProCheckoutStore } from "../../store/useProCheckoutStore";
@@ -21,6 +21,7 @@ import {
 } from "./CheckoutPaymentForm";
 
 export default function ProCheckoutOverlay() {
+  const { t } = useTranslation();
   const open = useProCheckoutStore((s) => s.open);
   const checkoutPlan = useProCheckoutStore((s) => s.plan);
   const closeCheckout = useProCheckoutStore((s) => s.closeCheckout);
@@ -202,15 +203,8 @@ export default function ProCheckoutOverlay() {
   const displayAmount = localized?.amountLabel ?? priceAmount;
   const displayFrequency = localized?.frequencyLabel ?? priceFrequency;
   const showShimmer = !awaitingWebhook && !intentError && (loadingIntent || !elementsReady);
-  const fr = resolveClientLocale().toLowerCase().startsWith("fr");
   const overlayTitle =
-    checkoutPlan === "proPlus"
-      ? fr
-        ? "Passer à Pro +"
-        : "Upgrade to Pro+"
-      : fr
-        ? "Passer à Pro"
-        : "Upgrade to Pro";
+    checkoutPlan === "proPlus" ? t("billing.ctaProPlus") : t("billing.ctaPro");
 
   return createPortal(
     <div
@@ -222,7 +216,7 @@ export default function ProCheckoutOverlay() {
       <button
         type="button"
         className="workspace-modal__backdrop"
-        aria-label={awaitingWebhook ? "Activation en cours" : "Fermer"}
+        aria-label={awaitingWebhook ? t("billing.ctaWaiting") : t("common.close")}
         onClick={awaitingWebhook ? undefined : close}
       />
       <div className="workspace-modal__card pro-checkout-overlay__card">

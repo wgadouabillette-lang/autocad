@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useBoostedWorkspaces } from "../../hooks/useBoostedWorkspaces";
 import { useBilling } from "../../hooks/useBilling";
-import { resolveClientLocale } from "../../lib/billingCurrency";
 import { planCatalogCards, planSettingsCopy } from "../../lib/subscriptionPlans";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
@@ -10,15 +10,15 @@ import { resolveEnterpriseWorkspace } from "./EnterprisePlanSection";
 import SettingsPlanCard from "./SettingsPlanCard";
 
 export default function PlanSettingsSection() {
+  const { i18n } = useTranslation();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const subscriptionPlan = useStore((s) => s.subscriptionPlan);
   const billingManaged = useStore((s) => s.billingManaged);
   const activeRoomId = useStore((s) => s.activeRoomId);
   const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
   const isPro = subscriptionPlan === "pro" && billingManaged;
-  const locale = resolveClientLocale();
-  const cards = useMemo(() => planCatalogCards(locale), [locale]);
-  const copy = useMemo(() => planSettingsCopy(locale), [locale]);
+  const cards = useMemo(() => planCatalogCards(), [i18n.language]);
+  const copy = useMemo(() => planSettingsCopy(), [i18n.language]);
   const proCard = cards.find((card) => card.id === "pro");
   const proPlusCard = cards.find((card) => card.id === "proPlus");
   const teamCard = cards.find((card) => card.id === "team");

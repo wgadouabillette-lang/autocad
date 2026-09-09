@@ -12,7 +12,10 @@
     options = options || {};
     var preserveLabel = Boolean(options.preserveLabel);
 
-    var lang = locale === "fr" ? "fr" : "en";
+    var lang = (function () {
+      var code = String(locale || "en").toLowerCase().split("-")[0];
+      return { en:1, fr:1, es:1, de:1, pt:1, it:1, ja:1, zh:1 }[code] ? code : "en";
+    })();
     var icon = link.querySelector("svg");
     var desktop =
       typeof window.HallIsDesktopDownload === "function"
@@ -71,8 +74,10 @@
     );
     icon = link.querySelector("svg");
     if (icon && !preserveLabel) {
+      var usePlatformIcon =
+        link.id === "hero-download" || link.id === "feature-try-download";
       if (
-        link.id === "hero-download" &&
+        usePlatformIcon &&
         typeof window.HallDownloadPlatformIcon === "function"
       ) {
         var platformIcon = window.HallDownloadPlatformIcon(
@@ -80,7 +85,10 @@
           "hero__cta-platform-icon",
         );
         icon.outerHTML = platformIcon;
-        var labelNode = labelEl || link.querySelector("#hero-download-label");
+        var labelNode =
+          labelEl ||
+          link.querySelector("#hero-download-label") ||
+          link.querySelector("#feature-try-download-label");
         var inserted = link.querySelector(".hero__cta-platform-icon");
         if (inserted && labelNode && inserted.nextSibling !== labelNode) {
           link.insertBefore(inserted, labelNode);
@@ -91,13 +99,90 @@
     }
   }
 
-  function refreshFeatureExploreLinks(locale) {
-    var links = document.querySelectorAll("a.hero__feature-link");
-    for (var i = 0; i < links.length; i++) {
-      var link = links[i];
-      var labelEl = link.querySelector("[data-i18n]") || link.querySelector("span");
-      configureDownloadLink(link, labelEl, locale, { preserveLabel: true });
+  function featureTryLabel(featureKey, locale) {
+    var key = "featureTry." + featureKey;
+    if (window.HallLandingI18n) return window.HallLandingI18n.t(key, locale);
+    return featureKey;
+  }
+
+  var featureTryCloseTimer = null;
+
+  function finishCloseFeatureTryOverlay(overlay) {
+    overlay.classList.remove("is-open");
+    overlay.setAttribute("hidden", "");
+    document.documentElement.classList.remove("feature-try-overlay-open");
+    document.body.classList.remove("feature-try-overlay-open");
+  }
+
+  function closeFeatureTryOverlay() {
+    var overlay = document.getElementById("feature-try-overlay");
+    if (!overlay || !overlay.classList.contains("is-open")) return;
+    if (featureTryCloseTimer) {
+      clearTimeout(featureTryCloseTimer);
+      featureTryCloseTimer = null;
     }
+    overlay.classList.remove("is-open");
+    featureTryCloseTimer = setTimeout(function () {
+      featureTryCloseTimer = null;
+      finishCloseFeatureTryOverlay(overlay);
+    }, 400);
+  }
+
+  function openFeatureTryOverlay(featureKey) {
+    var overlay = document.getElementById("feature-try-overlay");
+    var message = document.getElementById("feature-try-message");
+    if (!overlay || !message) return;
+
+    if (featureTryCloseTimer) {
+      clearTimeout(featureTryCloseTimer);
+      featureTryCloseTimer = null;
+    }
+
+    var locale = window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en";
+    var feature = featureTryLabel(featureKey, locale);
+    message.textContent = window.HallLandingI18n
+      ? window.HallLandingI18n.t("featureTry.message", locale, { feature: feature })
+      : "Sure you want to download Meetra to try " + feature + "?";
+    message.dataset.featureKey = featureKey;
+
+    configureDownloadLink(
+      document.getElementById("feature-try-download"),
+      document.getElementById("feature-try-download-label"),
+      locale,
+    );
+
+    overlay.removeAttribute("hidden");
+    document.documentElement.classList.add("feature-try-overlay-open");
+    document.body.classList.add("feature-try-overlay-open");
+    // Next frame so the opacity/transform transition actually runs.
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        overlay.classList.add("is-open");
+      });
+    });
+  }
+
+  function wireFeatureTryLinks() {
+    var triggers = document.querySelectorAll("[data-feature-try]");
+    for (var i = 0; i < triggers.length; i++) {
+      (function (btn) {
+        btn.addEventListener("click", function () {
+          openFeatureTryOverlay(btn.getAttribute("data-feature-try") || "spotify");
+        });
+      })(triggers[i]);
+    }
+
+    var overlay = document.getElementById("feature-try-overlay");
+    if (!overlay) return;
+
+    var closers = overlay.querySelectorAll("[data-feature-try-close]");
+    for (var c = 0; c < closers.length; c++) {
+      closers[c].addEventListener("click", closeFeatureTryOverlay);
+    }
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") closeFeatureTryOverlay();
+    });
   }
 
   function refreshDownloadLabel(locale) {
@@ -111,6 +196,11 @@
       document.getElementById("home-download-label"),
       locale,
     );
+    configureDownloadLink(
+      document.getElementById("feature-try-download"),
+      document.getElementById("feature-try-download-label"),
+      locale,
+    );
     var navDownload = document.getElementById("nav-download");
     if (navDownload && navDownload.tagName === "A") {
       configureDownloadLink(
@@ -119,7 +209,6 @@
         locale,
       );
     }
-    refreshFeatureExploreLinks(locale);
   }
 
   var grid = document.getElementById("highlights-grid");
@@ -198,11 +287,19 @@
     refreshHighlightsMoreLabel: refreshHighlightsMoreLabel,
   };
 
+  wireFeatureTryLinks();
   refreshDownloadLabel(window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en");
   refreshHighlightsMoreLabel();
   document.addEventListener("lyte-landing:locale", function (event) {
     refreshDownloadLabel(event.detail && event.detail.locale ? event.detail.locale : "en");
     refreshHighlightsMoreLabel();
+    var overlay = document.getElementById("feature-try-overlay");
+    if (overlay && overlay.classList.contains("is-open")) {
+      var message = document.getElementById("feature-try-message");
+      if (message && message.dataset.featureKey) {
+        openFeatureTryOverlay(message.dataset.featureKey);
+      }
+    }
   });
   document.addEventListener("lyte-landing:viewport", function () {
     refreshDownloadLabel(window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en");

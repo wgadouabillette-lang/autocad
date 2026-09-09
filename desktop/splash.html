@@ -19,15 +19,24 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        width: 340px;
-        height: 340px;
-        padding: 0 16px;
-        background: #1a1a1a;
+        width: 250px;
+        height: 300px;
+        padding: 0 16px 36px;
+        overflow: hidden;
+        background: #171717;
         border: 1px solid #333;
-        border-radius: 12px;
+        border-radius: 22px;
         box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
         -webkit-app-region: drag;
         text-align: center;
+      }
+      .window::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: #1a1a1a;
+        clip-path: polygon(100% 0, 100% 100%, 0 100%);
+        pointer-events: none;
       }
       .title {
         margin: 0;
@@ -63,18 +72,37 @@
         border-radius: inherit;
         background: rgb(200 200 200 / 0.85);
       }
+      .version {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 16px;
+        margin: 0;
+        color: #666;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        -webkit-app-region: no-drag;
+      }
     </style>
   </head>
   <body>
     <div class="window">
       <h1 class="title">Meetra</h1>
-      <p class="subtitle">AI-powered collaborative workspace for teams</p>
       <div class="progress" role="progressbar" aria-label="Loading…" aria-busy="true" aria-valuemin="0" aria-valuemax="100">
         <div class="progress-fill"></div>
       </div>
+      <p class="version" id="version"></p>
     </div>
     <script>
       (function () {
+        var params = new URLSearchParams(window.location.search);
+        var version = params.get("v") || "0.1.12";
+        var versionEl = document.getElementById("version");
+        if (versionEl) versionEl.textContent = version;
+
         var fill = document.querySelector(".progress-fill");
         var bar = document.querySelector(".progress");
         if (!fill) return;

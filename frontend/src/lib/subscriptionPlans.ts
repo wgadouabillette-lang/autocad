@@ -1,8 +1,19 @@
-import { resolveClientLocale } from "./billingCurrency";
+import i18n from "./i18n";
+import {
+  PRO_INCLUDED_CREDIT_USD,
+  PRO_PLUS_INCLUDED_CREDIT_USD,
+  TEAM_INCLUDED_CREDIT_PER_SEAT_USD,
+  type PlanCatalogId,
+  type SubscriptionPlan,
+  type WorkspaceEnterprisePlan,
+} from "./subscriptionPlanConstants";
 
-export type SubscriptionPlan = "free" | "pro";
-export type WorkspaceEnterprisePlan = "free" | "enterprise";
-export type PlanCatalogId = "pro" | "proPlus" | "team";
+export type { PlanCatalogId, SubscriptionPlan, WorkspaceEnterprisePlan };
+export {
+  PRO_INCLUDED_CREDIT_USD,
+  PRO_PLUS_INCLUDED_CREDIT_USD,
+  TEAM_INCLUDED_CREDIT_PER_SEAT_USD,
+};
 
 export interface PlanDefinition {
   id: SubscriptionPlan | "enterprise";
@@ -20,154 +31,74 @@ export interface PlanCatalogCard {
   features: string[];
 }
 
-/** Default Pro included credit (FORMA_PRO_USAGE_ALLOWANCE_USD). */
-export const PRO_INCLUDED_CREDIT_USD = 30;
-/** Pro+ included credit — 2× Pro. */
-export const PRO_PLUS_INCLUDED_CREDIT_USD = PRO_INCLUDED_CREDIT_USD * 2;
-/** Default Team credit per seat (FORMA_ENTERPRISE_USAGE_ALLOWANCE_USD_PER_SEAT). */
-export const TEAM_INCLUDED_CREDIT_PER_SEAT_USD = 25;
-
-function isFrenchLocale(locale = resolveClientLocale()): boolean {
-  return locale.toLowerCase().startsWith("fr");
-}
-
 /** Settings → Plan & Usage cards. */
-export function planCatalogCards(locale = resolveClientLocale()): PlanCatalogCard[] {
-  const fr = isFrenchLocale(locale);
-  if (fr) {
-    return [
-      {
-        id: "pro",
-        eyebrow: "Personnel",
-        label: "Pro",
-        description: "Forfait personnel — même accès que Pro+.",
-        features: [
-          `${PRO_INCLUDED_CREDIT_USD} $ de crédit IA utilisable / mois`,
-          "Serveurs personnels illimités",
-          "Assistant IA dans tout Meetra",
-          "AI Notes et Follow-up",
-          "Choix du modèle IA",
-        ],
-      },
-      {
-        id: "proPlus",
-        eyebrow: "Personnel",
-        label: "Pro+",
-        description: "Même accès que Pro, avec le double de crédit utilisable.",
-        features: [
-          `${PRO_PLUS_INCLUDED_CREDIT_USD} $ de crédit IA utilisable / mois`,
-          "Serveurs personnels illimités",
-          "Assistant IA dans tout Meetra",
-          "AI Notes et Follow-up",
-          "Choix du modèle IA",
-        ],
-      },
-      {
-        id: "team",
-        eyebrow: "Workspace",
-        label: "Team",
-        description: "Payez le nombre de sièges que vous voulez.",
-        features: [
-          "Nombre de sièges au choix",
-          "IA pour tous les membres du workspace",
-          `${TEAM_INCLUDED_CREDIT_PER_SEAT_USD} $ de crédit utilisable par siège / mois`,
-          "AI Notes et Follow-up workspace",
-          "Facturation centralisée",
-        ],
-      },
-    ];
-  }
+export function planCatalogCards(_locale?: string): PlanCatalogCard[] {
+  const t = i18n.t.bind(i18n);
   return [
     {
       id: "pro",
-      eyebrow: "Personal",
+      eyebrow: t("billing.plans.personal"),
       label: "Pro",
-      description: "Personal plan — the same access as Pro+.",
+      description: t("billing.plans.proDesc"),
       features: [
-        `$${PRO_INCLUDED_CREDIT_USD} usable AI credit / month`,
-        "Unlimited personal servers",
-        "AI assistant across Meetra",
-        "AI Notes and Follow-up",
-        "Choice of AI model",
+        t("billing.plans.proCredit", { amount: PRO_INCLUDED_CREDIT_USD }),
+        t("billing.plans.unlimitedServers"),
+        t("billing.plans.aiAssistant"),
+        t("billing.plans.aiNotesFollowup"),
+        t("billing.plans.aiModelChoice"),
       ],
     },
     {
       id: "proPlus",
-      eyebrow: "Personal",
+      eyebrow: t("billing.plans.personal"),
       label: "Pro+",
-      description: "Same access as Pro, with double usable credit.",
+      description: t("billing.plans.proPlusDesc"),
       features: [
-        `$${PRO_PLUS_INCLUDED_CREDIT_USD} usable AI credit / month`,
-        "Unlimited personal servers",
-        "AI assistant across Meetra",
-        "AI Notes and Follow-up",
-        "Choice of AI model",
+        t("billing.plans.proPlusCredit", { amount: PRO_PLUS_INCLUDED_CREDIT_USD }),
+        t("billing.plans.unlimitedServers"),
+        t("billing.plans.aiAssistant"),
+        t("billing.plans.aiNotesFollowup"),
+        t("billing.plans.aiModelChoice"),
       ],
     },
     {
       id: "team",
-      eyebrow: "Workspace",
+      eyebrow: t("billing.plans.workspace"),
       label: "Team",
-      description: "Pay for the number of seats you want.",
+      description: t("billing.plans.teamDesc"),
       features: [
-        "Choose how many seats to pay for",
-        "AI for every workspace member",
-        `$${TEAM_INCLUDED_CREDIT_PER_SEAT_USD} usable credit per seat / month`,
-        "Workspace AI Notes and Follow-up",
-        "Centralized billing",
+        t("billing.plans.chooseSeats"),
+        t("billing.plans.aiForMembers"),
+        t("billing.plans.teamCredit", { amount: TEAM_INCLUDED_CREDIT_PER_SEAT_USD }),
+        t("billing.plans.workspaceAiNotes"),
+        t("billing.plans.centralizedBilling"),
       ],
     },
   ];
 }
 
-export function planSettingsCopy(locale = resolveClientLocale()) {
-  const fr = isFrenchLocale(locale);
-  if (fr) {
-    return {
-      signIn: "Connectez-vous pour souscrire via Stripe.",
-      stripeMissing:
-        "Stripe n'est pas configuré sur le serveur — ajoutez les clés dans backend/.env.",
-      externalCheckout:
-        "Stripe est ouvert dans un autre onglet. Votre forfait se met à jour automatiquement dès confirmation du paiement.",
-      proAria: "Ouvrir le paiement Pro",
-      proPlusAria: "Ouvrir le paiement Pro+",
-      teamAria: "Souscrire au forfait Team pour le workspace sélectionné",
-      teamAddSeatsAria: "Ajouter des sièges Team pour plus d'utilisation",
-      ctaPro: "Passer à Pro",
-      ctaProPlus: "Passer à Pro+",
-      ctaTeam: "Choisir les sièges",
-      ctaCurrent: "Plan actuel",
-      ctaTeamAddSeats: "Add Seats",
-      ctaOpening: "Ouverture de Stripe…",
-      ctaWaiting: "En attente de confirmation Stripe…",
-      errorSignInPro: "Connectez-vous pour souscrire à Pro.",
-      errorSignInTeam: "Connectez-vous pour souscrire à Team.",
-      proPriceFallback: "33 $ / mois",
-      proPlusPriceFallback: "53 $ / mois",
-      teamPriceFallback: "24 $ / siège",
-    };
-  }
+export function planSettingsCopy(_locale?: string) {
+  const t = i18n.t.bind(i18n);
   return {
-    signIn: "Sign in to subscribe with Stripe.",
-    stripeMissing: "Stripe is not configured on the server — add keys in backend/.env.",
-    externalCheckout:
-      "Stripe is open in another tab. Your plan updates automatically once payment is confirmed.",
-    proAria: "Open Pro checkout",
-    proPlusAria: "Open Pro+ checkout",
-    teamAria: "Subscribe to Team for the selected workspace",
-    teamAddSeatsAria: "Add Team seats for more usage",
-    ctaPro: "Upgrade to Pro",
-    ctaProPlus: "Upgrade to Pro+",
-    ctaTeam: "Choose seats",
-    ctaCurrent: "Current plan",
-    ctaTeamAddSeats: "Add Seats",
-    ctaOpening: "Opening Stripe…",
-    ctaWaiting: "Waiting for Stripe confirmation…",
-    errorSignInPro: "Sign in to subscribe to Pro.",
-    errorSignInTeam: "Sign in to subscribe to Team.",
-    proPriceFallback: "$33 / month",
-    proPlusPriceFallback: "$53 / month",
-    teamPriceFallback: "$24 / seat",
+    signIn: t("billing.signIn"),
+    stripeMissing: t("billing.stripeMissing"),
+    externalCheckout: t("billing.externalCheckout"),
+    proAria: t("billing.proAria"),
+    proPlusAria: t("billing.proPlusAria"),
+    teamAria: t("billing.teamAria"),
+    teamAddSeatsAria: t("billing.teamAddSeatsAria"),
+    ctaPro: t("billing.ctaPro"),
+    ctaProPlus: t("billing.ctaProPlus"),
+    ctaTeam: t("billing.ctaTeam"),
+    ctaCurrent: t("billing.ctaCurrent"),
+    ctaTeamAddSeats: t("billing.ctaTeamAddSeats"),
+    ctaOpening: t("billing.ctaOpening"),
+    ctaWaiting: t("billing.ctaWaiting"),
+    errorSignInPro: t("billing.errorSignInPro"),
+    errorSignInTeam: t("billing.errorSignInTeam"),
+    proPriceFallback: t("billing.proPriceFallback"),
+    proPlusPriceFallback: t("billing.proPlusPriceFallback"),
+    teamPriceFallback: t("billing.teamPriceFallback"),
   };
 }
 
@@ -217,7 +148,7 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
 export const FREE_OWNED_WORKSPACE_LIMIT = 3;
 
 export function planLabel(plan: SubscriptionPlan): string {
-  return plan === "pro" ? "Pro" : "Gratuit";
+  return plan === "pro" ? i18n.t("billing.planPro") : i18n.t("billing.planFree");
 }
 
 export type PlanBadgeKind = "free" | "pro" | "proPlus" | "teams" | "teamsPro" | "teamsProPlus";
@@ -286,9 +217,9 @@ export function ownedWorkspaceLimitMessage(
   billingManaged = false,
 ): string {
   if (effectiveSubscriptionPlan(subscriptionPlan, billingManaged) === "pro") {
-    return "Serveurs personnels illimités avec Pro.";
+    return i18n.t("billing.ownedLimitPro");
   }
-  return `Jusqu'à ${FREE_OWNED_WORKSPACE_LIMIT} serveurs personnels sur le plan gratuit. Passez à Pro pour en créer davantage.`;
+  return i18n.t("billing.ownedLimitFree", { limit: FREE_OWNED_WORKSPACE_LIMIT });
 }
 
 export function hasPersonalAiAccess(

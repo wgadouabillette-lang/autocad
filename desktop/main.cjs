@@ -725,7 +725,7 @@ function refreshMacOsAppIcon() {
   }
 }
 
-const SPLASH_WINDOW_SIZE = { width: 340, height: 340 };
+const SPLASH_WINDOW_SIZE = { width: 250, height: 300 };
 const APP_WINDOW_SIZE = { width: 1440, height: 900 };
 const APP_WINDOW_MIN_SIZE = { width: 1024, height: 640 };
 
@@ -800,7 +800,9 @@ function createSplashWindow() {
       contextIsolation: true,
     },
   });
-  splashWindow.loadFile(path.join(__dirname, "splash.html"));
+  splashWindow.loadFile(path.join(__dirname, "splash.html"), {
+    query: { v: require("./package.json").version },
+  });
   splashWindow.once("ready-to-show", () => {
     if (!splashWindow || splashWindow.isDestroyed() || mainWindowMode === "app") return;
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) return;
@@ -1427,6 +1429,20 @@ app.whenReady().then(async () => {
   if (!gotTheLock) return;
   refreshWindowsShellShortcuts();
   refreshMacOsAppIcon();
+
+  // Packaged macOS: Chromium getUserMedia stays silent until TCC mic/camera are granted.
+  if (process.platform === "darwin" && app.isPackaged) {
+    try {
+      if (typeof systemPreferences?.askForMediaAccess === "function") {
+        const micOk = await systemPreferences.askForMediaAccess("microphone");
+        const camOk = await systemPreferences.askForMediaAccess("camera");
+        console.log("[hall] media TCC microphone=", micOk, "camera=", camOk);
+      }
+    } catch (err) {
+      console.warn("[hall] askForMediaAccess failed:", err instanceof Error ? err.message : err);
+    }
+  }
+
   // Screen share / recording: always grant the primary display (full desktop),
   // not just the Meetra window — so Chrome/Google etc. appear in the recording.
   session.defaultSession.setDisplayMediaRequestHandler(

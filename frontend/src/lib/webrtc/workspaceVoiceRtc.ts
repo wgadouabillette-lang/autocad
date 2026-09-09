@@ -57,9 +57,23 @@ function ensureStream(
   track: MediaStreamTrack,
 ): MediaStream {
   if (current?.getTrackById(track.id)) return current;
+  if (current) {
+    current.addTrack(track);
+    return current;
+  }
   const stream = new MediaStream();
   stream.addTrack(track);
   return stream;
+}
+
+function isScreenAudioTransceiver(
+  peer: PeerState,
+  transceiver: RTCRtpTransceiver | null | undefined,
+): boolean {
+  if (!transceiver) return false;
+  if (transceiver === peer.screenAudioTransceiver) return true;
+  const screenMid = peer.screenAudioTransceiver?.mid;
+  return Boolean(screenMid && transceiver.mid && transceiver.mid === screenMid);
 }
 
 export class WorkspaceVoiceRtcSession {
@@ -226,7 +240,8 @@ export class WorkspaceVoiceRtcSession {
     pc.ontrack = (event) => {
       const track = event.track;
       if (track.kind === "audio") {
-        if (event.transceiver === peer.screenAudioTransceiver) {
+        const screenAudio = isScreenAudioTransceiver(peer, event.transceiver);
+        if (screenAudio) {
           peer.remoteMedia.screenAudioStream = ensureStream(
             peer.remoteMedia.screenAudioStream,
             track,
@@ -374,6 +389,7 @@ export class WorkspaceVoiceRtcSession {
     this.negotiating.add(peer.remoteUid);
     try {
       peer.makingOffer = true;
+      await this.applyLocalTracks(peer);
       await peer.pc.setLocalDescription(await peer.pc.createOffer());
       await sendRtcSignal(this.workspaceId, this.sessionId, {
         fromUid: this.localUid,
@@ -381,8 +397,8 @@ export class WorkspaceVoiceRtcSession {
         type: "offer",
         sdp: peer.pc.localDescription?.sdp,
       });
-    } catch {
-      // Renégociation concurrente.
+    } catch (err) {
+      console.warn("[webrtc] negotiate failed", peer.remoteUid, err);
     } finally {
       peer.makingOffer = false;
       this.negotiating.delete(peer.remoteUid);
@@ -429,6 +445,8 @@ export class WorkspaceVoiceRtcSession {
         }
 
         await peer.pc.setRemoteDescription({ type: "offer", sdp: signal.sdp });
+        // Attach local mic/camera before answering so the SDP is not recvonly/inactive.
+        await this.applyLocalTracks(peer);
         await this.flushPendingCandidates(peer);
         await peer.pc.setLocalDescription(await peer.pc.createAnswer());
         await sendRtcSignal(this.workspaceId, this.sessionId, {
@@ -442,6 +460,7 @@ export class WorkspaceVoiceRtcSession {
         await peer.pc.setRemoteDescription({ type: "answer", sdp: signal.sdp });
         peer.isSettingRemoteAnswerPending = false;
         await this.flushPendingCandidates(peer);
+        await this.applyLocalTracks(peer);
       } else if (signal.type === "candidate" && signal.candidate) {
         if (peer.pc.remoteDescription) {
           await peer.pc.addIceCandidate(signal.candidate);
@@ -449,8 +468,8 @@ export class WorkspaceVoiceRtcSession {
           peer.pendingCandidates.push(signal.candidate);
         }
       }
-    } catch {
-      // Signal périmé.
+    } catch (err) {
+      console.warn("[webrtc] signal handling failed", signal.type, err);
     }
   }
 

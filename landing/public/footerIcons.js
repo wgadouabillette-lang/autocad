@@ -41,9 +41,10 @@
   }
 
   function localeName(locale) {
-    if (!window.HallLandingI18n) return locale === "fr" ? "Français" : "English";
+    if (!window.HallLandingI18n) return "English";
     var locales = window.HallLandingI18n.LOCALES;
-    return locales[locale === "fr" ? "fr" : "en"] || locales.en;
+    var code = String(locale || "en").toLowerCase().split("-")[0];
+    return locales[code] || locales.en;
   }
 
   function langTriggerHtml(locale) {

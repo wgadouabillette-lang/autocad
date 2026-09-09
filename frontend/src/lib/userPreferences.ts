@@ -1,11 +1,18 @@
+import type { SubscriptionPlan } from "./subscriptionPlanConstants";
 import type { SelectableWorkMode } from "./workModes";
-import type { SubscriptionPlan } from "./subscriptionPlans";
 
 import type { ColorThemePreference } from "./theme";
 import { normalizeColorThemePreference } from "./theme";
 import type { AccentColorPreference } from "./accentColor";
 import { normalizeAccentColorPreference } from "./accentColor";
 import { DEFAULT_HALL_DJ_GENRE, normalizeHallDjGenre } from "./hallDjGenres";
+import {
+  DEFAULT_APP_LOCALE,
+  normalizeLocalePreference,
+  type LocalePreference,
+} from "./appLocale";
+
+export type { SubscriptionPlan } from "./subscriptionPlanConstants";
 
 const KEY = "forma-user-preferences";
 
@@ -54,6 +61,8 @@ export function toggleAvailabilityDay(days: number[], day: number): number[] {
 }
 
 export interface UserPreferences {
+  /** UI language. Default English; `"system"` follows the browser. */
+  locale: LocalePreference;
   colorTheme: ColorThemePreference;
   accentColor: AccentColorPreference;
   chatWorkMode: SelectableWorkMode;
@@ -100,6 +109,7 @@ export function normalizeHallDjVolume(value: unknown): number {
 }
 
 const DEFAULTS: UserPreferences = {
+  locale: DEFAULT_APP_LOCALE,
   colorTheme: "dark",
   accentColor: "blue",
   chatWorkMode: "agent",
@@ -186,6 +196,7 @@ export function readUserPreferences(): UserPreferences {
       data.calendarWorkEndMinutes,
     );
     return {
+      locale: normalizeLocalePreference(data.locale),
       colorTheme: normalizeColorThemePreference(data.colorTheme),
       accentColor: normalizeAccentColorPreference(data.accentColor),
       chatWorkMode,
