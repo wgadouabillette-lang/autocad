@@ -29,7 +29,7 @@ import {
   countTheaterParticipants,
   isLocalInTheater,
 } from "../lib/theater";
-import { hasAiNotesAccess, hasFollowUpAccess } from "../lib/subscriptionPlans";
+import { hasAiNotesAccess, hasFollowUpAccess, hasVoicePollAccess } from "../lib/subscriptionPlans";
 import { useAiNotesStore } from "../store/useAiNotesStore";
 import { useFollowUpCaptureStore } from "../store/useFollowUpCaptureStore";
 import { useActiveVoicePoll } from "../hooks/useActiveVoicePoll";
@@ -142,8 +142,13 @@ export default function BottomHeader() {
   const showPollControl =
     viewMode === "blocks" || isTheaterSpeaker || isTheaterAudienceWithPoll;
   const pollKind: "regular" | "theater" = isTheaterSpeaker ? "theater" : "regular";
+  const canCreatePoll = hasVoicePollAccess(
+    subscriptionPlan,
+    billingManaged,
+    workspaceEnterpriseActive,
+  );
   const showAssistButtons =
-    inGroupCall &&
+    inCall &&
     hasAiNotesAccess(subscriptionPlan, billingManaged, workspaceEnterpriseActive) &&
     hasFollowUpAccess(subscriptionPlan, billingManaged, workspaceEnterpriseActive);
   const aiNotesActive = useAiNotesStore((s) => s.active);
@@ -372,11 +377,14 @@ export default function BottomHeader() {
       {showHandRaiseControl && (
         <BottomBarButton
           label={handLabel}
-          onClick={() =>
-            viewMode === "theater"
-              ? toggleTheaterRaiseHand(activeRoomId)
-              : toggleBlockRaiseHand(activeRoomId)
-          }
+          onClick={(event) => {
+            if (event.detail > 1) return;
+            if (viewMode === "theater") {
+              toggleTheaterRaiseHand(activeRoomId);
+              return;
+            }
+            toggleBlockRaiseHand(activeRoomId);
+          }}
           active={raiseHand}
         >
           <Hand size={ICON_SIZE} />
@@ -390,12 +398,19 @@ export default function BottomHeader() {
               ? "Fermer le sondage"
               : activePoll
                 ? "Voir le sondage"
-                : isTheaterSpeaker
-                  ? "Sondage théâtre (30s)"
-                  : "Sondage"
+                : !canCreatePoll
+                  ? "Les sondages nécessitent Pro ou un workspace boosté"
+                  : isTheaterSpeaker
+                    ? "Sondage théâtre (30s)"
+                    : "Sondage"
           }
           onClick={() => togglePollExperience(activeRoomId, pollKind)}
           active={pollExperienceOpen}
+          className={
+            !canCreatePoll && !activePoll && !pollExperienceOpen
+              ? "bottom-bar-btn--wide-signet"
+              : undefined
+          }
         >
           <BarChart3 size={ICON_SIZE} />
         </BottomBarButton>

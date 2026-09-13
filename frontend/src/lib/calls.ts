@@ -1,5 +1,5 @@
 import type { CallsGridColumnCount } from "./callsLayout";
-import type { HandRaiseRequest } from "./theater";
+import { isLocalHandRaiseUserId, type HandRaiseRequest } from "./theater";
 import { isLegacyMockMemberId, workspaceMembers } from "./workspaceMembers";
 
 export interface CallUser {
@@ -449,10 +449,14 @@ export function pendingVoiceHandRaises(handRaises: HandRaiseRequest[]): HandRais
 export function participantHasHandRaised(
   handRaises: HandRaiseRequest[],
   participantId: string,
+  localFirebaseUid?: string | null,
 ): boolean {
-  return handRaises.some(
-    (request) => request.userId === participantId && request.status === "pending",
-  );
+  const participantIsLocal = isLocalHandRaiseUserId(participantId, localFirebaseUid);
+  return handRaises.some((request) => {
+    if (request.status !== "pending") return false;
+    if (request.userId === participantId) return true;
+    return participantIsLocal && isLocalHandRaiseUserId(request.userId, localFirebaseUid);
+  });
 }
 
 export function syncRemoteHandRaises(
@@ -463,7 +467,7 @@ export function syncRemoteHandRaises(
 ): HandRaiseRequest[] {
   const remoteRaised = new Map<string, string>();
   for (const member of members) {
-    if (localUserId && member.id === localUserId) continue;
+    if (isLocalHandRaiseUserId(member.id, localUserId)) continue;
     if (member.voice?.handRaised) {
       remoteRaised.set(member.id, member.name);
     }
@@ -471,13 +475,13 @@ export function syncRemoteHandRaises(
 
   let next = current.filter(
     (request) =>
-      request.userId === localUserId ||
+      isLocalHandRaiseUserId(request.userId, localUserId) ||
       request.status !== "pending" ||
       remoteRaised.has(request.userId),
   );
 
   next = next.map((request) =>
-    request.userId !== localUserId &&
+    !isLocalHandRaiseUserId(request.userId, localUserId) &&
     request.status === "pending" &&
     !remoteRaised.has(request.userId)
       ? { ...request, status: "declined" as const }

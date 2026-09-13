@@ -253,6 +253,15 @@ export function hasFollowUpAccess(
   return hasAiAccess(plan, billingManaged, workspaceEnterprise);
 }
 
+/** Création de sondage : Pro personnel ou workspace Team / boosté. */
+export function hasVoicePollAccess(
+  plan: SubscriptionPlan,
+  billingManaged = false,
+  workspaceEnterprise = false,
+): boolean {
+  return hasAiAccess(plan, billingManaged, workspaceEnterprise);
+}
+
 export function hasRecapSkillAccess(
   plan: SubscriptionPlan,
   billingManaged = false,

@@ -17,6 +17,7 @@ import {
   voteWorkspacePoll,
 } from "../lib/firebase/workspacePolls";
 import { notifyWorkspaceOfPoll, dismissPollMemberNotification } from "../lib/voicePollNotifications";
+import { hasVoicePollAccess } from "../lib/subscriptionPlans";
 import { useStore } from "./useStore";
 import { useAuthStore } from "./useAuthStore";
 
@@ -58,6 +59,15 @@ function currentUserId(): string {
 
 function currentUserName(): string {
   return useStore.getState().userDisplayName.trim() || "Membre";
+}
+
+function canCreateVoicePoll(): boolean {
+  const { subscriptionPlan, billingManaged, workspaceEnterpriseActive } = useStore.getState();
+  return hasVoicePollAccess(subscriptionPlan, billingManaged, workspaceEnterpriseActive);
+}
+
+function requestVoicePollUpgrade(): void {
+  useStore.getState().openSettingsTab("usage");
 }
 
 function normalizeOptions(labels: string[]): VoicePollOption[] {
@@ -154,6 +164,10 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
   },
 
   openComposer: (workspaceId, kind = "regular") => {
+    if (!canCreateVoicePoll()) {
+      requestVoicePollUpgrade();
+      return;
+    }
     ensureChatPanelOpen(kind);
     set((state) => ({
       composerOpenByWorkspace: { ...state.composerOpenByWorkspace, [workspaceId]: true },
@@ -204,10 +218,20 @@ export const useVoicePollStore = create<VoicePollState>((set, get) => ({
       return;
     }
 
+    if (!canCreateVoicePoll()) {
+      requestVoicePollUpgrade();
+      return;
+    }
+
     get().openComposer(workspaceId, kind);
   },
 
   publishPoll: (workspaceId, question, subtitle, optionLabels, kind) => {
+    if (!canCreateVoicePoll()) {
+      requestVoicePollUpgrade();
+      return { ok: false, error: "Passez à Pro ou boostez le workspace pour créer un sondage." };
+    }
+
     const trimmedQuestion = question.trim();
     const trimmedSubtitle = subtitle.trim();
     if (!trimmedQuestion) {

@@ -51,12 +51,9 @@ export function isConnectorComingSoon(id: ChatConnectorId): boolean {
   return Boolean(connector && "comingSoon" in connector && connector.comingSoon);
 }
 
-/** Chat panel list only: OAuth connected and not coming-soon. Settings → Plugins still lists every card. */
-export function isVisibleInChatConnectorsList(
-  id: ChatConnectorId,
-  connectedIds: ReadonlySet<ChatConnectorId>,
-): boolean {
-  return !isConnectorComingSoon(id) && connectedIds.has(id);
+/** Chat panel list: live plugins (connected or not). Settings → Plugins still lists every card. */
+export function isVisibleInChatConnectorsList(id: ChatConnectorId): boolean {
+  return !isConnectorComingSoon(id);
 }
 
 export const CHAT_CONNECTOR_PREVIEW_COUNT = 3;

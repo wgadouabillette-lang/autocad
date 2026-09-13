@@ -123,17 +123,40 @@ export function canLocalSpeak(state: TheaterState): boolean {
   return state.localRole === "speaker" || state.localRole === "question";
 }
 
-export function canLocalRaiseHand(state: TheaterState): boolean {
-  return (
-    state.localRole === "audience" &&
-    !state.handRaises.some((r) => r.userId === LOCAL_USER.id && r.status === "pending")
+/** Presence / tiles use the Firebase uid; local call state still uses `"local"`. */
+export function isLocalHandRaiseUserId(
+  userId: string,
+  firebaseUid?: string | null,
+): boolean {
+  return userId === LOCAL_USER.id || (!!firebaseUid && userId === firebaseUid);
+}
+
+export function pendingLocalHandRaise(
+  handRaises: HandRaiseRequest[],
+  firebaseUid?: string | null,
+): HandRaiseRequest | undefined {
+  return handRaises.find(
+    (request) =>
+      request.status === "pending" &&
+      isLocalHandRaiseUserId(request.userId, firebaseUid),
   );
 }
 
-export function localHandRaise(state: TheaterState): HandRaiseRequest | undefined {
-  return state.handRaises.find(
-    (r) => r.userId === LOCAL_USER.id && r.status === "pending",
+export function canLocalRaiseHand(
+  state: TheaterState,
+  firebaseUid?: string | null,
+): boolean {
+  return (
+    state.localRole === "audience" &&
+    !pendingLocalHandRaise(state.handRaises, firebaseUid)
   );
+}
+
+export function localHandRaise(
+  state: TheaterState,
+  firebaseUid?: string | null,
+): HandRaiseRequest | undefined {
+  return pendingLocalHandRaise(state.handRaises, firebaseUid);
 }
 
 export function pendingHandRaises(state: TheaterState): HandRaiseRequest[] {

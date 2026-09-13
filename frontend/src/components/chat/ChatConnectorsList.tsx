@@ -36,7 +36,7 @@ export default function ChatConnectorsList({
   const isSettings = variant === "settings";
   const items = isSettings
     ? CHAT_CONNECTORS
-    : CHAT_CONNECTORS.filter(({ id }) => isVisibleInChatConnectorsList(id, connectedIds));
+    : CHAT_CONNECTORS.filter(({ id }) => isVisibleInChatConnectorsList(id));
   const statusById = new Map((statuses ?? []).map((status) => [status.id, status]));
   const statusesFromApi = statusSource === "api";
 

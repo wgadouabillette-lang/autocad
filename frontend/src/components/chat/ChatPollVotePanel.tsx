@@ -7,6 +7,7 @@ import {
   pollTimeRemainingMs,
   pollVotePercent,
 } from "../../lib/voicePoll";
+import { hasVoicePollAccess } from "../../lib/subscriptionPlans";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useActiveVoicePoll } from "../../hooks/useActiveVoicePoll";
 import { useVoicePollStore } from "../../store/useVoicePollStore";
@@ -14,6 +15,9 @@ import { useStore } from "../../store/useStore";
 
 export default function ChatPollVotePanel() {
   const workspaceId = useStore((s) => s.activeRoomId);
+  const canCreatePoll = useStore((s) =>
+    hasVoicePollAccess(s.subscriptionPlan, s.billingManaged, s.workspaceEnterpriseActive),
+  );
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const activePoll = useActiveVoicePoll(workspaceId);
   const closeVotePanel = useVoicePollStore((s) => s.closeVotePanel);
@@ -124,6 +128,10 @@ export default function ChatPollVotePanel() {
             type="button"
             className="chat-connectors-row__connect chat-poll-vote__action"
             onClick={() => {
+              if (!canCreatePoll) {
+                openComposer(workspaceId);
+                return;
+              }
               resetPoll(workspaceId);
               openComposer(workspaceId);
             }}

@@ -38,13 +38,10 @@ export async function transcribeLiveAudioChunk(blob: Blob): Promise<string> {
     });
     return result.text;
   } catch (error) {
-    if (import.meta.env.DEV) {
-      try {
-        return await api.transcribeChunk(blob, filename);
-      } catch {
-        /* keep the Cloud Function error */
-      }
+    try {
+      return await api.transcribeChunk(blob, filename);
+    } catch (fallbackError) {
+      throw fallbackError instanceof Error ? fallbackError : error;
     }
-    throw error;
   }
 }

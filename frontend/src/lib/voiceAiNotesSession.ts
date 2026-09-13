@@ -17,6 +17,7 @@ const MIN_SLICE_BYTES = 600;
 let recognition: SpeechRecognition | null = null;
 let recorder: MediaRecorder | null = null;
 let sliceRecorder: MediaRecorder | null = null;
+let sliceStream: MediaStream | null = null;
 let sliceTimer: number | null = null;
 let audioChunks: Blob[] = [];
 let startedAt = 0;
@@ -56,13 +57,28 @@ function prefersServerStt(): boolean {
   return hasFormaDesktop() || !getRecognitionCtor();
 }
 
+function cloneAudioStream(stream: MediaStream): MediaStream {
+  return new MediaStream(stream.getAudioTracks().map((track) => track.clone()));
+}
+
+function stopClonedSliceStream() {
+  sliceStream?.getTracks().forEach((track) => {
+    try {
+      track.stop();
+    } catch {
+      /* ignore */
+    }
+  });
+  sliceStream = null;
+}
+
 function serverSttErrorMessage(error: unknown): string {
   const raw =
     error && typeof error === "object" && "message" in error
       ? String((error as { message: unknown }).message)
       : "";
-  const message = raw.replace(/^FirebaseError:\s*/i, "");
-  if (/unauthenticated|authentication required/i.test(message)) {
+  const message = raw.replace(/^FirebaseError:\s*/i, "").replace(/^Error:\s*/i, "");
+  if (/unauthenticated|authentication required|functions\/unauthenticated/i.test(message)) {
     return "Connectez-vous pour la transcription.";
   }
   if (message.includes("Transcription")) return message;
@@ -130,7 +146,7 @@ function startServerStt(stream: MediaStream) {
       }
       if (running) beginSlice();
     };
-    rec.start();
+    rec.start(250);
     sliceTimer = window.setTimeout(() => {
       sliceTimer = null;
       if (rec.state === "recording") {
@@ -227,7 +243,9 @@ export async function startVoiceNotesSession(
   recorder.start(1000);
 
   if (prefersServerStt()) {
-    startServerStt(stream);
+    stopClonedSliceStream();
+    sliceStream = cloneAudioStream(stream);
+    startServerStt(sliceStream);
   } else {
     startWebSpeech(stream);
   }
@@ -237,6 +255,7 @@ function cleanupRecognition() {
   running = false;
   stopWebSpeech();
   stopSliceRecorder();
+  stopClonedSliceStream();
   transcriptListener = null;
   errorListener = null;
 }

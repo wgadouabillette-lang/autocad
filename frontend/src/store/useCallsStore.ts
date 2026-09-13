@@ -89,8 +89,10 @@ import {
   clearAudienceSeat,
   createTheaterState,
   firstFreeAudienceSeatIndex,
+  isLocalHandRaiseUserId,
   isLocalInTheater,
   LOCAL_USER,
+  pendingLocalHandRaise,
   syncTheaterWithMembers,
   THEATER_AUDIENCE_SEAT_COUNT,
   type HandRaiseRequest,
@@ -1157,7 +1159,10 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       { ...LOCAL_USER, role: "speaker" as const },
     ];
     const audience = theater.audience.filter((participant) => !participant.isLocal);
-    const handRaises = theater.handRaises.filter((request) => request.userId !== LOCAL_USER.id);
+    const firebaseUid = useAuthStore.getState().firebaseUid;
+    const handRaises = theater.handRaises.filter(
+      (request) => !isLocalHandRaiseUserId(request.userId, firebaseUid),
+    );
 
     patchTheater(set, workspaceId, {
       speakers,
@@ -1232,8 +1237,9 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const withoutLocal = (users: typeof theater.speakers) =>
       users.filter((u) => !u.isLocal);
 
+    const firebaseUid = useAuthStore.getState().firebaseUid;
     const handRaises = theater.handRaises.filter(
-      (r) => r.userId !== LOCAL_USER.id || r.status !== "pending",
+      (r) => !isLocalHandRaiseUserId(r.userId, firebaseUid) || r.status !== "pending",
     );
 
     const remainingSpeakers = withoutLocal(theater.speakers);
@@ -1277,10 +1283,9 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   toggleBlockRaiseHand: (workspaceId) => {
     if (!get().isLocalInCall(workspaceId)) return;
 
+    const firebaseUid = useAuthStore.getState().firebaseUid;
     const state = roomState(get, workspaceId);
-    const existing = state.handRaises.find(
-      (request) => request.userId === LOCAL_USER.id && request.status === "pending",
-    );
+    const existing = pendingLocalHandRaise(state.handRaises, firebaseUid);
 
     if (existing) {
       set((current) => ({
@@ -1304,7 +1309,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const request: HandRaiseRequest = {
       id: `hand-${Date.now()}`,
       workspaceId,
-      userId: LOCAL_USER.id,
+      userId: firebaseUid || LOCAL_USER.id,
       userName: LOCAL_USER.name,
       status: "pending",
     };
@@ -1324,10 +1329,9 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
   toggleTheaterRaiseHand: (workspaceId) => {
     const theater = theaterState(get, workspaceId);
-    if (!canLocalRaiseHand(theater)) {
-      const pending = theater.handRaises.find(
-        (r) => r.userId === LOCAL_USER.id && r.status === "pending",
-      );
+    const firebaseUid = useAuthStore.getState().firebaseUid;
+    if (!canLocalRaiseHand(theater, firebaseUid)) {
+      const pending = pendingLocalHandRaise(theater.handRaises, firebaseUid);
       if (pending) get().cancelHandRaise(workspaceId, pending.id);
       return;
     }
@@ -1335,7 +1339,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const request: HandRaiseRequest = {
       id: `hand-${Date.now()}`,
       workspaceId,
-      userId: LOCAL_USER.id,
+      userId: firebaseUid || LOCAL_USER.id,
       userName: LOCAL_USER.name,
       status: "pending",
     };
@@ -1357,18 +1361,26 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     );
     if (!request || theater.question) return;
 
-    const fromAudience = theater.audience.find((u) => u.id === request.userId);
+    const firebaseUid = useAuthStore.getState().firebaseUid;
+    const fromAudience = theater.audience.find(
+      (u) =>
+        u.id === request.userId ||
+        (u.isLocal && isLocalHandRaiseUserId(request.userId, firebaseUid)),
+    );
     if (!fromAudience) return;
 
     const questionParticipant = { ...fromAudience, role: "question" as const };
-    const audience = theater.audience.filter((u) => u.id !== request.userId);
+    const audience = theater.audience.filter((u) => u.id !== fromAudience.id);
     const handRaises = theater.handRaises.map((r) =>
       r.id === requestId ? { ...r, status: "accepted" as const } : r,
     );
 
     patchTheater(set, workspaceId, {
       audience,
-      audienceSeatByUserId: clearAudienceSeat(theater.audienceSeatByUserId, request.userId),
+      audienceSeatByUserId: clearAudienceSeat(
+        clearAudienceSeat(theater.audienceSeatByUserId, request.userId),
+        fromAudience.id,
+      ),
       question: questionParticipant,
       handRaises,
     });
@@ -1389,7 +1401,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     patchTheater(set, workspaceId, { handRaises });
 
     const request = theater.handRaises.find((r) => r.id === requestId);
-    if (request?.userId === LOCAL_USER.id) {
+    if (isLocalHandRaiseUserId(request?.userId ?? "", useAuthStore.getState().firebaseUid)) {
       set({ raiseHand: false });
       pushVoicePresence(get, workspaceId);
     }
@@ -1647,8 +1659,10 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       }),
     );
 
+    const firebaseUid = useAuthStore.getState().firebaseUid;
     const handRaises = state.handRaises.filter(
-      (request) => request.userId !== LOCAL_USER.id || request.status !== "pending",
+      (request) =>
+        !isLocalHandRaiseUserId(request.userId, firebaseUid) || request.status !== "pending",
     );
 
     set({

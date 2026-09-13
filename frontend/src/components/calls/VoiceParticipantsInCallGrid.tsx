@@ -9,6 +9,7 @@ import {
   voiceParticipantGridLayout,
   voiceParticipantTilePlacement,
 } from "../../lib/voiceParticipantLayout";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
 import type { RemoteParticipantStreams } from "../../lib/webrtc/workspaceVoiceRtc";
 import VoiceParticipantTile from "./VoiceParticipantTile";
@@ -126,6 +127,8 @@ export default function VoiceParticipantsInCallGrid({
   const screenShareStream = useCallsStore((s) => s.screenShareStream);
   const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
   const handRaises = useCallsStore((s) => s.callsByRoom[workspaceId]?.handRaises ?? []);
+  const raiseHand = useCallsStore((s) => s.raiseHand);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
 
   const media = useMemo<ParticipantMediaContext>(
     () => ({
@@ -160,7 +163,10 @@ export default function VoiceParticipantsInCallGrid({
 
   const tilePropsFor = (participant: CallUser) => ({
     speaking: speakingByParticipant[participant.id] ?? false,
-    handRaised: showHandRaise && participantHasHandRaised(handRaises, participant.id),
+    handRaised:
+      showHandRaise &&
+      (participantHasHandRaised(handRaises, participant.id, firebaseUid) ||
+        (!!participant.isLocal && raiseHand)),
     muted: participant.isLocal ? undefined : mutedByParticipant[participant.id] === true,
   });
 

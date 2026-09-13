@@ -1,5 +1,12 @@
 import clsx from "clsx";
-import { Children, Fragment, cloneElement, isValidElement, type ReactElement } from "react";
+import {
+  Children,
+  Fragment,
+  cloneElement,
+  isValidElement,
+  type MouseEvent,
+  type ReactElement,
+} from "react";
 import { ChromeSignetLabel, signetHostClassName, type SignetAlign } from "../chrome/ChromeSignetLabel";
 
 export type SegmentRole = "start" | "middle" | "end" | "single";
@@ -63,7 +70,7 @@ export function BottomBarButton({
   children,
 }: {
   label: string;
-  onClick?: () => void;
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   onPointerEnter?: () => void;
   onFocus?: () => void;
   disabled?: boolean;

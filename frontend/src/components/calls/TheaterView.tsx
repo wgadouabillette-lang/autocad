@@ -2,10 +2,12 @@ import { MessageSquare, Mic, Undo2 } from "lucide-react";
 import {
   buildTheaterAudienceSeats,
   pendingHandRaises,
+  pendingLocalHandRaise,
   stageParticipants,
   theaterAudienceBenchesFromSeats,
   type TheaterState,
 } from "../../lib/theater";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
@@ -25,6 +27,8 @@ export default function TheaterView({ workspaceId, theater }: TheaterViewProps) 
   const moveLocalTheaterSeat = useCallsStore((s) => s.moveLocalTheaterSeat);
   const openTheaterChatPanel = useStore((s) => s.openTheaterChatPanel);
   const isOwner = useWorkspacesStore((s) => s.isWorkspaceOwner(workspaceId));
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
+  const raiseHand = useCallsStore((s) => s.raiseHand);
 
   const stage = stageParticipants(theater);
   const handQueue = pendingHandRaises(theater);
@@ -39,12 +43,19 @@ export default function TheaterView({ workspaceId, theater }: TheaterViewProps) 
   );
   const audienceBenches = theaterAudienceBenchesFromSeats(audienceSeats);
   const canPickSeat = localRole === "audience";
-  const handRaisedByUserId = new Set(
-    handQueue.map((request) => request.userId),
-  );
+  const localPendingRaise = pendingLocalHandRaise(handQueue, firebaseUid);
+  const handRaisedByUserId = new Set(handQueue.map((request) => request.userId));
+  if (raiseHand || localPendingRaise) {
+    handRaisedByUserId.add("local");
+    if (firebaseUid) handRaisedByUserId.add(firebaseUid);
+  }
   const handRaiseRequestByUserId = Object.fromEntries(
     handQueue.map((request) => [request.userId, request.id] as const),
   );
+  if (localPendingRaise) {
+    handRaiseRequestByUserId.local = localPendingRaise.id;
+    if (firebaseUid) handRaiseRequestByUserId[firebaseUid] = localPendingRaise.id;
+  }
   const questionSlotFree = !theater.question;
 
   return (

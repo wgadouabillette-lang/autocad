@@ -1398,11 +1398,18 @@ html:not(.app-loading-splash) #root {
     align-items: center;
     justify-content: center;
     padding: 0 0.875rem;
+    border: 0;
     border-radius: 9999px;
+    appearance: none;
     background: var(--forma-panel);
     color: #d4d4d4;
+    font: inherit;
+    cursor: pointer;
     -webkit-app-region: no-drag;
     isolation: isolate;
+  }
+  .plan-badge:hover {
+    color: #ececec;
   }
   .plan-badge__label {
     position: relative;
@@ -6467,7 +6474,7 @@ html:not(.app-loading-splash) #root {
     @apply relative isolate inline-flex shrink-0 items-center gap-1 overflow-visible rounded-full border-0 px-1 py-1;
     background-color: var(--forma-chat-composer-bg);
     box-shadow:
-      var(--forma-composer-shadow),
+      0 1px 2px rgb(0 0 0 / 0.16),
       inset 0 1px 0 var(--forma-tint-07);
   }
   .bottom-bar-capsule::before {

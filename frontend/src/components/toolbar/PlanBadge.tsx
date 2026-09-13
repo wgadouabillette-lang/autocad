@@ -32,6 +32,7 @@ export default function PlanBadge() {
   const billingManaged = useStore((s) => s.billingManaged);
   const subscriptionTier = useStore((s) => s.subscriptionTier);
   const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
+  const openSettingsTab = useStore((s) => s.openSettingsTab);
   const [shimmer, setShimmer] = useState(false);
 
   const { label } = resolvePlanBadgeLabel({
@@ -67,12 +68,14 @@ export default function PlanBadge() {
   }, []);
 
   return (
-    <span
+    <button
+      type="button"
       className={clsx("plan-badge", shimmer && "plan-badge--shimmer")}
       aria-label={`Plan ${label}`}
       title={label}
+      onClick={() => openSettingsTab("usage")}
     >
       <span className="plan-badge__label">{label}</span>
-    </span>
+    </button>
   );
 }
