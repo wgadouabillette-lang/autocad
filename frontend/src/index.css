@@ -1067,14 +1067,6 @@ html:not(.app-loading-splash) #root {
     pointer-events: auto;
     cursor: pointer;
   }
-  .marketing-preview-shell--follow-up-static .app-bottom-header .bottom-bar-btn {
-    pointer-events: none;
-    cursor: default;
-  }
-  .marketing-preview-shell--follow-up-static .marketing-preview-followup-btn .forma-signet {
-    opacity: 1;
-    transform: translate(var(--signet-x), var(--signet-y-active));
-  }
   .marketing-preview-shell--theater-feature {
     display: flex;
     flex-direction: column;
@@ -2975,43 +2967,6 @@ html:not(.app-loading-splash) #root {
   }
   .calls-view__stage--theater .theater-view {
     @apply min-h-0 flex-1;
-  }
-  .marketing-preview-shell--follow-up-static {
-    --forma-calls-lift: 0px;
-  }
-  .marketing-preview-shell--follow-up-static .calls-view:not(.calls-view--theater):not(.calls-view--loading) {
-    justify-content: flex-end;
-    padding-top: 0;
-    padding-bottom: 0;
-  }
-  .marketing-preview-shell--follow-up-static .calls-view__stage:not(.calls-view__stage--theater) {
-    flex: 0 1 auto;
-    justify-content: flex-end;
-    align-items: center;
-    --calls-stage-pad-top: 0px;
-    padding: 0;
-    margin-bottom: -0.5rem;
-  }
-  .marketing-preview-shell--follow-up-static .calls-view__open-channel-panel {
-    flex: 0 1 auto;
-  }
-  .marketing-preview-shell--follow-up-static .open-voice-in-call {
-    flex: 0 1 auto;
-    gap: 0;
-  }
-  .marketing-preview-shell--follow-up-static
-    .open-voice-in-call__grid
-    > .voice-participant-tile {
-    animation: none !important;
-    opacity: 1 !important;
-    transform: none !important;
-  }
-  .marketing-preview-shell--follow-up-static .open-voice-in-call__grid {
-    flex: 0 0 auto;
-    transform: scale(0.94) translateY(calc(-1.75rem - 75px));
-    transform-origin: center bottom;
-    max-width: min(42rem, 100%);
-    margin-inline: auto;
   }
   .calls-view--open-channel .calls-view__open-channel-panel {
     @apply flex min-h-0 flex-1 flex-col;
@@ -6197,7 +6152,11 @@ html:not(.app-loading-splash) #root {
   }
   .chat-shortcuts-hint__key-capsule {
     @apply forma-capsule inline-flex h-[1.625rem] w-[1.625rem] shrink-0 items-center justify-center
-      overflow-hidden rounded-[0.4rem] p-0;
+      overflow-visible rounded-[0.4rem] p-0;
+    /* Tighter than --forma-composer-shadow so Windows does not clip a halo on the small squares. */
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.16),
+      inset 0 1px 0 var(--forma-tint-07);
   }
   .chat-shortcuts-hint__key {
     @apply relative z-[1] inline-flex h-full w-full items-center justify-center border-0 bg-transparent
@@ -9097,6 +9056,74 @@ html:not(.app-loading-splash) #root {
   .manual-notes-panel__editor--locked {
     @apply cursor-default select-none;
   }
+  .manual-notes-panel__transcript-veil {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    backdrop-filter: blur(0.25px);
+    -webkit-backdrop-filter: blur(0.25px);
+  }
+  .manual-notes-panel__editor-wrap--transcript .manual-notes-panel__editor,
+  .manual-notes-panel__editor-wrap--transcript .manual-notes-panel__editor p {
+    color: #2d2d2d;
+  }
+  .manual-notes-panel__transcript-veil::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(
+        to right,
+        color-mix(in srgb, var(--forma-content-bg) 82%, transparent) 0%,
+        color-mix(in srgb, var(--forma-content-bg) 42%, transparent) 14%,
+        transparent 28%,
+        transparent 50%,
+        transparent 72%,
+        color-mix(in srgb, var(--forma-content-bg) 42%, transparent) 86%,
+        color-mix(in srgb, var(--forma-content-bg) 82%, transparent) 100%
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--forma-content-bg) 82%, transparent) 0%,
+        color-mix(in srgb, var(--forma-content-bg) 42%, transparent) 13%,
+        transparent 26%,
+        transparent 50%,
+        transparent 74%,
+        color-mix(in srgb, var(--forma-content-bg) 42%, transparent) 87%,
+        color-mix(in srgb, var(--forma-content-bg) 82%, transparent) 100%
+      );
+  }
+  .manual-notes-panel__transcript-status {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 1.5rem 1.25rem;
+    pointer-events: none;
+    text-align: center;
+  }
+  .manual-notes-panel__transcript-status-title {
+    @apply text-[15px] font-semibold text-muted-100;
+  }
+  .manual-notes-panel__transcript-status-hint {
+    @apply max-w-[16.5rem] text-[12px] leading-snug text-muted-400;
+  }
+  .manual-notes-panel__transcript-generate {
+    pointer-events: auto;
+    margin-top: 0.45rem;
+    @apply inline-flex items-center justify-center rounded-full px-3.5 py-1.5 text-[12px] font-medium
+      text-muted-100 transition-colors disabled:opacity-40;
+    border: 1px solid var(--forma-chat-composer-stroke);
+    background-color: var(--forma-content-bg);
+  }
+  .manual-notes-panel__transcript-generate:hover:not(:disabled) {
+    background-color: var(--forma-control-hover-bg);
+  }
   .manual-notes-panel__structuring {
     @apply flex items-center gap-2 pb-2 pt-3 text-[12px] font-medium text-muted-400;
   }
@@ -9611,101 +9638,6 @@ html:not(.app-loading-splash) #root {
   }
   .friends-chat-panel__thread {
     @apply min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3;
-  }
-  .follow-up-panel {
-    @apply flex min-h-0 flex-1 flex-col overflow-hidden;
-  }
-  .follow-up-panel__body {
-    @apply min-h-0 flex-1 overflow-y-auto;
-  }
-  .follow-up-panel__empty {
-    @apply px-4 py-8 text-center text-[12px] leading-relaxed text-muted-500;
-  }
-  .follow-up-panel__success {
-    @apply mx-4 my-6 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px]
-      text-emerald-200;
-  }
-  .follow-up-panel__loading {
-    @apply flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-[12px] text-muted-400;
-  }
-  .follow-up-panel__capturing {
-    @apply flex flex-col items-center gap-2 px-6 py-10 text-center;
-  }
-  .follow-up-panel__capturing-title {
-    @apply text-[13px] font-semibold text-muted-100;
-  }
-  .follow-up-panel__capturing-hint {
-    @apply max-w-[18rem] text-[12px] leading-relaxed text-muted-500;
-  }
-  .follow-up-panel__list {
-    @apply max-h-none;
-  }
-  .follow-up-review__recap,
-  .follow-up-review__actions,
-  .follow-up-review__emails {
-    @apply px-4 py-3;
-  }
-  .follow-up-review__error {
-    @apply mx-4 my-6 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200;
-  }
-  .follow-up-review__empty-hint {
-    @apply text-[12px] text-muted-500;
-  }
-  .follow-up-review__section-label {
-    @apply mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-muted-500;
-  }
-  .follow-up-review__recap p {
-    @apply text-[12.5px] leading-relaxed text-muted-300;
-  }
-  .follow-up-review__list {
-    @apply flex max-h-[14rem] flex-col gap-2 overflow-y-auto;
-  }
-  .follow-up-review__item {
-    @apply flex cursor-pointer items-start gap-2.5 rounded-xl px-3 py-2.5 transition-colors;
-    background-color: var(--forma-chat-composer-bg);
-  }
-  .follow-up-review__item--selected {
-    box-shadow: inset 0 0 0 1px var(--forma-tint-10);
-  }
-  .follow-up-review__checkbox {
-    @apply mt-1 shrink-0;
-  }
-  .follow-up-review__item-title {
-    @apply block w-full border-0 bg-transparent text-[12.5px] font-semibold text-muted-100 outline-none;
-  }
-  .follow-up-review__item-detail {
-    @apply mt-0.5 block text-[11px] text-muted-500;
-  }
-  .follow-up-review__item-schedule {
-    @apply mt-1 block text-[10.5px] text-muted-500;
-  }
-  .follow-up-review__item-date {
-    @apply mt-1.5 block rounded-md border-0 px-2 py-1 text-[11px] text-muted-300 outline-none;
-    background-color: var(--forma-control-hover-bg);
-  }
-  .follow-up-review__item-subject {
-    @apply mt-1 block w-full border-0 bg-transparent text-[11.5px] text-muted-300 outline-none;
-  }
-  .follow-up-review__item-body {
-    @apply mt-1.5 block w-full resize-none rounded-md border-0 px-2 py-1.5 text-[11px] leading-relaxed
-      text-muted-300 outline-none;
-    background-color: var(--forma-control-hover-bg);
-  }
-  .follow-up-review__footer {
-    @apply mt-auto flex items-center justify-end gap-2 border-t border-ink-700 px-4 py-3;
-  }
-  .follow-up-review__btn {
-    @apply inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium transition-colors;
-  }
-  .follow-up-review__btn--ghost {
-    @apply bg-transparent text-muted-400 hover:bg-ink-800 hover:text-muted-200;
-  }
-  .follow-up-review__btn--primary {
-    @apply text-muted-100 disabled:opacity-40;
-    background-color: var(--forma-control-hover-bg);
-  }
-  .follow-up-review__btn--primary:hover:not(:disabled) {
-    background-color: var(--forma-tint-12);
   }
   .bottom-bar-btn:hover:not(:disabled) {
     background-color: var(--forma-control-hover-bg);

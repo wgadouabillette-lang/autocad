@@ -274,6 +274,7 @@ export interface RemoteVoiceMember {
   photoURL?: string;
   inPrivateCall: boolean;
   openChannelId: string | null;
+  inTheaterCall?: boolean;
 }
 
 /** Applique l'état vocal distant (présence Firestore) aux blocs et salons ouverts. */
@@ -907,6 +908,95 @@ export function mergeCallBlocks(blocks: CallBlock[], fromBlockId: string, toBloc
   return blocks.filter((b) => b.id !== fromBlockId).map((b) => (b.id === toBlockId ? merged : b));
 }
 
+/** Identifiants d'un knock RTDB `fromUid_toUid`. */
+export function parseVoiceKnockRequestId(
+  requestId: string,
+): { fromUid: string; toUid: string } | null {
+  const separator = requestId.indexOf("_");
+  if (separator <= 0 || separator === requestId.length - 1) return null;
+  return {
+    fromUid: requestId.slice(0, separator),
+    toUid: requestId.slice(separator + 1),
+  };
+}
+
+/** Ajoute un distant dans un salon si son bloc solo est introuvable. */
+export function absorbRemoteUserIntoBlock(
+  blocks: CallBlock[],
+  hostBlockId: string,
+  remote: CallUser,
+): CallBlock[] {
+  const host = blocks.find((block) => block.id === hostBlockId);
+  if (!host || remote.isLocal) return blocks;
+  if (host.participants.some((participant) => participant.id === remote.id)) {
+    return blocks.map((block) =>
+      block.id === hostBlockId ? { ...block, inCall: true } : block,
+    );
+  }
+
+  return blocks
+    .filter(
+      (block) =>
+        !(
+          block.id !== hostBlockId &&
+          block.participants.length === 1 &&
+          block.participants[0]?.id === remote.id
+        ),
+    )
+    .map((block) =>
+      block.id === hostBlockId
+        ? {
+            ...block,
+            inCall: true,
+            participants: [...block.participants, remote],
+          }
+        : block,
+    );
+}
+
+const confirmedPrivateCallPeers = new Map<string, Set<string>>();
+
+/** Mémorise les distants déjà vus en appel privé — un « pas encore rejoint » n'est pas un départ. */
+export function noteConfirmedPrivateCallPeers(
+  workspaceId: string,
+  members: Array<{ id: string; inPrivateCall: boolean; openChannelId: string | null }>,
+  salonRemoteIds?: Iterable<string>,
+): void {
+  if (!workspaceId) return;
+  let seen = confirmedPrivateCallPeers.get(workspaceId);
+  if (!seen) {
+    seen = new Set();
+    confirmedPrivateCallPeers.set(workspaceId, seen);
+  }
+  const restrictTo = salonRemoteIds ? new Set(salonRemoteIds) : null;
+  for (const member of members) {
+    if (!member.id || !member.inPrivateCall || member.openChannelId) continue;
+    if (restrictTo && !restrictTo.has(member.id)) continue;
+    seen.add(member.id);
+  }
+}
+
+export function forgetConfirmedPrivateCallPeer(workspaceId: string, userId: string): void {
+  if (!workspaceId || !userId) return;
+  confirmedPrivateCallPeers.get(workspaceId)?.delete(userId);
+}
+
+export function clearConfirmedPrivateCallPeers(workspaceId: string): void {
+  if (!workspaceId) return;
+  confirmedPrivateCallPeers.delete(workspaceId);
+}
+
+export function remoteHasLeftPrivateCall(
+  workspaceId: string,
+  userId: string,
+  voice: Pick<RemoteVoiceMember, "inPrivateCall" | "openChannelId" | "inTheaterCall"> | undefined,
+): boolean {
+  if (!voice) return false;
+  if (voice.openChannelId || voice.inTheaterCall) return true;
+  if (voice.inPrivateCall) return false;
+  return confirmedPrivateCallPeers.get(workspaceId)?.has(userId) === true;
+}
+
 function soloBlockForParticipant(roomId: string, user: CallUser, inCall: boolean): CallBlock {
   return {
     id: memberBlockId(roomId, user.isLocal ? "local" : user.id),
@@ -958,6 +1048,7 @@ export function splitRemoteParticipantFromBlock(
 export function splitDepartedRemotesFromMergedBlocks(
   blocks: CallBlock[],
   members: RemoteVoiceMember[],
+  workspaceId = "",
 ): CallBlock[] {
   const membersById = new Map(members.map((member) => [member.id, member]));
   let result = blocks;
@@ -968,7 +1059,7 @@ export function splitDepartedRemotesFromMergedBlocks(
     const departedRemotes = block.participants.filter(
       (participant) =>
         !participant.isLocal &&
-        membersById.get(participant.id)?.inPrivateCall === false,
+        remoteHasLeftPrivateCall(workspaceId, participant.id, membersById.get(participant.id)),
     );
 
     for (const remote of departedRemotes) {
@@ -979,6 +1070,7 @@ export function splitDepartedRemotesFromMergedBlocks(
       );
       if (!merged) continue;
       result = splitRemoteParticipantFromBlock(result, merged.id, remote.id);
+      forgetConfirmedPrivateCallPeer(workspaceId, remote.id);
     }
   }
 
@@ -990,6 +1082,7 @@ export function reconcileBlocksAfterPresenceSync(
   previousBlocks: CallBlock[],
   nextBlocks: CallBlock[],
   voiceMembers: RemoteVoiceMember[] = [],
+  workspaceId = "",
 ): CallBlock[] {
   const membersById = new Map(voiceMembers.map((member) => [member.id, member]));
 
@@ -1007,7 +1100,7 @@ export function reconcileBlocksAfterPresenceSync(
         if (participant.isLocal) return true;
         const voice = membersById.get(participant.id);
         if (!voice) return true;
-        return voice.inPrivateCall === true;
+        return !remoteHasLeftPrivateCall(workspaceId, participant.id, voice);
       });
     },
   );

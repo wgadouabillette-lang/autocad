@@ -31,7 +31,7 @@
       "workspaces": "Tus workspaces, invitaciones y uso de IA Team.",
       "usage": "Planes Pro, Pro+ y Team.",
       "billing": "Plan actual y próxima fecha de cobro.",
-      "agents": "Personaliza el chat, follow-ups y AI Notes.",
+      "agents": "Personaliza el chat y AI Notes.",
       "models": "Elige el modelo de IA para la generación.",
       "plugins": "Conectores disponibles en el chat."
     },
@@ -99,11 +99,11 @@
       "teamCredit": "{{amount}} $ de crédito por asiento / mes",
       "unlimitedServers": "Servidores personales ilimitados",
       "aiAssistant": "Asistente IA en todo Meetra",
-      "aiNotesFollowup": "AI Notes y Follow-up",
+      "aiNotesFollowup": "AI Notes",
       "aiModelChoice": "Elección del modelo IA",
       "chooseSeats": "Elige cuántos asientos pagar",
       "aiForMembers": "IA para todos los miembros",
-      "workspaceAiNotes": "AI Notes y Follow-up del workspace",
+      "workspaceAiNotes": "AI Notes del workspace",
       "centralizedBilling": "Facturación centralizada"
     },
     "ownedLimitPro": "Servidores personales ilimitados con Pro.",

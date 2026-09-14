@@ -73,13 +73,6 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     keywords: "agents chat assistant instructions comportement agent render",
   },
   {
-    id: "follow-up-agent",
-    tab: "agents",
-    label: "Instructions follow-up",
-    hint: "Personnaliser récaps et e-mails après appel",
-    keywords: "agents follow-up récap e-mail instructions appel",
-  },
-  {
     id: "ai-notes-agent",
     tab: "agents",
     label: "Instructions AI Notes",

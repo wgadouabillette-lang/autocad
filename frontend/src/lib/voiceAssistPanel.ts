@@ -1,4 +1,4 @@
-export type VoiceAssistTab = "ai-notes" | "follow-up";
+export type VoiceAssistTab = "ai-notes";
 
 export type ChatPanelMode =
   | "agent"
@@ -8,5 +8,5 @@ export type ChatPanelMode =
   | VoiceAssistTab;
 
 export function isVoiceAssistPanelMode(mode: ChatPanelMode): boolean {
-  return mode === "ai-notes" || mode === "follow-up";
+  return mode === "ai-notes";
 }

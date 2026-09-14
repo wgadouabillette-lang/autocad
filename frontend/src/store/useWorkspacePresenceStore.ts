@@ -7,6 +7,7 @@ export const PRESENCE_OFFLINE_AFTER_MS = 210_000;
 export interface WorkspacePresenceVoice {
   inPrivateCall: boolean;
   openChannelId: string | null;
+  inTheaterCall?: boolean;
   speaking?: boolean;
 }
 
@@ -84,6 +85,7 @@ function presenceEntriesEqual(
       before.online === after.online &&
       before.voice.inPrivateCall === after.voice.inPrivateCall &&
       before.voice.openChannelId === after.voice.openChannelId &&
+      before.voice.inTheaterCall === after.voice.inTheaterCall &&
       before.voice.speaking === after.voice.speaking
     );
   });

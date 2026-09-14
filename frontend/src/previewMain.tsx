@@ -11,7 +11,6 @@ import {
 } from "./lib/marketingPreview";
 import {
   seedMarketingHandoffPreview,
-  seedMarketingFollowUpPreview,
   seedMarketingLandingHero,
   seedMarketingNotesPreview,
   seedMarketingPreview,
@@ -37,8 +36,6 @@ if (scene === "recording") {
   seedMarketingNotesPreview();
 } else if (scene === "handoff") {
   seedMarketingHandoffPreview();
-} else if (scene === "follow-up") {
-  seedMarketingFollowUpPreview();
 } else if (scene === "spotify") {
   seedMarketingSpotifyPreview();
 } else {

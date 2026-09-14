@@ -1,14 +1,12 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Calendar,
-  ListTodo,
   MessageSquare,
   Sparkles,
   Theater,
   Users,
 } from "lucide-react";
 import type { SubscriptionPlan } from "./subscriptionPlans";
-import { hasFollowUpAccess } from "./subscriptionPlans";
 import type { ChatPanelMode } from "./voiceAssistPanel";
 
 export interface ChatPanelModeTab {
@@ -19,10 +17,10 @@ export interface ChatPanelModeTab {
 }
 
 export function chatPanelModeTabs(
-  plan: SubscriptionPlan,
+  _plan: SubscriptionPlan,
   inTheaterView: boolean,
-  billingManaged = false,
-  workspaceEnterprise = false,
+  _billingManaged = false,
+  _workspaceEnterprise = false,
 ): ChatPanelModeTab[] {
   const tabs: ChatPanelModeTab[] = [
     { id: "agent", labelKey: "chat.modes.agent", icon: MessageSquare },
@@ -30,10 +28,6 @@ export function chatPanelModeTabs(
     { id: "friends", labelKey: "chat.modes.messages", icon: Users },
     { id: "ai-notes", labelKey: "chat.modes.notes", icon: Sparkles },
   ];
-
-  if (hasFollowUpAccess(plan, billingManaged, workspaceEnterprise)) {
-    tabs.push({ id: "follow-up", labelKey: "chat.modes.followUp", icon: ListTodo });
-  }
 
   if (inTheaterView) {
     tabs.push({ id: "theater", labelKey: "chat.modes.theater", icon: Theater });

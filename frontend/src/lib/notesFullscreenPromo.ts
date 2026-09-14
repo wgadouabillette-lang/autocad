@@ -105,7 +105,7 @@ export function shouldHideNotesFullscreenPromoForBilling(input: {
   );
 }
 
-/** Mount only on the fullscreen Notes tab editor — not history, recordings, or follow-up. */
+/** Mount only on the fullscreen Notes tab editor — not history or recordings. */
 export function isNotesEditorPromoSurface(input: {
   isMobileLayout: boolean;
   chatPanelExpanded: boolean;

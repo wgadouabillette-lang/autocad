@@ -1,8 +1,5 @@
 import { create } from "zustand";
-import {
-  AI_NOTES_STRUCTURE_INTERVAL_MS,
-  structureAiNotesTranscript,
-} from "../lib/aiNotesStructure";
+import { structureAiNotesTranscript } from "../lib/aiNotesStructure";
 import {
   isVoiceNotesSupported,
   startVoiceNotesSession,
@@ -36,10 +33,8 @@ interface AiNotesState {
   stop: () => Promise<void>;
 }
 
-let structureIntervalId: number | null = null;
 let structureAbortController: AbortController | null = null;
 let structureInFlight = false;
-let structureQueued = false;
 
 function isInVoiceSession(workspaceId: string): boolean {
   const calls = useCallsStore.getState();
@@ -72,38 +67,18 @@ function handleTranscriptChunk(
   return { lines, interimText: chunk.text };
 }
 
-function clearStructureLoop() {
-  if (structureIntervalId !== null) {
-    window.clearInterval(structureIntervalId);
-    structureIntervalId = null;
-  }
+function abortStructure() {
   structureAbortController?.abort();
   structureAbortController = null;
   structureInFlight = false;
-  structureQueued = false;
 }
 
-function scheduleNextStructureAt(set: (partial: Partial<AiNotesState>) => void) {
-  set({ nextStructureAt: Date.now() + AI_NOTES_STRUCTURE_INTERVAL_MS });
-}
-
-async function runStructureTick(
+async function runFinalStructure(
   get: () => AiNotesState,
   set: (partial: Partial<AiNotesState> | ((state: AiNotesState) => Partial<AiNotesState>)) => void,
-  options?: { allowInactive?: boolean },
 ) {
-  if (!get().active && !options?.allowInactive) return;
-
   const transcript = buildTranscript(get().lines, get().interimText);
-  if (!transcript) {
-    if (get().active) scheduleNextStructureAt(set);
-    return;
-  }
-
-  if (structureInFlight) {
-    structureQueued = true;
-    return;
-  }
+  if (!transcript || structureInFlight) return;
 
   structureInFlight = true;
   set({ structuring: true, structureError: null });
@@ -112,7 +87,6 @@ async function runStructureTick(
   try {
     const html = await structureAiNotesTranscript({
       transcript,
-      previousHtml: get().structuredHtml || undefined,
       workspaceId: get().workspaceId ?? undefined,
       signal: structureAbortController.signal,
     });
@@ -122,32 +96,15 @@ async function runStructureTick(
       structuring: false,
       structureError: null,
     });
-    if (get().active) scheduleNextStructureAt(set);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") return;
     const message =
       error instanceof Error ? error.message : "Structuration IA indisponible.";
     set({ structuring: false, structureError: message });
-    if (get().active) scheduleNextStructureAt(set);
   } finally {
     structureInFlight = false;
     structureAbortController = null;
-    if (structureQueued && get().active) {
-      structureQueued = false;
-      void runStructureTick(get, set);
-    }
   }
-}
-
-function startStructureLoop(
-  get: () => AiNotesState,
-  set: (partial: Partial<AiNotesState> | ((state: AiNotesState) => Partial<AiNotesState>)) => void,
-) {
-  clearStructureLoop();
-  scheduleNextStructureAt(set);
-  structureIntervalId = window.setInterval(() => {
-    void runStructureTick(get, set);
-  }, AI_NOTES_STRUCTURE_INTERVAL_MS);
 }
 
 export const useAiNotesStore = create<AiNotesState>((set, get) => ({
@@ -167,7 +124,7 @@ export const useAiNotesStore = create<AiNotesState>((set, get) => ({
   stop: async () => {
     const { isMarketingPreview } = await import("../lib/marketingPreview");
     if (isMarketingPreview()) {
-      clearStructureLoop();
+      abortStructure();
       set({
         active: false,
         busy: false,
@@ -175,12 +132,11 @@ export const useAiNotesStore = create<AiNotesState>((set, get) => ({
       });
       return;
     }
-    if (!get().active && !get().busy) return;
+    if (get().busy || !get().active) return;
 
-    const { lines, interimText, sessionId, structuredHtml } = get();
-    const transcript = buildTranscript(lines, interimText);
+    const { sessionId } = get();
 
-    clearStructureLoop();
+    abortStructure();
     set({ busy: true, active: false, nextStructureAt: null });
 
     try {
@@ -190,8 +146,8 @@ export const useAiNotesStore = create<AiNotesState>((set, get) => ({
         await saveRecordingBlob(sessionId, blob);
       }
 
-      if (transcript) {
-        await runStructureTick(get, set, { allowInactive: true });
+      if (buildTranscript(get().lines, get().interimText)) {
+        await runFinalStructure(get, set);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible d'arrêter AI Notes.";
@@ -264,11 +220,10 @@ export const useAiNotesStore = create<AiNotesState>((set, get) => ({
         startedAt: Date.now(),
         workspaceId,
         sessionId,
+        nextStructureAt: null,
       });
-
-      startStructureLoop(get, set);
     } catch (error) {
-      clearStructureLoop();
+      abortStructure();
       const message =
         error instanceof Error ? error.message : "Impossible de démarrer AI Notes.";
       set({

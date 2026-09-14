@@ -1,23 +1,16 @@
 """Génération de notes recap à partir d'enregistrements vidéo/audio."""
 from __future__ import annotations
 
-import os
 import re
 from typing import Optional
 
-import httpx
-
 from app.ai import chat as chat_mod
 from app.ai import llm
+from app.ai.stt import SttError, transcribe_audio
 
 
-def _openai_api_key() -> str:
-    return (os.getenv("OPENAI_API_KEY") or "").strip()
-
-
-async def transcribe_recording(data: bytes, filename: str) -> str:
-    api_key = _openai_api_key()
-    if not api_key or not data:
+async def transcribe_recording(data: bytes, filename: str, uid: Optional[str] = None) -> str:
+    if not data:
         return ""
 
     name = filename or "recording.webm"
@@ -25,19 +18,14 @@ async def transcribe_recording(data: bytes, filename: str) -> str:
         name = f"{name}.webm"
 
     try:
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/audio/transcriptions",
-                headers={"Authorization": f"Bearer {api_key}"},
-                files={"file": (name, data, "application/octet-stream")},
-                data={"model": "whisper-1"},
-            )
-            if response.status_code >= 400:
-                return ""
-            payload = response.json()
-            text = payload.get("text") if isinstance(payload, dict) else None
-            return (text or "").strip()
-    except Exception:
+        return await transcribe_audio(
+            data,
+            filename=name,
+            mime="application/octet-stream",
+            uid=uid,
+            timeout=300.0,
+        )
+    except SttError:
         return ""
 
 

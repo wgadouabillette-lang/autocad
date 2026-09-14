@@ -127,7 +127,7 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
       "Serveurs personnels illimités",
       "Crédits IA mensuels inclus",
       "Assistant IA dans tout Meetra",
-      "AI Notes et Follow-up",
+      "AI Notes",
       "Choix du modèle IA",
     ],
   },
@@ -139,7 +139,7 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
     features: [
       "IA pour tous les membres du workspace",
       "Pool IA partagé (24 $ × siège / mois)",
-      "AI Notes et Follow-up workspace",
+      "AI Notes workspace",
       "Facturation centralisée",
     ],
   },
@@ -238,14 +238,6 @@ export function hasAiAccess(
 }
 
 export function hasAiNotesAccess(
-  plan: SubscriptionPlan,
-  billingManaged = false,
-  workspaceEnterprise = false,
-): boolean {
-  return hasAiAccess(plan, billingManaged, workspaceEnterprise);
-}
-
-export function hasFollowUpAccess(
   plan: SubscriptionPlan,
   billingManaged = false,
   workspaceEnterprise = false,

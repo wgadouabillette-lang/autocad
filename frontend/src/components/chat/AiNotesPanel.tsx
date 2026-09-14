@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { Loader2, Square } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useAiNotesStore } from "../../store/useAiNotesStore";
 import { useStore } from "../../store/useStore";
 import { sanitizeNoteHtml } from "../../lib/sanitizeHtml";
@@ -21,13 +21,11 @@ export default function AiNotesPanel() {
   const structuredHtml = useAiNotesStore((s) => s.structuredHtml);
   const structuring = useAiNotesStore((s) => s.structuring);
   const structureError = useAiNotesStore((s) => s.structureError);
-  const nextStructureAt = useAiNotesStore((s) => s.nextStructureAt);
   const error = useAiNotesStore((s) => s.error);
   const startedAt = useAiNotesStore((s) => s.startedAt);
   const stopAiNotes = useAiNotesStore((s) => s.stop);
   const savedMessages = useStore((s) => s.chat);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [secondsUntilStructure, setSecondsUntilStructure] = useState<number | null>(null);
 
   const savedLines = savedMessages
     .filter((m) => m.role === "assistant" || m.role === "user")
@@ -44,19 +42,6 @@ export default function AiNotesPanel() {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [lines, interimText, structuredHtml]);
-
-  useEffect(() => {
-    if (!active || !nextStructureAt || structuring) {
-      setSecondsUntilStructure(null);
-      return;
-    }
-    const tick = () => {
-      setSecondsUntilStructure(Math.max(0, Math.ceil((nextStructureAt - Date.now()) / 1000)));
-    };
-    tick();
-    const id = window.setInterval(tick, 500);
-    return () => window.clearInterval(id);
-  }, [active, nextStructureAt, structuring]);
 
   const hasContent =
     lines.length > 0 ||
@@ -77,12 +62,12 @@ export default function AiNotesPanel() {
                   : "Enregistrement live"
                 : "Session terminée"}
           </p>
-          {active && (
+          {(active || structuring) && (
             <p className="ai-notes-panel__meta" aria-live="polite">
               {structuring
                 ? "Structuration IA en cours…"
-                : secondsUntilStructure !== null
-                  ? `Prochaine structuration dans ${secondsUntilStructure}s`
+                : liveTranscript.trim()
+                  ? "Transcription en cours…"
                   : "En attente de parole…"}
             </p>
           )}
@@ -114,7 +99,7 @@ export default function AiNotesPanel() {
 
       <div ref={scrollRef} className="ai-notes-panel__body" aria-live="polite">
         {error && <p className="ai-notes-panel__error">{error}</p>}
-        {structureError && active && (
+        {structureError && (
           <p className="ai-notes-panel__error ai-notes-panel__error--soft" role="status">
             {structureError}
           </p>
@@ -122,8 +107,8 @@ export default function AiNotesPanel() {
 
         {!error && !hasContent && active && (
           <p className="ai-notes-panel__empty">
-            Écoute en cours… Parlez pendant l&apos;appel — les notes structurées se mettent à jour
-            toutes les 10 secondes.
+            Écoute en cours… Parlez pendant l&apos;appel — la transcription s&apos;affiche ici,
+            puis les notes sont structurées à l&apos;arrêt.
           </p>
         )}
 
@@ -133,7 +118,7 @@ export default function AiNotesPanel() {
           </p>
         )}
 
-        {active && structuredHtml.trim() && (
+        {structuredHtml.trim() && (
           <section className="ai-notes-panel__structured" aria-label="Notes structurées">
             <h3 className="ai-notes-panel__section-label">Notes structurées</h3>
             <div
@@ -143,7 +128,7 @@ export default function AiNotesPanel() {
           </section>
         )}
 
-        {active && liveTranscript.trim() && (
+        {(active || busy || structuring) && liveTranscript.trim() && (
           <details
             className={clsx(
               "ai-notes-panel__transcript",

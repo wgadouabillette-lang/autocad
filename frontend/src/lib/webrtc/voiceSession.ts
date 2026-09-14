@@ -64,7 +64,9 @@ export function enrichVoiceRtcContextWithPresence(
 ): VoiceRtcContext {
   const presencePeers = context.sessionId.startsWith("theater__")
     ? theaterPeerUids(presenceMembers, localFirebaseUid)
-    : presencePeerUids(presenceMembers, localFirebaseUid, localOpenChannelId);
+    : context.sessionId.startsWith("open__")
+      ? presencePeerUids(presenceMembers, localFirebaseUid, localOpenChannelId)
+      : [];
   const peerUids = uniquePeerUids([...context.peerUids, ...presencePeers], localFirebaseUid);
   if (
     peerUids.length === context.peerUids.length &&
@@ -177,7 +179,7 @@ export function resolveVoiceRtcContext(input: {
     );
     return {
       workspaceId,
-      sessionId: `block__${localBlock.id}`,
+      sessionId: sessionIdForPeers("private", localFirebaseUid, peerUids),
       peerUids,
     };
   }

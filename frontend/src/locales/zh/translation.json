@@ -99,11 +99,11 @@
       "teamCredit": "每席位每月 ${{amount}} 额度",
       "unlimitedServers": "无限个人服务器",
       "aiAssistant": "Meetra 全站 AI 助手",
-      "aiNotesFollowup": "AI Notes 与 Follow-up",
+      "aiNotesFollowup": "AI Notes",
       "aiModelChoice": "可选 AI 模型",
       "chooseSeats": "选择付费席位数",
       "aiForMembers": "全体成员可用 AI",
-      "workspaceAiNotes": "工作区 AI Notes 与 Follow-up",
+      "workspaceAiNotes": "工作区 AI Notes",
       "centralizedBilling": "集中计费"
     },
     "ownedLimitPro": "Pro 可创建无限个人服务器。",

@@ -39,7 +39,7 @@ export interface HandoffPreviewState {
   messages: ChatMessage[];
   noteTitle?: string;
   noteBodyHtml?: string;
-  returnPanelMode: "agent" | "ai-notes" | "friends" | "calendar" | "theater" | "follow-up";
+  returnPanelMode: "agent" | "ai-notes" | "friends" | "calendar" | "theater";
 }
 
 export interface CreateHandoffInput {

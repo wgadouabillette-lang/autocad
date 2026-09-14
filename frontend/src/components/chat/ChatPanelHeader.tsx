@@ -198,7 +198,7 @@ export default function ChatPanelHeader() {
             {t("chat.calendarTitle")}
           </span>
         ) : voiceAssistMode ? (
-          chatPanelMode === "follow-up" ? t("chat.followUp") : t("chat.aiNotes")
+          t("chat.aiNotes")
         ) : (
           AGENT_PANEL_TITLE
         )}

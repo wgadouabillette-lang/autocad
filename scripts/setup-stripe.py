@@ -279,7 +279,7 @@ def main() -> int:
     pro_product = _ensure_product(
         stripe,
         name="Meetra Pro",
-        description="Abonnement mensuel — assistant IA, connecteurs, AI Notes et Follow-up.",
+        description="Abonnement mensuel — assistant IA, connecteurs et AI Notes.",
         meta_value=PRO_META_VALUE,
         dry_run=args.dry_run,
     )

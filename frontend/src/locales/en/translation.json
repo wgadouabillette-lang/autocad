@@ -31,7 +31,7 @@
       "workspaces": "Your workspaces, invitations, and Team AI usage.",
       "usage": "Pro, Pro+, and Team plans.",
       "billing": "Current plan and next billing date.",
-      "agents": "Customize chat, follow-ups, and AI Notes.",
+      "agents": "Customize chat and AI Notes.",
       "models": "Choose the AI model for generation.",
       "plugins": "Connectors available in chat."
     },
@@ -99,11 +99,11 @@
       "teamCredit": "${{amount}} usable credit per seat / month",
       "unlimitedServers": "Unlimited personal servers",
       "aiAssistant": "AI assistant across Meetra",
-      "aiNotesFollowup": "AI Notes and Follow-up",
+      "aiNotesFollowup": "AI Notes",
       "aiModelChoice": "Choice of AI model",
       "chooseSeats": "Choose how many seats to pay for",
       "aiForMembers": "AI for every workspace member",
-      "workspaceAiNotes": "Workspace AI Notes and Follow-up",
+      "workspaceAiNotes": "Workspace AI Notes",
       "centralizedBilling": "Centralized billing"
     },
     "ownedLimitPro": "Unlimited personal servers with Pro.",

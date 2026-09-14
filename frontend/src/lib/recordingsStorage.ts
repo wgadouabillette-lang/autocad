@@ -96,7 +96,7 @@ export async function deleteRecordingBlob(id: string): Promise<void> {
   }
 }
 
-/** Compat — écriture locale uniquement (notes IA, follow-up, etc.). */
+/** Compat — écriture locale uniquement (notes IA, etc.). */
 export async function saveRecordingBlob(id: string, blob: Blob): Promise<void> {
   await writeRecordingBlobToIdb(id, blob);
 }

@@ -31,7 +31,7 @@
       "workspaces": "Deine Workspaces, Einladungen und Team-KI-Nutzung.",
       "usage": "Pro-, Pro+- und Team-Pläne.",
       "billing": "Aktueller Plan und nächstes Abrechnungsdatum.",
-      "agents": "Chat, Follow-ups und AI Notes anpassen.",
+      "agents": "Chat und AI Notes anpassen.",
       "models": "KI-Modell für die Generierung wählen.",
       "plugins": "Connectoren im Chat."
     },
@@ -99,11 +99,11 @@
       "teamCredit": "{{amount}} $ Guthaben pro Sitz / Monat",
       "unlimitedServers": "Unbegrenzte persönliche Server",
       "aiAssistant": "KI-Assistent in ganz Meetra",
-      "aiNotesFollowup": "AI Notes und Follow-up",
+      "aiNotesFollowup": "AI Notes",
       "aiModelChoice": "Wahl des KI-Modells",
       "chooseSeats": "Anzahl der Sitze wählen",
       "aiForMembers": "KI für alle Workspace-Mitglieder",
-      "workspaceAiNotes": "Workspace AI Notes und Follow-up",
+      "workspaceAiNotes": "Workspace AI Notes",
       "centralizedBilling": "Zentrale Abrechnung"
     },
     "ownedLimitPro": "Unbegrenzte persönliche Server mit Pro.",

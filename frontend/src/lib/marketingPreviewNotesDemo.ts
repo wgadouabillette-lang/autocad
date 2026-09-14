@@ -85,7 +85,7 @@ const STRUCTURE_V3_ADD = [
   "<p>Thursday <mark>10:00</mark> — standup in Salon vocal. Lock the sprint 14 board before then and send the recap after this call.</p>",
   "<h3>Open questions</h3>",
   "<ul>",
-  "<li>Do we keep Follow-up as its own tab or fold it into Notes for the landing pass?</li>",
+  "<li>Should Notes stay fullscreen after the call, or collapse back to the side panel?</li>",
   "<li>Should Riley’s leadership recap include the connector table or just the decisions?</li>",
   "</ul>",
 ].join("");

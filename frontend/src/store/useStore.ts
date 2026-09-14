@@ -194,7 +194,7 @@ function initialOpenChatTabs(): {
   };
 }
 
-type ChatPanelMode = "agent" | "friends" | "calendar" | "theater" | "ai-notes" | "follow-up";
+type ChatPanelMode = "agent" | "friends" | "calendar" | "theater" | "ai-notes";
 
 /** État chat agent isolé par workspace (évite de voir les messages d'un autre room). */
 interface WorkspaceChatBucket {
@@ -292,7 +292,11 @@ function workspaceChatSwitchPatch(
     chatNavPointer: restored.chatNavPointer,
     showChatHistory: restored.showChatHistory,
     activeManualNoteId: restored.activeManualNoteId,
-    chatPanelMode: restored.chatPanelMode === "theater" ? "agent" : restored.chatPanelMode,
+    chatPanelMode:
+      restored.chatPanelMode === "theater" ||
+      (restored.chatPanelMode as string) === "follow-up"
+        ? "agent"
+        : restored.chatPanelMode,
     chatHistoryHighlightRecordingId: restored.chatHistoryHighlightRecordingId,
     agentComposerInsert: null,
   };
@@ -461,7 +465,6 @@ interface State {
   setOnDemandUsageEnabled: (enabled: boolean) => void;
   toggleOnDemandUsage: () => void;
   setAgentChatInstructions: (value: string) => void;
-  setAgentFollowUpInstructions: (value: string) => void;
   setAgentAiNotesInstructions: (value: string) => void;
   setCalendarWorkingHours: (startMinutes: number, endMinutes: number) => void;
   setAvailabilityDays: (days: number[]) => void;
@@ -497,11 +500,10 @@ interface State {
   insertAgentComposerText: (text: string) => void;
   takeAgentComposerInsert: () => { id: number; text: string } | null;
   openAiNotesPanel: () => void;
-  openFollowUpPanel: () => void;
   openCalendarPanel: () => void;
   openTheaterChatPanel: () => void;
   switchChatPanelMode: (
-    mode: "agent" | "friends" | "calendar" | "theater" | "ai-notes" | "follow-up",
+    mode: "agent" | "friends" | "calendar" | "theater" | "ai-notes",
   ) => void;
   beginAiNotesSession: (workspaceId: string) => ChatSession;
   finalizeAiNotesSession: (input: {
@@ -520,12 +522,6 @@ interface State {
   openRecordingSession: (id: string) => void;
   deleteRecordingSession: (sessionId: string) => Promise<void>;
   deleteHistorySession: (sessionId: string) => Promise<void>;
-  saveFollowUpNoteSession: (input: {
-    recap: string;
-    actions: { title: string; detail?: string; dueDate: string }[];
-    emails: { to: string; subject: string; body: string }[];
-    roomId: string;
-  }) => void;
   setActiveRoom: (id: string) => void;
   switchWorkspace: (id: string) => void;
   finishWorkspaceSwitch: () => void;
@@ -537,7 +533,7 @@ interface State {
   openChatHistoryPanel: (options?: { highlightRecordingId?: string }) => void;
   clearChatHistoryHighlightRecording: () => void;
   setChatPanelMode: (
-    mode: "agent" | "friends" | "calendar" | "theater" | "ai-notes" | "follow-up",
+    mode: "agent" | "friends" | "calendar" | "theater" | "ai-notes",
   ) => void;
   toggleFriendsChatMode: () => void;
   cycleChatPanelMode: () => void;
@@ -894,11 +890,6 @@ export const useStore = create<State>((set, get) => ({
   setAgentChatInstructions: (value) => {
     set({ agentChatInstructions: value });
     writeUserPreferences(userPreferencesSnapshot({ ...get(), agentChatInstructions: value }));
-  },
-
-  setAgentFollowUpInstructions: (value) => {
-    set({ agentFollowUpInstructions: value });
-    writeUserPreferences(userPreferencesSnapshot({ ...get(), agentFollowUpInstructions: value }));
   },
 
   setAgentAiNotesInstructions: (value) => {
@@ -2281,8 +2272,6 @@ export const useStore = create<State>((set, get) => ({
 
   openAiNotesPanel: () => get().switchChatPanelMode("ai-notes"),
 
-  openFollowUpPanel: () => get().switchChatPanelMode("follow-up"),
-
   beginAiNotesSession: (workspaceId) => {
     const at = Date.now();
     const id = `ainotes-${at}`;
@@ -2492,53 +2481,6 @@ export const useStore = create<State>((set, get) => ({
     return session;
   },
 
-  saveFollowUpNoteSession: ({ recap, actions, emails, roomId }) => {
-    const at = Date.now();
-    const id = `followup-${at}`;
-    const title = `Follow-up · ${new Date(at).toLocaleString("en-US", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-
-    const lines = [recap, "", "## Actions"];
-    for (const action of actions) {
-      lines.push(
-        `- ${action.title}${action.detail ? ` (${action.detail})` : ""} — ${action.dueDate}`,
-      );
-    }
-    if (emails.length > 0) {
-      lines.push("", "## Emails to send");
-      for (const email of emails) {
-        lines.push(`- ${email.to} — ${email.subject}`);
-        if (email.body.trim()) lines.push(`  ${email.body.trim()}`);
-      }
-    }
-
-    const session: ChatSession = {
-      id,
-      title,
-      messages: [{ role: "assistant", text: lines.join("\n") }],
-      updatedAt: at,
-      kind: "note",
-    };
-
-    set((s) => ({
-      chatSessions: [session, ...s.chatSessions.filter((item) => item.id !== id)],
-    }));
-    writeAutosave(get());
-
-    const uid = auth.currentUser?.uid;
-    if (uid) {
-      void fbSaveChatSession(uid, session).catch((error) => {
-        console.error("[follow-up] Firestore save failed", error);
-      });
-    }
-
-    void roomId;
-  },
-
   openCalendarPanel: () => get().switchChatPanelMode("calendar"),
 
   openTheaterChatPanel: () => get().switchChatPanelMode("theater"),
@@ -2552,8 +2494,7 @@ export const useStore = create<State>((set, get) => ({
     if (
       chatPanelMode === "calendar" ||
       chatPanelMode === "theater" ||
-      chatPanelMode === "ai-notes" ||
-      chatPanelMode === "follow-up"
+      chatPanelMode === "ai-notes"
     ) {
       get().openAgentPanel();
       return;
@@ -2786,7 +2727,7 @@ export const useStore = create<State>((set, get) => ({
       ? ["agent", "calendar", "friends", "theater"]
       : ["agent", "calendar", "friends"];
     const cycleMode =
-      state.chatPanelMode === "ai-notes" || state.chatPanelMode === "follow-up"
+      state.chatPanelMode === "ai-notes"
         ? "agent"
         : state.chatPanelMode;
     const currentIdx = modes.indexOf(cycleMode);

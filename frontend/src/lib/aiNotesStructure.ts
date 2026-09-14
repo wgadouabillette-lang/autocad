@@ -2,8 +2,6 @@ import { api } from "./api";
 import { aiNotesStructureModel } from "./aiModels";
 import { useStore } from "../store/useStore";
 
-export const AI_NOTES_STRUCTURE_INTERVAL_MS = 5_000;
-
 function stripMarkdownFence(text: string): string {
   const fenced = text.match(/```(?:html)?\s*([\s\S]*?)```/i);
   return (fenced ? fenced[1] : text).trim();

@@ -9,7 +9,6 @@ import {
   MessageSquare,
   Mic,
   Sparkles,
-  ListTodo,
   SkipForward,
   MicOff,
   MonitorUp,
@@ -29,9 +28,8 @@ import {
   countTheaterParticipants,
   isLocalInTheater,
 } from "../lib/theater";
-import { hasAiNotesAccess, hasFollowUpAccess, hasVoicePollAccess } from "../lib/subscriptionPlans";
+import { hasAiNotesAccess, hasVoicePollAccess } from "../lib/subscriptionPlans";
 import { useAiNotesStore } from "../store/useAiNotesStore";
-import { useFollowUpCaptureStore } from "../store/useFollowUpCaptureStore";
 import { useActiveVoicePoll } from "../hooks/useActiveVoicePoll";
 import { useVoicePollStore } from "../store/useVoicePollStore";
 import { useStore } from "../store/useStore";
@@ -41,10 +39,7 @@ import { useSpotifyAudioPulse } from "../hooks/useSpotifyAudioPulse";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
 import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
 import { useHallDjStore } from "../store/useHallDjStore";
-import {
-  isMarketingFollowUpPreviewScene,
-  isMarketingPreview,
-} from "../lib/marketingPreview";
+import { isMarketingPreview } from "../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { warmSpotifyWebPlayer, activateSpotifyPlaybackFromUserGesture } from "../lib/spotifyWebPlayback";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
@@ -148,15 +143,10 @@ export default function BottomHeader() {
     workspaceEnterpriseActive,
   );
   const showAssistButtons =
-    inCall &&
-    hasAiNotesAccess(subscriptionPlan, billingManaged, workspaceEnterpriseActive) &&
-    hasFollowUpAccess(subscriptionPlan, billingManaged, workspaceEnterpriseActive);
+    inCall && hasAiNotesAccess(subscriptionPlan, billingManaged, workspaceEnterpriseActive);
   const aiNotesActive = useAiNotesStore((s) => s.active);
   const aiNotesBusy = useAiNotesStore((s) => s.busy);
   const toggleAiNotes = useAiNotesStore((s) => s.toggle);
-  const followUpActive = useFollowUpCaptureStore((s) => s.active);
-  const followUpBusy = useFollowUpCaptureStore((s) => s.busy);
-  const toggleFollowUp = useFollowUpCaptureStore((s) => s.toggle);
   const openSpotifyPanel = useStore((s) => s.insertAgentComposerText);
   const stopSpotify = useSpotifyPlayerStore((s) => s.stop);
   const spotifyCurrentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
@@ -377,8 +367,7 @@ export default function BottomHeader() {
       {showHandRaiseControl && (
         <BottomBarButton
           label={handLabel}
-          onClick={(event) => {
-            if (event.detail > 1) return;
+          onClick={() => {
             if (viewMode === "theater") {
               toggleTheaterRaiseHand(activeRoomId);
               return;
@@ -483,26 +472,6 @@ export default function BottomHeader() {
           disabled={aiNotesBusy}
         >
           <Sparkles size={ICON_SIZE} />
-        </BottomBarButton>
-      )}
-
-      {showAssistButtons && (
-        <BottomBarButton
-          label={
-            followUpBusy
-              ? "Traitement follow-up…"
-              : followUpActive
-                ? "Arrêter Follow-up"
-                : "Follow-up"
-          }
-          onClick={() => void toggleFollowUp(activeRoomId)}
-          active={followUpActive}
-          disabled={followUpBusy}
-          className={
-            isMarketingFollowUpPreviewScene() ? "marketing-preview-followup-btn" : undefined
-          }
-        >
-          <ListTodo size={ICON_SIZE} />
         </BottomBarButton>
       )}
 

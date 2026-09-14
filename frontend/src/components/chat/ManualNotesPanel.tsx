@@ -91,6 +91,7 @@ export default function ManualNotesPanel() {
   const chatSessions = useStore((s) => s.chatSessions);
   const aiNotesActive = useAiNotesStore((s) => s.active);
   const aiNotesBusy = useAiNotesStore((s) => s.busy);
+  const aiNotesStructuredHtml = useAiNotesStore((s) => s.structuredHtml);
   const aiNotesError = useAiNotesStore((s) => s.error);
   const aiNotesStructureError = useAiNotesStore((s) => s.structureError);
   const toggleAiNotes = useAiNotesStore((s) => s.toggle);
@@ -217,6 +218,8 @@ export default function ManualNotesPanel() {
   };
 
   const editorLocked = aiNotesActive || structuring || recapGenerating;
+  const showTranscriptVeil =
+    (aiNotesActive || structuring || aiNotesBusy) && !aiNotesStructuredHtml.trim();
 
   return (
     <div className={clsx("manual-notes-panel", recapGenerating && "manual-notes-panel--recap")}>
@@ -308,7 +311,12 @@ export default function ManualNotesPanel() {
             aria-label="Note title"
           />
 
-          <div className="manual-notes-panel__editor-wrap">
+          <div
+            className={clsx(
+              "manual-notes-panel__editor-wrap",
+              showTranscriptVeil && "manual-notes-panel__editor-wrap--transcript",
+            )}
+          >
             <div ref={editorScrollRef} className="manual-notes-panel__editor-scroll">
               <div
                 ref={editorRef}
@@ -324,7 +332,7 @@ export default function ManualNotesPanel() {
                 aria-busy={structuring}
                 data-placeholder={
                   aiNotesActive
-                    ? "Écoute en cours — les notes structurées apparaîtront ici…"
+                    ? "Écoute en cours — la transcription apparaît ici…"
                     : "Write your note here…"
                 }
                 onInput={() => {
@@ -343,6 +351,27 @@ export default function ManualNotesPanel() {
                 </div>
               )}
             </div>
+            {showTranscriptVeil && (
+              <div className="manual-notes-panel__transcript-veil" aria-hidden />
+            )}
+            {aiNotesActive && !aiNotesStructuredHtml.trim() && (
+              <div className="manual-notes-panel__transcript-status">
+                <p className="manual-notes-panel__transcript-status-title">
+                  Transcription running
+                </p>
+                <p className="manual-notes-panel__transcript-status-hint">
+                  Stop the transcription to generate your notes
+                </p>
+                <button
+                  type="button"
+                  className="manual-notes-panel__transcript-generate"
+                  onClick={handleStopRecording}
+                  disabled={aiNotesBusy}
+                >
+                  Generate
+                </button>
+              </div>
+            )}
           </div>
 
           {(aiNotesError || aiNotesStructureError) && (
@@ -352,7 +381,7 @@ export default function ManualNotesPanel() {
                   {aiNotesError}
                 </p>
               )}
-              {aiNotesStructureError && aiNotesActive && (
+              {aiNotesStructureError && (aiNotesActive || structuring || aiNotesBusy) && (
                 <p
                   className="manual-notes-panel__ai-error manual-notes-panel__ai-error--soft"
                   role="status"

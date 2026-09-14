@@ -7,7 +7,6 @@ import ChatPanelShell from "./components/ChatPanelShell";
 import { useAccentColor } from "./hooks/useAccentColor";
 import { useColorTheme } from "./hooks/useColorTheme";
 import {
-  isMarketingFollowUpPreviewScene,
   isMarketingHandoffPreviewScene,
   isMarketingNotesPreviewScene,
   isMarketingSpotifyPreviewScene,
@@ -61,7 +60,6 @@ export default function MarketingPreviewApp() {
           isMarketingHandoffPreviewScene() ||
           notesShowcase) &&
           "marketing-preview-shell--notes",
-        isMarketingFollowUpPreviewScene() && "marketing-preview-shell--follow-up-static",
         recording && "marketing-preview-shell--recording",
       )}
       aria-hidden="true"

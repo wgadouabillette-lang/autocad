@@ -18,7 +18,6 @@ export type MarketingPreviewNavAction =
   | "play-music"
   | "show-polls"
   | "show-recording"
-  | "show-follow-up"
   | "show-spotify"
   | "show-calendar"
   | "show-notes"
@@ -54,7 +53,6 @@ export function parseMarketingPreviewNavAction(data: unknown): MarketingPreviewN
     payload.action === "play-music" ||
     payload.action === "show-polls" ||
     payload.action === "show-recording" ||
-    payload.action === "show-follow-up" ||
     payload.action === "show-spotify" ||
     payload.action === "show-calendar" ||
     payload.action === "show-notes" ||
@@ -96,7 +94,6 @@ export type MarketingPreviewScene =
   | "theater"
   | "notes"
   | "handoff"
-  | "follow-up"
   | "spotify";
 
 export function readMarketingPreviewSceneParam(): MarketingPreviewScene {
@@ -106,7 +103,6 @@ export function readMarketingPreviewSceneParam(): MarketingPreviewScene {
   if (raw === "theater") return "theater";
   if (raw === "notes") return "notes";
   if (raw === "handoff") return "handoff";
-  if (raw === "follow-up") return "follow-up";
   if (raw === "spotify") return "spotify";
   return "dashboard";
 }
@@ -139,10 +135,6 @@ export function isMarketingHandoffPreviewScene(): boolean {
 
 export function isMarketingSpotifyPreviewScene(): boolean {
   return isMarketingPreview() && readMarketingPreviewSceneParam() === "spotify";
-}
-
-export function isMarketingFollowUpPreviewScene(): boolean {
-  return isMarketingPreview() && readMarketingPreviewSceneParam() === "follow-up";
 }
 
 export function applyMarketingPreviewThemeFromUrl(): void {

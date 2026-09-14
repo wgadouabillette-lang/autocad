@@ -1,5 +1,7 @@
 import { api } from "./api";
+import { audioBlobToWav } from "./audioWav";
 import { callAiTranscribe } from "./firebase/aiTranscribe";
+import { hasFormaDesktop } from "./formaDesktop";
 
 function filenameFor(blob: Blob): string {
   const type = blob.type.toLowerCase();
@@ -28,18 +30,34 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 export async function transcribeLiveAudioChunk(blob: Blob): Promise<string> {
-  const filename = filenameFor(blob);
-  try {
-    const audioBase64 = await blobToBase64(blob);
+  const prepared = await audioBlobToWav(blob).catch(() => blob);
+  const filename = filenameFor(prepared);
+  const mimeType = prepared.type || blob.type || "audio/wav";
+
+  const viaBackend = () => api.transcribeChunk(prepared, filename);
+  const viaCloud = async () => {
+    const audioBase64 = await blobToBase64(prepared);
     const result = await callAiTranscribe({
       audioBase64,
-      mimeType: blob.type || "audio/webm",
+      mimeType,
       filename,
     });
     return result.text;
+  };
+
+  if (hasFormaDesktop()) {
+    try {
+      return await viaBackend();
+    } catch {
+      return viaCloud();
+    }
+  }
+
+  try {
+    return await viaCloud();
   } catch (error) {
     try {
-      return await api.transcribeChunk(blob, filename);
+      return await viaBackend();
     } catch (fallbackError) {
       throw fallbackError instanceof Error ? fallbackError : error;
     }

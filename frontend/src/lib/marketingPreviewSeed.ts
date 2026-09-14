@@ -15,12 +15,9 @@ import {
 } from "./theater";
 import type { ChatMessage, ChatSession } from "../store/useStore";
 import type { CalendarEvent } from "../store/useCalendarStore";
-import type { FollowUpDraft } from "./followUps";
 import { useAuthStore } from "../store/useAuthStore";
 import { useCallsStore } from "../store/useCallsStore";
 import { useConnectorsStore } from "../store/useConnectorsStore";
-import { useFollowUpCaptureStore } from "../store/useFollowUpCaptureStore";
-import { useFollowUpsStore } from "../store/useFollowUpsStore";
 import { useHallDjStore } from "../store/useHallDjStore";
 import { useHandoffStore } from "../store/useHandoffStore";
 import { useStore } from "../store/useStore";
@@ -189,7 +186,7 @@ const LANDING_HERO_NOTE_HTML = [
   "<p>Thursday <mark>10:00</mark> — standup in Salon vocal. Lock the sprint 14 board before then and send the recap after this call.</p>",
   "<h3>Open questions</h3>",
   "<ul>",
-  "<li>Do we keep Follow-up as its own tab or fold it into Notes for the landing pass?</li>",
+  "<li>Should Notes stay fullscreen after the call, or collapse back to the side panel?</li>",
   "<li>Should Riley’s leadership recap include the connector table or just the decisions?</li>",
   "</ul>",
   "<h2>Parking lot</h2>",
@@ -520,64 +517,6 @@ function buildPreviewCalendarEvents(today: string): CalendarEvent[] {
   ];
 }
 
-function buildFollowUpDraft(): FollowUpDraft {
-  const today = toDateKey(new Date());
-  const tomorrow = toDateKey(new Date(Date.now() + 86_400_000));
-  return {
-    id: "preview-follow-up",
-    roomId: MARKETING_PREVIEW_WORKSPACE_ID,
-    recap:
-      "Design review covered the voice grid, landing dashboard preview, and connector priorities. Team agreed to ship Spotify + Calendar first, then Gmail. Jordan tests OAuth; Sam validates open-channel UX.",
-    actions: [
-      {
-        id: "preview-fu-a1",
-        title: "Ship connector OAuth redirect URLs",
-        detail: "Gmail + Calendar",
-        dueDate: tomorrow,
-        startMinutes: 10 * 60,
-        endMinutes: 10 * 60 + 30,
-        selected: true,
-      },
-      {
-        id: "preview-fu-a2",
-        title: "Record landing preview walkthrough",
-        detail: "Voice lounge + agent tabs",
-        dueDate: tomorrow,
-        startMinutes: 14 * 60,
-        endMinutes: 15 * 60,
-        selected: true,
-      },
-      {
-        id: "preview-fu-a3",
-        title: "Plan sprint demo",
-        dueDate: today,
-        startMinutes: 16 * 60 + 30,
-        endMinutes: 17 * 60,
-        selected: true,
-      },
-    ],
-    emails: [
-      {
-        id: "preview-fu-e1",
-        to: "jordan@demo.hall.app",
-        subject: "Follow-up — Design review",
-        body:
-          "Hi Jordan,\n\nThanks for the review today. Can you confirm Gmail OAuth by tomorrow morning?\n\n— Alex",
-        selected: true,
-      },
-      {
-        id: "preview-fu-e2",
-        to: "sam@demo.hall.app",
-        subject: "Voice lounge UX checklist",
-        body:
-          "Hi Sam,\n\nPlease validate open-channel join flow and spotlight layout before we record the landing demo.\n\n— Alex",
-        selected: true,
-      },
-    ],
-    createdAt: Date.now() - 15 * 60_000,
-  };
-}
-
 function seedPresence(): void {
   const now = Date.now();
   const members: Record<
@@ -753,15 +692,6 @@ function seedPeopleThreads(): void {
   });
 }
 
-function seedFollowUp(): void {
-  useFollowUpsStore.setState({
-    generating: false,
-    draft: buildFollowUpDraft(),
-    error: null,
-    lastSyncNote: null,
-  });
-}
-
 export function seedMarketingPreview(): void {
   const workspace = {
     id: MARKETING_PREVIEW_WORKSPACE_ID,
@@ -850,7 +780,6 @@ export function seedMarketingPreview(): void {
   seedWorkspaceTextChannels();
   seedCalendar();
   seedPeopleThreads();
-  seedFollowUp();
 }
 
 const LANDING_HERO_LISTENER_COUNT = 24;
@@ -1087,89 +1016,6 @@ export function seedMarketingTheaterPreview(): void {
       jordan: true,
       sam: false,
     },
-  });
-}
-
-/** Duo salon call with bottom dock (Follow-up active) for the landing card crop. */
-export function seedMarketingFollowUpPreview(): void {
-  seedMarketingPreview();
-
-  useStore.setState({
-    chatPanelOpen: false,
-    chatPanelMode: "agent",
-    chatPanelExpanded: false,
-    chatPanelLeaveAnimating: false,
-    showChatHistory: false,
-    billingManaged: true,
-  });
-
-  const workspaceId = MARKETING_PREVIEW_WORKSPACE_ID;
-  const salonChannelId = `${workspaceId}-open-main`;
-  const salonLocal = { id: "local", name: "You", isLocal: true as const };
-  const salonParticipants = [salonLocal, { id: "jordan", name: "Jordan" }];
-  const salonMemberIds = ["jordan"];
-
-  useFollowUpCaptureStore.setState({
-    active: true,
-    busy: false,
-    transcriptLines: [],
-    workspaceId,
-    captureId: "preview-followup-capture",
-  });
-
-  const now = Date.now();
-  useWorkspacePresenceStore.setState((state) => {
-    const existing = state.membersByWorkspace[workspaceId] ?? {};
-    const members = { ...existing };
-    for (const memberId of salonMemberIds) {
-      const member = members[memberId];
-      if (!member) continue;
-      members[memberId] = {
-        ...member,
-        lastSeenMs: now,
-        online: true,
-        voice: {
-          inPrivateCall: false,
-          openChannelId: salonChannelId,
-        },
-      };
-    }
-    return {
-      membersByWorkspace: {
-        ...state.membersByWorkspace,
-        [workspaceId]: members,
-      },
-    };
-  });
-
-  useCallsStore.setState((state) => {
-    const room = state.callsByRoom[workspaceId];
-    if (!room) return state;
-    return {
-      localInCallByRoom: { ...state.localInCallByRoom, [workspaceId]: true },
-      localOpenChannelByRoom: { ...state.localOpenChannelByRoom, [workspaceId]: salonChannelId },
-      mutedByParticipant: { ...state.mutedByParticipant },
-      speakingByParticipant: { jordan: true },
-      callsViewModeByWorkspace: {
-        ...state.callsViewModeByWorkspace,
-        [workspaceId]: "blocks",
-      },
-      callsByRoom: {
-        ...state.callsByRoom,
-        [workspaceId]: {
-          ...room,
-          openChannels: room.openChannels.map((channel) =>
-            channel.id === salonChannelId
-              ? {
-                  ...channel,
-                  inCall: true,
-                  participants: salonParticipants,
-                }
-              : channel,
-          ),
-        },
-      },
-    };
   });
 }
 

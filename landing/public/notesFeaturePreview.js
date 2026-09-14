@@ -1,7 +1,7 @@
 (function () {
   var PREVIEW_WIDTH = 1680;
   var PREVIEW_HEIGHT = 940;
-  // Tight bottom crop: duo salon grid + dock (Follow-up signet visible).
+  // Notes tab after a completed meeting.
   var VISIBLE_WIDTH = 920;
   var VISIBLE_HEIGHT = 560;
   var VISIBLE_LEFT = 380;
@@ -14,13 +14,13 @@
     var params = new URLSearchParams();
     var theme = document.documentElement.dataset.theme || "dark";
     params.set("theme", theme);
-    params.set("scene", "follow-up");
+    params.set("scene", "notes");
     return "/app/preview.html?" + params.toString();
   }
 
   function showFallback(mount) {
     mount.innerHTML =
-      '<img class="hero__feature-img" src="app-preview.png" alt="Meetra follow-up preview" loading="eager" decoding="async" />';
+      '<img class="hero__feature-img" src="app-preview.png" alt="Meetra AI Notes preview" loading="eager" decoding="async" />';
   }
 
   function scalePreview(mount, wrapper, scaleLayer) {
@@ -56,7 +56,7 @@
 
     var iframe = document.createElement("iframe");
     iframe.className = "hero__theater-feature-frame";
-    iframe.title = "Meetra follow-up preview";
+    iframe.title = "Meetra AI Notes preview";
     iframe.loading = "eager";
     iframe.tabIndex = -1;
     iframe.setAttribute("aria-hidden", "true");

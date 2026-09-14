@@ -179,7 +179,11 @@ async def api_recap(
         raise HTTPException(413, "Recording too large (max 100 MB).")
 
     with run_with_user_llm_keys(user):
-        transcript = await recap_ai.transcribe_recording(data, file.filename or "recording.webm")
+        transcript = await recap_ai.transcribe_recording(
+            data,
+            file.filename or "recording.webm",
+            uid=user.uid,
+        )
         note_title, body_html = recap_ai.generate_recap_html(
             title=title.strip() or "Meeting recap",
             transcript=transcript,

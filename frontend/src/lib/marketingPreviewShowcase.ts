@@ -4,7 +4,6 @@ const SHOWCASE_ACTIONS = new Set<MarketingPreviewNavAction>([
   "show-dashboard",
   "show-polls",
   "show-recording",
-  "show-follow-up",
   "show-spotify",
   "show-calendar",
   "show-notes",

@@ -31,7 +31,7 @@
       "workspaces": "ワークスペース、招待、Team AI の利用。",
       "usage": "Pro、Pro+、Team プラン。",
       "billing": "現在のプランと次回請求日。",
-      "agents": "チャット、フォローアップ、AI Notes をカスタマイズ。",
+      "agents": "チャットと AI Notes をカスタマイズ。",
       "models": "生成に使う AI モデルを選択。",
       "plugins": "チャットで使えるコネクタ。"
     },
@@ -99,11 +99,11 @@
       "teamCredit": "シートあたり月額 ${{amount}} クレジット",
       "unlimitedServers": "個人サーバー無制限",
       "aiAssistant": "Meetra 全体の AI アシスタント",
-      "aiNotesFollowup": "AI Notes と Follow-up",
+      "aiNotesFollowup": "AI Notes",
       "aiModelChoice": "AI モデルの選択",
       "chooseSeats": "支払うシート数を選択",
       "aiForMembers": "全メンバー向け AI",
-      "workspaceAiNotes": "ワークスペースの AI Notes と Follow-up",
+      "workspaceAiNotes": "ワークスペースの AI Notes",
       "centralizedBilling": "一括請求"
     },
     "ownedLimitPro": "Pro で個人サーバー無制限。",

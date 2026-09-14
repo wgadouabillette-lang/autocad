@@ -2,6 +2,8 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { loadLlmKeys } from "./keys";
 
 const MAX_AUDIO_BYTES = 4 * 1024 * 1024;
+const OPENAI_STT_URL = "https://api.openai.com/v1/audio/transcriptions";
+const XAI_STT_URL = "https://api.x.ai/v1/stt";
 
 export interface TranscribeRequest {
   audioBase64?: string;
@@ -24,12 +26,53 @@ function safeFilename(raw: unknown, mimeType: string): string {
   return "chunk.webm";
 }
 
+function transcriptText(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const text = (payload as { text?: unknown }).text;
+  return typeof text === "string" ? text.trim() : "";
+}
+
+async function transcribeOpenAi(
+  buffer: Buffer,
+  mimeType: string,
+  filename: string,
+  apiKey: string,
+): Promise<Response> {
+  const form = new FormData();
+  form.append("model", "whisper-1");
+  form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
+  return fetch(OPENAI_STT_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+}
+
+async function transcribeXai(
+  buffer: Buffer,
+  mimeType: string,
+  filename: string,
+  apiKey: string,
+  includeModel = true,
+): Promise<Response> {
+  const form = new FormData();
+  if (includeModel) form.append("model", "grok-stt");
+  form.append("language", "fr");
+  form.append("format", "true");
+  form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
+  return fetch(XAI_STT_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+}
+
 export async function runAiTranscribe(
   uid: string,
   data: TranscribeRequest,
 ): Promise<{ text: string }> {
   const keys = await loadLlmKeys(uid);
-  if (!keys.openai) {
+  if (!keys.openai && !keys.xai) {
     throw new HttpsError(
       "failed-precondition",
       "Transcription indisponible (service).",
@@ -60,29 +103,54 @@ export async function runAiTranscribe(
       : "audio/webm";
   const filename = safeFilename(data.filename, mimeType);
 
-  const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
-  form.append("model", "whisper-1");
-
-  let response: Response;
-  try {
-    response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${keys.openai}` },
-      body: form,
+  const attempts: Array<{
+    name: "openai" | "xai";
+    run: () => Promise<Response>;
+  }> = [];
+  if (keys.xai) {
+    attempts.push({
+      name: "xai",
+      run: () => transcribeXai(buffer, mimeType, filename, keys.xai),
     });
-  } catch {
-    throw new HttpsError("unavailable", "Transcription indisponible (réseau).");
+  }
+  if (keys.openai) {
+    attempts.push({
+      name: "openai",
+      run: () => transcribeOpenAi(buffer, mimeType, filename, keys.openai),
+    });
   }
 
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      throw new HttpsError("failed-precondition", "Transcription indisponible (service).");
+  let lastKind: "service" | "network" = "network";
+  for (const attempt of attempts) {
+    let response: Response;
+    try {
+      response = await attempt.run();
+    } catch {
+      lastKind = "network";
+      continue;
     }
-    throw new HttpsError("unavailable", "Transcription indisponible (réseau).");
+    if (response.ok) {
+      return { text: transcriptText(await response.json()) };
+    }
+    if (attempt.name === "xai" && response.status === 400) {
+      try {
+        const retry = await transcribeXai(buffer, mimeType, filename, keys.xai, false);
+        if (retry.ok) {
+          return { text: transcriptText(await retry.json()) };
+        }
+        response = retry;
+      } catch {
+        lastKind = "network";
+        continue;
+      }
+    }
+    lastKind = response.status === 401 || response.status === 403 ? "service" : "network";
   }
 
-  const payload = (await response.json()) as { text?: unknown };
-  const text = typeof payload.text === "string" ? payload.text.trim() : "";
-  return { text };
+  throw new HttpsError(
+    lastKind === "service" ? "failed-precondition" : "unavailable",
+    lastKind === "service"
+      ? "Transcription indisponible (service)."
+      : "Transcription indisponible (réseau).",
+  );
 }
