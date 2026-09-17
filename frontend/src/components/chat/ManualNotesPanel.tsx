@@ -9,7 +9,7 @@ import {
   Square,
   Text as TextIcon,
   Underline as UnderlineIcon,
-  ArrowRightLeft,
+  Download,
 } from "lucide-react";
 import clsx from "clsx";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -19,13 +19,12 @@ import {
   plainTextFromNoteHtml,
   publishNotesEditorDraft,
 } from "../../lib/notesFullscreenPromo";
+import { downloadNotePdf } from "../../lib/notePdf";
 import { sanitizeNoteHtml } from "../../lib/sanitizeHtml";
 import { hasAiNotesAccess } from "../../lib/subscriptionPlans";
 import { useAiNotesStore } from "../../store/useAiNotesStore";
 import { useRecapStore } from "../../store/useRecapStore";
-import { useHandoffStore } from "../../store/useHandoffStore";
 import { useStore } from "../../store/useStore";
-import HandoffNoteOverlay from "./HandoffNoteOverlay";
 
 const AUTO_SAVE_DEBOUNCE_MS = 500;
 const HIGHLIGHT_COLOR = "rgba(250, 204, 21, 0.35)";
@@ -99,14 +98,6 @@ export default function ManualNotesPanel() {
   const recapGenerating = useRecapStore((s) => s.generating);
   const recapLabel = useRecapStore((s) => s.generatingLabel);
   const recapError = useRecapStore((s) => s.error);
-  const noteHandoffOpen = useHandoffStore((s) => s.noteHandoffOpen);
-  const handoffTarget = useHandoffStore((s) => s.target);
-  const handoffSubmitting = useHandoffStore((s) => s.submitting);
-  const handoffError = useHandoffStore((s) => s.error);
-  const openNoteHandoff = useHandoffStore((s) => s.openNoteHandoff);
-  const closeNoteHandoff = useHandoffStore((s) => s.closeNoteHandoff);
-  const setHandoffTarget = useHandoffStore((s) => s.setTarget);
-  const submitNoteHandoff = useHandoffStore((s) => s.submitNoteHandoff);
   const initialNote = activeManualNoteId
     ? chatSessions.find((session) => session.id === activeManualNoteId) ?? null
     : null;
@@ -120,6 +111,7 @@ export default function ManualNotesPanel() {
   const initializedRef = useRef(false);
   const prevAiNotesActiveRef = useRef(false);
   const [editorVersion, setEditorVersion] = useState(0);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const canUseAiNotes = hasAiNotesAccess(
     subscriptionPlan,
     billingManaged,
@@ -212,9 +204,16 @@ export default function ManualNotesPanel() {
     setEditorVersion((v) => v + 1);
   };
 
-  const handleHandoffNote = () => {
+  const handleDownloadPdf = async () => {
     const html = editorRef.current?.innerHTML ?? "";
-    openNoteHandoff(title, html);
+    setPdfError(null);
+    try {
+      await downloadNotePdf(title, html);
+    } catch (error) {
+      setPdfError(
+        error instanceof Error ? error.message : "Impossible de télécharger le PDF.",
+      );
+    }
   };
 
   const editorLocked = aiNotesActive || structuring || recapGenerating;
@@ -242,12 +241,12 @@ export default function ManualNotesPanel() {
           type="button"
           className="manual-notes-panel__tool"
           onMouseDown={(event) => event.preventDefault()}
-          onClick={handleHandoffNote}
-          aria-label="Handoff note"
-          title="Handoff note"
+          onClick={() => void handleDownloadPdf()}
+          aria-label="Télécharger en PDF"
+          title="Télécharger en PDF"
           disabled={recapGenerating || aiNotesActive}
         >
-          <ArrowRightLeft size={14} strokeWidth={2} aria-hidden />
+          <Download size={14} strokeWidth={2} aria-hidden />
         </button>
         {aiNotesActive ? (
           <button
@@ -307,7 +306,7 @@ export default function ManualNotesPanel() {
               setTitle(next);
               publishLiveNoteDraft(next, editorRef.current, initialBody);
             }}
-            placeholder="Title"
+            placeholder="Add Title"
             aria-label="Note title"
           />
 
@@ -374,7 +373,7 @@ export default function ManualNotesPanel() {
             )}
           </div>
 
-          {(aiNotesError || aiNotesStructureError) && (
+          {(aiNotesError || aiNotesStructureError || pdfError) && (
             <div className="manual-notes-panel__footer">
               {aiNotesError && (
                 <p className="manual-notes-panel__ai-error" role="alert">
@@ -389,6 +388,11 @@ export default function ManualNotesPanel() {
                   {aiNotesStructureError}
                 </p>
               )}
+              {pdfError && (
+                <p className="manual-notes-panel__ai-error" role="alert">
+                  {pdfError}
+                </p>
+              )}
             </div>
           )}
         </>
@@ -400,16 +404,6 @@ export default function ManualNotesPanel() {
         </p>
       ) : null}
 
-      <HandoffNoteOverlay
-        open={noteHandoffOpen}
-        noteTitle={title}
-        target={handoffTarget}
-        submitting={handoffSubmitting}
-        error={handoffError}
-        onTargetChange={setHandoffTarget}
-        onClose={closeNoteHandoff}
-        onSubmit={() => void submitNoteHandoff()}
-      />
     </div>
   );
 }

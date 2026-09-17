@@ -4,7 +4,11 @@ from __future__ import annotations
 from typing import List, Optional
 
 from app.ai import llm, models, quota, usage
-from app.ai.chat_system_prompt import build_chat_system, chat_user_format_reminder
+from app.ai.chat_system_prompt import (
+    build_chat_system,
+    build_note_html_system,
+    chat_user_format_reminder,
+)
 from app.models.schemas import ChatMessage, ChatResponse
 
 
@@ -32,6 +36,7 @@ def run(
     chat_instructions: str = "",
     uid: Optional[str] = None,
     workspace_id: Optional[str] = None,
+    output_format: str = "chat_markdown",
 ) -> ChatResponse:
     if not prompt.strip():
         return ChatResponse(message="Say something and I'll reply.", source="rules")
@@ -50,8 +55,17 @@ def run(
         model_id = models.resolve_model(
             ai_model, prompt, has_images=False, work_mode="agent", chat_only=True
         )
-        chat_system = build_chat_system(chat_instructions)
-        user_prompt = f"{prompt.strip()}{chat_user_format_reminder()}"
+        note_html_mode = output_format == "note_html"
+        chat_system = (
+            build_note_html_system()
+            if note_html_mode
+            else build_chat_system(chat_instructions)
+        )
+        user_prompt = (
+            prompt.strip()
+            if note_html_mode
+            else f"{prompt.strip()}{chat_user_format_reminder()}"
+        )
         result = llm.complete_text(
             system=chat_system,
             history=history,

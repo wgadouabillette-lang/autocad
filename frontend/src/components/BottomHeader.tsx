@@ -99,6 +99,7 @@ export default function BottomHeader() {
   const chatPanelOpen = useStore((s) => s.chatPanelOpen);
   const chatPanelMode = useStore((s) => s.chatPanelMode);
   const toggleChatPanel = useStore((s) => s.toggleChatPanel);
+  const openAiNotesPanel = useStore((s) => s.openAiNotesPanel);
   const toggleCalendar = useCalendarOverlayStore((s) => s.togglePanel);
   const calendarOpen = chatPanelOpen && chatPanelMode === "calendar";
   const chatOpen = chatPanelOpen && chatPanelMode === "agent";
@@ -464,10 +465,13 @@ export default function BottomHeader() {
             aiNotesBusy
               ? "Préparation AI Notes…"
               : aiNotesActive
-                ? "Arrêter AI Notes"
+                ? "Ouvrir AI Notes"
                 : "AI Notes"
           }
-          onClick={() => void toggleAiNotes(activeRoomId)}
+          onClick={() => {
+            openAiNotesPanel();
+            if (!aiNotesActive) void toggleAiNotes(activeRoomId);
+          }}
           active={aiNotesActive}
           disabled={aiNotesBusy}
         >

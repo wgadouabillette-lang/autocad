@@ -139,6 +139,7 @@ class ChatRequest(BaseModel):
     ai_model: str = "auto"
     chat_instructions: str = ""
     workspace_id: str = ""
+    output_format: str = "chat_markdown"
 
 
 class ChatResponse(BaseModel):

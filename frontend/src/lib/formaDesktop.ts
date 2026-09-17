@@ -106,6 +106,10 @@ export interface FormaDesktopBridge {
   /** macOS : statut Widevine CDM (Electron Castlabs). */
   getSpotifyWidevineStatus?: () => Promise<Record<string, unknown>>;
   writeClipboardText?: (text: string) => Promise<{ ok: boolean }>;
+  saveNotePdf?: (payload: {
+    title: string;
+    bodyHtml: string;
+  }) => Promise<{ ok: boolean; filePath?: string; reason?: string }>;
   getPendingWorkspaceInvite?: () => Promise<string | null>;
   onWorkspaceInvite?: (handler: (workspaceId: string) => void) => () => void;
 }

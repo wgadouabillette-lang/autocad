@@ -131,6 +131,7 @@ def api_chat(req: ChatRequest, user: FirebaseUser = Depends(require_firebase_use
             req.chat_instructions,
             uid=user.uid,
             workspace_id=req.workspace_id or None,
+            output_format=req.output_format,
         )
 
 

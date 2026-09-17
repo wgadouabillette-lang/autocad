@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Check, X } from "lucide-react";
+import { Check, Users, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocalAiStroke, useRemoteAiStroke } from "../../hooks/useAiBlockStroke";
 import { isDraftOpenChannel, type OpenVoiceChannel } from "../../lib/calls";
@@ -134,9 +134,13 @@ export default function OpenVoiceChannelBlock({ channel }: OpenVoiceChannelBlock
       participantLayout="avatars"
       fixedAvatarSlots={CALL_BLOCK_AVATAR_SLOTS}
       showHandRaise
-      showActivity={hasRemoteParticipants}
-      activityUserId={remoteParticipant?.id ?? "local"}
-      activityIsLocal={false}
+      showActivity={false}
+      trailing={
+        <span className="call-block__hint call-block__hint--theater" aria-hidden>
+          <Users size={14} />
+          <span className="call-block__hint-count">{channel.participants.length}</span>
+        </span>
+      }
       aiStroke={aiStroke}
       onMainClick={
         canJoin ? () => void joinOpenChannel(activeRoomId, channel.id) : undefined

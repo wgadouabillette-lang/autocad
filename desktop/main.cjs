@@ -89,11 +89,7 @@ if (!gotTheLock) {
 } else {
   app.on("second-instance", (_event, argv) => {
     deliverWorkspaceInvite(workspaceIdFromArgv(argv));
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    revealAppWindows();
   });
 }
 
@@ -789,6 +785,41 @@ function closeSplashWindow() {
   splashWindow = null;
 }
 
+function requestMacMediaAccess() {
+  if (process.platform !== "darwin" || !app.isPackaged) return;
+  if (typeof systemPreferences?.askForMediaAccess !== "function") return;
+  void (async () => {
+    try {
+      const micOk = await systemPreferences.askForMediaAccess("microphone");
+      const camOk = await systemPreferences.askForMediaAccess("camera");
+      console.log("[hall] media TCC microphone=", micOk, "camera=", camOk);
+    } catch (err) {
+      console.warn("[hall] askForMediaAccess failed:", err instanceof Error ? err.message : err);
+    }
+  })();
+}
+
+function revealAppWindows() {
+  if (mainWindowMode === "app" && mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.show();
+    splashWindow.focus();
+    return;
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
+  createWindow();
+}
+
 function createSplashWindow() {
   if (splashWindow && !splashWindow.isDestroyed()) return;
   const bounds = getCenteredSplashBounds();
@@ -1016,6 +1047,10 @@ function setMainWindowMode(mode) {
 }
 
 function createWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    revealAppWindows();
+    return;
+  }
   if (process.platform === "win32") {
     Menu.setApplicationMenu(null);
   }
@@ -1352,6 +1387,100 @@ ipcMain.handle("forma:clipboard-write-text", (_event, text) => {
   return { ok: true };
 });
 
+function escapePdfHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function safePdfNoteHtml(value) {
+  return String(value ?? "")
+    .slice(0, 2_000_000)
+    .replace(/<(script|style|iframe|object|embed|form)[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<(script|style|iframe|object|embed|form|input|link|meta)\b[^>]*\/?>/gi, "")
+    .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s+(?:src|srcset)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+}
+
+function safePdfFilename(value) {
+  const filename = String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
+  return filename || "Meetra Notes";
+}
+
+ipcMain.handle("forma:save-note-pdf", async (event, payload) => {
+  const title = String(payload?.title ?? "").trim() || "Meetra Notes";
+  const bodyHtml = safePdfNoteHtml(payload?.bodyHtml);
+  if (!bodyHtml.replace(/<[^>]+>/g, "").trim()) {
+    return { ok: false, reason: "empty" };
+  }
+
+  const parent = BrowserWindow.fromWebContents(event.sender) ?? mainWindow ?? undefined;
+  const result = await dialog.showSaveDialog(parent, {
+    title: "Télécharger la note en PDF",
+    defaultPath: path.join(app.getPath("documents"), `${safePdfFilename(title)}.pdf`),
+    filters: [{ name: "PDF", extensions: ["pdf"] }],
+  });
+  if (result.canceled || !result.filePath) return { ok: false, reason: "cancelled" };
+
+  const pdfWindow = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      javascript: false,
+    },
+  });
+  const documentHtml = `<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+  <title>${escapePdfHtml(title)}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #171717; font: 11pt/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    h1 { margin: 0 0 18pt; font-size: 23pt; line-height: 1.2; }
+    h2 { margin: 18pt 0 5pt; font-size: 16pt; line-height: 1.25; }
+    h3 { margin: 12pt 0 4pt; font-size: 13pt; line-height: 1.3; }
+    p { margin: 0 0 7pt; }
+    ul, ol { margin: 5pt 0 9pt; padding-left: 20pt; }
+    li { margin: 2pt 0; }
+    mark { padding: 0 2pt; background: #fde68a; }
+    table { width: 100%; margin: 10pt 0; border-collapse: collapse; font-size: 10pt; }
+    th, td { padding: 5pt 6pt; border: 1px solid #d4d4d4; text-align: left; vertical-align: top; }
+    th { background: #f5f5f5; font-weight: 700; }
+    blockquote { margin: 9pt 0; padding-left: 10pt; border-left: 3px solid #d4d4d4; color: #525252; }
+  </style>
+</head>
+<body>
+  <h1>${escapePdfHtml(title)}</h1>
+  ${bodyHtml}
+</body>
+</html>`;
+
+  try {
+    await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(documentHtml)}`);
+    const pdf = await pdfWindow.webContents.printToPDF({
+      printBackground: true,
+      pageSize: "A4",
+      preferCSSPageSize: true,
+    });
+    await fs.promises.writeFile(result.filePath, pdf);
+    return { ok: true, filePath: result.filePath };
+  } finally {
+    if (!pdfWindow.isDestroyed()) pdfWindow.destroy();
+  }
+});
+
 ipcMain.handle("forma:get-pending-workspace-invite", () => {
   const id = pendingDesktopWorkspaceInvite || null;
   pendingDesktopWorkspaceInvite = "";
@@ -1429,19 +1558,8 @@ app.whenReady().then(async () => {
   if (!gotTheLock) return;
   refreshWindowsShellShortcuts();
   refreshMacOsAppIcon();
-
-  // Packaged macOS: Chromium getUserMedia stays silent until TCC mic/camera are granted.
-  if (process.platform === "darwin" && app.isPackaged) {
-    try {
-      if (typeof systemPreferences?.askForMediaAccess === "function") {
-        const micOk = await systemPreferences.askForMediaAccess("microphone");
-        const camOk = await systemPreferences.askForMediaAccess("camera");
-        console.log("[hall] media TCC microphone=", micOk, "camera=", camOk);
-      }
-    } catch (err) {
-      console.warn("[hall] askForMediaAccess failed:", err instanceof Error ? err.message : err);
-    }
-  }
+  createSplashWindow();
+  requestMacMediaAccess();
 
   // Screen share / recording: always grant the primary display (full desktop),
   // not just the Meetra window — so Chrome/Google etc. appear in the recording.
@@ -1497,13 +1615,16 @@ app.whenReady().then(async () => {
         "Build frontend manquant. Lancez: cd frontend && npm run build",
       );
     }
-    await ensureDesktopPlaybackReady();
+    const playbackReady = ensureDesktopPlaybackReady();
     if (!DEV_URL) {
       await freeListenPort(UI_PORT);
       await startUiServer();
       await freeListenPort(BACKEND_PORT);
       spawnBackend();
     }
+    void playbackReady.catch((err) => {
+      console.warn("[hall] Widevine:", err instanceof Error ? err.message : err);
+    });
     createWindow();
     initUpdater({
       getMainWindow: () => mainWindow,
@@ -1563,7 +1684,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  revealAppWindows();
 });
 
 app.on("before-quit", () => {

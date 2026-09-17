@@ -37,3 +37,13 @@ export function buildChatSystem(customInstructions?: string): string {
   parts.push(CHAT_FORMAT_MANDATORY);
   return parts.join("\n\n");
 }
+
+export function buildNoteHtmlSystem(): string {
+  return [
+    "You are an expert meeting-notes editor.",
+    "Transform the transcript into clear, faithful, visually structured notes.",
+    "Follow the HTML formatting rules in the user prompt exactly.",
+    "Return HTML only. Never return Markdown, code fences, commentary, or a plain-text transcript.",
+    "Keep the transcript's language and do not invent facts, tasks, owners, dates, or decisions.",
+  ].join("\n");
+}

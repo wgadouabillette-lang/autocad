@@ -78,6 +78,7 @@ async function chatViaCloudOrBackend(
   signal?: AbortSignal,
   chatInstructions?: string,
   workspaceId?: string,
+  outputFormat: "chat_markdown" | "note_html" = "chat_markdown",
 ): Promise<ChatResponse> {
   const token = await getAuthIdToken();
   const payload = {
@@ -86,6 +87,7 @@ async function chatViaCloudOrBackend(
     messages,
     ...(chatInstructions?.trim() ? { chat_instructions: chatInstructions.trim() } : {}),
     ...(workspaceId?.trim() ? { workspace_id: workspaceId.trim().toLowerCase() } : {}),
+    output_format: outputFormat,
   };
   if (token) {
     try {
@@ -190,6 +192,7 @@ export const api = {
     signal?: AbortSignal,
     chatInstructions?: string,
     workspaceId?: string,
+    outputFormat: "chat_markdown" | "note_html" = "chat_markdown",
   ) {
     return chatViaCloudOrBackend(
       prompt,
@@ -198,6 +201,7 @@ export const api = {
       signal,
       chatInstructions,
       workspaceId,
+      outputFormat,
     );
   },
 

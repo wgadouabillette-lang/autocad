@@ -8,6 +8,7 @@ export interface AiChatPayload {
   messages: { role: string; content: string }[];
   chat_instructions?: string;
   workspace_id?: string;
+  output_format?: "chat_markdown" | "note_html";
 }
 
 export async function callAiChat(payload: AiChatPayload): Promise<ChatResponse> {

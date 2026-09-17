@@ -4,6 +4,7 @@ import { completeChatText, type ChatMessage } from "./llm";
 import { resolveChatModel, resolveProviderForModel } from "./models";
 import { checkUsageGate, hasEnterpriseWorkspaceAccess, getUserSubscriptionState, trackLlmResult } from "./usage";
 import {
+  buildNoteHtmlSystem,
   buildChatSystem,
   CHAT_USER_FORMAT_REMINDER,
 } from "./chatSystemPrompt";
@@ -14,6 +15,7 @@ export interface AiChatRequest {
   messages?: Array<{ role?: string; content?: string }>;
   chat_instructions?: string;
   workspace_id?: string;
+  output_format?: "chat_markdown" | "note_html";
 }
 
 export interface AiChatResponse {
@@ -83,9 +85,14 @@ export async function runAiChat(uid: string, data: AiChatRequest): Promise<AiCha
   const aiModel = typeof data.ai_model === "string" ? data.ai_model : "auto";
   const chatInstructions =
     typeof data.chat_instructions === "string" ? data.chat_instructions : "";
-  const chatSystem = buildChatSystem(chatInstructions);
+  const noteHtmlMode = data.output_format === "note_html";
+  const chatSystem = noteHtmlMode
+    ? buildNoteHtmlSystem()
+    : buildChatSystem(chatInstructions);
   const history = parseHistory(data.messages);
-  const userPrompt = `${prompt}${CHAT_USER_FORMAT_REMINDER}`;
+  const userPrompt = noteHtmlMode
+    ? prompt
+    : `${prompt}${CHAT_USER_FORMAT_REMINDER}`;
 
   const workspaceId =
     typeof data.workspace_id === "string" ? data.workspace_id.trim().toLowerCase() : "";

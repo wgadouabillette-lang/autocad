@@ -7,7 +7,77 @@ function stripMarkdownFence(text: string): string {
   return (fenced ? fenced[1] : text).trim();
 }
 
-function normalizeStructuredHtml(html: string): string {
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function markdownInlineToHtml(text: string): string {
+  return escapeHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/__(.+?)__/g, "<u>$1</u>")
+    .replace(/==(.+?)==/g, "<mark>$1</mark>")
+    .replace(/(^|[\s(])\*([^*\n]+?)\*(?=$|[\s).,;:!?])/g, "$1<em>$2</em>");
+}
+
+/** Keeps notes styled even if a provider unexpectedly returns Markdown. */
+function markdownToNoteHtml(markdown: string): string {
+  const blocks: string[] = [];
+  let listType: "ul" | "ol" | null = null;
+  let listItems: string[] = [];
+  let paragraph: string[] = [];
+
+  const flushList = () => {
+    if (!listType || listItems.length === 0) return;
+    blocks.push(`<${listType}>${listItems.map((item) => `<li>${item}</li>`).join("")}</${listType}>`);
+    listType = null;
+    listItems = [];
+  };
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return;
+    blocks.push(`<p>${paragraph.join(" ")}</p>`);
+    paragraph = [];
+  };
+
+  for (const rawLine of markdown.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      const tag = heading[1].length === 1 ? "h1" : heading[1].length === 2 ? "h2" : "h3";
+      blocks.push(`<${tag}>${markdownInlineToHtml(heading[2])}</${tag}>`);
+      continue;
+    }
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    const numbered = line.match(/^\d+[.)]\s+(.+)$/);
+    if (bullet || numbered) {
+      flushParagraph();
+      const nextType = bullet ? "ul" : "ol";
+      if (listType && listType !== nextType) flushList();
+      listType = nextType;
+      listItems.push(markdownInlineToHtml((bullet ?? numbered)![1]));
+      continue;
+    }
+    flushList();
+    paragraph.push(markdownInlineToHtml(line));
+  }
+  flushParagraph();
+  flushList();
+  return blocks.join("");
+}
+
+function normalizeStructuredHtml(raw: string): string {
+  const html = /<(?:h[1-4]|p|ul|ol|table|blockquote)\b/i.test(raw)
+    ? raw
+    : markdownToNoteHtml(raw);
   return html
     .replace(/<p>\s*<\/p>/gi, "")
     .replace(/(<br\s*\/?>\s*){2,}/gi, "<br>")
@@ -28,13 +98,17 @@ export async function structureAiNotesTranscript(input: {
     "Respond ONLY with HTML (no markdown, no code fences, no plain-text line breaks between blocks).",
     "",
     "Formatting rules:",
-    "- <h2> section titles; <h3> sub-titles under a section.",
+    "- <h1> for major sections; <h2> for sub-sections; <h3> only for a third level.",
     "- <p> body paragraphs: group related sentences in ONE <p> (do not put each sentence in its own <p>).",
     "- Keep paragraph spacing tight — no empty <p>, no <br><br>, no extra blank lines.",
-    "- <u>text</u> only when the speaker clearly stresses something that is NOT a deadline (rare).",
+    "- Use <strong> for tasks, owners, decisions, and key labels.",
+    "- Use <em> sparingly for context, caveats, or quoted emphasis.",
+    "- Use <u> sparingly for explicit commitments that are not deadlines.",
     "- <ul><li> bullet lists for enumerations.",
     "- When comparing 2+ items, options, pros/cons, or before/after: use a <table> with <thead>, <th>, <tbody>, <td>.",
-    "- Do not include a document title (<h1>) — the user adds the title separately.",
+    "- Do not repeat the note's overall document title — the user adds it separately.",
+    "- Never return the transcript unchanged. Organize it into meaningful sections such as summary, decisions, tasks, and schedule/deadlines when those topics exist.",
+    "- Do not add empty boilerplate sections and never invent missing information.",
     "",
     "Language & wording (transcript may be French, English, or mixed — e.g. Quebec French):",
     "- Match how people actually spoke; do NOT normalize or translate their word choices.",
@@ -52,7 +126,7 @@ export async function structureAiNotesTranscript(input: {
     "- If nothing in a section is truly urgent or dated, use NO <mark> in that section.",
     "- Prefer <strong> inside action-item lists for the verb/task; reserve <mark> for urgency/deadline/importance explicitly stated.",
     "",
-    "Allowed tags: h2, h3, p, ul, ol, li, mark, u, strong, em, table, thead, tbody, tr, th, td.",
+    "Allowed tags: h1, h2, h3, p, ul, ol, li, mark, u, strong, em, table, thead, tbody, tr, th, td.",
     ...(instructions ? ["", "User instructions:", instructions] : []),
     ...(input.previousHtml?.trim()
       ? ["", "Previous structured draft to refine:", input.previousHtml.trim(), ""]
@@ -68,6 +142,7 @@ export async function structureAiNotesTranscript(input: {
     input.signal,
     undefined,
     input.workspaceId,
+    "note_html",
   );
 
   return normalizeStructuredHtml(stripMarkdownFence(response.message));
