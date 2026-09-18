@@ -62,7 +62,7 @@ async function readGallery(store: IDBObjectStore): Promise<GalleryRecord> {
     const selectedId =
       record.selectedId && items.some((item) => item.id === record.selectedId)
         ? record.selectedId
-        : items.at(-1)?.id ?? null;
+        : items[items.length - 1]?.id ?? null;
     return { items, selectedId };
   }
 
@@ -133,7 +133,7 @@ export async function setSelectedCameraBackgroundImage(
   const nextSelected =
     selectedId && gallery.items.some((item) => item.id === selectedId)
       ? selectedId
-      : gallery.items.at(-1)?.id ?? null;
+      : gallery.items[gallery.items.length - 1]?.id ?? null;
   store.put({ items: gallery.items, selectedId: nextSelected }, GALLERY_KEY);
   await txDone(tx);
   db.close();

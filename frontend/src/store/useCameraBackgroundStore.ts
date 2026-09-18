@@ -89,7 +89,7 @@ async function applySelectedBlob(
   selectedImageId: string | null,
   blobsById: Map<string, Blob>,
 ): Promise<void> {
-  const id = selectedImageId ?? images.at(-1)?.id ?? null;
+  const id = selectedImageId ?? images[images.length - 1]?.id ?? null;
   if (!id) {
     await getCameraBackgroundProcessor().setBackgroundImage(null);
     return;
