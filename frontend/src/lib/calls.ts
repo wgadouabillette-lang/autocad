@@ -850,14 +850,26 @@ export function activeCallPartner(
   return remoteBlock?.participants[0] ?? null;
 }
 
-export function blockLabel(block: CallBlock): string {
-  return block.participants.map((p) => p.name).join(" · ");
+/** Nom du propriétaire du bloc (salon privé) — jamais une concaténation de participants. */
+function blockOwnerName(block: CallBlock): string {
+  const owner =
+    block.participants.find(
+      (participant) =>
+        memberBlockId(block.roomId, participant.isLocal ? "local" : participant.id) ===
+        block.id,
+    ) ??
+    block.participants.find((participant) => participant.isLocal) ??
+    block.participants[0];
+  return owner?.name ?? "";
 }
 
-/** Titre du bloc (row 1, leading) : nom utilisateur ou salon. */
+export function blockLabel(block: CallBlock): string {
+  return blockOwnerName(block);
+}
+
+/** Titre du bloc : « Vous » chez soi, sinon le nom de l'hôte — même à 2 dans le salon. */
 export function blockHeaderTitle(block: CallBlock): string {
-  if (block.participants.length === 1) return block.participants[0].name;
-  return block.participants.map((p) => p.name).join(" · ");
+  return blockOwnerName(block);
 }
 
 export function blockActivityUser(block: CallBlock): { userId: string; isLocal: boolean } {

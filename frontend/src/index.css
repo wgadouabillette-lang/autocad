@@ -1172,11 +1172,10 @@ html:not(.app-loading-splash) #root {
     max-height: var(--forma-top-toolbar-height);
     background-color: transparent;
   }
+  /* Keep immersive chrome in the same grid cell as main (already overlays).
+     Absolute left/right:0 was resolving against the full app-layout and shifted
+     the centered Meetra brand when joining a call (esp. with chat open). */
   .app-chrome-row--immersive {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
     z-index: 35;
     background-color: transparent;
     pointer-events: none;
@@ -1205,7 +1204,7 @@ html:not(.app-loading-splash) #root {
   .app-chrome-row__main {
     @apply relative grid h-full min-h-0 min-w-0 flex-1 items-center gap-2 px-2;
     overflow: visible;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     border-bottom: none;
     background-color: transparent;
   }
@@ -1238,8 +1237,8 @@ html:not(.app-loading-splash) #root {
     -webkit-app-region: no-drag;
   }
   .app-chrome-row__brand {
-    @apply pointer-events-none fixed z-0 flex items-center gap-2;
-    top: calc(var(--forma-top-toolbar-height) / 2);
+    @apply pointer-events-none absolute z-0 flex items-center gap-2;
+    top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
   }
@@ -1296,7 +1295,7 @@ html:not(.app-loading-splash) #root {
   .app-chrome-row__actions {
     @apply relative z-[1] flex h-6 shrink-0 items-center justify-end;
     overflow: visible;
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 1;
     justify-self: end;
   }
@@ -3774,15 +3773,16 @@ html:not(.app-loading-splash) #root {
     );
   }
   .call-block--open-channel .call-block__row--header,
-  .call-block--draft .call-block__row--header {
+  .call-block--draft .call-block__row--header,
+  .call-block--theater .call-block__row--header {
     height: var(--forma-calls-open-header-h);
     min-height: var(--forma-calls-open-header-h);
     max-height: var(--forma-calls-open-header-h);
     align-items: center;
-    padding-right: 1.35rem;
   }
   .call-block--open-channel .call-block__header-trailing,
-  .call-block--draft .call-block__header-trailing {
+  .call-block--draft .call-block__header-trailing,
+  .call-block--theater .call-block__header-trailing {
     max-height: var(--forma-calls-open-header-h);
   }
   .call-block--open-channel .call-block__media-status-item,
@@ -3827,10 +3827,6 @@ html:not(.app-loading-splash) #root {
   }
   .call-block--theater .call-block__surface {
     gap: 0.4rem;
-  }
-  .call-block--theater .call-block__row--header {
-    min-height: var(--forma-calls-open-header-h);
-    align-items: center;
   }
   .call-block--theater .call-block__title {
     @apply text-[12px] leading-none;
@@ -6384,6 +6380,72 @@ html:not(.app-loading-splash) #root {
     grid-template-columns: 1fr auto 1fr;
     background-color: var(--forma-content-bg);
     border-top: var(--forma-divider-width) solid var(--forma-divider);
+  }
+  .app-bottom-header__camera-bg {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 0.55rem + 5px);
+    transform: translateX(-50%);
+    z-index: 45;
+    pointer-events: auto;
+  }
+  .camera-bg-control {
+    @apply relative flex flex-col items-center gap-1.5;
+  }
+  .camera-bg-control__tray {
+    @apply inline-flex items-center gap-2.5 rounded-2xl p-0;
+    background-color: transparent;
+    box-shadow: none;
+  }
+  .camera-bg-control__swatch {
+    @apply relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.6rem]
+      border-0 p-0 transition-[transform,box-shadow,opacity];
+    appearance: none;
+    background: transparent;
+  }
+  .camera-bg-control__swatch:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+  .camera-bg-control__swatch:disabled {
+    opacity: 0.55;
+  }
+  .camera-bg-control__swatch.is-selected {
+    box-shadow: 0 0 0 2px var(--forma-content-bg);
+  }
+  .camera-bg-control__swatch-face {
+    @apply flex h-full w-full items-center justify-center overflow-hidden rounded-[0.6rem];
+    color: rgb(180 180 180 / 0.85);
+  }
+  .camera-bg-control__swatch-face--none {
+    background:
+      linear-gradient(135deg, var(--forma-tint-12) 0%, var(--forma-control-hover-bg) 100%);
+  }
+  .camera-bg-control__swatch-face--blur {
+    background:
+      radial-gradient(circle at 30% 30%, rgb(180 200 255 / 0.35), transparent 55%),
+      linear-gradient(145deg, rgb(60 70 90 / 0.9), rgb(30 34 42 / 0.95));
+    filter: none;
+  }
+  .camera-bg-control__swatch-face--image-empty {
+    background-color: var(--forma-tint-08);
+  }
+  .camera-bg-control__swatch-face--add {
+    color: rgb(180 180 180 / 0.85);
+    background-color: var(--forma-tint-08);
+  }
+  .camera-bg-control__swatch--add:hover:not(:disabled) .camera-bg-control__swatch-face--add {
+    color: rgb(210 210 210 / 0.95);
+    background-color: var(--forma-control-hover-bg);
+  }
+  .camera-bg-control__thumb {
+    @apply h-full w-full object-cover;
+  }
+  .camera-bg-control__error {
+    @apply max-w-[12rem] text-center text-[10px] text-red-300;
+  }
+  .camera-bg-control__file {
+    @apply absolute h-px w-px overflow-hidden opacity-0;
+    clip: rect(0, 0, 0, 0);
   }
   .app-bottom-header--spotify-pulse::before {
     content: "";

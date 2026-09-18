@@ -28,4 +28,7 @@ export default defineConfig({
       interval: 200,
     },
   },
+  optimizeDeps: {
+    include: ["@mediapipe/tasks-vision"],
+  },
 });

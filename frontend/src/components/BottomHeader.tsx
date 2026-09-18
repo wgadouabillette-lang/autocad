@@ -44,6 +44,7 @@ import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { warmSpotifyWebPlayer, activateSpotifyPlaybackFromUserGesture } from "../lib/spotifyWebPlayback";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
 import HallDjDiscoIcon from "./bottomBar/HallDjDiscoIcon";
+import CameraBackgroundControl from "./calls/CameraBackgroundControl";
 
 const ICON_SIZE = 19;
 
@@ -423,6 +424,7 @@ export default function BottomHeader() {
         onClick={() => void toggleCamera()}
         active={cameraOn}
         disabled={(viewMode === "theater" && !inCall) || theaterListenerLocked}
+        showSignet={false}
       >
         {cameraOn ? <Video size={ICON_SIZE} /> : <VideoOff size={ICON_SIZE} />}
       </BottomBarButton>
@@ -528,6 +530,11 @@ export default function BottomHeader() {
         className={clsx("app-bottom-header app-bottom-header--mobile", footerPulseClass)}
         style={footerPulseStyle}
       >
+        {inCall && cameraOn ? (
+          <div className="app-bottom-header__camera-bg">
+            <CameraBackgroundControl />
+          </div>
+        ) : null}
         <div
           ref={notificationsAnchorRef}
           className="bottom-bar-capsule-anchor app-bottom-header__unified"
@@ -550,6 +557,11 @@ export default function BottomHeader() {
 
   return (
     <footer className={clsx("app-bottom-header", footerPulseClass)} style={footerPulseStyle}>
+      {inCall && cameraOn ? (
+        <div className="app-bottom-header__camera-bg">
+          <CameraBackgroundControl />
+        </div>
+      ) : null}
       <div
         ref={notificationsAnchorRef}
         className="bottom-bar-capsule-anchor app-bottom-header__cluster"

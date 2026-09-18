@@ -254,6 +254,15 @@ export function hasVoicePollAccess(
   return hasAiAccess(plan, billingManaged, workspaceEnterprise);
 }
 
+/** Fonds caméra flou / image : Pro personnel ou workspace Team. */
+export function hasCameraBackgroundAccess(
+  plan: SubscriptionPlan,
+  billingManaged = false,
+  workspaceEnterprise = false,
+): boolean {
+  return hasAiAccess(plan, billingManaged, workspaceEnterprise);
+}
+
 export function hasRecapSkillAccess(
   plan: SubscriptionPlan,
   billingManaged = false,
