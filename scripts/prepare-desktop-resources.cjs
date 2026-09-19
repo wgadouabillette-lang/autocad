@@ -349,4 +349,39 @@ if (process.platform === "darwin") {
   }
 }
 
+// Drop package test trees (esp. scipy **/tests/data/*.mat). Apple's codesign
+// --timestamp sometimes fails on those fixtures with "timestamp was expected
+// but was not found", which aborts the whole Developer ID pass.
+function pruneVenvTestTrees(rootDir) {
+  if (!fs.existsSync(rootDir)) return;
+  let removed = 0;
+  const walk = (dir) => {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (!entry.isDirectory()) continue;
+      if (entry.name === "tests" || entry.name === "test" || entry.name === "__pycache__") {
+        try {
+          fs.rmSync(full, { recursive: true, force: true });
+          removed += 1;
+        } catch {
+          /* ignore */
+        }
+        continue;
+      }
+      walk(full);
+    }
+  };
+  walk(rootDir);
+  if (removed > 0) {
+    console.log(`→ Venv test/__pycache__ trees pruned (${removed} dirs).`);
+  }
+}
+pruneVenvTestTrees(venvOut);
+
 console.log("Desktop resources ready in desktop/build-resources/");
