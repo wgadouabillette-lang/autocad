@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo } from "react";
 import type { ChatConnectorId } from "../components/chat/chatConnectors";
-import { isConnectorOAuthMessage, warmConnectorAuth } from "../lib/connectorsApi";
+import {
+  isConnectorOAuthMessage,
+  isTrustedConnectorOAuthOrigin,
+  warmConnectorAuth,
+} from "../lib/connectorsApi";
 import { waitForAuthIdToken } from "../lib/firebase/authToken";
 import {
   applyConnectorOAuthResult,
@@ -71,7 +75,7 @@ export function useConnectors() {
     if (CONNECTORS_VISUAL_ONLY) return;
     void tryFinishConnectorOAuthFromStorage();
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+      if (!isTrustedConnectorOAuthOrigin(event.origin)) return;
       if (!isConnectorOAuthMessage(event.data)) return;
       applyConnectorOAuthResult(event.data);
     };

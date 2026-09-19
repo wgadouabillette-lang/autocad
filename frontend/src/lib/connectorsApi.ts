@@ -1,4 +1,4 @@
-import { apiUrl } from "./apiBase";
+import { apiOrigin, apiUrl } from "./apiBase";
 import { getAuthIdToken } from "./firebase/authToken";
 
 export interface ConnectorStatus {
@@ -129,6 +129,26 @@ export function isConnectorOAuthMessage(data: unknown): data is ConnectorOAuthMe
   if (!data || typeof data !== "object") return false;
   const msg = data as ConnectorOAuthMessage;
   return msg.type === "forma-connector-oauth";
+}
+
+/**
+ * OAuth callback runs on the API host (meetra.cc / local :8000), while the
+ * desktop UI stays on 127.0.0.1:47832 — postMessage origin must allow that.
+ */
+export function isTrustedConnectorOAuthOrigin(origin: string): boolean {
+  if (!origin) return false;
+  if (origin === window.location.origin) return true;
+  const api = apiOrigin();
+  if (api && origin === api) return true;
+  if (origin === "https://meetra.cc" || origin === "https://www.meetra.cc") return true;
+  try {
+    const { protocol, hostname, port } = new URL(origin);
+    if (protocol !== "http:") return false;
+    if (hostname !== "127.0.0.1" && hostname !== "localhost") return false;
+    return port === "8000" || port === "47831" || port === "5173";
+  } catch {
+    return false;
+  }
 }
 
 export interface ConnectorPreviewMessage {
