@@ -223,7 +223,7 @@ export async function runMailSkill(input: {
       summary: "",
       recipientCount: 0,
       error: needsReconnect
-        ? "Reconnectez Gmail dans Paramètres → Plugins pour autoriser l'envoi d'emails."
+        ? "Reconnectez Gmail dans Paramètres → Connectors pour autoriser l'envoi d'emails."
         : message,
       needsGmailReconnect: needsReconnect,
     };

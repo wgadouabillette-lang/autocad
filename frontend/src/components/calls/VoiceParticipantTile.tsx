@@ -6,6 +6,7 @@ import { useCallsStore } from "../../store/useCallsStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import UserAvatar from "../UserAvatar";
 import VoiceMuteBadge from "./VoiceMuteBadge";
+import LocalScreenSharePreview from "./LocalScreenSharePreview";
 
 interface VoiceParticipantTileProps {
   participant: CallUser;
@@ -50,6 +51,8 @@ export default function VoiceParticipantTile({
   stage = false,
 }: VoiceParticipantTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const screenSharing = useCallsStore((s) => s.screenSharing);
+  const screenShareStream = useCallsStore((s) => s.screenShareStream);
   const localMuted = useCallsStore((s) => s.muted);
   const openColleagueChat = useMiniChatStore((s) => s.openForColleague);
   const canMessage = !participant.isLocal && !onActivate;
@@ -63,9 +66,14 @@ export default function VoiceParticipantTile({
     video.srcObject = showVideo ? videoStream : null;
   }, [showVideo, videoStream]);
 
+  const showLocalScreen =
+    participant.isLocal && screenSharing && !!screenShareStream && videoStream === screenShareStream;
+
   const body = (
     <>
-      {showVideo ? (
+      {showLocalScreen && screenShareStream ? (
+        <LocalScreenSharePreview stream={screenShareStream} className="voice-participant-tile__media" />
+      ) : showVideo ? (
         <video
           ref={videoRef}
           autoPlay

@@ -29,7 +29,7 @@
       "emailPassword": true,
       "googleSignIn": {
         "oAuthBrandDisplayName": "Meetra",
-        "supportEmail": "wgadouabillette@gmail.com",
+        "supportEmail": "meetraappsupport@gmail.com",
         "authorizedRedirectUris": [
           "https://forma-cad-dev.firebaseapp.com",
           "https://forma-cad-dev.firebaseapp.com/__/auth/handler",

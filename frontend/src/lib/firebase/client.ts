@@ -3,8 +3,6 @@ import {
   getAuth,
   getRedirectResult,
   GoogleAuthProvider,
-  FacebookAuthProvider,
-  OAuthProvider,
   isSignInWithEmailLink,
   onAuthStateChanged,
   sendSignInLinkToEmail,
@@ -45,20 +43,11 @@ if (import.meta.env.DEV && import.meta.env.VITE_FIREBASE_FUNCTIONS_EMULATOR === 
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);
 }
 
-export type FirebaseAuthProvider = "google" | "microsoft" | "facebook";
+export type FirebaseAuthProvider = "google";
 
 const EMAIL_LINK_STORAGE_KEY = "forma-email-for-sign-in";
 
-const OAUTH_POPUP_HOSTS = [
-  "accounts.google.com",
-  "facebook.com",
-  "www.facebook.com",
-  "m.facebook.com",
-  "login.microsoftonline.com",
-  "live.com",
-  "microsoft.com",
-  "firebaseapp.com",
-];
+const OAUTH_POPUP_HOSTS = ["accounts.google.com", "firebaseapp.com"];
 
 function isOAuthPopupUrl(url: string): boolean {
   try {
@@ -69,23 +58,9 @@ function isOAuthPopupUrl(url: string): boolean {
   }
 }
 
-export function providerForId(id: FirebaseAuthProvider) {
-  if (id === "google") {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: "select_account" });
-    return provider;
-  }
-  if (id === "microsoft") {
-    const provider = new OAuthProvider("microsoft.com");
-    provider.setCustomParameters({
-      prompt: "select_account",
-      tenant: import.meta.env.VITE_MICROSOFT_OAUTH_TENANT?.trim() || "common",
-    });
-    return provider;
-  }
-  const provider = new FacebookAuthProvider();
-  provider.addScope("email");
-  provider.addScope("public_profile");
+export function providerForId(_id: FirebaseAuthProvider) {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
   return provider;
 }
 

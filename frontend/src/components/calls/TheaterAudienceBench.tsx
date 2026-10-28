@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { THEATER_BENCH_SEAT_COUNT, type TheaterParticipant } from "../../lib/theater";
 import { useCallsStore } from "../../store/useCallsStore";
 import TheaterParticipantTile from "./TheaterParticipantTile";
@@ -27,6 +28,7 @@ export default function TheaterAudienceBench({
   onPickSeat,
   onAcceptHandRaise,
 }: TheaterAudienceBenchProps) {
+  const { t } = useTranslation();
   const localMuted = useCallsStore((s) => s.muted);
   const mutedByParticipant = useCallsStore((s) => s.mutedByParticipant);
 
@@ -34,7 +36,7 @@ export default function TheaterAudienceBench({
     participant.isLocal ? localMuted : mutedByParticipant[participant.id] === true;
 
   return (
-    <article className="theater-bench" aria-label={`Banc ${benchIndex + 1}`}>
+    <article className="theater-bench" aria-label={t("calls.bench", { n: benchIndex + 1 })}>
       <div className="theater-bench__seats">
         {Array.from({ length: THEATER_BENCH_SEAT_COUNT }, (_, seatIndex) => {
           const participant = seats[seatIndex] ?? null;
@@ -48,8 +50,8 @@ export default function TheaterAudienceBench({
                     type="button"
                     className="theater-bench__seat--empty theater-bench__seat--pickable"
                     onClick={() => onPickSeat(globalSeatIndex)}
-                    title="S'installer ici"
-                    aria-label="S'installer ici"
+                    title={t("calls.sitHere")}
+                    aria-label={t("calls.sitHere")}
                   />
                 </div>
               );

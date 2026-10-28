@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.ai.stt import SttError, transcribe_audio
 from app.core.auth_deps import require_firebase_user
@@ -34,6 +34,8 @@ def _filename(upload: UploadFile) -> str:
 @router.post("/transcribe")
 async def api_transcribe(
     file: UploadFile = File(...),
+    language: str = Form(""),
+    prompt: str = Form(""),
     user: FirebaseUser = Depends(require_firebase_user),
 ):
     data = await file.read()
@@ -51,6 +53,8 @@ async def api_transcribe(
             filename=filename,
             mime=mime,
             uid=user.uid,
+            language=language,
+            prompt=prompt,
         )
     except SttError as exc:
         raise HTTPException(503, str(exc)) from exc

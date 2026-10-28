@@ -4,7 +4,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  limit,
   onSnapshot,
   query,
   serverTimestamp,
@@ -18,6 +17,7 @@ import {
 import type { ChatSession } from "../../store/useStore";
 import type { UserPreferences } from "../userPreferences";
 import type { ServerMembership, Workspace } from "../workspaces";
+import { api } from "../api";
 import { db } from "./client";
 
 export interface UserProfileDoc extends UserPreferences {
@@ -59,10 +59,6 @@ function profileRef(uid: string) {
 
 function userDirectoryRef(uid: string) {
   return doc(db, "userDirectory", uid);
-}
-
-function userDirectoryCol() {
-  return collection(db, "userDirectory");
 }
 
 function workspacesCol(uid: string) {
@@ -205,12 +201,19 @@ export async function findUserDirectoryByEmail(
 ): Promise<UserDirectoryDoc | null> {
   const normalized = email.trim().toLowerCase();
   if (!normalized) return null;
-  const snap = await getDocs(
-    query(userDirectoryCol(), where("email", "==", normalized), limit(1)),
-  );
-  const first = snap.docs[0];
-  if (!first) return null;
-  return first.data() as UserDirectoryDoc;
+  try {
+    const found = await api.lookupUserByEmail(normalized);
+    return {
+      uid: found.uid,
+      email: found.email,
+      displayName: found.displayName,
+      photoURL: found.photoURL ?? undefined,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : "";
+    if (message.includes("not found") || message.includes("404")) return null;
+    throw error;
+  }
 }
 
 export async function createFriendRequest(input: {
@@ -225,7 +228,7 @@ export async function createFriendRequest(input: {
     id: ref.id,
     fromUid: input.fromUid,
     fromName: input.fromName.trim() || input.fromEmail.split("@")[0],
-    fromEmail: input.fromEmail.trim().toLowerCase(),
+    fromEmail: input.fromEmail.trim(),
     toEmail: input.toEmail.trim().toLowerCase(),
     toUid: input.toUid ?? null,
     status: "pending" as const,

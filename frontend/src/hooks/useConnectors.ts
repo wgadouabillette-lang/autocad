@@ -10,6 +10,7 @@ import {
   applyConnectorOAuthResult,
   tryFinishConnectorOAuthFromStorage,
 } from "../lib/connectorOAuthResult";
+import { hasFormaDesktop } from "../lib/formaDesktop";
 import { isMarketingPreview } from "../lib/marketingPreview";
 import { useAuthStore } from "../store/useAuthStore";
 import { useConnectorsStore } from "../store/useConnectorsStore";
@@ -80,7 +81,17 @@ export function useConnectors() {
       applyConnectorOAuthResult(event.data);
     };
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    const unsubDesktop =
+      hasFormaDesktop() && window.formaDesktop?.onConnectorOAuthResult
+        ? window.formaDesktop.onConnectorOAuthResult((payload) => {
+            if (!isConnectorOAuthMessage(payload)) return;
+            applyConnectorOAuthResult(payload);
+          })
+        : null;
+    return () => {
+      window.removeEventListener("message", onMessage);
+      unsubDesktop?.();
+    };
   }, []);
 
   useEffect(() => {

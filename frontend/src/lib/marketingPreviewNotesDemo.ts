@@ -43,7 +43,7 @@ const STRUCTURE_V1 = [
   "<li>Landing preview must show the real workspace shell, not a static mock.</li>",
   "</ul>",
   "<h2>Connectors</h2>",
-  "<p>Jordan is mid-OAuth review. Gmail is still the blocker; Calendar should land first if the redirect URLs stay clean.</p>",
+  "<p>Gmail, Outlook, Calendar, Spotify, OneDrive, and Dropbox are connected on the workspace.</p>",
 ].join("");
 
 const STRUCTURE_V2_ADD = [
@@ -54,8 +54,7 @@ const STRUCTURE_V2_ADD = [
   "<li>Polls stay on the agent panel with the Thursday standup vote.</li>",
   "</ul>",
   "<ul>",
-  "<li>Enable Spotify, Google Calendar, then Gmail.</li>",
-  "<li>Outlook follows once the redirect URLs are approved.</li>",
+  "<li>Spotify, Google Calendar, Gmail, Outlook, OneDrive, and Dropbox stay connected.</li>",
   "</ul>",
   "<h2>Action items</h2>",
   "<ul>",
@@ -73,11 +72,13 @@ const STRUCTURE_V3_ADD = [
   "<tr><td>Spotify</td><td>You</td><td>Ready for the landing demo</td></tr>",
   "<tr><td>Google Calendar</td><td>Jordan</td><td>Two-way sync in sprint 14</td></tr>",
   "<tr><td>Gmail</td><td>Jordan</td><td>OAuth still pending</td></tr>",
-  "<tr><td>Outlook</td><td>Sam</td><td>After redirect URLs are approved</td></tr>",
+  "<tr><td>Outlook</td><td>Sam</td><td>Mail and calendar connected</td></tr>",
+  "<tr><td>OneDrive</td><td>You</td><td>Read-only file list</td></tr>",
+  "<tr><td>Dropbox</td><td>You</td><td>Read-only file list</td></tr>",
   "</tbody></table>",
   "<h2>Risks</h2>",
   "<ul>",
-  "<li>Gmail OAuth can slip the connector sequence if the redirect URLs fail review.</li>",
+  "<li>OneDrive and Dropbox stay read-only: names, folders, and dates, without file download.</li>",
   "<li>Notes empty state still looks unfinished on first open — Sam is on it before Friday.</li>",
   "<li>Theater recording stays parked so it does not block the landing cut.</li>",
   "</ul>",
@@ -139,6 +140,61 @@ export function cancelMarketingPreviewNotesDemo(): void {
   removeCursor();
   resetNotesIdle();
   leaveMarketingPreviewDuoSalon();
+}
+
+const LIVE_TRANSCRIPT_LINES = [
+  "William is still speaking from the stage.",
+  "Riley's hand is up in the audience.",
+  "Bring Casey on stage when William finishes.",
+  "The theater stays the room for this call.",
+  "Sam is on stage with William. The seats stay with the rest of the room.",
+  "Taylor is next in the hand queue.",
+];
+
+const TRANSCRIPT_CHAR_MS = 16;
+let transcriptGen = 0;
+
+function waitTranscript(ms: number, gen: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    window.setTimeout(() => resolve(gen === transcriptGen), ms);
+  });
+}
+
+/** Keeps typing new lines under the already-transcribed note. Loops. */
+export function startMarketingPreviewNotesTranscript(): void {
+  if (!isMarketingPreview()) return;
+  const gen = ++transcriptGen;
+  void runLandingNotesTranscript(gen);
+}
+
+export function cancelMarketingPreviewNotesTranscript(): void {
+  transcriptGen += 1;
+}
+
+async function runLandingNotesTranscript(gen: number): Promise<void> {
+  if (!(await waitTranscript(700, gen))) return;
+  let step = 0;
+  while (gen === transcriptGen) {
+    if (step > 0 && step % LIVE_TRANSCRIPT_LINES.length === 0) {
+      useAiNotesStore.setState((state) => ({
+        lines: state.lines.filter((line) => line.id.startsWith("preview-ln-")),
+        interimText: "",
+      }));
+      if (!(await waitTranscript(420, gen))) return;
+    }
+    const sentence = LIVE_TRANSCRIPT_LINES[step % LIVE_TRANSCRIPT_LINES.length];
+    step += 1;
+    useAiNotesStore.setState({ interimText: sentence });
+    if (!(await waitTranscript(sentence.length * TRANSCRIPT_CHAR_MS + 240, gen))) return;
+    useAiNotesStore.setState((state) => ({
+      lines: [
+        ...state.lines,
+        { id: `preview-live-${step}`, text: sentence, isFinal: true },
+      ],
+      interimText: "",
+    }));
+    if (!(await waitTranscript(280, gen))) return;
+  }
 }
 
 export function startMarketingPreviewNotesDemo(): void {
@@ -310,9 +366,9 @@ async function runLiveNotesAnimation(gen: number): Promise<void> {
   if (!(await wait(Math.min(900, remaining()), gen))) return;
   appendFinalLine("Can we lock the dashboard layout this week and keep Salon vocal as home?");
 
-  setInterim("I'll take the OAuth check for Gmail and Calendar — Gmail is still the blocker.");
+  setInterim("Gmail, Outlook, Calendar, OneDrive, and Dropbox are connected on this workspace.");
   if (!(await wait(Math.min(1000, remaining()), gen))) return;
-  appendFinalLine("I'll take the OAuth check for Gmail and Calendar — Gmail is still the blocker.");
+  appendFinalLine("Gmail, Outlook, Calendar, OneDrive, and Dropbox are connected on this workspace.");
 
   useAiNotesStore.setState({ structuring: true });
   if (!(await wait(Math.min(450, remaining()), gen))) return;
@@ -326,9 +382,9 @@ async function runLiveNotesAnimation(gen: number): Promise<void> {
   if (!(await wait(Math.min(1100, remaining()), gen))) return;
   appendFinalLine("I'm polishing the Notes empty state and checking open-channel join before Friday's demo.");
 
-  setInterim("Spotify first, then Calendar, then Gmail. Outlook after the redirect URLs are approved.");
+  setInterim("Spotify, Calendar, Gmail, Outlook, OneDrive, and Dropbox are the connectors we show.");
   if (!(await wait(Math.min(1000, remaining()), gen))) return;
-  appendFinalLine("Spotify first, then Calendar, then Gmail. Outlook after the redirect URLs are approved.");
+  appendFinalLine("Spotify, Calendar, Gmail, Outlook, OneDrive, and Dropbox are the connectors we show.");
 
   useAiNotesStore.setState({ structuring: true });
   if (!(await wait(Math.min(500, remaining()), gen))) return;

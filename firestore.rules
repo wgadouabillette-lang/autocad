@@ -106,6 +106,8 @@ service cloud.firestore {
       return data.keys().hasAll(['id', 'fromUid', 'fromName', 'fromEmail', 'toEmail', 'status', 'createdAt'])
         && data.id is string
         && data.fromUid == request.auth.uid
+        && request.auth.token.email is string
+        && data.fromEmail == request.auth.token.email
         && data.fromName is string
         && data.fromName.size() >= 1
         && data.fromName.size() <= 120
@@ -471,7 +473,10 @@ service cloud.firestore {
     }
 
     match /userDirectory/{uid} {
-      allow read: if isSignedIn();
+      // Single-document reads only. Listing the directory would expose every email.
+      // Email search goes through the rate-limited API, not a collection query.
+      allow get: if isSignedIn();
+      allow list: if false;
       allow create, update: if isOwner(uid) && isValidDirectoryProfile(uid);
       allow delete: if false;
     }
@@ -641,14 +646,23 @@ service cloud.firestore {
     }
 
     match /desktopAuthSessions/{sessionId} {
-      // Electron claims via backend Admin claim or Cloud Function (never client read).
-      // Client create: authenticated browser deposits OAuth tokens after web sign-in.
+      // 0.1.18 creates the doc from the browser when the API fallback is used.
       allow create: if request.auth != null
         && request.resource.data.keys().hasAll(["provider", "idToken", "createdAt"])
         && request.resource.data.provider in ["google", "microsoft", "facebook"]
         && request.resource.data.idToken is string
         && request.resource.data.idToken.size() > 100;
-      allow read, update, delete: if false;
+      // 0.1.19+ : the backend already stored a claim-secret hash. The browser may
+      // attach its Google token, but cannot read, replace the hash, or set a custom token.
+      allow update: if request.auth != null
+        && resource.data.claimSecretHash is string
+        && request.resource.data.claimSecretHash == resource.data.claimSecretHash
+        && request.resource.data.provider == "google"
+        && request.resource.data.idToken is string
+        && request.resource.data.idToken.size() > 100
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["provider", "idToken", "accessToken", "createdAt"]);
+      allow read, delete: if false;
     }
 
     match /workspacesShared/{workspaceId} {
@@ -702,8 +716,22 @@ service cloud.firestore {
 
       match /openVoiceChannels/{channelId} {
         allow read: if isSharedWorkspaceMember(workspaceId);
-        allow create, update: if isSharedWorkspaceMember(workspaceId)
-          && isValidOpenVoiceChannelWrite(workspaceId, channelId);
+        // createdByUid is optional so 0.1.18 (no field) and 0.1.19 (sets the field
+        // to the signed-in user) can both create a channel.
+        allow create: if isSharedWorkspaceMember(workspaceId)
+          && isValidOpenVoiceChannelWrite(workspaceId, channelId)
+          && (
+            !('createdByUid' in request.resource.data)
+            || request.resource.data.createdByUid == request.auth.uid
+          );
+        allow update: if isSharedWorkspaceMember(workspaceId)
+          && isValidOpenVoiceChannelWrite(workspaceId, channelId)
+          && (
+            !('createdByUid' in request.resource.data)
+            || !('createdByUid' in resource.data)
+            || request.resource.data.createdByUid == resource.data.createdByUid
+          );
+        // Members on 0.1.18 still delete channels they did not create.
         allow delete: if isSharedWorkspaceOwner(workspaceId)
           || isSharedWorkspaceMember(workspaceId);
       }

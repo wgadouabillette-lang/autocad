@@ -5,14 +5,16 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
-import { ArrowUp, Plus, User, X, FileImage } from "lucide-react";
+import { ArrowUp, Loader2, Mic, Plus, User, X, FileImage } from "lucide-react";
 import { presenceActivityFromModel } from "../lib/aiModelStroke";
 import { useAiComposerStore } from "../store/useAiComposerStore";
 import { usePresenceActivityStore } from "../store/usePresenceActivityStore";
 import { useStore, updateActiveTabInTabs, type ChatMessage } from "../store/useStore";
+import { useCalendarOverlayStore } from "../store/useCalendarOverlayStore";
 import { useAgentSkillApplyStore } from "../store/useAgentSkillApplyStore";
 import { useCallsStore } from "../store/useCallsStore";
 import { usePeopleStore } from "../store/usePeopleStore";
@@ -37,6 +39,11 @@ import ChatShortcutsHint from "./chat/ChatShortcutsHint";
 import HighlightedPromptInput from "./chat/HighlightedPromptInput";
 import { useConnectors } from "../hooks/useConnectors";
 import {
+  isFatalDictationError,
+  startComposerDictation,
+  stopComposerDictation,
+} from "../lib/composerDictation";
+import {
   isMarketingPreview,
   readMarketingPreviewConnectorsActiveParam,
   readMarketingPreviewSceneParam,
@@ -46,6 +53,9 @@ import { useMarketingPreviewNavCommands } from "../hooks/useMarketingPreviewNavC
 import { pickMarketingPlayQuery } from "../lib/marketingPlayDemo";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { activeStepLabel } from "../lib/aiRun";
+import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
+import { formatScheduleTime } from "../lib/daySchedule";
+import type { CalendarAddDraft } from "../lib/chatActionIntents";
 import StructuredAssistantMessage, {
   AssistantPendingBubble,
 } from "./chat/StructuredAssistantMessage";
@@ -79,6 +89,7 @@ import MailPromptLine from "./chat/MailPromptLine";
 import PlayPromptLine from "./chat/PlayPromptLine";
 import SpotifyTrackBubble from "./chat/SpotifyTrackBubble";
 import SpotifyTrackList from "./chat/SpotifyTrackList";
+import SpotifyTrackPicker from "./chat/SpotifyTrackPicker";
 import {
   filterSlashSkillMenu,
   slashQueryAt,
@@ -114,6 +125,7 @@ import SkillTimeline, {
   type SkillTimelineStep,
   type SkillTimelineSuccess,
 } from "./chat/SkillTimeline";
+import PlayBrowsingStatus, { pickPlayBrowsingMs } from "./chat/PlayBrowsingStatus";
 import {
   GROUP_TIMELINE_STEPS,
   HANDOFF_TIMELINE_STEPS,
@@ -141,6 +153,7 @@ import {
   type MailPromptDraft,
 } from "../lib/mailSkill";
 import { fetchGmailStatus } from "../lib/connectorsApi";
+import type { MailSendDraft } from "../lib/mailIntent";
 const CHAT_COMPOSER_SURFACE_STYLE: CSSProperties = {
   backgroundColor: "var(--forma-chat-composer-bg)",
   border: "1px solid var(--forma-chat-composer-stroke)",
@@ -213,6 +226,200 @@ function ApplyToCalendarButton({
     >
       {applied ? t("chat.appliedToCalendar") : t("chat.applyToCalendar")}
     </button>
+  );
+}
+
+function PluginActionButton({
+  chatIndex,
+  label,
+  applied,
+}: {
+  chatIndex: number;
+  label: string;
+  applied?: boolean;
+}) {
+  const applyPluginActionForChatMessage = useStore((s) => s.applyPluginActionForChatMessage);
+  const done = label === "Play" ? "En lecture" : label === "Send" ? "Envoyé" : "Fait";
+  return (
+    <button
+      type="button"
+      className="chat-connectors-row__connect"
+      disabled={applied}
+      onClick={() => void applyPluginActionForChatMessage(chatIndex)}
+    >
+      {applied ? done : label}
+    </button>
+  );
+}
+
+function CalendarAddCard({
+  draft,
+  chatIndex,
+}: {
+  draft: CalendarAddDraft & { applied?: boolean; eventId?: string };
+  chatIndex: number;
+}) {
+  const applyCalendarAddForChatMessage = useStore((s) => s.applyCalendarAddForChatMessage);
+  const openCalendarPanel = useStore((s) => s.openCalendarPanel);
+  const [adding, setAdding] = useState(false);
+  const applied = !!draft.applied;
+
+  const onAdd = async () => {
+    if (adding || applied) return;
+    setAdding(true);
+    try {
+      await applyCalendarAddForChatMessage(chatIndex);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const onSee = () => {
+    useCalendarOverlayStore.getState().revealAddedEvent(draft.dateKey, draft.eventId ?? null);
+    openCalendarPanel();
+  };
+
+  return (
+    <div className="calendar-add-card">
+      <img
+        src={connectorIconPath(CONNECTOR_ICON_FILES.calendar)}
+        alt=""
+        className="calendar-add-card__icon"
+        draggable={false}
+      />
+      <div className="calendar-add-card__copy">
+        <span className="calendar-add-card__title">{draft.title}</span>
+        <span className="calendar-add-card__time">
+          {formatScheduleTime(draft.startMinutes)}–{formatScheduleTime(draft.endMinutes)}
+        </span>
+      </div>
+      <button
+        type="button"
+        className={clsx(
+          "chat-connectors-row__connect calendar-add-card__add",
+          adding && "calendar-add-card__add--busy",
+        )}
+        disabled={adding}
+        aria-busy={adding}
+        aria-label={adding ? "Ajout en cours" : applied ? "See" : "Add"}
+        onClick={() => void (applied ? onSee() : onAdd())}
+      >
+        {adding ? (
+          <Loader2 size={12} className="animate-spin" aria-hidden />
+        ) : applied ? (
+          "See"
+        ) : (
+          "Add"
+        )}
+      </button>
+    </div>
+  );
+}
+
+function MailSendCard({
+  draft,
+  chatIndex,
+  via = "mail",
+}: {
+  draft: MailSendDraft & { applied?: boolean };
+  chatIndex: number;
+  via?: "mail" | "plugin";
+}) {
+  const applyMailSendForChatMessage = useStore((s) => s.applyMailSendForChatMessage);
+  const applyPluginActionForChatMessage = useStore((s) => s.applyPluginActionForChatMessage);
+  const [sending, setSending] = useState(false);
+  const applied = !!draft.applied;
+
+  const onSend = async () => {
+    if (sending || applied) return;
+    setSending(true);
+    try {
+      if (via === "plugin") await applyPluginActionForChatMessage(chatIndex);
+      else await applyMailSendForChatMessage(chatIndex);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="calendar-add-card">
+      <img
+        src={connectorIconPath(CONNECTOR_ICON_FILES.gmail)}
+        alt=""
+        className="calendar-add-card__icon"
+        draggable={false}
+      />
+      <div className="calendar-add-card__copy">
+        <span className="calendar-add-card__title">{draft.subject}</span>
+        <span className="calendar-add-card__time truncate">{draft.label}</span>
+      </div>
+      <button
+        type="button"
+        className={clsx(
+          "chat-connectors-row__connect calendar-add-card__add",
+          sending && "calendar-add-card__add--busy",
+        )}
+        disabled={sending}
+        aria-busy={sending}
+        aria-label={sending ? "Envoi en cours" : applied ? "Sent" : "Send"}
+        onClick={() => void (applied ? undefined : onSend())}
+      >
+        {sending ? <Loader2 size={12} className="animate-spin" aria-hidden /> : applied ? "Sent" : "Send"}
+      </button>
+    </div>
+  );
+}
+
+function TypedAssistantReply({
+  text,
+  reveal,
+  error,
+  card,
+  onRevealComplete,
+}: {
+  text: string;
+  reveal: boolean;
+  error?: string;
+  card: ReactNode;
+  onRevealComplete?: () => void;
+}) {
+  const shouldType = reveal && text.length > 0;
+  const [typedCount, setTypedCount] = useState(shouldType ? 0 : text.length);
+  const onRevealCompleteRef = useRef(onRevealComplete);
+  onRevealCompleteRef.current = onRevealComplete;
+
+  useEffect(() => {
+    if (!reveal) {
+      setTypedCount(text.length);
+      return;
+    }
+    if (!text.length) {
+      setTypedCount(0);
+      onRevealCompleteRef.current?.();
+      return;
+    }
+    setTypedCount(0);
+    let count = 0;
+    const timer = window.setInterval(() => {
+      count += 1;
+      setTypedCount(count);
+      if (count >= text.length) {
+        window.clearInterval(timer);
+        onRevealCompleteRef.current?.();
+      }
+    }, 14);
+    return () => window.clearInterval(timer);
+  }, [reveal, text]);
+
+  const visible = shouldType ? text.slice(0, typedCount) : text;
+  const ready = typedCount >= text.length;
+
+  return (
+    <>
+      {visible.trim() ? <StructuredAssistantMessage text={visible} /> : null}
+      {ready ? card : null}
+      {ready && error ? <p className="manage-sync-prompt">{error}</p> : null}
+    </>
   );
 }
 
@@ -292,6 +499,21 @@ function ChatBubble({
     );
   }
 
+  const gmailPlugin =
+    message.pluginAction?.kind === "gmail.send" && message.pluginAction.mail
+      ? message.pluginAction
+      : null;
+  const mailDraft =
+    message.mailSend ??
+    (gmailPlugin?.mail
+      ? {
+          to: gmailPlugin.mail.to,
+          subject: gmailPlugin.mail.subject,
+          body: gmailPlugin.mail.body,
+          label: gmailPlugin.mail.to.join(", "),
+          applied: gmailPlugin.applied,
+        }
+      : null);
   const showManageCta =
     message.source === "manage-skill" &&
     Array.isArray(message.manageEvents) &&
@@ -305,22 +527,78 @@ function ChatBubble({
         message.source === "play-skill" && "chat-assistant-bubble--play-skill",
       )}
     >
-      {message.spotifySearch?.length ? (
+      {message.spotifySearchMode === "picker" && message.spotifySearch?.length ? (
+        <SpotifyTrackPicker
+          tracks={message.spotifySearch}
+          query={message.playQuery}
+          chatIndex={chatIndex}
+          generation={message.spotifyPickerGeneration}
+          pageOffset={message.spotifyPickerOffset}
+          verdict={message.spotifyPickerVerdict}
+        />
+      ) : message.spotifySearch?.length ? (
         <SpotifyTrackList
           tracks={message.spotifySearch}
           compact
-          mode={message.spotifySearchMode ?? "play"}
+          mode={message.spotifySearchMode === "queue-add" ? "queue-add" : "play"}
           chatIndex={chatIndex}
         />
       ) : null}
       {message.spotifyTrack ? (
         <SpotifyTrackBubble track={message.spotifyTrack} playState={message.spotifyPlay} />
       ) : null}
-      <StructuredAssistantMessage
-        text={message.text}
-        reveal={reveal}
-        onRevealComplete={onRevealComplete}
-      />
+      {message.calendarAdd && typeof chatIndex === "number" ? (
+        <TypedAssistantReply
+          text={message.text}
+          reveal={!!reveal}
+          error={message.calendarAddError}
+          onRevealComplete={onRevealComplete}
+          card={<CalendarAddCard draft={message.calendarAdd} chatIndex={chatIndex} />}
+        />
+      ) : mailDraft && typeof chatIndex === "number" ? (
+        <TypedAssistantReply
+          text={message.text}
+          reveal={!!reveal}
+          error={message.mailSendError ?? message.pluginAction?.error}
+          onRevealComplete={onRevealComplete}
+          card={<MailSendCard draft={mailDraft} chatIndex={chatIndex} via={message.mailSend ? "mail" : "plugin"} />}
+        />
+      ) : message.text.trim() ? (
+        <StructuredAssistantMessage
+          text={message.text}
+          reveal={reveal}
+          onRevealComplete={onRevealComplete}
+        />
+      ) : null}
+      {message.editedImageSrc ? (
+        <img
+          src={message.editedImageSrc}
+          alt=""
+          className="chat-edited-image"
+        />
+      ) : null}
+      {message.pluginAction && message.pluginAction.kind !== "gmail.send" && typeof chatIndex === "number" ? (
+        <div className="manage-sync-cta-wrap">
+          {message.pluginAction.applied ? (
+            <p className="manage-sync-prompt">
+              {message.pluginAction.button === "Play"
+                ? "Lecture lancée."
+                : message.pluginAction.button === "Send"
+                  ? "Email envoyé."
+                  : "Action faite."}
+            </p>
+          ) : (
+            <PluginActionButton
+              chatIndex={chatIndex}
+              label={message.pluginAction.button}
+              applied={message.pluginAction.applied}
+            />
+          )}
+          {message.pluginAction.error ? (
+            <p className="manage-sync-prompt">{message.pluginAction.error}</p>
+          ) : null}
+        </div>
+      ) : null}
       {showManageCta ? (
         <div className="manage-sync-cta-wrap">
           {message.manageEventsApplied ? (
@@ -356,7 +634,7 @@ export default function ChatPanel() {
     );
   }
   // #endregion
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isMobileLayout = useMobileLayout();
   const {
     submitAssistantPrompt,
@@ -418,6 +696,17 @@ export default function ChatPanel() {
     [mentionablePeople],
   );
   const [text, setText] = useState("");
+  const textRef = useRef("");
+  textRef.current = text;
+  const [dictating, setDictating] = useState(false);
+  const [dictationStopping, setDictationStopping] = useState(false);
+  const [dictationError, setDictationError] = useState<string | null>(null);
+  const dictatingRef = useRef(false);
+  const dictationBaseRef = useRef("");
+  const dictationFinalRef = useRef("");
+  const dictationInterimRef = useRef("");
+  const dictationLastRef = useRef<string | null>(null);
+  const dictationAcceptRef = useRef(false);
   const [attachments, setAttachments] = useState<PromptAttachment[]>([]);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionFilter, setMentionFilter] = useState("");
@@ -436,6 +725,7 @@ export default function ChatPanel() {
   );
   const [mailDraft, setMailDraft] = useState<MailPromptDraft>(createDefaultMailDraft);
   const [mailAttachments, setMailAttachments] = useState<File[]>([]);
+  const [mailAutoFocus, setMailAutoFocus] = useState<"recipients" | "body">("recipients");
   const subscriptionPlan = useStore((s) => s.subscriptionPlan);
   const billingManaged = useStore((s) => s.billingManaged);
   const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
@@ -453,6 +743,8 @@ export default function ChatPanel() {
     apiError: string | null;
     success: SkillTimelineSuccess | null;
     awaitingAssistant: boolean;
+    startedAt: number;
+    browsingMs?: number;
   } | null>(null);
   const handoffRunPendingRef = useRef(false);
   const recapDraft = useRecapStore((s) => s.composerDraft);
@@ -576,6 +868,8 @@ export default function ChatPanel() {
       apiError: null as string | null,
       success: null as SkillTimelineSuccess | null,
       awaitingAssistant,
+      startedAt: Date.now(),
+      browsingMs: skillId === "play" ? pickPlayBrowsingMs() : undefined,
     }),
     [],
   );
@@ -907,13 +1201,40 @@ export default function ChatPanel() {
       const last = chat[chat.length - 1];
       if (last?.role === "assistant") {
         setRevealIdx(chat.length - 1);
-        setActiveSkillRun((prev) =>
-          prev && prev.awaitingAssistant ? null : prev,
-        );
+        setActiveSkillRun((prev) => {
+          if (!prev?.awaitingAssistant) return prev;
+          if (
+            prev.skillId === "play" &&
+            last.source === "play-skill" &&
+            !!last.spotifySearch?.length
+          ) {
+            return prev;
+          }
+          return null;
+        });
       }
     }
     prevChatLenRef.current = chat.length;
   }, [chat]);
+
+  const playBrowsing =
+    activeSkillRun?.skillId === "play" && !!activeSkillRun.awaitingAssistant;
+  const playResultReady =
+    playBrowsing &&
+    chat[chat.length - 1]?.role === "assistant" &&
+    chat[chat.length - 1]?.source === "play-skill" &&
+    !!chat[chat.length - 1]?.spotifySearch?.length;
+
+  useEffect(() => {
+    if (!playResultReady || !activeSkillRun) return;
+    const runId = activeSkillRun.runId;
+    const budget = activeSkillRun.browsingMs ?? 5000;
+    const wait = Math.max(0, activeSkillRun.startedAt + budget - Date.now());
+    const timer = window.setTimeout(() => {
+      setActiveSkillRun((prev) => (prev?.runId === runId ? null : prev));
+    }, wait);
+    return () => window.clearTimeout(timer);
+  }, [playResultReady, activeSkillRun]);
 
   useEffect(() => {
     if (chat.length > prevChatLenForRiseRef.current) {
@@ -1137,6 +1458,7 @@ export default function ChatPanel() {
       setActiveComposerSkill("mail");
       setMailDraft(createDefaultMailDraft());
       setMailAttachments([]);
+      setMailAutoFocus("recipients");
       setText("");
       setSlashOpen(false);
       return;
@@ -1457,7 +1779,138 @@ export default function ChatPanel() {
     setMentionOpen(options.length > 0);
   };
 
+  const dictateIntoPrompt =
+    !handoffSelectionMode &&
+    activeComposerSkill !== "recap" &&
+    activeComposerSkill !== "manage" &&
+    activeComposerSkill !== "meeting" &&
+    activeComposerSkill !== "mail";
+
+  const composeDictationText = () => {
+    const spoken = [dictationFinalRef.current, dictationInterimRef.current]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const base = dictationBaseRef.current;
+    if (!spoken) return base;
+    if (!base.trim()) return spoken;
+    return /\s$/.test(base) ? `${base}${spoken}` : `${base} ${spoken}`;
+  };
+
+  const applyDictationChunk = (chunk: { text: string; isFinal: boolean }) => {
+    if (!dictationAcceptRef.current) return;
+    const incoming = chunk.text.trim();
+    if (!incoming) return;
+    if (chunk.isFinal) {
+      dictationFinalRef.current = [dictationFinalRef.current, incoming]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+      dictationInterimRef.current = "";
+    } else {
+      dictationInterimRef.current = incoming;
+    }
+    const next = composeDictationText();
+    dictationLastRef.current = next;
+    textRef.current = next;
+    setText(next);
+    setDictationError(null);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(next.length, next.length);
+      syncComposerMenuRef.current(next, next.length);
+    });
+  };
+
+  const sealDictation = () => {
+    const composed = dictationLastRef.current ?? textRef.current;
+    textRef.current = composed;
+    dictationBaseRef.current = composed;
+    dictationFinalRef.current = "";
+    dictationInterimRef.current = "";
+    dictationLastRef.current = null;
+    return composed;
+  };
+
+  const endDictation = (discardPending = false) => {
+    const wasListening = dictatingRef.current;
+    dictatingRef.current = false;
+    if (discardPending || !wasListening) {
+      dictationAcceptRef.current = false;
+      setDictating(false);
+      setDictationStopping(false);
+      stopComposerDictation({ flush: false });
+      return sealDictation();
+    }
+    setDictationStopping(true);
+    stopComposerDictation({ flush: true });
+    return textRef.current;
+  };
+
+  const toggleDictation = () => {
+    if (dictationStopping) return;
+    if (dictatingRef.current) {
+      endDictation(false);
+      return;
+    }
+    if (!dictateIntoPrompt) return;
+    dictationBaseRef.current = textRef.current;
+    dictationFinalRef.current = "";
+    dictationInterimRef.current = "";
+    dictationLastRef.current = textRef.current;
+    dictationAcceptRef.current = true;
+    dictatingRef.current = true;
+    setDictating(true);
+    setDictationStopping(false);
+    setDictationError(null);
+    void startComposerDictation({
+      locale: i18n.language,
+      onTranscript: applyDictationChunk,
+      onError: (message) => {
+        if (!dictationAcceptRef.current && !dictatingRef.current) return;
+        setDictationError(message);
+        if (isFatalDictationError(message)) endDictation(true);
+      },
+      onIdle: () => {
+        dictatingRef.current = false;
+        dictationAcceptRef.current = false;
+        setDictating(false);
+        setDictationStopping(false);
+        sealDictation();
+      },
+    }).catch((error: unknown) => {
+      const denied = error instanceof DOMException && error.name === "NotAllowedError";
+      setDictationError(
+        denied
+          ? "Permission micro refusée pour la transcription."
+          : error instanceof Error
+            ? error.message
+            : "Micro inaccessible.",
+      );
+      endDictation(true);
+    });
+  };
+
+  useEffect(() => {
+    if (!dictateIntoPrompt && dictatingRef.current) endDictation();
+  }, [dictateIntoPrompt]);
+
+  useEffect(() => {
+    return () => {
+      dictationAcceptRef.current = false;
+      dictatingRef.current = false;
+      stopComposerDictation({ flush: false });
+    };
+  }, []);
+
   const submit = () => {
+    if (dictatingRef.current || dictationStopping) endDictation(true);
+    const text = textRef.current;
     if (handoffSelectionMode) {
       if (
         handoffSubmitting ||
@@ -1805,6 +2258,7 @@ export default function ChatPanel() {
                 onChange={setMailDraft}
                 peopleHandles={peopleHandles}
                 recipientsRef={mailRecipientsRef}
+                autoFocus={mailAutoFocus}
                 attachments={mailAttachments}
                 onAttachmentsChange={(files) => {
                   setMailAttachments(files);
@@ -1819,6 +2273,7 @@ export default function ChatPanel() {
                   setActiveComposerSkill(null);
                   setMailDraft(createDefaultMailDraft());
                   setMailAttachments([]);
+                  setMailAutoFocus("recipients");
                 }}
               />
             ) : (
@@ -1826,9 +2281,17 @@ export default function ChatPanel() {
               ref={textareaRef}
               value={text}
               placeholder={placeholder}
+              dictating={(dictating || dictationStopping) && text.trim().length === 0}
               peopleHandles={peopleHandles}
               composerSkill={activeComposerSkill}
               onChange={(v) => {
+                if (dictationAcceptRef.current) {
+                  dictationBaseRef.current = v;
+                  dictationFinalRef.current = "";
+                  dictationInterimRef.current = "";
+                  dictationLastRef.current = null;
+                }
+                if (dictationError) setDictationError(null);
                 const trimmed = v.trim().toLowerCase();
                 if (trimmed === CREATE_GROUP_SKILL_TEMPLATE) {
                   setActiveComposerSkill("group");
@@ -1979,6 +2442,11 @@ export default function ChatPanel() {
           {showOpenAiKeyPrompt && (
             <ChatOpenAiApiKeyPrompt onConfigured={() => setOpenaiKeyConfigured(true)} />
           )}
+          {dictationError ? (
+            <p className="px-0.5 text-[11px] leading-4 text-muted-300" role="alert">
+              {dictationError}
+            </p>
+          ) : null}
           <div className="flex h-[24px] items-center gap-2">
             <ChatAppIntegrations
               open={connectorsOpen}
@@ -2006,6 +2474,36 @@ export default function ChatPanel() {
                 className="inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-transparent text-muted-400 transition-colors hover:text-muted-200 disabled:opacity-30"
               >
                 <Plus size={15} strokeWidth={2.5} />
+              </button>
+              <button
+                type="button"
+                onClick={toggleDictation}
+                disabled={!dictateIntoPrompt || dictationStopping}
+                aria-pressed={dictating || dictationStopping}
+                title={
+                  dictationError ??
+                  (dictationStopping
+                    ? t("chat.dictateWorking")
+                    : dictating
+                      ? t("chat.dictateStop")
+                      : t("chat.dictate"))
+                }
+                aria-label={
+                  dictationError ??
+                  (dictationStopping
+                    ? t("chat.dictateWorking")
+                    : dictating
+                      ? t("chat.dictateStop")
+                      : t("chat.dictate"))
+                }
+                className={clsx(
+                  "chat-composer-mic inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full transition-colors hover:text-muted-200 disabled:opacity-30",
+                  (dictating || dictationStopping)
+                    ? "chat-composer-mic--live bg-[var(--forma-control-bg)] text-muted-100"
+                    : "bg-transparent text-muted-400",
+                )}
+              >
+                <Mic size={14} strokeWidth={2.25} />
               </button>
               <button
                 type="button"
@@ -2083,6 +2581,15 @@ export default function ChatPanel() {
         <div className="flex flex-col pt-3">
           {chat.map((message, i) => {
             if (message.role === "system") return null;
+            if (
+              playBrowsing &&
+              i === chat.length - 1 &&
+              message.role === "assistant" &&
+              message.source === "play-skill" &&
+              !!message.spotifySearch?.length
+            ) {
+              return null;
+            }
             const spacing = chatMessageSpacingClass(chat, i);
             const isRising = i === risingMessageIndex;
             const selected = handoffSelectedIndices.has(i);
@@ -2146,7 +2653,11 @@ export default function ChatPanel() {
             );
           })}
 
-          {activeSkillRun ? (
+          {activeSkillRun?.skillId === "play" ? (
+            <div className="chat-assistant-bubble chat-panel-rise-in mt-3">
+              <PlayBrowsingStatus startedAt={activeSkillRun.startedAt} />
+            </div>
+          ) : activeSkillRun ? (
             <div className="chat-assistant-bubble chat-panel-rise-in mt-3">
               <SkillTimeline
                 key={activeSkillRun.runId}

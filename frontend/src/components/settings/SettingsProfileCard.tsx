@@ -4,8 +4,6 @@ import { useTranslation } from "react-i18next";
 import UserAvatar from "../UserAvatar";
 import { ACCENT_COLOR_OPTIONS, type AccentColorPreference } from "../../lib/accentColor";
 import { intlLocaleForAppLocale, resolveAppLocale } from "../../lib/appLocale";
-import { auth } from "../../lib/firebase/client";
-import { googleProviderPhotoURL } from "../../lib/firebase/profilePhoto";
 import {
   AVAILABILITY_WEEKDAY_ORDER,
   formatCalendarWorkTime,
@@ -17,6 +15,7 @@ import {
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 import SettingsPicker, { SettingsTimeInput } from "./SettingsControls";
+import SettingsFieldRow from "./SettingsFieldRow";
 
 const ACCEPTED_IMAGE_TYPES = "image/jpeg,image/png,image/webp";
 
@@ -68,8 +67,6 @@ export default function SettingsProfileCard() {
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const uploadAndSyncProfilePhoto = useAuthStore((s) => s.uploadAndSyncProfilePhoto);
-  const restoreGoogleProfilePhoto = useAuthStore((s) => s.restoreGoogleProfilePhoto);
-  const removeAndSyncProfilePhoto = useAuthStore((s) => s.removeAndSyncProfilePhoto);
 
   const [draftName, setDraftName] = useState(userDisplayName);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -88,9 +85,6 @@ export default function SettingsProfileCard() {
     [storedAvailabilityDays],
   );
 
-  const googlePhotoURL = googleProviderPhotoURL(auth.currentUser);
-  const showGooglePhoto =
-    Boolean(googlePhotoURL) && googlePhotoURL !== (photoURL ?? "").trim();
   const selectedAccent =
     ACCENT_COLOR_OPTIONS.find((option) => option.id === accentColor) ?? ACCENT_COLOR_OPTIONS[0]!;
 
@@ -123,30 +117,6 @@ export default function SettingsProfileCard() {
     }
   }
 
-  async function handleRemovePhoto() {
-    setPhotoError(null);
-    setPhotoBusy(true);
-    try {
-      await removeAndSyncProfilePhoto();
-    } catch (error) {
-      setPhotoError(error instanceof Error ? error.message : t("settings.profile.removeError"));
-    } finally {
-      setPhotoBusy(false);
-    }
-  }
-
-  async function handleGooglePhoto() {
-    setPhotoError(null);
-    setPhotoBusy(true);
-    try {
-      await restoreGoogleProfilePhoto();
-    } catch (error) {
-      setPhotoError(error instanceof Error ? error.message : t("settings.profile.googleError"));
-    } finally {
-      setPhotoBusy(false);
-    }
-  }
-
   function handleStartChange(value: string) {
     setStartError(null);
     setEndError(null);
@@ -175,24 +145,22 @@ export default function SettingsProfileCard() {
   const endTime = formatCalendarWorkTime(endMinutes);
 
   return (
-    <article className="settings-profile-card">
-      <div className="settings-profile-card__hero">
-        <div className="settings-profile-card__backdrop" aria-hidden>
-          <UserAvatar
-            userId="local"
-            name={userDisplayName}
-            isLocal
-            className="settings-profile-card__backdrop-avatar"
-          />
-        </div>
-        <div className="settings-profile-card__identity">
-          <div className="settings-profile-photo">
+    <>
+      <section className="settings-preferences__group">
+        <h3 className="settings-preferences__title">Profil</h3>
+        <div className="settings-field-list">
+          <SettingsFieldRow
+            label="Photo"
+            description="Image affichée sur votre profil."
+            error={photoError}
+            controlClassName="settings-field-row__control--end"
+          >
             <button
               type="button"
               className="settings-profile-photo__trigger settings-profile-card__avatar-btn"
               disabled={photoBusy || !isAuthenticated}
               onClick={() => fileInputRef.current?.click()}
-              aria-label={photoURL ? t("settings.profile.photoAriaChange") : t("settings.profile.photoAriaAdd")}
+              aria-label={t("settings.profile.photoAriaChange")}
             >
               <UserAvatar
                 userId="local"
@@ -201,39 +169,9 @@ export default function SettingsProfileCard() {
                 className="settings-profile-card__avatar"
               />
               <span className="settings-profile-card__avatar-cam" aria-hidden>
-                <Camera size={14} strokeWidth={2.25} />
+                <Camera size={12} strokeWidth={2.25} />
               </span>
             </button>
-            <div className="settings-profile-photo__actions">
-              <button
-                type="button"
-                className="btn btn-ghost shrink-0"
-                disabled={photoBusy || !isAuthenticated}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {t("settings.profile.changePhoto")}
-              </button>
-              {showGooglePhoto ? (
-                <button
-                  type="button"
-                  className="btn btn-ghost shrink-0"
-                  disabled={photoBusy || !isAuthenticated}
-                  onClick={() => void handleGooglePhoto()}
-                >
-                  {t("settings.profile.googlePhoto")}
-                </button>
-              ) : null}
-              {photoURL ? (
-                <button
-                  type="button"
-                  className="btn btn-ghost shrink-0"
-                  disabled={photoBusy || !isAuthenticated}
-                  onClick={() => void handleRemovePhoto()}
-                >
-                  {t("settings.profile.removePhoto")}
-                </button>
-              ) : null}
-            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -242,15 +180,14 @@ export default function SettingsProfileCard() {
               disabled={photoBusy || !isAuthenticated}
               onChange={(event) => void handlePhotoSelected(event.target.files?.[0])}
             />
-          </div>
-          {photoError ? <p className="settings-profile-card__error">{photoError}</p> : null}
+          </SettingsFieldRow>
 
-          <label className="settings-profile-card__name-wrap" id="account-name">
-            <span className="sr-only">{t("settings.profile.namePlaceholder")}</span>
+          <SettingsFieldRow id="account-name" label="Nom">
             <input
               type="text"
-              className="settings-profile-card__name"
+              className="settings-picker__select"
               value={draftName}
+              aria-label={t("settings.profile.namePlaceholder")}
               onChange={(event) => setDraftName(event.target.value)}
               onBlur={commitDisplayName}
               onKeyDown={(event) => {
@@ -258,88 +195,97 @@ export default function SettingsProfileCard() {
               }}
               placeholder={t("settings.profile.namePlaceholder")}
             />
-          </label>
-          <p className="settings-profile-card__email" id="account-email">
-            {userEmail || "—"}
-          </p>
-        </div>
-      </div>
+          </SettingsFieldRow>
 
-      <div className="settings-profile-card__rule" role="presentation" />
-
-      <section className="settings-profile-card__block" id="accent-color">
-        <div className="settings-profile-card__block-head">
-          <h3 className="settings-profile-card__label">{t("settings.profile.color")}</h3>
-          <p className="settings-profile-card__hint">{t("settings.profile.colorHint")}</p>
+          <SettingsFieldRow id="account-email" label="Courriel">
+            <p className="settings-field-row__value">{userEmail || "—"}</p>
+          </SettingsFieldRow>
         </div>
-        <SettingsPicker
-          value={accentColor}
-          ariaLabel={t("settings.profile.colorAria")}
-          prefix={
-            <span
-              className="settings-picker__swatch"
-              style={{ backgroundColor: selectedAccent.swatch }}
-            />
-          }
-          options={ACCENT_COLOR_OPTIONS.map((option) => ({
-            value: option.id,
-            label: t(`settings.profile.accent.${option.id}`),
-          }))}
-          onChange={(value) => setAccentColor(value as AccentColorPreference)}
-        />
       </section>
 
-      <div className="settings-profile-card__rule" role="presentation" />
-
-      <section className="settings-profile-card__block" id="availability-hours">
-        <div className="settings-profile-card__block-head">
-          <h3 className="settings-profile-card__label">{t("settings.profile.availability")}</h3>
-          <p className="settings-profile-card__hint">{t("settings.profile.availabilityHint")}</p>
-        </div>
-        <div className="settings-profile-card__days" role="group" aria-label={t("settings.profile.availability")}>
-          {weekdayLabels.map((entry) => {
-            const on = availabilityDays.includes(entry.day);
-            return (
-              <button
-                key={entry.day}
-                type="button"
-                className={
-                  on
-                    ? "settings-profile-card__day settings-profile-card__day--on"
-                    : "settings-profile-card__day"
-                }
-                aria-pressed={on}
-                aria-label={t("settings.profile.dayAria", { label: entry.full })}
-                onClick={() =>
-                  setAvailabilityDays(toggleAvailabilityDay(availabilityDays, entry.day))
-                }
-              >
-                {entry.label}
-              </button>
-            );
-          })}
-        </div>
-        <div className="settings-profile-card__hours">
-          <label className="settings-profile-card__time">
-            <span>{t("settings.profile.from")}</span>
-            <SettingsTimeInput
-              value={startTime}
-              ariaLabel={t("settings.profile.from")}
-              onChange={handleStartChange}
+      <section className="settings-preferences__group">
+        <h3 className="settings-preferences__title">Apparence</h3>
+        <div className="settings-field-list">
+          <SettingsFieldRow
+            id="accent-color"
+            label={t("settings.profile.color")}
+            description={t("settings.profile.colorHint")}
+          >
+            <SettingsPicker
+              value={accentColor}
+              ariaLabel={t("settings.profile.colorAria")}
+              prefix={
+                <span
+                  className="settings-picker__swatch"
+                  style={{ backgroundColor: selectedAccent.swatch }}
+                />
+              }
+              options={ACCENT_COLOR_OPTIONS.map((option) => ({
+                value: option.id,
+                label: t(`settings.profile.accent.${option.id}`),
+              }))}
+              onChange={(value) => setAccentColor(value as AccentColorPreference)}
             />
-          </label>
-          <label className="settings-profile-card__time">
-            <span>{t("settings.profile.to")}</span>
-            <SettingsTimeInput
-              value={endTime}
-              ariaLabel={t("settings.profile.to")}
-              onChange={handleEndChange}
-            />
-          </label>
+          </SettingsFieldRow>
         </div>
-        {startError ? <p className="settings-profile-card__error">{startError}</p> : null}
-        {endError ? <p className="settings-profile-card__error">{endError}</p> : null}
       </section>
-    </article>
+
+      <section className="settings-preferences__group">
+        <h3 className="settings-preferences__title">{t("settings.profile.availability")}</h3>
+        <div className="settings-field-list">
+          <div className="settings-availability" id="availability-hours">
+            <p className="settings-availability__hint">{t("settings.profile.availabilityHint")}</p>
+            <div
+              className="settings-availability__days"
+              role="group"
+              aria-label={t("settings.profile.availability")}
+            >
+              {weekdayLabels.map((entry) => {
+                const on = availabilityDays.includes(entry.day);
+                return (
+                  <button
+                    key={entry.day}
+                    type="button"
+                    className={
+                      on
+                        ? "settings-availability__day settings-availability__day--on"
+                        : "settings-availability__day"
+                    }
+                    aria-pressed={on}
+                    aria-label={t("settings.profile.dayAria", { label: entry.full })}
+                    onClick={() =>
+                      setAvailabilityDays(toggleAvailabilityDay(availabilityDays, entry.day))
+                    }
+                  >
+                    {entry.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="settings-availability__hours">
+              <label className="settings-availability__time">
+                <span>{t("settings.profile.from")}</span>
+                <SettingsTimeInput
+                  value={startTime}
+                  ariaLabel={t("settings.profile.from")}
+                  onChange={handleStartChange}
+                />
+              </label>
+              <label className="settings-availability__time">
+                <span>{t("settings.profile.to")}</span>
+                <SettingsTimeInput
+                  value={endTime}
+                  ariaLabel={t("settings.profile.to")}
+                  onChange={handleEndChange}
+                />
+              </label>
+            </div>
+            {startError || endError ? (
+              <p className="settings-profile-card__error">{startError || endError}</p>
+            ) : null}
+          </div>
+        </div>
+      </section>
+    </>
   );
 }

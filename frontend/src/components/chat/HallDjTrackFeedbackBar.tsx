@@ -38,8 +38,14 @@ export function HallDjTrackProgressRail() {
 
   const r = COMPOSER_CORNER_RADIUS_PX;
   const w = Math.max(Math.round(width), r * 2 + 1);
-  // Top edge of a rounded rect: left arc → straight → right arc.
-  const d = `M 0 ${r} A ${r} ${r} 0 0 1 ${r} 0 L ${w - r} 0 A ${r} ${r} 0 0 1 ${w} ${r}`;
+  const stroke = 1.05;
+  // Room above the composer edge so the stroke is not clipped, then the line
+  // runs across the top and down both rounded corners.
+  const bleed = 2;
+  const top = bleed;
+  const d = `M 0 ${top + r} A ${r} ${r} 0 0 1 ${r} ${top} L ${w - r} ${top} A ${r} ${r} 0 0 1 ${w} ${top + r}`;
+  const drawn = Math.max(1, w - 2 * r + Math.PI * r);
+  const filled = drawn * Math.max(0, Math.min(1, progress));
 
   return (
     <div
@@ -55,27 +61,24 @@ export function HallDjTrackProgressRail() {
         <svg
           className="hall-dj-track-feedback__progress-svg"
           width={w}
-          height={r}
-          viewBox={`0 0 ${w} ${r}`}
+          height={bleed + r}
+          viewBox={`0 0 ${w} ${bleed + r}`}
           aria-hidden
         >
           <path
             className="hall-dj-track-feedback__progress-track"
             d={d}
-            pathLength={1}
             fill="none"
-            strokeWidth={2}
+            strokeWidth={stroke}
             strokeLinecap="butt"
-            strokeDasharray="1"
           />
           <path
             className="hall-dj-track-feedback__progress-fill"
             d={d}
-            pathLength={1}
             fill="none"
-            strokeWidth={2}
+            strokeWidth={stroke}
             strokeLinecap="butt"
-            strokeDasharray={`${Math.max(0, Math.min(1, progress))} 1`}
+            strokeDasharray={`${filled} ${drawn}`}
           />
         </svg>
       ) : null}

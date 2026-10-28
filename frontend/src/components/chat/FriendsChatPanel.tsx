@@ -190,7 +190,7 @@ function MessagePanelCategory({
         />
       </button>
       {expanded ? (
-        <div className="messages-panel-category__body messages-panel-category__body--cascade">
+        <div className="messages-panel-category__body">
           {alwaysShowBody || count > 0 ? (
             children
           ) : (

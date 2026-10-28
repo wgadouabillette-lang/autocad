@@ -271,13 +271,13 @@ function spotifyPlayerNotice(config: {
   hasStreamingScope?: boolean;
 }): string | null {
   if (config.reconnectRequired) {
-    return "Spotify Premium détecté : déconnecte puis reconnecte le connecteur Spotify (Settings → Plugins) pour activer la lecture dans l'app.";
+    return "Spotify Premium détecté : déconnecte puis reconnecte le connecteur Spotify (Settings → Connectors) pour activer la lecture dans l'app.";
   }
   if (!config.premium) {
     return "Compte Spotify Free : extraits 30 s dans l'app quand disponibles. Spotify Premium + reconnexion du connecteur pour la piste complète.";
   }
   if (config.hasStreamingScope === false) {
-    return "Reconnecte Spotify (Settings → Plugins) pour autoriser la lecture dans l'app.";
+    return "Reconnecte Spotify (Settings → Connectors) pour autoriser la lecture dans l'app.";
   }
   return null;
 }
@@ -442,7 +442,7 @@ async function startPlayback(
       useSpotifyPlayerStore.setState({
         playerNotice: hasFormaDesktop()
           ? "Lecture Spotify in-app bloquée (DRM Widevine). Lance ./scripts/sign-electron-widevine.sh puis relance Meetra."
-          : "Lecture complète indisponible. Déconnecte puis reconnecte Spotify dans Settings → Plugins.",
+          : "Lecture complète indisponible. Déconnecte puis reconnecte Spotify dans Settings → Connectors.",
       });
     }
 

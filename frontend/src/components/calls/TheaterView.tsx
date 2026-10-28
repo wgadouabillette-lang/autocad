@@ -1,4 +1,5 @@
 import { MessageSquare, Mic, Undo2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
   buildTheaterAudienceSeats,
   pendingHandRaises,
@@ -20,6 +21,7 @@ interface TheaterViewProps {
 }
 
 export default function TheaterView({ workspaceId, theater }: TheaterViewProps) {
+  const { t } = useTranslation();
   const acceptHandRaise = useCallsStore((s) => s.acceptHandRaise);
   const declineHandRaise = useCallsStore((s) => s.declineHandRaise);
   const promoteOwnerToTheaterSpeaker = useCallsStore((s) => s.promoteOwnerToTheaterSpeaker);
@@ -60,7 +62,7 @@ export default function TheaterView({ workspaceId, theater }: TheaterViewProps) 
 
   return (
     <div className="theater-view">
-      <section className="theater-view__stage" aria-label="Intervenants">
+      <section className="theater-view__stage" aria-label={t("calls.speakers")}>
         <div className="theater-view__stage-grid">
           {stage.length === 0 ? (
             <div className="theater-speaker-card theater-speaker-card--placeholder" aria-hidden />
@@ -111,16 +113,16 @@ export default function TheaterView({ workspaceId, theater }: TheaterViewProps) 
         )}
 
         {inTheater ? (
-          <div className="theater-view__stage-actions" role="toolbar" aria-label="Actions scène">
+          <div className="theater-view__stage-actions" role="toolbar" aria-label={t("calls.stageActions")}>
             {showOwnerPromote ? (
               <button
                 type="button"
                 className="theater-view__stage-action theater-view__stage-action--primary"
                 onClick={() => promoteOwnerToTheaterSpeaker(workspaceId)}
-                title="Monter sur scène en tant qu'intervenant"
+                title={t("calls.goOnStageTitle")}
               >
                 <Mic size={14} aria-hidden />
-                Monter sur scène
+                {t("calls.goOnStage")}
               </button>
             ) : null}
             {onStage ? (
@@ -128,20 +130,20 @@ export default function TheaterView({ workspaceId, theater }: TheaterViewProps) 
                 type="button"
                 className="theater-view__stage-action"
                 onClick={() => returnToTheaterBackstage(workspaceId)}
-                title="Retour coulisses"
+                title={t("calls.backstageTitle")}
               >
                 <Undo2 size={14} aria-hidden />
-                Retour coulisses
+                {t("calls.backstage")}
               </button>
             ) : null}
             <button
               type="button"
               className="theater-view__stage-action theater-view__stage-action--primary"
               onClick={() => openTheaterChatPanel()}
-              title="Poser une question dans le chat du théâtre"
+              title={t("calls.askInChatTitle")}
             >
               <MessageSquare size={14} aria-hidden />
-              Question au chat
+              {t("calls.askInChat")}
             </button>
           </div>
         ) : (
@@ -149,7 +151,7 @@ export default function TheaterView({ workspaceId, theater }: TheaterViewProps) 
         )}
       </div>
 
-      <section className="theater-view__audience" aria-label="Spectateurs">
+      <section className="theater-view__audience" aria-label={t("calls.audience")}>
         <div className="theater-view__audience-benches">
           {audienceBenches.map((bench, index) => (
             <TheaterAudienceBench

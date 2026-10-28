@@ -206,6 +206,7 @@ async def _spotify_search_tracks(
     query: str,
     *,
     limit: int = 8,
+    offset: int = 0,
     raise_on_error: bool = True,
 ) -> list[dict[str, Any]]:
     trimmed = query.strip()
@@ -222,6 +223,7 @@ async def _spotify_search_tracks(
                 "q": trimmed,
                 "type": "track",
                 "limit": max(1, min(limit, _SPOTIFY_SEARCH_LIMIT_MAX)),
+                "offset": max(0, min(offset, 1000)),
             },
         )
     if search_r.status_code != 200:
@@ -253,6 +255,55 @@ def _dedupe_spotify_track_cards(
     return out
 
 
+async def _spotify_genre_only_tracks(
+    token: str,
+    genre: str,
+    *,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Tracks for an explicit style. Listening history is not mixed in."""
+    collected: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def absorb(items: list[dict[str, Any]]) -> None:
+        nonlocal collected
+        for track in _dedupe_spotify_track_cards(items, seen=seen):
+            collected.append(track)
+            if len(collected) >= limit:
+                break
+
+    artist_pool = list(
+        _SPOTIFY_GENRE_ARTIST_SEEDS.get(genre, _SPOTIFY_GENRE_ARTIST_SEEDS["pop"])
+    )
+    random.shuffle(artist_pool)
+    for artist_name in artist_pool:
+        if len(collected) >= limit:
+            break
+        absorb(
+            await _spotify_search_tracks(
+                token,
+                f'artist:"{artist_name}"',
+                limit=5,
+                raise_on_error=False,
+            )
+        )
+
+    if len(collected) < limit:
+        for query in (f"genre:{genre}", f"{genre} hits"):
+            if len(collected) >= limit:
+                break
+            absorb(
+                await _spotify_search_tracks(
+                    token,
+                    query,
+                    limit=min(limit, _SPOTIFY_SEARCH_LIMIT_MAX),
+                    raise_on_error=False,
+                )
+            )
+
+    return collected[:limit]
+
+
 async def _spotify_discovery_tracks(
     token: str,
     *,
@@ -261,6 +312,9 @@ async def _spotify_discovery_tracks(
     limit: int,
 ) -> list[dict[str, Any]]:
     """Discover tracks via search + top artists/tracks (replaces deprecated recommendations API)."""
+    genre = seed_genres[0] if seed_genres else "pop"
+    if genre != "pop":
+        return await _spotify_genre_only_tracks(token, genre, limit=limit)
     collected: list[dict[str, Any]] = []
     seen: set[str] = set()
 
@@ -657,11 +711,12 @@ def _spotify_track_card(track: dict[str, Any]) -> dict[str, Any]:
 async def spotify_search(
     q: str = Query(min_length=1, max_length=200),
     limit: int = Query(default=8, ge=1, le=10),
+    offset: int = Query(default=0, ge=0, le=1000),
     user: FirebaseUser = Depends(require_firebase_user),
 ):
     token = await _require_token(user.uid, "spotify")
     query = q.strip()
-    tracks = await _spotify_search_tracks(token, query, limit=limit)
+    tracks = await _spotify_search_tracks(token, query, limit=limit, offset=offset)
     if not tracks:
         raise HTTPException(404, "Aucune piste trouvée pour cette recherche.")
     return {"tracks": tracks, "query": query}
@@ -851,3 +906,210 @@ async def spotify_play(
         )
 
     return {"playing": True, "track": card, "device": None}
+
+
+def _cloud_limit(limit: int) -> int:
+    return max(1, min(limit, 25))
+
+
+def _clean_cloud_query(raw: str) -> str:
+    query = " ".join((raw or "").split())
+    if not query:
+        raise HTTPException(400, "Missing search query.")
+    if len(query) > 120 or any(ch in query for ch in ("'", '"', "\\", "\n", "\r")):
+        raise HTTPException(400, "Invalid search query.")
+    return query
+
+
+def _clean_cloud_path(raw: str | None) -> str:
+    path = (raw or "").strip().replace("\\", "/")
+    if path in {"", "/"}:
+        return ""
+    if not path.startswith("/"):
+        path = f"/{path}"
+    parts = [part for part in path.split("/") if part]
+    if any(part in {".", ".."} for part in parts):
+        raise HTTPException(400, "Invalid path.")
+    if len(path) > 400:
+        raise HTTPException(400, "Invalid path.")
+    return "/" + "/".join(parts)
+
+
+def _graph_drive_file(item: dict[str, Any]) -> dict[str, Any]:
+    name = str(item.get("name") or "")
+    parent = str((item.get("parentReference") or {}).get("path") or "")
+    base = parent.split(":/", 1)[1] if ":/" in parent else ""
+    path = f"/{base}/{name}" if base else f"/{name}"
+    is_folder = isinstance(item.get("folder"), dict)
+    return {
+        "id": str(item.get("id") or ""),
+        "name": name,
+        "path": path.replace("//", "/"),
+        "kind": "folder" if is_folder else "file",
+        "size": item.get("size") if not is_folder else None,
+        "modified": item.get("lastModifiedDateTime"),
+        "url": item.get("webUrl"),
+    }
+
+
+def _dropbox_drive_file(entry: dict[str, Any]) -> dict[str, Any]:
+    tag = str(entry.get(".tag") or "")
+    is_folder = tag == "folder"
+    return {
+        "id": str(entry.get("id") or ""),
+        "name": str(entry.get("name") or ""),
+        "path": str(entry.get("path_display") or entry.get("path_lower") or ""),
+        "kind": "folder" if is_folder else "file",
+        "size": entry.get("size") if not is_folder else None,
+        "modified": entry.get("client_modified") or entry.get("server_modified"),
+        "url": None,
+    }
+
+
+def _dropbox_search_entry(match: dict[str, Any]) -> dict[str, Any] | None:
+    metadata = match.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    inner = metadata.get("metadata")
+    entry = inner if isinstance(inner, dict) else metadata
+    if not isinstance(entry, dict) or not entry.get("name"):
+        return None
+    return _dropbox_drive_file(entry)
+
+
+async def _cloud_api_json(
+    method: str,
+    url: str,
+    token: str,
+    *,
+    params: dict[str, Any] | None = None,
+    json_body: dict[str, Any] | None = None,
+    content: bytes | None = None,
+) -> Any:
+    headers = {"Authorization": f"Bearer {token}"}
+    if json_body is not None or content is not None:
+        headers["Content-Type"] = "application/json"
+    async with httpx.AsyncClient(timeout=25) as client:
+        response = await client.request(
+            method,
+            url,
+            headers=headers,
+            params=params,
+            json=json_body,
+            content=content,
+        )
+    if response.status_code in {401, 403}:
+        raise HTTPException(409, "not_connected")
+    if response.status_code >= 400:
+        detail = response.text[:300] or "Cloud API error."
+        raise HTTPException(response.status_code, detail)
+    if not response.content:
+        return {}
+    return response.json()
+
+
+def _graph_children_url(folder: str) -> str:
+    if not folder:
+        return "https://graph.microsoft.com/v1.0/me/drive/root/children"
+    from urllib.parse import quote
+
+    encoded = quote(folder, safe="/")
+    return f"https://graph.microsoft.com/v1.0/me/drive/root:{encoded}:/children"
+
+
+@router.get("/onedrive/files")
+async def onedrive_files(
+    path: str = Query(default=""),
+    limit: int = Query(default=20, ge=1, le=25),
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    token = await _require_token(user.uid, "onedrive")
+    capped = _cloud_limit(limit)
+    data = await _cloud_api_json(
+        "GET",
+        _graph_children_url(_clean_cloud_path(path)),
+        token,
+        params={
+            "$top": capped,
+            "$select": "id,name,size,lastModifiedDateTime,folder,file,parentReference,webUrl",
+        },
+    )
+    items = data.get("value") if isinstance(data, dict) else []
+    files = [_graph_drive_file(item) for item in (items or []) if isinstance(item, dict)]
+    return {"files": files[:capped]}
+
+
+@router.get("/onedrive/search")
+async def onedrive_search(
+    q: str = Query(min_length=1, max_length=120),
+    limit: int = Query(default=20, ge=1, le=25),
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    token = await _require_token(user.uid, "onedrive")
+    query = _clean_cloud_query(q)
+    capped = _cloud_limit(limit)
+    url = f"https://graph.microsoft.com/v1.0/me/drive/root/search(q='{query}')"
+    data = await _cloud_api_json(
+        "GET",
+        url,
+        token,
+        params={
+            "$top": capped,
+            "$select": "id,name,size,lastModifiedDateTime,folder,file,parentReference,webUrl",
+        },
+    )
+    items = data.get("value") if isinstance(data, dict) else []
+    files = [_graph_drive_file(item) for item in (items or []) if isinstance(item, dict)]
+    return {"files": files[:capped]}
+
+
+@router.get("/dropbox/files")
+async def dropbox_files(
+    path: str = Query(default=""),
+    limit: int = Query(default=20, ge=1, le=25),
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    token = await _require_token(user.uid, "dropbox")
+    capped = _cloud_limit(limit)
+    data = await _cloud_api_json(
+        "POST",
+        "https://api.dropboxapi.com/2/files/list_folder",
+        token,
+        json_body={
+            "path": _clean_cloud_path(path),
+            "limit": capped,
+            "recursive": False,
+        },
+    )
+    entries = data.get("entries") if isinstance(data, dict) else []
+    files = [_dropbox_drive_file(entry) for entry in (entries or []) if isinstance(entry, dict)]
+    return {"files": files[:capped]}
+
+
+@router.get("/dropbox/search")
+async def dropbox_search(
+    q: str = Query(min_length=1, max_length=120),
+    limit: int = Query(default=20, ge=1, le=25),
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    token = await _require_token(user.uid, "dropbox")
+    query = _clean_cloud_query(q)
+    capped = _cloud_limit(limit)
+    data = await _cloud_api_json(
+        "POST",
+        "https://api.dropboxapi.com/2/files/search_v2",
+        token,
+        json_body={
+            "query": query,
+            "options": {"max_results": capped, "filename_only": True},
+        },
+    )
+    matches = data.get("matches") if isinstance(data, dict) else []
+    files: list[dict[str, Any]] = []
+    for match in matches or []:
+        if not isinstance(match, dict):
+            continue
+        file = _dropbox_search_entry(match)
+        if file:
+            files.append(file)
+    return {"files": files[:capped]}

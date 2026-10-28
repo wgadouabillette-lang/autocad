@@ -109,6 +109,12 @@ export function isValidAiModel(value: unknown): value is AiModel {
   return typeof value === "string" && AI_MODEL_IDS.has(value as AiModel);
 }
 
+/** Modèle choisi dans Préférences pour structurer les AI Notes. */
+export function normalizeAiNotesModel(value: unknown): AiModel {
+  if (isValidAiModel(value) && value !== "auto") return value;
+  return AI_NOTES_CHEAP_MODEL_PREFERRED;
+}
+
 export function isOpenAiChatModel(model: AiModel): boolean {
   return model === "gpt-4.1-nano" || model === "gpt-4o-mini";
 }

@@ -50,6 +50,18 @@ def _text_from_payload(payload: object) -> str:
     return text.strip() if isinstance(text, str) else ""
 
 
+def _language_code(value: Optional[str]) -> str:
+    raw = _trim(value).lower()
+    if len(raw) >= 2 and raw[:2].isalpha():
+        return raw[:2]
+    return "fr"
+
+
+def _prompt_text(value: Optional[str]) -> str:
+    text = _trim(value).replace("\n", " ")
+    return text[-200:]
+
+
 async def _post_openai(
     client: httpx.AsyncClient,
     *,
@@ -57,12 +69,17 @@ async def _post_openai(
     data: bytes,
     filename: str,
     mime: str,
+    language: str,
+    prompt: str,
 ) -> httpx.Response:
+    form = {"model": "whisper-1", "language": language, "temperature": "0"}
+    if prompt:
+        form["prompt"] = prompt
     return await client.post(
         OPENAI_STT_URL,
         headers={"Authorization": f"Bearer {api_key}"},
         files={"file": (filename, data, mime)},
-        data={"model": "whisper-1"},
+        data=form,
     )
 
 
@@ -73,9 +90,10 @@ async def _post_xai(
     data: bytes,
     filename: str,
     mime: str,
+    language: str,
     include_model: bool = True,
 ) -> httpx.Response:
-    form = {"language": "fr", "format": "true"}
+    form = {"language": language, "format": "true"}
     if include_model:
         form["model"] = "grok-stt"
     return await client.post(
@@ -93,10 +111,15 @@ async def transcribe_audio(
     mime: str,
     uid: Optional[str] = None,
     timeout: float = 45.0,
+    language: Optional[str] = None,
+    prompt: Optional[str] = None,
 ) -> str:
     openai_key, xai_key = resolve_stt_keys(uid)
     if not openai_key and not xai_key:
         raise SttError("service", "Transcription indisponible (service).")
+
+    lang = _language_code(language)
+    hint = _prompt_text(prompt)
 
     last_kind: Literal["service", "network"] = "network"
     try:
@@ -116,6 +139,8 @@ async def transcribe_audio(
                             data=data,
                             filename=filename,
                             mime=mime,
+                            language=lang,
+                            prompt=hint,
                         )
                         if provider == "openai"
                         else await _post_xai(
@@ -124,6 +149,7 @@ async def transcribe_audio(
                             data=data,
                             filename=filename,
                             mime=mime,
+                            language=lang,
                         )
                     )
                 except httpx.HTTPError as exc:
@@ -142,6 +168,7 @@ async def transcribe_audio(
                         data=data,
                         filename=filename,
                         mime=mime,
+                        language=lang,
                         include_model=False,
                     )
                 if response.status_code in {401, 403}:

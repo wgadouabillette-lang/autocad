@@ -15,16 +15,22 @@
     "openSettings": "Apri impostazioni"
   },
   "settings": {
+    "backToApp": "Torna all'app",
     "tabs": {
-      "general": "Generale",
+      "general": "Account",
       "friends": "Amici",
       "workspaces": "Workspace",
       "usage": "Piano e utilizzo",
       "billing": "Fatturazione",
       "agents": "Agenti",
-      "audio": "Audio e video",
+      "audio": "Preferenze",
       "models": "Modelli",
-      "plugins": "Plugin"
+      "plugins": "Connettori",
+      "skills": "Skills"
+    },
+    "groups": {
+      "personal": "Personale",
+      "workspace": "Workspace"
     },
     "descriptions": {
       "friends": "Amici e inviti.",
@@ -33,7 +39,8 @@
       "billing": "Piano attuale e prossima data di addebito.",
       "agents": "Personalizza chat e AI Notes.",
       "models": "Scegli il modello IA per la generazione.",
-      "plugins": "Connettori disponibili in chat."
+      "plugins": "Connettori disponibili in chat.",
+      "skills": "Comandi / disponibili in chat."
     },
     "language": {
       "title": "Lingua",
@@ -175,6 +182,14 @@
       "unavailable": "Non disponibile",
       "notConfigured": "Non configurato sul server",
       "oauthMissing": "Aggiungi le chiavi OAuth in backend/.env",
+      "describe": {
+        "calendar": "Legge l’agenda Google di oggi e aggiunge le riunioni create in chat.",
+        "spotify": "Riproduce Spotify in Meetra, incluso il Meetra DJ.",
+        "gmail": "Invia un’email e aggiunge i messaggi Gmail recenti al prompt.",
+        "outlook": "Aggiunge le email Outlook recenti al prompt.",
+        "onedrive": "Trova un file OneDrive e lo aggiunge al prompt, senza modificarlo.",
+        "dropbox": "Trova un file Dropbox e lo aggiunge al prompt, senza modificarlo."
+      },
       "signInToLink": "Accedi per collegare un connettore",
       "insertSlash": "Inserisci {{slash}}",
       "use": "usa"
@@ -189,6 +204,22 @@
     "raiseHand": "Alza la mano",
     "micMuted": "Microfono disattivato",
     "connecting": "Connessione…",
-    "inCall": "In chiamata"
+    "inCall": "In chiamata",
+    "speaker": "Relatore",
+    "owner": "Proprietario",
+    "question": "Domanda",
+    "audienceMember": "Pubblico",
+    "speakers": "Relatori",
+    "audience": "Pubblico",
+    "bench": "Panca {{n}}",
+    "sitHere": "Siediti qui",
+    "message": "Messaggio a {{name}}",
+    "stageActions": "Azioni del palco",
+    "goOnStage": "Sali sul palco",
+    "goOnStageTitle": "Sali sul palco come relatore",
+    "backstage": "Torna in platea",
+    "backstageTitle": "Torna in platea",
+    "askInChat": "Chiedi in chat",
+    "askInChatTitle": "Fai una domanda nella chat del teatro"
   }
 }

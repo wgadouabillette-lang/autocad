@@ -75,21 +75,26 @@
     icon = link.querySelector("svg");
     if (icon && !preserveLabel) {
       var usePlatformIcon =
-        link.id === "hero-download" || link.id === "feature-try-download";
+        link.id === "hero-download" ||
+        link.id === "feature-try-download" ||
+        link.id === "nav-download";
       if (
         usePlatformIcon &&
         typeof window.HallDownloadPlatformIcon === "function"
       ) {
+        var platformClass =
+          link.id === "nav-download" ? "nav__cta-platform-icon" : "hero__cta-platform-icon";
         var platformIcon = window.HallDownloadPlatformIcon(
           target.platform || "mac",
-          "hero__cta-platform-icon",
+          platformClass,
         );
         icon.outerHTML = platformIcon;
         var labelNode =
           labelEl ||
           link.querySelector("#hero-download-label") ||
-          link.querySelector("#feature-try-download-label");
-        var inserted = link.querySelector(".hero__cta-platform-icon");
+          link.querySelector("#feature-try-download-label") ||
+          link.querySelector("#nav-download-label");
+        var inserted = link.querySelector("." + platformClass);
         if (inserted && labelNode && inserted.nextSibling !== labelNode) {
           link.insertBefore(inserted, labelNode);
         }

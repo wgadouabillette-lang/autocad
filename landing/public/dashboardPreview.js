@@ -1,9 +1,9 @@
 (function () {
   var PREVIEW_WIDTH = 1680;
   var PREVIEW_HEIGHT = 940;
-  var WINDOW_SCALE = 0.81;
+  var WINDOW_SCALE = 0.94;
   var MOBILE_INSET = 0.06;
-  var TITLE_BAR_PX = 23;
+  var TITLE_BAR_PX = 0;
   var LOAD_TIMEOUT_MS = 8000;
   var NAV_MESSAGE = "lyte-marketing-preview-nav";
   var DESKTOP_WALLPAPER =
@@ -14,6 +14,7 @@
     var params = new URLSearchParams();
     var theme = document.documentElement.dataset.theme || "dark";
     params.set("theme", theme);
+    params.set("chrome", "mac");
     return "/app/preview.html?" + params.toString();
   }
 
@@ -42,9 +43,9 @@
     return DESKTOP_WALLPAPER;
   }
 
-  function createMacTitleBar() {
+  function createMacTrafficLights() {
     var bar = document.createElement("div");
-    bar.className = "hero__preview-titlebar";
+    bar.className = "hero__preview-traffic";
     bar.setAttribute("aria-hidden", "true");
     var kinds = ["close", "min", "max"];
     for (var i = 0; i < kinds.length; i++) {
@@ -164,7 +165,7 @@
     wrapper.style.right = "";
     wrapper.style.bottom = "";
     wrapper.style.width = scaledW + "px";
-    wrapper.style.height = scaledH + TITLE_BAR_PX + "px";
+    wrapper.style.height = scaledH + "px";
     wrapper.style.left = "50%";
     wrapper.style.top = "50%";
     wrapper.style.transform = "translate(-50%, -50%)";
@@ -200,10 +201,10 @@
     activeIframe = iframe;
 
     scaleLayer.appendChild(iframe);
+    scaleLayer.appendChild(createMacTrafficLights());
     var windowBody = document.createElement("div");
     windowBody.className = "hero__preview-window";
     windowBody.appendChild(scaleLayer);
-    wrapper.appendChild(createMacTitleBar());
     wrapper.appendChild(windowBody);
     mount.appendChild(wrapper);
 

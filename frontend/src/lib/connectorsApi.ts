@@ -226,6 +226,32 @@ export async function fetchOutlookPreview(limit = 5): Promise<ConnectorPreviewMe
   return data.messages ?? [];
 }
 
+export interface CloudFile {
+  id: string;
+  name: string;
+  path: string;
+  kind: "file" | "folder";
+  size?: number | null;
+  modified?: string | null;
+  url?: string | null;
+}
+
+export async function fetchCloudFiles(
+  provider: "onedrive" | "dropbox",
+  query = "",
+  limit = 20,
+): Promise<CloudFile[]> {
+  const trimmed = query.trim();
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (trimmed.startsWith("/")) params.set("path", trimmed);
+  else if (trimmed) params.set("q", trimmed);
+  const route = !trimmed || trimmed.startsWith("/") ? "files" : "search";
+  const r = await fetchWithAuth(`/${provider}/${route}?${params}`);
+  if (!r.ok) throw new Error(await readError(r));
+  const data = (await r.json()) as { files?: CloudFile[] };
+  return data.files ?? [];
+}
+
 export type ChatConnectorIdForPreview =
   | "calendar"
   | "gmail"
@@ -287,10 +313,15 @@ export async function searchSpotifyTracks(
   query: string,
   limit = 8,
   signal?: AbortSignal,
+  offset = 0,
 ): Promise<SpotifyTrackCard[]> {
   // Spotify Feb 2026: search limit max is 10.
   const capped = Math.max(1, Math.min(limit, 10));
-  const params = new URLSearchParams({ q: query.trim(), limit: String(capped) });
+  const params = new URLSearchParams({
+    q: query.trim(),
+    limit: String(capped),
+    offset: String(Math.max(0, offset)),
+  });
   const r = await fetchWithAuth(`/spotify/search?${params}`, { signal });
   if (!r.ok) throw new Error(await readError(r));
   const data = (await r.json()) as { tracks?: SpotifyTrackCard[] };

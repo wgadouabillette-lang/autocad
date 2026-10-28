@@ -143,6 +143,87 @@ a {
   cursor: default;
 }
 
+.nav__new {
+  --nav-new-shine: linear-gradient(
+    100deg,
+    #c9ddf6 0%,
+    #c9ddf6 34%,
+    #eef6ff 46%,
+    #ffffff 50%,
+    #eef6ff 54%,
+    #c9ddf6 66%,
+    #c9ddf6 100%
+  );
+  position: relative;
+  isolation: isolate;
+  margin-left: 0.28rem;
+  padding: 0.07rem 0.32rem 0.08rem;
+  border-radius: 999px;
+  font-size: 0.5rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  color: transparent;
+  background-image: var(--nav-new-shine);
+  background-size: 240% 100%;
+  background-repeat: no-repeat;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: nav-new-shine 3.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+.nav__new::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgb(150 200 255 / 0.42) 0%, rgb(36 104 230 / 0.22) 100%);
+}
+
+.nav__new::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background-image: var(--nav-new-shine);
+  background-size: 240% 100%;
+  background-repeat: no-repeat;
+  background-position: 100% 0;
+  pointer-events: none;
+  animation: nav-new-shine 3.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+@keyframes nav-new-shine {
+  0%,
+  18% {
+    background-position: 100% 0;
+  }
+  82%,
+  100% {
+    background-position: 0% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav__new,
+  .nav__new::after {
+    animation: none;
+    background-position: 50% 0;
+  }
+}
+
 .nav__actions {
   justify-self: end;
   display: inline-flex;
@@ -174,6 +255,13 @@ a {
 
 .nav__cta svg {
   flex-shrink: 0;
+}
+
+.nav__cta-platform-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  color: currentColor;
 }
 
 .nav__cta--unavailable {
@@ -3552,7 +3640,7 @@ html.feature-try-overlay-open body {
   align-items: center;
   gap: 0.46rem 0;
   margin: 0;
-  padding: 1.25rem 0.2rem 0;
+  padding: 2.75rem 0.2rem 0;
   overflow: visible;
   pointer-events: auto;
 }
@@ -3614,7 +3702,7 @@ html.feature-try-overlay-open body {
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    padding: 1.25rem 0.75rem 0.15rem 0;
+    padding: 2.75rem 0.75rem 0.15rem 0;
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
@@ -3709,6 +3797,22 @@ body.landing-locked .hero__feature-chips {
 
 .hero__preview-titlebar__dot--max {
   background: #28c840;
+}
+
+.hero__preview-traffic {
+  position: absolute;
+  z-index: 6;
+  top: 16px;
+  left: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.hero__preview-traffic .hero__preview-titlebar__dot {
+  width: 12px;
+  height: 12px;
 }
 
 .hero__dashboard-preview-scaler.is-showcasing,
@@ -5018,7 +5122,7 @@ body.landing-locked .hero__feature-chips {
 
 @media (min-width: 768px) {
   .site-footer__columns {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

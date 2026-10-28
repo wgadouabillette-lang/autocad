@@ -228,19 +228,15 @@ def _callback_html(
       try {{
         window.opener.postMessage(payload, openerOrigin);
       }} catch (e) {{}}
-      // Desktop Electron UI is on another origin (127.0.0.1) than the API
-      // callback (meetra.cc). postMessage alone is easy to miss — also drive
-      // the opener via query params so the app can finish the link.
-      try {{
-        window.opener.location.assign(redirect);
-      }} catch (e) {{}}
       try {{
         window.opener.focus();
       }} catch (e) {{}}
+      // Do NOT assign opener.location — on Electron that full-reloads the app
+      // (flash / overlay) and can drop the postMessage handler mid-flight.
       window.setTimeout(function () {{
         window.close();
         if (!window.closed) window.location.replace(redirect);
-      }}, payload.status === "error" ? 1200 : 250);
+      }}, payload.status === "error" ? 1600 : 400);
       return;
     }}
     window.location.replace(redirect);

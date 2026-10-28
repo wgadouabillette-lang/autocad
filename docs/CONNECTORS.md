@@ -94,9 +94,45 @@ Dans le chat, utilisez le skill **`/play`** (menu `/`) ou la commande **`/play t
 
 ---
 
-## Coming soon (pas encore disponibles)
+## OneDrive
 
-**Figma** et **Dropbox** apparaissent dans **Settings → Plugins** (icône + nom) mais ne sont pas connectables : pas d’OAuth, pas d’API, bouton Connect désactivé. Badge **Coming soon** / **Bientôt disponible**.
+Même application Microsoft que Outlook. Ajoutez la permission déléguée **Files.Read** (Microsoft Graph) sur l’inscription Entra, puis reconnectez le plugin.
+
+```env
+MICROSOFT_OAUTH_CLIENT_ID=...
+MICROSOFT_OAUTH_CLIENT_SECRET=...
+MICROSOFT_OAUTH_TENANT=common
+```
+
+Redirect URIs : les mêmes que Outlook.
+
+| Plugin | Scopes |
+|--------|--------|
+| OneDrive | `User.Read`, `Files.Read`, `offline_access`, `openid`, `profile` |
+
+Lecture seule du OneDrive de l’utilisateur : lister un dossier, chercher par nom. Pas d’upload, de modification, de suppression ni de partage.
+
+Dans le chat : **`/onedrive`** (racine), **`/onedrive contrat`** (recherche), **`/onedrive /Documents`** (un dossier).
+
+---
+
+## Dropbox
+
+1. [dropbox.com/developers/apps](https://www.dropbox.com/developers/apps) → **Create app** → Scoped access → Full Dropbox (ou App folder)
+2. **Permissions** : `account_info.read`, `files.metadata.read`
+3. **Redirect URIs** :
+   - `https://meetra.cc/api/connectors/oauth/callback`
+   - `http://127.0.0.1:8000/api/connectors/oauth/callback`
+4. App key / App secret :
+
+```env
+DROPBOX_CLIENT_ID=...
+DROPBOX_CLIENT_SECRET=...
+```
+
+Lecture des noms, dossiers, tailles et dates. Pas de téléchargement du contenu, pas d’écriture.
+
+Dans le chat : **`/dropbox`**, **`/dropbox budget`**, **`/dropbox /Documents`**.
 
 ---
 
@@ -126,3 +162,5 @@ Dans le chat, utilisez le skill **`/play`** (menu `/`) ou la commande **`/play t
 | Outlook mail | `GET /api/connectors/outlook/messages` |
 | Outlook calendar | `GET/POST /api/connectors/outlook/calendar/events` |
 | Spotify | `POST /api/connectors/spotify/play`, `GET /api/connectors/spotify/playback`, `GET /api/connectors/spotify/me` |
+| OneDrive | `GET /api/connectors/onedrive/files`, `GET /api/connectors/onedrive/search` |
+| Dropbox | `GET /api/connectors/dropbox/files`, `GET /api/connectors/dropbox/search` |

@@ -1,10 +1,16 @@
 # Installers (hébergés sur Firebase Storage)
 **/*.dmg
 **/*.exe
+**/*.AppImage
 landing/dist/
 landing/downloads/
 landing/public/downloads/
 desktop/release/
+desktop/build-resources/
 desktop/.electron-cache/
+desktop/.electron-dev-userdata/
 desktop/.npm-cache/
+desktop/secrets/
 backend/.venv/
+backend/connector_secrets.fernet
+.venv-evs/

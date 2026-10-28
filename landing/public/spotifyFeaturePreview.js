@@ -251,6 +251,8 @@
     iframe.addEventListener("load", function () {
       loaded = true;
       state.loaded = true;
+      state.running = false;
+      state.canRun = false;
       window.clearTimeout(fallbackTimer);
       requestAnimationFrame(function () {
         applyCamera(state);

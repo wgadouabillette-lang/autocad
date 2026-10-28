@@ -1,0 +1,1 @@
+import{aJ as r,bA as s,t as i,v as a}from"./index-BNpvasV2.js";import"./resolveAuthDomain-DYnRqdGS.js";function u(t,e){r()&&s.setState({active:!0,busy:!1,error:null,structureError:null,lines:[],interimText:"",structuredHtml:"",structuring:!1,nextStructureAt:Date.now()+4e3,startedAt:Date.now(),workspaceId:t??a,sessionId:e??i})}export{u as beginMarketingPreviewAiNotesFromClick};

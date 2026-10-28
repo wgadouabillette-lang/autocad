@@ -1,8 +1,12 @@
 import { AGENT_PANEL_TITLE } from "../lib/appBrand";
 import clsx from "clsx";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useSpotifyAudioPulse } from "../hooks/useSpotifyAudioPulse";
+import { useHallDjStore } from "../store/useHallDjStore";
+import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { useTranslation } from "react-i18next";
 import { useMobileLayout } from "../hooks/useMobileLayout";
+import { isMarketingPreview, landingLabel } from "../lib/marketingPreview";
 import { isRecordingSession } from "../lib/chatSessionKinds";
 import { isNotesEditorPromoSurface } from "../lib/notesFullscreenPromo";
 import { useStore } from "../store/useStore";
@@ -23,6 +27,82 @@ import NotesFullscreenPromo from "./chat/NotesFullscreenPromo";
 import RecordingPlaybackView from "./chat/RecordingPlaybackView";
 
 const LEAVE_ANIM_MS = 540;
+const CHAT_PANEL_WIDTH_KEY = "meetra.chatPanelWidth";
+const CHAT_PANEL_WIDTH_VAR = "--forma-chat-panel-width";
+const CHAT_PANEL_WIDTH_MIN_REM = 22;
+const CHAT_PANEL_WIDTH_MAX_REM = 34;
+const MARKETING_CHAT_PANEL_WIDTH_REM = 32;
+
+function rootRemPx(): number {
+  return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+}
+
+function clampChatPanelWidth(px: number): number {
+  const rem = rootRemPx();
+  const min = CHAT_PANEL_WIDTH_MIN_REM * rem;
+  const max = CHAT_PANEL_WIDTH_MAX_REM * rem;
+  return Math.round(Math.min(max, Math.max(min, px)));
+}
+
+function applyChatPanelWidth(px: number) {
+  document.documentElement.style.setProperty(CHAT_PANEL_WIDTH_VAR, `${px}px`);
+}
+
+function ChatPanelResizeHandle({
+  side,
+  panelRef,
+}: {
+  side: "left" | "right";
+  panelRef: RefObject<HTMLElement | null>;
+}) {
+  const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const handle = event.currentTarget;
+    try {
+      handle.setPointerCapture(event.pointerId);
+    } catch {
+      /* synthetic or already released */
+    }
+    const startX = event.clientX;
+    const startWidth = panelRef.current?.getBoundingClientRect().width ?? 26 * rootRemPx();
+    document.documentElement.classList.add("is-chat-panel-resizing");
+
+    const widthFor = (clientX: number) => {
+      const delta = side === "right" ? startX - clientX : clientX - startX;
+      return clampChatPanelWidth(startWidth + delta);
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      applyChatPanelWidth(widthFor(ev.clientX));
+    };
+    const onUp = (ev: PointerEvent) => {
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
+      document.documentElement.classList.remove("is-chat-panel-resizing");
+      const next = widthFor(ev.clientX);
+      applyChatPanelWidth(next);
+      try {
+        localStorage.setItem(CHAT_PANEL_WIDTH_KEY, String(next));
+      } catch {
+        /* ignore private mode */
+      }
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+  };
+
+  return (
+    <button
+      type="button"
+      className="chat-panel-resize"
+      aria-label={landingLabel("Resize panel", "Redimensionner le panneau")}
+      onPointerDown={onPointerDown}
+    />
+  );
+}
 
 export default function ChatPanelShell() {
   const { t } = useTranslation();
@@ -42,6 +122,23 @@ export default function ChatPanelShell() {
   const prevExpanded = useRef(chatPanelExpanded);
   const panelRef = useRef<HTMLElement>(null);
   const leaveTimer = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    if (isMobileLayout) {
+      document.documentElement.style.removeProperty(CHAT_PANEL_WIDTH_VAR);
+      return;
+    }
+    if (isMarketingPreview()) {
+      applyChatPanelWidth(MARKETING_CHAT_PANEL_WIDTH_REM * rootRemPx());
+      return;
+    }
+    try {
+      const saved = Number(localStorage.getItem(CHAT_PANEL_WIDTH_KEY));
+      if (Number.isFinite(saved) && saved > 0) applyChatPanelWidth(clampChatPanelWidth(saved));
+    } catch {
+      /* ignore private mode */
+    }
+  }, [isMobileLayout]);
 
   useLayoutEffect(() => {
     if (chatPanelExpanded && !prevExpanded.current) {
@@ -124,6 +221,19 @@ export default function ChatPanelShell() {
             ? t("chat.voiceAssist")
             : AGENT_PANEL_TITLE;
 
+  const spotifyCurrentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
+  const spotifyPlaying = useSpotifyPlayerStore((s) => s.playing);
+  const spotifyPlaybackMode = useSpotifyPlayerStore((s) => s.playbackMode);
+  const hallDjLoading = useHallDjStore((s) => s.loading);
+  const hallDjActive = useHallDjStore((s) => s.active);
+  const spotifyPulseLevel = useSpotifyAudioPulse();
+  const spotifyPulseActive =
+    (spotifyCurrentTrack != null || hallDjActive || hallDjLoading) &&
+    (spotifyPlaying || spotifyPlaybackMode !== null);
+  const spotifyPulseStyle = spotifyPulseActive
+    ? ({ "--spotify-pulse": String(spotifyPulseLevel * 0.22) } as CSSProperties)
+    : undefined;
+
   const isOverlay = !isMobileLayout && (chatPanelExpanded || leaving);
   const keepOverlayPosition = isOverlay;
 
@@ -146,9 +256,12 @@ export default function ChatPanelShell() {
           keepOverlayPosition && "chat-panel--expanded",
           entering && "chat-panel--expanded-enter",
           leaving && "chat-panel--expanded-leave",
+          chatPanelMode === "agent" && "chat-panel--mode-agent",
           chatPanelMode === "ai-notes" && "chat-panel--mode-ai-notes",
           chatPanelMode === "friends" && "chat-panel--mode-friends",
+          spotifyPulseActive && "chat-panel--spotify-pulse",
         )}
+        style={spotifyPulseStyle}
         aria-label={panelLabel}
         onAnimationEnd={(event) => {
           if (event.target !== event.currentTarget) return;
@@ -157,6 +270,9 @@ export default function ChatPanelShell() {
           }
         }}
       >
+      {!isMobileLayout && !isOverlay ? (
+        <ChatPanelResizeHandle side={sidePanelSide} panelRef={panelRef} />
+      ) : null}
       <ChatPanelHeader />
       <div
         className="chat-panel__morph"

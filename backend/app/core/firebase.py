@@ -286,7 +286,14 @@ def load_user_api_keys(uid: str) -> Dict[str, str]:
         return {}
     keys: Dict[str, str] = {}
     try:
-        docs = _db.collection(f"users/{uid}/private/apiKeys").stream()
+        docs = (
+            _db.collection("users")
+            .document(uid)
+            .collection("private")
+            .document("apiKeys")
+            .collection("providers")
+            .stream()
+        )
         for doc in docs:
             data = doc.to_dict() or {}
             value = data.get("apiKey")

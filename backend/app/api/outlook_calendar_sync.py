@@ -10,7 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
-from app.api.calendar_sync import CalendarEventInput, SyncEventsBody, _event_datetimes
+from app.api.calendar_sync import (
+    CalendarEventInput,
+    SyncEventsBody,
+    _event_datetimes,
+    resolve_display_timezone,
+    wall_clock_minutes,
+)
 from app.connectors.registry import connector_configured
 from app.connectors.tokens import connection_account_label, get_valid_access_token
 from app.connectors.user_store import is_connected_from_items, load_all_connections
@@ -41,7 +47,10 @@ class OutlookCalendarStatusOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True, populate_by_alias=True)
 
 
-def _minutes_from_outlook_datetime(value: dict[str, Any]) -> tuple[str, int, int] | None:
+def _minutes_from_outlook_datetime(
+    value: dict[str, Any],
+    display_tz=None,
+) -> tuple[str, int, int] | None:
     raw = value.get("dateTime")
     if not raw:
         if value.get("date"):
@@ -49,28 +58,31 @@ def _minutes_from_outlook_datetime(value: dict[str, Any]) -> tuple[str, int, int
             return date_key, 9 * 60, 10 * 60
         return None
     dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    # Graph often returns floating local times when Prefer: outlook.timezone is set.
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=datetime.now().astimezone().tzinfo)
-    local = dt.astimezone()
-    date_key = local.strftime("%Y-%m-%d")
-    start_minutes = local.hour * 60 + local.minute
+        zone = display_tz or resolve_display_timezone(str(value.get("timeZone") or "").strip() or None)
+        if zone is not None:
+            dt = dt.replace(tzinfo=zone)
+        else:
+            dt = dt.replace(tzinfo=timezone.utc)
+    date_key, start_minutes = wall_clock_minutes(dt, display_tz)
     return date_key, start_minutes, start_minutes + 30
 
 
-def _parse_outlook_event(item: dict[str, Any]) -> OutlookCalendarEventOut | None:
+def _parse_outlook_event(item: dict[str, Any], display_tz=None) -> OutlookCalendarEventOut | None:
     event_id = str(item.get("id") or "").strip()
     if not event_id:
         return None
 
     start_raw = item.get("start") or {}
     end_raw = item.get("end") or {}
-    start_parsed = _minutes_from_outlook_datetime(start_raw)
+    start_parsed = _minutes_from_outlook_datetime(start_raw, display_tz)
     if not start_parsed:
         return None
     date_key, start_minutes, default_end = start_parsed
 
     end_minutes = default_end
-    end_parsed = _minutes_from_outlook_datetime(end_raw)
+    end_parsed = _minutes_from_outlook_datetime(end_raw, display_tz)
     if end_parsed and end_parsed[0] == date_key:
         end_minutes = max(end_parsed[1], start_minutes + 15)
     elif end_parsed and end_parsed[0] != date_key:
@@ -168,6 +180,7 @@ async def outlook_calendar_status(user: FirebaseUser = Depends(require_firebase_
 async def list_outlook_calendar_events(
     time_min: str = Query(..., alias="timeMin"),
     time_max: str = Query(..., alias="timeMax"),
+    time_zone: Optional[str] = Query(default=None, alias="timeZone"),
     user: FirebaseUser = Depends(require_firebase_user),
 ):
     if not connector_configured("outlook"):
@@ -180,6 +193,7 @@ async def list_outlook_calendar_events(
     if not token:
         return {"events": [], "reason": "not_connected"}
 
+    display_tz = resolve_display_timezone(time_zone)
     params = {
         "startDateTime": time_min,
         "endDateTime": time_max,
@@ -187,10 +201,13 @@ async def list_outlook_calendar_events(
         "$orderby": "start/dateTime",
         "$select": "id,subject,bodyPreview,start,end",
     }
+    headers: dict[str, str] = {"Authorization": f"Bearer {token}"}
+    if display_tz is not None:
+        headers["Prefer"] = f'outlook.timezone="{display_tz}"'
     async with httpx.AsyncClient(timeout=25.0) as client:
         r = await client.get(
             "https://graph.microsoft.com/v1.0/me/calendarView",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=headers,
             params=params,
         )
     if r.status_code != 200:
@@ -200,7 +217,7 @@ async def list_outlook_calendar_events(
     for item in r.json().get("value") or []:
         if not isinstance(item, dict):
             continue
-        parsed = _parse_outlook_event(item)
+        parsed = _parse_outlook_event(item, display_tz)
         if parsed:
             events.append(parsed)
 

@@ -77,6 +77,13 @@ async def exchange_code(
             tokens["account_email"] = profile["email"]
         if profile.get("display_name"):
             tokens["account_name"] = profile["display_name"]
+    elif spec.provider == "dropbox":
+        tokens = await _exchange_dropbox(code, redirect_base)
+        account = await _fetch_dropbox_account(tokens.get("access_token"))
+        if account.get("email"):
+            tokens["account_email"] = account["email"]
+        if account.get("display_name"):
+            tokens["account_name"] = account["display_name"]
     else:
         raise ValueError(f"Unsupported provider: {spec.provider}")
 
@@ -234,5 +241,61 @@ async def _fetch_spotify_profile(access_token: Any) -> dict[str, Any]:
         "email": data.get("email"),
         "display_name": data.get("display_name"),
         "id": data.get("id"),
+    }
+
+
+async def _exchange_dropbox(code: str, redirect_base: str | None = None) -> dict[str, Any]:
+    import os
+
+    client_id = os.getenv("DROPBOX_CLIENT_ID", "")
+    client_secret = os.getenv("DROPBOX_CLIENT_SECRET", "")
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            "https://api.dropboxapi.com/oauth2/token",
+            data={
+                "code": code,
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "redirect_uri": callback_url(redirect_base),
+            },
+        )
+        if r.status_code >= 400:
+            detail = r.text
+            try:
+                err = r.json()
+                detail = str(err.get("error_description") or err.get("error") or detail)
+            except Exception:
+                pass
+            raise ValueError(f"Dropbox OAuth token exchange failed ({r.status_code}): {detail}") from None
+        data = r.json()
+    return {
+        "access_token": data.get("access_token"),
+        "refresh_token": data.get("refresh_token"),
+        "expires_in": data.get("expires_in"),
+        "token_type": data.get("token_type"),
+        "scope": data.get("scope"),
+    }
+
+
+async def _fetch_dropbox_account(access_token: Any) -> dict[str, Any]:
+    if not access_token:
+        return {}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.post(
+            "https://api.dropboxapi.com/2/users/get_current_account",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            content=b"null",
+        )
+    if r.status_code != 200:
+        return {}
+    data = r.json()
+    name = data.get("name") if isinstance(data.get("name"), dict) else {}
+    return {
+        "email": data.get("email"),
+        "display_name": name.get("display_name"),
     }
 

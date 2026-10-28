@@ -7,6 +7,8 @@ const PREVIEW_CONNECTED: ReadonlySet<ChatConnectorId> = new Set([
   "calendar",
   "spotify",
   "gmail",
+  "onedrive",
+  "dropbox",
 ]);
 
 /** Panel popup is 420ms; cascade starts shortly after it finishes. */

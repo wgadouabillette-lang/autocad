@@ -27,6 +27,7 @@ import WorkspaceOverlay from "./components/workspace/WorkspaceOverlay";
 import WorkspaceQuickMenu from "./components/workspace/WorkspaceQuickMenu";
 import EnterpriseCheckoutOverlay from "./components/billing/EnterpriseCheckoutOverlay";
 import ProCheckoutOverlay from "./components/billing/ProCheckoutOverlay";
+import { useProCheckoutStore } from "./store/useProCheckoutStore";
 import { useColorTheme } from "./hooks/useColorTheme";
 import { useAccentColor } from "./hooks/useAccentColor";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
@@ -36,7 +37,7 @@ import { useMeetingReminders } from "./hooks/useMeetingReminders";
 import { useSpotifyVoiceMix } from "./hooks/useSpotifyVoiceMix";
 import { useMobileLayout } from "./hooks/useMobileLayout";
 import { canAccessApp, DESKTOP_VIEWPORT_QUERY, getLandingUrl } from "./lib/appAccess";
-import { hasFormaDesktop } from "./lib/formaDesktop";
+import { hasFormaDesktop, isFormaDesktopMac } from "./lib/formaDesktop";
 import { parseWorkspaceInviteInput } from "./lib/workspaceInvite";
 import { runAppBoot, type AppBootStatus } from "./lib/appBoot";
 import { applyDocumentTheme } from "./lib/theme";
@@ -73,6 +74,9 @@ export default function App() {
   // #endregion
   const [bootStatus, setBootStatus] = useState<AppBootStatus>("loading");
   const isMobileLayout = useMobileLayout();
+  useEffect(() => {
+    useProCheckoutStore.getState().closeCheckout();
+  }, []);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(DESKTOP_VIEWPORT_QUERY);
@@ -84,6 +88,26 @@ export default function App() {
     enforceDesktopAccess();
     mediaQuery.addEventListener("change", enforceDesktopAccess);
     return () => mediaQuery.removeEventListener("change", enforceDesktopAccess);
+  }, []);
+
+  useEffect(() => {
+    if (!isFormaDesktopMac()) return;
+    const root = document.documentElement;
+    root.classList.add("has-desktop-mac-traffic-lights");
+    const desktop = window.formaDesktop;
+    const applyFullscreen = (fullScreen: boolean) => {
+      root.classList.toggle("is-desktop-mac-fullscreen", fullScreen);
+    };
+    void desktop?.getWindowState?.().then((state) => {
+      if (state) applyFullscreen(state.fullScreen);
+    });
+    const unsubscribe = desktop?.onWindowState?.((state) => {
+      applyFullscreen(state.fullScreen);
+    });
+    return () => {
+      root.classList.remove("has-desktop-mac-traffic-lights", "is-desktop-mac-fullscreen");
+      unsubscribe?.();
+    };
   }, []);
   const activePage = useStore((s) => s.activePage);
   const settingsOpen = activePage === "settings";

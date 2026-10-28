@@ -8,6 +8,8 @@ import {
 } from "../../store/useTheaterChatStore";
 import { useStore } from "../../store/useStore";
 import { useAuthStore } from "../../store/useAuthStore";
+import { useCallsStore } from "../../store/useCallsStore";
+import { isLocalHandRaiseUserId, pendingHandRaises } from "../../lib/theater";
 import { useVoicePollStore } from "../../store/useVoicePollStore";
 import { useActiveVoicePoll } from "../../hooks/useActiveVoicePoll";
 import ChatPollComposer from "./ChatPollComposer";
@@ -112,6 +114,47 @@ function TheaterChatAttachments({ attachments }: { attachments: TheaterChatAttac
   );
 }
 
+function TheaterHandRaiseNotice({
+  message,
+  viewer,
+  requestId,
+  acceptDisabled,
+  onAccept,
+  onDecline,
+}: {
+  message: TheaterChatMessage;
+  viewer: "raiser" | "speaker";
+  requestId?: string;
+  acceptDisabled?: boolean;
+  onAccept?: (requestId: string) => void;
+  onDecline?: (requestId: string) => void;
+}) {
+  return (
+    <div className="theater-chat-hand-raise-notice">
+      <p>{theaterHandRaiseNoticeText(message, viewer)}</p>
+      {viewer === "speaker" && requestId ? (
+        <div className="theater-chat-hand-raise-notice__actions">
+          <button
+            type="button"
+            className="theater-chat-hand-raise-notice__decline"
+            onClick={() => onDecline?.(requestId)}
+          >
+            Refuser
+          </button>
+          <button
+            type="button"
+            className="theater-chat-hand-raise-notice__accept"
+            onClick={() => onAccept?.(requestId)}
+            disabled={acceptDisabled}
+          >
+            Accepter
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function TheaterChatBubble({
   message,
   mine,
@@ -123,11 +166,6 @@ function TheaterChatBubble({
   isFirstInGroup: boolean;
   isLastInGroup: boolean;
 }) {
-  if (isTheaterHandRaiseNotice(message)) {
-    return (
-      <p className="theater-chat-hand-raise-notice">{theaterHandRaiseNoticeText(message)}</p>
-    );
-  }
 
   const attachments = message.attachments ?? [];
 
@@ -150,6 +188,26 @@ export default function TheaterChatPanel() {
   const activeRoomId = useStore((s) => s.activeRoomId);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const messages = useTheaterChatStore((s) => s.messagesByWorkspace[activeRoomId] ?? EMPTY_MESSAGES);
+  const theater = useCallsStore((s) => s.theaterByWorkspace[activeRoomId]);
+  const acceptHandRaise = useCallsStore((s) => s.acceptHandRaise);
+  const declineHandRaise = useCallsStore((s) => s.declineHandRaise);
+  const isSpeaker = theater?.localRole === "speaker";
+  const pendingRaises = theater ? pendingHandRaises(theater) : [];
+  const visibleMessages = useMemo(() => {
+    return messages.filter((message) => {
+      if (!isTheaterHandRaiseNotice(message)) return true;
+      const pending = pendingRaises.find(
+        (request) =>
+          request.userId === message.authorId ||
+          (message.mine && isLocalHandRaiseUserId(request.userId, firebaseUid)),
+      );
+      if (!pending) return false;
+      if (isSpeaker) return true;
+      return (
+        !!message.mine || isLocalHandRaiseUserId(message.authorId, firebaseUid)
+      );
+    });
+  }, [firebaseUid, isSpeaker, messages, pendingRaises]);
   const sendMessage = useTheaterChatStore((s) => s.sendMessage);
   const pollComposerOpen = useVoicePollStore(
     (s) => s.composerOpenByWorkspace[activeRoomId] ?? false,
@@ -159,7 +217,7 @@ export default function TheaterChatPanel() {
   );
   const activePoll = useActiveVoicePoll(activeRoomId);
   const pollVoteOpen = pollVoteOpenRaw && !!activePoll;
-  const groups = useMemo(() => buildTheaterChatGroups(messages), [messages]);
+  const groups = useMemo(() => buildTheaterChatGroups(visibleMessages), [visibleMessages]);
   const theaterTypingScope = useMemo(
     () => resolveTheaterChatTypingScope(activeRoomId),
     [activeRoomId],
@@ -240,7 +298,7 @@ export default function TheaterChatPanel() {
   };
 
   const canSubmit = draft.trim().length > 0 || attachments.length > 0;
-  const isEmpty = messages.length === 0;
+  const isEmpty = visibleMessages.length === 0;
 
   return (
     <div className="chat-panel-layout relative overflow-hidden">
@@ -264,11 +322,20 @@ export default function TheaterChatPanel() {
           {groups.map((group) =>
             group.handRaise ? (
               <li key={group.key} className="theater-chat-thread__hand-raise">
-                <TheaterChatBubble
+                <TheaterHandRaiseNotice
                   message={group.messages[0]!}
-                  mine={group.mine}
-                  isFirstInGroup
-                  isLastInGroup
+                  viewer={isSpeaker ? "speaker" : "raiser"}
+                  requestId={
+                    pendingRaises.find(
+                      (request) =>
+                        request.userId === group.authorId ||
+                        (group.mine &&
+                          isLocalHandRaiseUserId(request.userId, firebaseUid)),
+                    )?.id
+                  }
+                  acceptDisabled={!!theater?.question}
+                  onAccept={(requestId) => acceptHandRaise(activeRoomId, requestId)}
+                  onDecline={(requestId) => declineHandRaise(activeRoomId, requestId)}
                 />
               </li>
             ) : (

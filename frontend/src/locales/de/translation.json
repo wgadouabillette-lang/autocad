@@ -15,16 +15,22 @@
     "openSettings": "Einstellungen öffnen"
   },
   "settings": {
+    "backToApp": "Zurück zur App",
     "tabs": {
-      "general": "Allgemein",
+      "general": "Konto",
       "friends": "Freunde",
       "workspaces": "Workspaces",
       "usage": "Plan & Nutzung",
       "billing": "Abrechnung",
       "agents": "Agenten",
-      "audio": "Audio & Video",
+      "audio": "Präferenzen",
       "models": "Modelle",
-      "plugins": "Plugins"
+      "plugins": "Connectors",
+      "skills": "Skills"
+    },
+    "groups": {
+      "personal": "Persönlich",
+      "workspace": "Workspace"
     },
     "descriptions": {
       "friends": "Freunde und Einladungen.",
@@ -33,7 +39,8 @@
       "billing": "Aktueller Plan und nächstes Abrechnungsdatum.",
       "agents": "Chat und AI Notes anpassen.",
       "models": "KI-Modell für die Generierung wählen.",
-      "plugins": "Connectoren im Chat."
+      "plugins": "Connectoren im Chat.",
+      "skills": "Slash-Befehle im Chat."
     },
     "language": {
       "title": "Sprache",
@@ -175,6 +182,14 @@
       "unavailable": "Nicht verfügbar",
       "notConfigured": "Auf dem Server nicht konfiguriert",
       "oauthMissing": "OAuth-Schlüssel in backend/.env hinzufügen",
+      "describe": {
+        "calendar": "Liest den Google-Kalender von heute und trägt im Chat geplante Termine ein.",
+        "spotify": "Spielt Spotify in Meetra, einschließlich des Meetra DJ.",
+        "gmail": "Sendet E-Mails und hängt aktuelle Gmail-Nachrichten an den Prompt.",
+        "outlook": "Hängt aktuelle Outlook-E-Mails an den Prompt.",
+        "onedrive": "Findet eine OneDrive-Datei und hängt sie an den Prompt, ohne sie zu ändern.",
+        "dropbox": "Findet eine Dropbox-Datei und hängt sie an den Prompt, ohne sie zu ändern."
+      },
       "signInToLink": "Anmelden, um einen Konnektor zu verknüpfen",
       "insertSlash": "{{slash}} einfügen",
       "use": "nutzen"
@@ -189,6 +204,22 @@
     "raiseHand": "Hand heben",
     "micMuted": "Mikrofon stumm",
     "connecting": "Verbinden…",
-    "inCall": "Im Call"
+    "inCall": "Im Call",
+    "speaker": "Sprecher",
+    "owner": "Eigentümer",
+    "question": "Frage",
+    "audienceMember": "Zuschauer",
+    "speakers": "Sprecher",
+    "audience": "Zuschauer",
+    "bench": "Bank {{n}}",
+    "sitHere": "Hier sitzen",
+    "message": "Nachricht an {{name}}",
+    "stageActions": "Bühnenaktionen",
+    "goOnStage": "Auf die Bühne",
+    "goOnStageTitle": "Als Sprecher auf die Bühne gehen",
+    "backstage": "Zurück ins Publikum",
+    "backstageTitle": "Zurück ins Publikum",
+    "askInChat": "Im Chat fragen",
+    "askInChatTitle": "Eine Frage im Theater-Chat stellen"
   }
 }

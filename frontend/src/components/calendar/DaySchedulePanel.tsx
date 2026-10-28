@@ -41,6 +41,10 @@ export default function DaySchedulePanel() {
 
   const dateInputRef = useRef<HTMLInputElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const skipDefaultScrollRef = useRef(false);
+  const focusEventId = useCalendarOverlayStore((s) => s.focusEventId);
+  const clearFocusEvent = useCalendarOverlayStore((s) => s.clearFocusEvent);
+  const [revealedEventId, setRevealedEventId] = useState<string | null>(null);
   const userEvents = useCalendarStore((s) => s.userEvents);
   const googleEvents = useCalendarStore((s) => s.googleEvents);
   const outlookEvents = useCalendarStore((s) => s.outlookEvents);
@@ -73,12 +77,27 @@ export default function DaySchedulePanel() {
   useLayoutEffect(() => {
     const el = timelineRef.current;
     if (!el) return;
+    if (focusEventId) {
+      const node = el.querySelector(`[data-event-id="${CSS.escape(focusEventId)}"]`);
+      if (node instanceof HTMLElement) {
+        const top = node.offsetTop - Math.max(0, (el.clientHeight - node.offsetHeight) / 2);
+        el.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+        setRevealedEventId(focusEventId);
+        skipDefaultScrollRef.current = true;
+        clearFocusEvent();
+      }
+      return;
+    }
+    if (skipDefaultScrollRef.current) {
+      skipDefaultScrollRef.current = false;
+      return;
+    }
     const targetMinutes = viewingToday ? nowMinutes : DEFAULT_SCROLL_HOUR * 60;
     const top = (targetMinutes / 60) * HOUR_HEIGHT - HOUR_HEIGHT * 1.5;
     el.scrollTo({ top: Math.max(0, top), behavior: "auto" });
-    // intentionally only on date change, not every minute
+    // Scroll to the added event when asked; otherwise only when the day changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
+  }, [selectedDate, focusEventId, events]);
 
   const handleDateInputClick = (event: React.MouseEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
@@ -198,7 +217,9 @@ export default function DaySchedulePanel() {
                   "calendar-panel__event group",
                   status === "now" && "calendar-panel__event--now",
                   status === "past" && "calendar-panel__event--past",
+                  revealedEventId === event.id && "calendar-panel__event--revealed",
                 )}
+                data-event-id={event.id}
                 style={{ top, height }}
               >
                 <button

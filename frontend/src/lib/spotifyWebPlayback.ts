@@ -1,5 +1,6 @@
 import { fetchSpotifyPlayerConfig, fetchSpotifyPlayerToken } from "./connectorsApi";
 import { hasFormaDesktop, hasSpotifyWebView2Desktop } from "./formaDesktop";
+import { readUserPreferences } from "./userPreferences";
 
 // #region agent log
 function dbgDj(hypothesisId: string, location: string, message: string, data: Record<string, unknown> = {}) {
@@ -118,17 +119,21 @@ let lastPolledPositionMs = -1;
 let stalledPollCount = 0;
 let playbackStartedAt = 0;
 let lastPlayTrackId: string | null = null;
+/** Duration belongs to this track id, so a late sample cannot stretch the next song. */
+let cachedDurationTrackId: string | null = null;
 let fullPlaybackDisabled = false;
 /** True once position enters the last ~5s — used when Spotify resets to position 0 on end. */
 let approachedTrackEnd = false;
 const PLAYBACK_END_GRACE_MS = 8_000;
 const DEFAULT_PLAYBACK_VOLUME = 0.85;
-let preferredPlaybackVolume = DEFAULT_PLAYBACK_VOLUME;
 
 export function normalizeSpotifyPlaybackVolume(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_PLAYBACK_VOLUME;
   return Math.min(1, Math.max(0, value));
 }
+
+let preferredPlaybackVolume = normalizeSpotifyPlaybackVolume(readUserPreferences().hallDjVolume);
+let lastWebVolumeTrackId = "";
 
 type PlaybackErrorListener = (message: string) => void;
 let onPlaybackError: PlaybackErrorListener | null = null;
@@ -157,6 +162,7 @@ function markPlaybackStarted(trackId?: string) {
   cachedPositionMs = 0;
   cachedPositionAt = performance.now();
   cachedDurationMs = 0;
+  cachedDurationTrackId = trackId ?? null;
   lastPolledPositionMs = -1;
   stalledPollCount = 0;
   if (trackId) lastPlayTrackId = trackId;
@@ -273,8 +279,9 @@ function startPlaybackProgressWatch() {
           if (cachedPlaying && !withinPlaybackGrace()) schedulePlaybackEnded();
           return;
         }
+        if (!playbackSampleMatchesCurrentTrack(state)) return;
         if (typeof state.duration === "number" && state.duration > 0) {
-          cachedDurationMs = state.duration;
+          rememberPlaybackDuration(state.duration, trackIdFromPlaybackState(state) ?? lastPlayTrackId);
         }
         if (typeof state.position === "number") {
           cachedPositionMs = state.position;
@@ -310,6 +317,30 @@ function startPlaybackProgressWatch() {
       })
       .catch(() => undefined);
   }, 800);
+}
+
+function trackIdFromPlaybackState(state: {
+  track_window?: { current_track?: { uri?: string } | null };
+} | null): string | null {
+  const uri = state?.track_window?.current_track?.uri;
+  if (typeof uri !== "string") return null;
+  const id = uri.split(":").pop()?.trim();
+  return id || null;
+}
+
+/** Ignore a sample that still describes the previous track. */
+function playbackSampleMatchesCurrentTrack(state: {
+  track_window?: { current_track?: { uri?: string } | null };
+} | null): boolean {
+  const sampleTrackId = trackIdFromPlaybackState(state);
+  if (!sampleTrackId || !lastPlayTrackId) return true;
+  return sampleTrackId === lastPlayTrackId;
+}
+
+function rememberPlaybackDuration(durationMs: number, trackId: string | null): void {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return;
+  cachedDurationMs = durationMs;
+  if (trackId) cachedDurationTrackId = trackId;
 }
 
 function nearCachedDuration(positionMs: number): boolean {
@@ -405,9 +436,10 @@ function shouldTreatAsTrackEnded(state: NonNullable<SpotifyPlayerSnapshot>): boo
 }
 
 function notePlaybackProgress(state: NonNullable<SpotifyPlayerSnapshot>) {
+  if (!playbackSampleMatchesCurrentTrack(state)) return;
   const duration = typeof state.duration === "number" ? state.duration : cachedDurationMs;
   if (typeof state.duration === "number" && state.duration > 0) {
-    cachedDurationMs = state.duration;
+    rememberPlaybackDuration(state.duration, trackIdFromPlaybackState(state) ?? lastPlayTrackId);
   }
   if (duration > 0 && state.position >= Math.max(0, duration - 5_000)) {
     approachedTrackEnd = true;
@@ -424,6 +456,8 @@ function syncPlaybackPosition(state: SpotifyPlayerSnapshot) {
     if (wasPlaying && !withinPlaybackGrace()) schedulePlaybackEnded();
     return;
   }
+
+  if (!playbackSampleMatchesCurrentTrack(state)) return;
 
   notePlaybackProgress(state);
   const playing = !state.paused;
@@ -669,6 +703,10 @@ export async function ensureSpotifyWebPlayer(options?: { premiumHint?: boolean |
       });
       player.addListener("player_state_changed", (state) => {
         syncPlaybackPosition(state);
+        const trackId = trackIdFromPlaybackState(state) ?? "";
+        if (!trackId || trackId === lastWebVolumeTrackId) return;
+        lastWebVolumeTrackId = trackId;
+        void applyPreferredVolumeToPlayer();
       });
       player.addListener("authentication_error", ({ message }) => {
         console.warn("[spotify-web-playback] auth:", message);
@@ -809,6 +847,10 @@ async function playSpotifyFullTrackOnce(trackId: string): Promise<boolean> {
     } catch {
       // player_state_changed will sync shortly
     }
+    await applyPreferredVolumeToPlayer();
+    window.setTimeout(() => {
+      void applyPreferredVolumeToPlayer();
+    }, 700);
   }
   return ok;
 }
@@ -817,8 +859,12 @@ export async function playSpotifyFullTrack(trackId: string): Promise<boolean> {
   const desktop = loadDesktopPlayback();
   if (desktop) {
     const m = await desktop;
-    void m.setSpotifyPlaybackVolume?.(preferredPlaybackVolume);
-    return m.playSpotifyFullTrack(trackId);
+    const played = await m.playSpotifyFullTrack(trackId);
+    await m.setSpotifyPlaybackVolume?.(preferredPlaybackVolume);
+    window.setTimeout(() => {
+      void m.setSpotifyPlaybackVolume?.(preferredPlaybackVolume);
+    }, 700);
+    return played;
   }
   if (fullPlaybackDisabled) {
     return false;
@@ -960,6 +1006,7 @@ export function resetSpotifyWebPlayer() {
   cachedPositionMs = 0;
   cachedPositionAt = 0;
   cachedDurationMs = 0;
+  cachedDurationTrackId = null;
   cachedPlaying = false;
   playbackStartedAt = 0;
   lastPlayTrackId = null;
@@ -1012,14 +1059,14 @@ export async function getSpotifyPlaybackPositionSec(): Promise<number | null> {
   if (!player) return extrapolatedPositionSec();
   try {
     const state = await player.getCurrentState();
-    if (!state || typeof state.position !== "number") {
+    if (!state || typeof state.position !== "number" || !playbackSampleMatchesCurrentTrack(state)) {
       return extrapolatedPositionSec();
     }
     cachedPositionMs = state.position;
     cachedPositionAt = performance.now();
     cachedPlaying = !state.paused;
     if (typeof state.duration === "number" && state.duration > 0) {
-      cachedDurationMs = state.duration;
+      rememberPlaybackDuration(state.duration, trackIdFromPlaybackState(state) ?? lastPlayTrackId);
     }
     if (isTrackFinished(state) || nearCachedDuration(state.position)) {
       schedulePlaybackEnded();
@@ -1032,10 +1079,18 @@ export async function getSpotifyPlaybackPositionSec(): Promise<number | null> {
   }
 }
 
-/** Seed known track duration (ms) when SDK state has not reported it yet. */
-export function seedSpotifyPlaybackDurationMs(durationMs: number | null | undefined): void {
+/** Seed this track's duration (ms). A new track replaces the previous song's length. */
+export function seedSpotifyPlaybackDurationMs(
+  durationMs: number | null | undefined,
+  trackId?: string | null,
+): void {
   if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0) return;
+  const id = trackId?.trim() || null;
+  if (id && id !== cachedDurationTrackId) {
+    rememberPlaybackDuration(durationMs, id);
+    return;
+  }
   if (cachedDurationMs <= 0) {
-    cachedDurationMs = durationMs;
+    rememberPlaybackDuration(durationMs, id);
   }
 }

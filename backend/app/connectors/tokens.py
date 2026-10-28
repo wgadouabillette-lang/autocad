@@ -46,6 +46,8 @@ async def get_valid_access_token(uid: str, connector_id: str) -> str | None:
         return await _get_valid_microsoft_token(uid, connector_id)
     if spec.provider == "spotify":
         return await _get_valid_spotify_token(uid, connector_id)
+    if spec.provider == "dropbox":
+        return await _get_valid_dropbox_token(uid, connector_id)
     return None
 
 
@@ -167,6 +169,41 @@ async def _get_valid_spotify_token(uid: str, connector_id: str) -> str | None:
     return str(token) if token else None
 
 
+async def _get_valid_dropbox_token(uid: str, connector_id: str) -> str | None:
+    entry = get_connection(uid, connector_id)
+    if not entry:
+        return None
+
+    access_token = entry.get("access_token")
+    if not access_token:
+        return None
+
+    if _access_token_still_valid(entry):
+        return str(access_token)
+
+    refresh_token = entry.get("refresh_token")
+    if not refresh_token:
+        return None
+
+    try:
+        refreshed = await _refresh_dropbox(refresh_token)
+    except Exception as exc:
+        logger.warning(
+            "Dropbox token refresh failed for %s/%s: %s",
+            uid,
+            connector_id,
+            _refresh_error_detail(exc),
+        )
+        if _oauth_refresh_fatal(exc):
+            remove_connection(uid, connector_id)
+        return None
+
+    merged = _merge_token_entry(entry, refreshed, "dropbox")
+    set_connection(uid, connector_id, "dropbox", merged)
+    token = merged.get("access_token")
+    return str(token) if token else None
+
+
 def _merge_token_entry(entry: dict[str, Any], refreshed: dict[str, Any], provider: str) -> dict[str, Any]:
     access_token = refreshed.get("access_token") or entry.get("access_token")
     merged = {
@@ -238,6 +275,21 @@ async def _refresh_spotify(refresh_token: str) -> dict[str, Any]:
             data={
                 "grant_type": "refresh_token",
                 "refresh_token": refresh_token,
+            },
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+async def _refresh_dropbox(refresh_token: str) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            "https://api.dropboxapi.com/oauth2/token",
+            data={
+                "client_id": os.getenv("DROPBOX_CLIENT_ID", ""),
+                "client_secret": os.getenv("DROPBOX_CLIENT_SECRET", ""),
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
             },
         )
         r.raise_for_status()

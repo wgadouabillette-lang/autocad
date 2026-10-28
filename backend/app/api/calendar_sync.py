@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -19,6 +20,29 @@ from app.core.firebase import FirebaseUser
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/connectors", tags=["connectors"])
+
+
+def resolve_display_timezone(name: str | None) -> ZoneInfo | None:
+    """Resolve an IANA zone from the client; never fall back to the server TZ."""
+    raw = (name or "").strip()
+    if not raw:
+        return None
+    try:
+        return ZoneInfo(raw)
+    except ZoneInfoNotFoundError:
+        return None
+
+
+def wall_clock_minutes(dt: datetime, display_tz: ZoneInfo | None) -> tuple[str, int]:
+    """Minutes-from-midnight in the user's (or event) timezone — not the API host TZ."""
+    if display_tz is not None:
+        local = dt.astimezone(display_tz) if dt.tzinfo else dt.replace(tzinfo=display_tz)
+    elif dt.tzinfo is not None:
+        # Keep the event's own offset wall-clock (do not convert to UTC server local).
+        local = dt
+    else:
+        local = dt
+    return local.strftime("%Y-%m-%d"), local.hour * 60 + local.minute
 
 
 class CalendarEventInput(BaseModel):
@@ -84,12 +108,16 @@ def _google_event_datetime(iso: str, tz_name: str | None) -> dict[str, str]:
     return payload
 
 
-def _minutes_from_google_datetime(value: dict[str, Any]) -> tuple[str, int, int] | None:
+def _minutes_from_google_datetime(
+    value: dict[str, Any],
+    display_tz: ZoneInfo | None = None,
+) -> tuple[str, int, int] | None:
     if "dateTime" in value and value["dateTime"]:
         dt = datetime.fromisoformat(str(value["dateTime"]).replace("Z", "+00:00"))
-        local = dt.astimezone()
-        date_key = local.strftime("%Y-%m-%d")
-        start_minutes = local.hour * 60 + local.minute
+        event_tz = resolve_display_timezone(
+            str(value.get("timeZone") or "").strip() or None
+        )
+        date_key, start_minutes = wall_clock_minutes(dt, display_tz or event_tz)
         return date_key, start_minutes, start_minutes + 30
 
     if "date" in value and value["date"]:
@@ -99,20 +127,23 @@ def _minutes_from_google_datetime(value: dict[str, Any]) -> tuple[str, int, int]
     return None
 
 
-def _parse_google_event(item: dict[str, Any]) -> GoogleCalendarEventOut | None:
+def _parse_google_event(
+    item: dict[str, Any],
+    display_tz: ZoneInfo | None = None,
+) -> GoogleCalendarEventOut | None:
     event_id = str(item.get("id") or "").strip()
     if not event_id:
         return None
 
     start_raw = item.get("start") or {}
     end_raw = item.get("end") or {}
-    start_parsed = _minutes_from_google_datetime(start_raw)
+    start_parsed = _minutes_from_google_datetime(start_raw, display_tz)
     if not start_parsed:
         return None
     date_key, start_minutes, default_end = start_parsed
 
     end_minutes = default_end
-    end_parsed = _minutes_from_google_datetime(end_raw)
+    end_parsed = _minutes_from_google_datetime(end_raw, display_tz)
     if end_parsed and end_parsed[0] == date_key:
         end_minutes = max(end_parsed[1], start_minutes + 15)
     elif end_parsed and end_parsed[0] != date_key:
@@ -209,6 +240,7 @@ async def calendar_status(user: FirebaseUser = Depends(require_firebase_user)):
 async def list_calendar_events(
     time_min: str = Query(..., alias="timeMin"),
     time_max: str = Query(..., alias="timeMax"),
+    time_zone: Optional[str] = Query(default=None, alias="timeZone"),
     user: FirebaseUser = Depends(require_firebase_user),
 ):
     if not connector_configured("calendar"):
@@ -221,13 +253,16 @@ async def list_calendar_events(
     if not token:
         return {"events": [], "reason": "not_connected"}
 
-    params = {
+    display_tz = resolve_display_timezone(time_zone)
+    params: dict[str, str] = {
         "timeMin": time_min,
         "timeMax": time_max,
         "singleEvents": "true",
         "orderBy": "startTime",
         "maxResults": "250",
     }
+    if display_tz is not None:
+        params["timeZone"] = str(display_tz)
     async with httpx.AsyncClient(timeout=25.0) as client:
         r = await client.get(
             "https://www.googleapis.com/calendar/v3/calendars/primary/events",
@@ -245,7 +280,7 @@ async def list_calendar_events(
     for item in items:
         if not isinstance(item, dict):
             continue
-        parsed = _parse_google_event(item)
+        parsed = _parse_google_event(item, display_tz)
         if parsed:
             events.append(parsed)
 

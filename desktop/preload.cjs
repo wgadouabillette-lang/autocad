@@ -56,4 +56,5 @@ contextBridge.exposeInMainWorld("formaDesktop", {
   saveNotePdf: (payload) => ipcRenderer.invoke("forma:save-note-pdf", payload),
   getPendingWorkspaceInvite: () => ipcRenderer.invoke("forma:get-pending-workspace-invite"),
   onWorkspaceInvite: (handler) => subscribe("forma:workspace-invite", handler),
+  onConnectorOAuthResult: (handler) => subscribe("forma:connector-oauth-result", handler),
 });

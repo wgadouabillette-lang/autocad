@@ -85,8 +85,8 @@ export function buildPlayTimelineSteps(query: string): SkillTimelineStep[] {
     {
       id: "searching",
       label,
-      minMs: 1500,
-      maxMs: 2500,
+      minMs: 4500,
+      maxMs: 4500,
     },
   ];
 }

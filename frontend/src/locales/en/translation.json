@@ -15,16 +15,22 @@
     "openSettings": "Open settings"
   },
   "settings": {
+    "backToApp": "Back to app",
     "tabs": {
-      "general": "General",
+      "general": "Account",
       "friends": "Friends",
       "workspaces": "Workspaces",
       "usage": "Plan & Usage",
       "billing": "Billing",
       "agents": "Agents",
-      "audio": "Audio & Video",
+      "audio": "Preferences",
       "models": "Models",
-      "plugins": "Plugins"
+      "plugins": "Connectors",
+      "skills": "Skills"
+    },
+    "groups": {
+      "personal": "Personal",
+      "workspace": "Workspace"
     },
     "descriptions": {
       "friends": "Friends and invitations.",
@@ -33,7 +39,8 @@
       "billing": "Current plan and next billing date.",
       "agents": "Customize chat and AI Notes.",
       "models": "Choose the AI model for generation.",
-      "plugins": "Connectors available in chat."
+      "plugins": "Connectors available in chat.",
+      "skills": "Slash commands available in chat."
     },
     "language": {
       "title": "Language",
@@ -117,6 +124,9 @@
     "messages": "Messages",
     "typeMessage": "Type a message…",
     "send": "Send",
+    "dictate": "Dictate into the prompt",
+    "dictateStop": "Stop dictation",
+    "dictateWorking": "Transcribing…",
     "notesPromoTitle": "Automatic notes",
     "notesPromoBody": "Upgrade to Pro for automatic notes with AI Assistance.",
     "notesPromoCta": "Upgrade to Pro",
@@ -155,7 +165,7 @@
     "writeIn": "Write in {{name}}…",
     "applyToCalendar": "Apply to calendar",
     "appliedToCalendar": "Applied to calendar",
-    "messagesBadge": "Messages, {{count}} notifications",
+    "messagesBadge": "Messages, {{count}} in reception",
     "categories": {
       "friends": "Friends",
       "friendsEmpty": "No friends yet. Add friends by email in settings.",
@@ -175,6 +185,14 @@
       "unavailable": "Unavailable",
       "notConfigured": "Not configured on the server",
       "oauthMissing": "Add OAuth keys in backend/.env",
+      "describe": {
+        "calendar": "Reads today’s Google Calendar and adds meetings planned from chat.",
+        "spotify": "Plays Spotify in Meetra, including the Meetra DJ.",
+        "gmail": "Sends email and pulls recent Gmail threads into the prompt.",
+        "outlook": "Pulls recent Outlook mail into the prompt.",
+        "onedrive": "Finds a OneDrive file and adds it to the prompt, without editing it.",
+        "dropbox": "Finds a Dropbox file and adds it to the prompt, without editing it."
+      },
       "signInToLink": "Sign in to link a connector",
       "insertSlash": "Insert {{slash}}",
       "use": "use"
@@ -189,6 +207,22 @@
     "raiseHand": "Raise hand",
     "micMuted": "Microphone muted",
     "connecting": "Connecting…",
-    "inCall": "In call"
+    "inCall": "In call",
+    "speaker": "Speaker",
+    "owner": "Owner",
+    "question": "Question",
+    "audienceMember": "Audience",
+    "speakers": "Speakers",
+    "audience": "Audience",
+    "bench": "Bench {{n}}",
+    "sitHere": "Sit here",
+    "message": "Message {{name}}",
+    "stageActions": "Stage actions",
+    "goOnStage": "Go on stage",
+    "goOnStageTitle": "Go on stage as a speaker",
+    "backstage": "Backstage",
+    "backstageTitle": "Return backstage",
+    "askInChat": "Ask in chat",
+    "askInChatTitle": "Ask a question in the theater chat"
   }
 }

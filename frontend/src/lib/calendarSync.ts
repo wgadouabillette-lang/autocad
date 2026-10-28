@@ -90,11 +90,19 @@ function rangeIso(fromDateKey: string, toDateKey: string): { timeMin: string; ti
   };
 }
 
+function clientTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 export async function fetchGoogleCalendarEventsInRange(
   timeMin: string,
   timeMax: string,
 ): Promise<{ events: GoogleCalendarEvent[]; authExpired: boolean }> {
-  const params = new URLSearchParams({ timeMin, timeMax });
+  const params = new URLSearchParams({ timeMin, timeMax, timeZone: clientTimeZone() });
   const r = await fetch(apiUrl(`${BASE}/events?${params.toString()}`), {
     headers: await authHeaders(),
   });

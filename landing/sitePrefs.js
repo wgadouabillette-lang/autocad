@@ -1,4 +1,20 @@
 (function () {
+  var GA_ID = "G-JW40ZKMN8S";
+  window.dataLayer = window.dataLayer || [];
+  function gtag() {
+    window.dataLayer.push(arguments);
+  }
+  window.gtag = gtag;
+  gtag("js", new Date());
+  gtag("config", GA_ID);
+
+  var script = document.createElement("script");
+  script.async = true;
+  script.src = "https://www.googletagmanager.com/gtag/js?id=" + GA_ID;
+  document.head.appendChild(script);
+})();
+
+(function () {
   var THEME_KEY = "lyte-landing-theme";
   var LANG_KEY = "lyte-landing-lang";
   var DEFAULT_LANG = "en";

@@ -1,20 +1,23 @@
 import type { CallBlock, OpenVoiceChannel, RoomCallsState } from "./calls";
 import { memberBlockId } from "./calls";
 import {
-  MARKETING_PREVIEW_BLINDING_LIGHTS_COVER_URL,
   MARKETING_PREVIEW_NOTE_ID,
   MARKETING_PREVIEW_STARBOY_COVER_URL,
   MARKETING_PREVIEW_USER_ID,
   MARKETING_PREVIEW_WORKSPACE_ID,
   readMarketingPreviewRecordingActiveParam,
 } from "./marketingPreview";
+import { marketingPlaySearchResult } from "./marketingPlayDemo";
 import {
-  THEATER_BENCH_COUNT,
+  THEATER_BENCH_COLUMN_COUNT,
+  THEATER_BENCH_ROW_COUNT,
   THEATER_BENCH_SEAT_COUNT,
+  type HandRaiseRequest,
   type TheaterState,
 } from "./theater";
 import type { ChatMessage, ChatSession } from "../store/useStore";
 import type { CalendarEvent } from "../store/useCalendarStore";
+import { useAiNotesStore } from "../store/useAiNotesStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { useCallsStore } from "../store/useCallsStore";
 import { useConnectorsStore } from "../store/useConnectorsStore";
@@ -119,7 +122,12 @@ const THEATER_AUDIENCE_EXTRA = [
 
 const THEATER_SPEAKER_COUNT = 1;
 const THEATER_AUDIENCE_SIZE = 7;
-const THEATER_PREVIEW_AUDIENCE_SIZE = 48;
+const LANDING_THEATER_SPEAKER_COUNT = 2;
+const LANDING_THEATER_AUDIENCE_SIZE = 12;
+/** One person per bench, skipping the right column, seat varying inside the bench. */
+const LANDING_THEATER_SEAT_INDEXES = [1, 3, 0, 4, 2, 1, 3, 0, 4, 2, 1, 3].map(
+  (seat, index) => (index + Math.floor(index / 3)) * THEATER_BENCH_SEAT_COUNT + seat,
+);
 
 const PREVIEW_NOTE_BODY_HTML = [
   "<h1>Q3 planning — wrap-up</h1>",
@@ -195,15 +203,7 @@ const LANDING_HERO_NOTE_HTML = [
   "<p>You send the recap in Notes history so the recording and the structured note stay on the same thread.</p>",
 ].join("");
 
-const LANDING_HERO_BLINDING_LIGHTS = {
-  id: "0VjIjW4GlUZAMYd2vXMi3b",
-  name: "Blinding Lights",
-  artists: "The Weeknd",
-  album: "After Hours",
-  url: "https://open.spotify.com/track/0VjIjW4GlUZAMYd2vXMi3b",
-  imageUrl: MARKETING_PREVIEW_BLINDING_LIGHTS_COVER_URL,
-  durationMs: 200040,
-};
+const LANDING_HERO_PLAY_QUERY = "blinding lights";
 
 function memberBlock(userId: string, name: string, inCall = false): CallBlock {
   const isLocal = userId === "local";
@@ -240,14 +240,18 @@ function buildRoomCallsState(): RoomCallsState {
   };
 }
 
-function buildTheaterState(audienceSize = THEATER_AUDIENCE_SIZE): TheaterState {
-  const speakers = DEMO_MEMBERS.slice(0, THEATER_SPEAKER_COUNT).map((member) => ({
+function buildTheaterState(
+  audienceSize = THEATER_AUDIENCE_SIZE,
+  speakerCount = THEATER_SPEAKER_COUNT,
+  seatIndexes?: readonly number[],
+): TheaterState {
+  const speakers = DEMO_MEMBERS.slice(0, speakerCount).map((member) => ({
     id: member.id,
     name: member.name,
     role: "speaker" as const,
   }));
   const audience = [
-    ...DEMO_MEMBERS.slice(THEATER_SPEAKER_COUNT).map((member) => ({
+    ...DEMO_MEMBERS.slice(speakerCount).map((member) => ({
       id: member.id,
       name: member.name,
       role: "audience" as const,
@@ -263,12 +267,91 @@ function buildTheaterState(audienceSize = THEATER_AUDIENCE_SIZE): TheaterState {
     workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
     speakers,
     audience,
-    audienceSeatByUserId: Object.fromEntries(audience.map((member, index) => [member.id, index])),
+    audienceSeatByUserId: Object.fromEntries(
+      audience.map((member, index) => [member.id, seatIndexes?.[index] ?? index]),
+    ),
     question: null,
     handRaises: [],
     localRole: null,
   };
 }
+
+const LANDING_AVATAR_IDS = [
+  "jordan",
+  "sam",
+  "riley",
+  "morgan",
+  "casey",
+  "taylor",
+  "quinn",
+  "avery",
+  "elena",
+  "noah",
+  "zoe",
+  "chris",
+  "lena",
+  "omar",
+] as const;
+
+function landingAvatarUrl(userId: string): string | undefined {
+  if (!LANDING_AVATAR_IDS.includes(userId as (typeof LANDING_AVATAR_IDS)[number])) return undefined;
+  const base = import.meta.env.BASE_URL;
+  return `${base.endsWith("/") ? base : `${base}/`}avatars/${userId}.jpg`;
+}
+
+/** Three listeners scattered through the rightmost bench column, the one in the Notes crop. */
+const NOTES_LAST_COLUMN_LISTENERS = [
+  { userId: "riley", row: 0, seat: 2 },
+  { userId: "morgan", row: 2, seat: 4 },
+  { userId: "casey", row: THEATER_BENCH_ROW_COUNT - 1, seat: 1 },
+] as const;
+
+function withNotesLastColumnListeners(theater: TheaterState): TheaterState {
+  const lastColumn = THEATER_BENCH_COLUMN_COUNT - 1;
+  const audienceSeatByUserId = { ...theater.audienceSeatByUserId };
+  for (const listener of NOTES_LAST_COLUMN_LISTENERS) {
+    const benchIndex = listener.row * THEATER_BENCH_COLUMN_COUNT + lastColumn;
+    audienceSeatByUserId[listener.userId] = benchIndex * THEATER_BENCH_SEAT_COUNT + listener.seat;
+  }
+  return { ...theater, audienceSeatByUserId };
+}
+
+function buildLandingTheaterState(): TheaterState {
+  const theater = buildTheaterState(
+    LANDING_THEATER_AUDIENCE_SIZE,
+    LANDING_THEATER_SPEAKER_COUNT,
+    LANDING_THEATER_SEAT_INDEXES,
+  );
+  return {
+    ...theater,
+    speakers: theater.speakers.map((member) => ({
+      ...member,
+      name: member.id === "jordan" ? "William" : member.name,
+    })),
+    audience: theater.audience.map((member) => {
+      const photoURL = landingAvatarUrl(member.id);
+      return photoURL ? { ...member, photoURL } : member;
+    }),
+    handRaises: LANDING_RAISED_HANDS,
+  };
+}
+
+const LANDING_RAISED_HANDS: HandRaiseRequest[] = [
+  {
+    id: "preview-hr-riley",
+    workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
+    userId: "riley",
+    userName: "Riley",
+    status: "pending",
+  },
+  {
+    id: "preview-hr-morgan",
+    workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
+    userId: "morgan",
+    userName: "Morgan",
+    status: "pending",
+  },
+];
 
 function buildDiscussionTab(
   id: string,
@@ -343,7 +426,7 @@ function buildAgentChatTabs(): {
         { role: "user", text: "Which connectors should we enable first for the demo workspace?" },
         {
           role: "assistant",
-          text: "Start with Spotify, Google Calendar, and Gmail. Outlook can follow once the OAuth redirect URLs are approved.",
+          text: "Spotify, Google Calendar, Gmail, Outlook, OneDrive, and Dropbox are all connected. Each one stays read-only except mail send and calendar.",
         },
         { role: "user", text: "Write a one-liner for the settings page." },
         {
@@ -562,6 +645,8 @@ function seedConnectors(): void {
     spotify: "Alex",
     gmail: "alex@demo.hall.app",
     outlook: "Alex",
+    onedrive: "Alex",
+    dropbox: "Alex",
   };
   useConnectorsStore.setState({
     statuses: CHAT_CONNECTORS.map(({ id, label }) => {
@@ -666,7 +751,7 @@ function seedPeopleThreads(): void {
             ? "Le calendrier est chargé aujourd’hui."
             : "J’arrive.",
     updatedAt: now - index * 120_000,
-    unread: index === 0 ? 1 : index === 2 ? 1 : 0,
+    unread: 0,
     messages: [
       {
         id: `preview-msg-${member.id}`,
@@ -689,6 +774,9 @@ function seedPeopleThreads(): void {
     colleagueThreadsByWorkspace: {
       [MARKETING_PREVIEW_WORKSPACE_ID]: threads,
     },
+    personPhotoByUserId: Object.fromEntries(
+      LANDING_AVATAR_IDS.map((id) => [id, landingAvatarUrl(id)!]),
+    ),
   });
 }
 
@@ -754,6 +842,7 @@ export function seedMarketingPreview(): void {
     activeManualNoteId: MARKETING_PREVIEW_NOTE_ID,
     showChatHistory: false,
     colorTheme: "dark",
+    locale: "en",
     aiModel: "claude-opus-4-7",
     busy: false,
     activeAiRequests: 0,
@@ -782,62 +871,33 @@ export function seedMarketingPreview(): void {
   seedPeopleThreads();
 }
 
-const LANDING_HERO_LISTENER_COUNT = 24;
+/** Local user plus seven teammates on the landing hero workspace grid. */
+const LANDING_HERO_OTHER_MEMBERS = [
+  { id: "jordan", name: "Jordan" },
+  { id: "sam", name: "Sam" },
+  { id: "riley", name: "Riley" },
+  { id: "morgan", name: "Morgan" },
+  { id: "casey", name: "Casey" },
+  { id: "taylor", name: "Taylor" },
+  { id: "elena", name: "Elena" },
+] as const;
 
-function landingHeroAudienceMembers(): { id: string; name: string }[] {
-  const seen = new Set(["local", "jordan"]);
-  const members: { id: string; name: string }[] = [];
-  for (const member of [
-    { id: "sam", name: "Sam" },
-    { id: "riley", name: "Riley" },
-    { id: "morgan", name: "Morgan" },
-    ...DEMO_MEMBERS,
-    ...THEATER_AUDIENCE_EXTRA,
-  ]) {
-    if (seen.has(member.id)) continue;
-    seen.add(member.id);
-    members.push({ id: member.id, name: member.name });
-    if (members.length >= LANDING_HERO_LISTENER_COUNT) break;
-  }
-  return members;
-}
-
-function scatterAudienceSeats(ids: string[]): Record<string, number> {
-  const seats: Record<string, number> = {};
-  ids.forEach((id, index) => {
-    const bench = index % THEATER_BENCH_COUNT;
-    const slot = Math.floor(index / THEATER_BENCH_COUNT);
-    seats[id] = bench * THEATER_BENCH_SEAT_COUNT + slot;
-  });
-  return seats;
-}
-
-function buildLandingHeroTheaterState(): TheaterState {
-  const speakers = [
-    { ...LOCAL_USER, role: "speaker" as const },
-    { id: "jordan", name: "Jordan", role: "speaker" as const },
-  ];
-  const audience = landingHeroAudienceMembers().map((member) => ({
-    ...member,
-    role: "audience" as const,
-  }));
+function buildLandingHeroRoomCallsState(): RoomCallsState {
+  const base = buildRoomCallsState();
   return {
-    workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
-    speakers,
-    audience,
-    audienceSeatByUserId: scatterAudienceSeats(audience.map((member) => member.id)),
-    question: null,
-    handRaises: [],
-    localRole: "speaker",
+    ...base,
+    blocks: [
+      memberBlock("local", LOCAL_USER.name, false),
+      ...LANDING_HERO_OTHER_MEMBERS.map((member) => memberBlock(member.id, member.name, false)),
+    ],
   };
 }
 
-/** Frozen landing hero: Theater (2 speakers + benches), AI Notes, recording toast. */
+/** Frozen landing hero: theater, Agent tab, Spotify picker for the playing track. */
 export function seedMarketingLandingHero(): void {
   seedMarketingPreview();
 
-  const recordingId = "preview-rec-landing";
-  const recordedAt = Date.now() - 90_000;
+  const theater = buildLandingTheaterState();
 
   useCallsStore.setState((state) => {
     const room = state.callsByRoom[MARKETING_PREVIEW_WORKSPACE_ID];
@@ -850,8 +910,8 @@ export function seedMarketingLandingHero(): void {
         ...state.localOpenChannelByRoom,
         [MARKETING_PREVIEW_WORKSPACE_ID]: null,
       },
-      muted: false,
-      mutedByParticipant: { ...state.mutedByParticipant, sam: true },
+      muted: true,
+      mutedByParticipant: { ...state.mutedByParticipant, sam: false },
       recording: false,
       recordingBusy: false,
       mediaError: null,
@@ -861,33 +921,85 @@ export function seedMarketingLandingHero(): void {
       },
       theaterByWorkspace: {
         ...state.theaterByWorkspace,
-        [MARKETING_PREVIEW_WORKSPACE_ID]: buildLandingHeroTheaterState(),
+        [MARKETING_PREVIEW_WORKSPACE_ID]: {
+          ...theater,
+          localRole: "audience",
+        },
       },
-      callsByRoom: room
-        ? {
-            ...state.callsByRoom,
-            [MARKETING_PREVIEW_WORKSPACE_ID]: {
-              ...room,
+      speakingByParticipant: {
+        jordan: true,
+      },
+      callsByRoom: {
+        ...state.callsByRoom,
+        [MARKETING_PREVIEW_WORKSPACE_ID]: room
+          ? {
+              ...buildLandingHeroRoomCallsState(),
               openChannels: room.openChannels.map((channel) => ({
                 ...channel,
                 inCall: false,
                 participants: channel.participants.filter((person) => !person.isLocal),
               })),
-            },
-          }
-        : state.callsByRoom,
+            }
+          : buildLandingHeroRoomCallsState(),
+      },
     };
   });
 
+  const calendarDate = new Date();
+  calendarDate.setHours(12, 0, 0, 0);
+  const daysUntilThursday = (4 + 7 - calendarDate.getDay()) % 7 || 7;
+  calendarDate.setDate(calendarDate.getDate() + daysUntilThursday);
+  const calendarDraft = {
+    title: "Design review",
+    dateKey: toDateKey(calendarDate),
+    startMinutes: 10 * 60,
+    endMinutes: 10 * 60 + 45,
+  };
+  const heroPlay = marketingPlaySearchResult(LANDING_HERO_PLAY_QUERY);
+  const heroTrack = {
+    ...heroPlay.tracks[0],
+    durationMs: 200040,
+  };
+  const heroChat = [
+    { role: "user" as const, text: "/play blinding lights", source: "play-prompt" },
+    {
+      role: "assistant" as const,
+      text: "",
+      source: "play-skill",
+      playQuery: LANDING_HERO_PLAY_QUERY,
+      spotifySearch: heroPlay.tracks,
+      spotifySearchMode: "picker" as const,
+      spotifyPickerOffset: 0,
+    },
+    {
+      role: "user" as const,
+      text: "I want to add an event to my schedule",
+    },
+    {
+      role: "assistant" as const,
+      text: `Add “${calendarDraft.title}” on ${new Intl.DateTimeFormat("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      }).format(calendarDate)} · 10:00–10:45?`,
+      source: "calendar-add",
+      calendarAdd: calendarDraft,
+    },
+  ];
+
   useStore.setState((state) => ({
     chatPanelOpen: true,
-    chatPanelMode: "ai-notes",
+    chatPanelMode: "agent",
     chatPanelExpanded: false,
     chatPanelLeaveAnimating: false,
     showChatHistory: false,
     busy: false,
     activeAiRequests: 0,
     aiRun: null,
+    chat: heroChat,
+    openChatTabs: state.openChatTabs.map((tab) =>
+      tab.id === state.activeChatTabId ? { ...tab, title: "Blinding Lights", messages: heroChat } : tab,
+    ),
     activeManualNoteId: MARKETING_PREVIEW_NOTE_ID,
     chatSessions: [
       {
@@ -899,36 +1011,14 @@ export function seedMarketingLandingHero(): void {
         manualNoteTitle: LANDING_HERO_NOTE_TITLE,
         manualNoteBody: LANDING_HERO_NOTE_HTML,
       },
-      {
-        id: recordingId,
-        title: "Recording 30 Aug, 3:12 PM",
-        messages: [],
-        updatedAt: recordedAt,
-        kind: "recording" as const,
-        recordingId,
-        durationMs: 4000,
-      },
-      ...state.chatSessions.filter(
-        (session) => session.id !== MARKETING_PREVIEW_NOTE_ID && session.id !== recordingId,
-      ),
+      ...state.chatSessions.filter((session) => session.id !== MARKETING_PREVIEW_NOTE_ID),
     ],
   }));
 
   useNotificationsStore.setState({
-    items: [
-      {
-        id: "n-preview-rec-landing",
-        kind: "recording",
-        category: "Recordings",
-        title: "Recording saved",
-        body: "Available in your notes history.",
-        recordingSessionId: recordingId,
-        createdAt: recordedAt,
-        read: false,
-      },
-    ],
-    panelOpen: true,
-    panelOpenGeneration: 1,
+    items: [],
+    panelOpen: false,
+    panelOpenGeneration: 0,
     currentIndex: 0,
   });
 
@@ -940,7 +1030,7 @@ export function seedMarketingLandingHero(): void {
     feedbackBusy: false,
   });
   useSpotifyPlayerStore.setState({
-    currentTrack: LANDING_HERO_BLINDING_LIGHTS,
+    currentTrack: heroTrack,
     lastPlayedTrack: null,
     playing: true,
     playbackMode: "full",
@@ -970,7 +1060,7 @@ export function seedMarketingRecordingPreview(): void {
 export function seedMarketingTheaterPreview(): void {
   seedMarketingPreview();
 
-  const theater = buildTheaterState(THEATER_PREVIEW_AUDIENCE_SIZE);
+  const theater = buildLandingTheaterState();
 
   useStore.setState({
     chatPanelOpen: false,
@@ -985,32 +1075,7 @@ export function seedMarketingTheaterPreview(): void {
     },
     theaterByWorkspace: {
       ...useCallsStore.getState().theaterByWorkspace,
-      [MARKETING_PREVIEW_WORKSPACE_ID]: {
-        ...theater,
-        handRaises: [
-          {
-            id: "preview-theater-hr-1",
-            workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
-            userId: "riley",
-            userName: "Riley",
-            status: "pending",
-          },
-          {
-            id: "preview-theater-hr-2",
-            workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
-            userId: "casey",
-            userName: "Casey",
-            status: "pending",
-          },
-          {
-            id: "preview-theater-hr-3",
-            workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
-            userId: "taylor",
-            userName: "Taylor",
-            status: "pending",
-          },
-        ],
-      },
+      [MARKETING_PREVIEW_WORKSPACE_ID]: theater,
     },
     speakingByParticipant: {
       jordan: true,
@@ -1019,9 +1084,31 @@ export function seedMarketingTheaterPreview(): void {
   });
 }
 
-/** Full app chrome with the Notes tab open on a just-finished meeting. */
+const LANDING_NOTES_TITLE = "Theater";
+const LANDING_NOTES_TRANSCRIPT = [
+  "We're in the theater. William and Sam are on stage, and we're seated in the audience.",
+  "Riley is a few seats over. Morgan just raised a hand from the next bench.",
+  "Casey and Taylor are next in the hand queue.",
+  "The audience stays muted. Only the stage has the floor.",
+  "Morgan is in the back row. Elena is two seats over, watching William.",
+  "Keep this call in the theater so the whole room can see the speaker.",
+  "No side room. If someone needs to talk, they come on stage.",
+  "The seats stay quiet until a hand is accepted.",
+  "We'll stay in the theater for the rest of this call.",
+];
+
+function landingNotesTranscriptHtml(lines: readonly string[]): string {
+  const text = lines
+    .join(" ")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return `<p>${text}</p>`;
+}
+
+/** Same workspace as the hero, docked Notes panel mid-transcription. */
 export function seedMarketingNotesPreview(): void {
-  seedMarketingPreview();
+  seedMarketingLandingHero();
 
   const people = usePeopleStore.getState();
   const clearUnread = <T extends { unread: number }>(threads: T[]): T[] =>
@@ -1039,16 +1126,67 @@ export function seedMarketingNotesPreview(): void {
     friendsTabSeenAt: Date.now(),
   });
 
-  useStore.setState({
+  const theater = withNotesLastColumnListeners(buildLandingTheaterState());
+  useCallsStore.setState({
+    callsViewModeByWorkspace: {
+      ...useCallsStore.getState().callsViewModeByWorkspace,
+      [MARKETING_PREVIEW_WORKSPACE_ID]: "theater",
+    },
+    theaterByWorkspace: {
+      ...useCallsStore.getState().theaterByWorkspace,
+      [MARKETING_PREVIEW_WORKSPACE_ID]: {
+        ...theater,
+        localRole: "audience",
+      },
+    },
+    speakingByParticipant: {
+      jordan: true,
+    },
+  });
+
+  useStore.setState((state) => ({
     chatPanelOpen: true,
     chatPanelMode: "ai-notes",
-    chatPanelExpanded: true,
+    chatPanelExpanded: false,
     chatPanelLeaveAnimating: false,
-    activeManualNoteId: MARKETING_PREVIEW_NOTE_ID,
+    sidePanelSide: "right",
     showChatHistory: false,
     busy: false,
     activeAiRequests: 0,
     aiRun: null,
+    activeManualNoteId: MARKETING_PREVIEW_NOTE_ID,
+    chatSessions: state.chatSessions.map((session) =>
+      session.id === MARKETING_PREVIEW_NOTE_ID
+        ? {
+            ...session,
+            title: LANDING_NOTES_TITLE,
+            manualNoteTitle: LANDING_NOTES_TITLE,
+            manualNoteBody: landingNotesTranscriptHtml(LANDING_NOTES_TRANSCRIPT),
+            messages: [],
+          }
+        : session,
+    ),
+  }));
+
+  useNotificationsStore.setState({ panelOpen: false });
+
+  useAiNotesStore.setState({
+    active: true,
+    busy: false,
+    error: null,
+    structureError: null,
+    lines: LANDING_NOTES_TRANSCRIPT.map((text, index) => ({
+      id: `preview-ln-${index}`,
+      text,
+      isFinal: true,
+    })),
+    interimText: "",
+    structuredHtml: "",
+    structuring: false,
+    nextStructureAt: Date.now() + 4000,
+    startedAt: Date.now() - 45_000,
+    workspaceId: MARKETING_PREVIEW_WORKSPACE_ID,
+    sessionId: MARKETING_PREVIEW_NOTE_ID,
   });
 }
 

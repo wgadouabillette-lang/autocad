@@ -5,6 +5,8 @@ export interface AiTranscribePayload {
   audioBase64: string;
   mimeType?: string;
   filename?: string;
+  language?: string;
+  prompt?: string;
 }
 
 export async function callAiTranscribe(

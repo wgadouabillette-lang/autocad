@@ -13,6 +13,22 @@ import { getStripePromise } from "../../lib/stripeClient";
 import { useLocalizedUsdPrice } from "../../hooks/useLocalizedUsdPrice";
 import { useProCheckoutStore } from "../../store/useProCheckoutStore";
 import { useStore } from "../../store/useStore";
+
+/** Aperçu design : paiement Pro ouvert. Remettre à false pour le comportement réel. */
+export const PREVIEW_PRO_CHECKOUT: boolean = false;
+
+export function useProCheckoutDesignPreview(): void {
+  useEffect(() => {
+    if (!PREVIEW_PRO_CHECKOUT) {
+      useProCheckoutStore.getState().closeCheckout();
+      return;
+    }
+    useProCheckoutStore.getState().openCheckout("pro");
+    return () => {
+      useProCheckoutStore.getState().closeCheckout();
+    };
+  }, []);
+}
 import {
   CHECKOUT_ELEMENTS_APPEARANCE,
   CheckoutOverlaySkeleton,

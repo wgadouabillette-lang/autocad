@@ -100,6 +100,22 @@ export const CHAT_SKILLS: ChatSkillDef[] = [
     template: "/outlook ",
   },
   {
+    id: "onedrive",
+    slash: "onedrive",
+    label: "/onedrive",
+    description: "Include OneDrive files in your prompt",
+    logo: CHAT_APP_LOGOS.onedrive,
+    template: "/onedrive ",
+  },
+  {
+    id: "dropbox",
+    slash: "dropbox",
+    label: "/dropbox",
+    description: "Include Dropbox files in your prompt",
+    logo: CHAT_APP_LOGOS.dropbox,
+    template: "/dropbox ",
+  },
+  {
     id: "recap",
     slash: "recap",
     label: "/recap",

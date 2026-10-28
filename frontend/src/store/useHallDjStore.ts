@@ -136,9 +136,12 @@ async function seedQueueQuickly(excludeTrackId?: string | null): Promise<Spotify
   }
 
   const exclude = excludeTrackId?.trim() || null;
-  const localTracks = filterTracksByDjFeedback(
-    hallDjPopularTracksLast7Days(6).map((entry) => entry.track),
-  ).filter((track) => track.id?.trim() !== exclude);
+  const genreLocked = preferredSeedGenre() !== DEFAULT_HALL_DJ_GENRE;
+  const localTracks = genreLocked
+    ? []
+    : filterTracksByDjFeedback(
+        hallDjPopularTracksLast7Days(6).map((entry) => entry.track),
+      ).filter((track) => track.id?.trim() !== exclude);
 
   if (localTracks.length > 0) {
     return queueFreshTracks(localTracks, "append");
@@ -280,9 +283,12 @@ export const useHallDjStore = create<HallDjState>((set, get) => ({
       const genreSearchPromise = searchSpotifyTracks(`${seedGenre} hit`, 10).catch(
         () => [] as SpotifyTrackCard[],
       );
-      const localTracks = filterTracksByDjFeedback(
-        hallDjPopularTracksLast7Days(8).map((entry) => entry.track),
-      );
+      const genreLocked = seedGenre !== DEFAULT_HALL_DJ_GENRE;
+      const localTracks = genreLocked
+        ? []
+        : filterTracksByDjFeedback(
+            hallDjPopularTracksLast7Days(8).map((entry) => entry.track),
+          );
 
       await playerStore.refreshPlayerConfig(true);
       if (!isHallDjSession(session)) return;

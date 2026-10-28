@@ -112,6 +112,15 @@ export interface FormaDesktopBridge {
   }) => Promise<{ ok: boolean; filePath?: string; reason?: string }>;
   getPendingWorkspaceInvite?: () => Promise<string | null>;
   onWorkspaceInvite?: (handler: (workspaceId: string) => void) => () => void;
+  /** Desktop OAuth popup → main window (avoids cross-origin reload flash). */
+  onConnectorOAuthResult?: (
+    handler: (payload: {
+      type: "forma-connector-oauth";
+      status: "success" | "error";
+      connectorId: string | null;
+      message: string | null;
+    }) => void,
+  ) => () => void;
 }
 
 export function hasFormaDesktop(): boolean {
@@ -123,5 +132,9 @@ export function hasSpotifyWebView2Desktop(): boolean {
 }
 
 export function hasSpotifyWidevineDesktop(): boolean {
+  return hasFormaDesktop() && window.formaDesktop?.platform === "darwin";
+}
+
+export function isFormaDesktopMac(): boolean {
   return hasFormaDesktop() && window.formaDesktop?.platform === "darwin";
 }

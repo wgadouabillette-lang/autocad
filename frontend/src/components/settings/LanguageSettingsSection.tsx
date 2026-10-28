@@ -7,6 +7,7 @@ import {
 } from "../../lib/appLocale";
 import { useStore } from "../../store/useStore";
 import SettingsPicker from "./SettingsControls";
+import SettingsFieldRow from "./SettingsFieldRow";
 
 export default function LanguageSettingsSection() {
   const { t } = useTranslation();
@@ -25,17 +26,18 @@ export default function LanguageSettingsSection() {
   );
 
   return (
-    <section className="settings-profile-card__block" id="app-language">
-      <div className="settings-profile-card__block-head">
-        <h3 className="settings-profile-card__label">{t("settings.language.title")}</h3>
-        <p className="settings-profile-card__hint">{t("settings.language.hint")}</p>
+    <section className="settings-preferences__group">
+      <h3 className="settings-preferences__title">{t("settings.language.title")}</h3>
+      <div className="settings-field-list">
+        <SettingsFieldRow id="app-language" label="Interface" description={t("settings.language.hint")}>
+          <SettingsPicker
+            value={locale}
+            ariaLabel={t("settings.language.aria")}
+            options={options}
+            onChange={(value) => setLocale(value as LocalePreference)}
+          />
+        </SettingsFieldRow>
       </div>
-      <SettingsPicker
-        value={locale}
-        ariaLabel={t("settings.language.aria")}
-        options={options}
-        onChange={(value) => setLocale(value as LocalePreference)}
-      />
     </section>
   );
 }

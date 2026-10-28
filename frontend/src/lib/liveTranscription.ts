@@ -29,18 +29,24 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-export async function transcribeLiveAudioChunk(blob: Blob): Promise<string> {
+export async function transcribeLiveAudioChunk(
+  blob: Blob,
+  timeoutMs = 8000,
+  hint?: { language?: string; prompt?: string },
+): Promise<string> {
   const prepared = await audioBlobToWav(blob).catch(() => blob);
   const filename = filenameFor(prepared);
   const mimeType = prepared.type || blob.type || "audio/wav";
 
-  const viaBackend = () => api.transcribeChunk(prepared, filename);
+  const viaBackend = () => api.transcribeChunk(prepared, filename, timeoutMs, hint);
   const viaCloud = async () => {
     const audioBase64 = await blobToBase64(prepared);
     const result = await callAiTranscribe({
       audioBase64,
       mimeType,
       filename,
+      language: hint?.language,
+      prompt: hint?.prompt,
     });
     return result.text;
   };

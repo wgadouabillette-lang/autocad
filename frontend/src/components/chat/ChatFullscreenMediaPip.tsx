@@ -4,6 +4,7 @@ import { buildCallMediaFeeds, selectPipFeeds, type CallMediaFeed } from "../../l
 import { avatarColor, inCallParticipants, userInitials } from "../../lib/calls";
 import { buildRemoteMediaFeeds } from "../../lib/webrtc/workspaceVoiceRtc";
 import VoiceMuteBadge from "../calls/VoiceMuteBadge";
+import LocalScreenSharePreview from "../calls/LocalScreenSharePreview";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 
@@ -43,13 +44,17 @@ function PipMediaTile({
       )}
       aria-label={label}
     >
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        playsInline
-        className="chat-fullscreen-media-pip__media"
-      />
+      {feed.kind === "screen" && feed.isLocal && feed.stream ? (
+        <LocalScreenSharePreview stream={feed.stream} className="chat-fullscreen-media-pip__media" />
+      ) : (
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className="chat-fullscreen-media-pip__media"
+        />
+      )}
       <span className="chat-fullscreen-media-pip__label">{label}</span>
       {muted && <VoiceMuteBadge />}
     </div>

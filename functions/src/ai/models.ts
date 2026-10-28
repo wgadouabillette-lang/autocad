@@ -100,3 +100,32 @@ export function resolveChatModel(aiModel: string, prompt: string, keys: LlmKeySe
 export function resolveProviderForModel(modelId: string, keys: LlmKeySet): LlmProvider | null {
   return providerForModelId(modelId, keys);
 }
+
+export interface ChatProviderAttempt {
+  provider: LlmProvider;
+  model: string;
+}
+
+/** Modèle choisi en premier, puis les autres comptes qui ont une clé. */
+export function chatProviderAttempts(
+  aiModel: string,
+  prompt: string,
+  keys: LlmKeySet,
+): ChatProviderAttempt[] {
+  const primaryModel = resolveChatModel(aiModel, prompt, keys);
+  const primaryProvider = providerForModelId(primaryModel, keys);
+  const attempts: ChatProviderAttempt[] = [];
+  const seen = new Set<LlmProvider>();
+
+  const push = (provider: LlmProvider | null, model: string) => {
+    if (!provider || !keys[provider] || seen.has(provider)) return;
+    seen.add(provider);
+    attempts.push({ provider, model });
+  };
+
+  push(primaryProvider, primaryModel);
+  push("xai", XAI_MINI_MODEL);
+  push("openai", OPENAI_MODEL);
+  push("anthropic", OPUS_47);
+  return attempts;
+}

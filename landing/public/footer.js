@@ -36,16 +36,6 @@
     );
   }
 
-  function socialLink(href, label) {
-    return (
-      '<li><a class="footer-link" href="' +
-      href +
-      '" target="_blank" rel="noopener noreferrer">' +
-      label +
-      '<span class="footer-link__ext" aria-hidden="true">&nbsp;↗</span></a></li>'
-    );
-  }
-
   function column(titleKey, itemsHtml) {
     return (
       '<div class="site-footer__col">' +
@@ -140,11 +130,7 @@
       downloadItem = link(download.href, download.labelKey);
     }
     var columns = [
-      column(
-        "footer.product",
-        downloadItem +
-          link("/tarifs", "footer.pricing"),
-      ),
+      column("footer.product", downloadItem),
       column(
         "footer.resources",
         link("/ressources", "footer.resources") +
@@ -158,11 +144,6 @@
           link("/terms", "footer.terms") +
           link("/subprocessors", "footer.subprocessors") +
           link("/google-limited-use", "footer.googleLimitedUse"),
-      ),
-      column(
-        "footer.connect",
-        socialLink("https://x.com/", "X") +
-          socialLink("https://www.linkedin.com/", "LinkedIn"),
       ),
     ].join("");
 

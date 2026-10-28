@@ -16,6 +16,10 @@ import {
   startMarketingPreviewHandoffDemo,
 } from "./lib/marketingPreviewHandoffDemo";
 import {
+  cancelMarketingPreviewNotesTranscript,
+  startMarketingPreviewNotesTranscript,
+} from "./lib/marketingPreviewNotesDemo";
+import {
   cancelMarketingPreviewSpotifyDemo,
   startMarketingPreviewSpotifyDemo,
 } from "./lib/marketingPreviewSpotifyDemo";
@@ -36,6 +40,12 @@ export default function MarketingPreviewApp() {
     if (!isMarketingHandoffPreviewScene()) return;
     startMarketingPreviewHandoffDemo();
     return () => cancelMarketingPreviewHandoffDemo();
+  }, []);
+
+  useEffect(() => {
+    if (!isMarketingNotesPreviewScene()) return;
+    startMarketingPreviewNotesTranscript();
+    return () => cancelMarketingPreviewNotesTranscript();
   }, []);
 
   const chatPanelOpen = useStore((s) => s.chatPanelOpen);

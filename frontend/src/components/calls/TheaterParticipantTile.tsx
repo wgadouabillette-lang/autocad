@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { Mic, MicOff } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { type TheaterParticipant } from "../../lib/theater";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
@@ -29,6 +30,7 @@ export default function TheaterParticipantTile({
   onAcceptHandRaise,
   canAcceptHandRaise = true,
 }: TheaterParticipantTileProps) {
+  const { t } = useTranslation();
   const speakingByParticipant = useCallsStore((s) => s.speakingByParticipant);
   const openColleagueChat = useMiniChatStore((s) => s.openForColleague);
   const canMessage = !participant.isLocal;
@@ -49,10 +51,10 @@ export default function TheaterParticipantTile({
 
   const avatarAriaLabel = canPromote
     ? canAcceptHandRaise
-      ? `Faire monter ${participant.name} sur scène`
-      : "Une question est déjà en cours"
+      ? t("calls.goOnStageTitle")
+      : t("calls.question")
     : canMessage
-      ? `Message à ${participant.name}`
+      ? t("calls.message", { name: participant.name })
       : participant.name;
 
   const avatar = (
@@ -70,6 +72,7 @@ export default function TheaterParticipantTile({
         canMessage && "theater-tile__avatar--message",
         canPromote && "theater-tile__avatar--promote",
         promoteDisabled && "theater-tile__avatar--promote-locked",
+        handRaised && "theater-tile__avatar--hand",
         speakingByParticipant[participant.id] && "call-voice-speaking",
       )}
       onClick={useAvatarAsButton ? handleAvatarClick : undefined}
@@ -126,19 +129,19 @@ export default function TheaterParticipantTile({
           {participant.role === "speaker" && (
             <>
               <Mic size={11} aria-hidden />
-              Intervenant
+              {t("calls.speaker")}
             </>
           )}
           {participant.role === "question" && (
             <>
               <Mic size={11} aria-hidden />
-              Question
+              {t("calls.question")}
             </>
           )}
           {participant.role === "audience" && (
             <>
               {muted ? <MicOff size={11} aria-hidden /> : <Mic size={11} aria-hidden />}
-              Spectateur
+              {t("calls.audienceMember")}
             </>
           )}
         </p>

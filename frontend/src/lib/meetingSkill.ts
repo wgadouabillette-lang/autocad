@@ -186,8 +186,8 @@ export async function runMeetingSkill(input: {
     createResult.googleSynced > 0
       ? ""
       : createResult.googleConnected || createResult.googleError
-        ? " L'événement est dans Meetra, mais la sync Google a échoué — reconnectez Google Calendar dans Paramètres → Plugins."
-        : " Connectez Google Calendar dans Paramètres → Plugins pour le synchroniser.";
+        ? " L'événement est dans Meetra, mais la sync Google a échoué — reconnectez Google Calendar dans Paramètres → Connectors."
+        : " Connectez Google Calendar dans Paramètres → Connectors pour le synchroniser.";
   return {
     ok: true,
     summary: `Réunion planifiée le **${dayLabel}** de ${draft.startTime} à ${draft.endTime} avec ${attendeeNames}. L'événement est dans votre calendrier et les invitations ont été envoyées.${googleNote}`,

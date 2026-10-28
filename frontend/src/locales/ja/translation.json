@@ -15,16 +15,22 @@
     "openSettings": "設定を開く"
   },
   "settings": {
+    "backToApp": "アプリに戻る",
     "tabs": {
-      "general": "一般",
+      "general": "アカウント",
       "friends": "友達",
       "workspaces": "ワークスペース",
       "usage": "プランと利用量",
       "billing": "請求",
       "agents": "エージェント",
-      "audio": "オーディオとビデオ",
+      "audio": "環境設定",
       "models": "モデル",
-      "plugins": "プラグイン"
+      "plugins": "コネクタ",
+      "skills": "スキル"
+    },
+    "groups": {
+      "personal": "個人",
+      "workspace": "ワークスペース"
     },
     "descriptions": {
       "friends": "友達と招待。",
@@ -33,7 +39,8 @@
       "billing": "現在のプランと次回請求日。",
       "agents": "チャットと AI Notes をカスタマイズ。",
       "models": "生成に使う AI モデルを選択。",
-      "plugins": "チャットで使えるコネクタ。"
+      "plugins": "チャットで使えるコネクタ。",
+      "skills": "チャットで使えるスラッシュコマンド。"
     },
     "language": {
       "title": "言語",
@@ -175,6 +182,14 @@
       "unavailable": "利用不可",
       "notConfigured": "サーバーで未設定",
       "oauthMissing": "backend/.env に OAuth キーを追加してください",
+      "describe": {
+        "calendar": "今日の Google カレンダーを読み、チャットで予定した会議を追加します。",
+        "spotify": "Meetra で Spotify を再生します。Meetra DJ も含みます。",
+        "gmail": "メールを送り、最近の Gmail をプロンプトに含めます。",
+        "outlook": "最近の Outlook メールをプロンプトに含めます。",
+        "onedrive": "OneDrive のファイルを探し、変更せずにプロンプトへ追加します。",
+        "dropbox": "Dropbox のファイルを探し、変更せずにプロンプトへ追加します。"
+      },
       "signInToLink": "コネクタを連携するにはサインインしてください",
       "insertSlash": "{{slash}} を挿入",
       "use": "使う"
@@ -189,6 +204,22 @@
     "raiseHand": "挙手",
     "micMuted": "マイクがミュートです",
     "connecting": "接続中…",
-    "inCall": "通話中"
+    "inCall": "通話中",
+    "speaker": "スピーカー",
+    "owner": "オーナー",
+    "question": "質問",
+    "audienceMember": "観客",
+    "speakers": "スピーカー",
+    "audience": "観客",
+    "bench": "ベンチ {{n}}",
+    "sitHere": "ここに座る",
+    "message": "{{name}} にメッセージ",
+    "stageActions": "ステージ操作",
+    "goOnStage": "ステージに上がる",
+    "goOnStageTitle": "スピーカーとしてステージに上がる",
+    "backstage": "客席に戻る",
+    "backstageTitle": "客席に戻る",
+    "askInChat": "チャットで質問",
+    "askInChatTitle": "シアターのチャットで質問する"
   }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { UserPlus } from "lucide-react";
+import { ArrowUpRight, UserPlus } from "lucide-react";
 import { resolvePersonPhotoURL } from "../../lib/peopleChat";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
@@ -11,6 +11,7 @@ export default function FriendsSettingsSection() {
   const personPhotoByUserId = usePeopleStore((s) => s.personPhotoByUserId);
   const hydratePersonPhotos = usePeopleStore((s) => s.hydratePersonPhotos);
   const sendFriendRequest = usePeopleStore((s) => s.sendFriendRequest);
+  const openWorkspaceMemberConversation = usePeopleStore((s) => s.openWorkspaceMemberConversation);
   const activeRoomId = useStore((s) => s.activeRoomId);
   const membersByWorkspace = useWorkspacePresenceStore((s) => s.membersByWorkspace);
 
@@ -93,6 +94,15 @@ export default function FriendsSettingsSection() {
                 <span className="settings-friends-list__name">{friend.name}</span>
                 <span className="settings-friends-list__meta">@{friend.handle}</span>
               </span>
+              <button
+                type="button"
+                className="settings-friends-list__open"
+                title={`Ouvrir la conversation avec ${friend.name}`}
+                aria-label={`Ouvrir la conversation avec ${friend.name}`}
+                onClick={() => openWorkspaceMemberConversation(activeRoomId, friend.id, friend.name)}
+              >
+                <ArrowUpRight size={14} strokeWidth={2.25} aria-hidden />
+              </button>
             </li>
           ))}
         </ul>

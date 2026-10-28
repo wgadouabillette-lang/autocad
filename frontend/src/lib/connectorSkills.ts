@@ -1,7 +1,9 @@
 import {
+  fetchCloudFiles,
   fetchGmailPreview,
   fetchOutlookPreview,
   fetchSpotifyPreview,
+  type CloudFile,
   type ConnectorPreviewMessage,
   type SpotifyPreviewResult,
 } from "./connectorsApi";
@@ -21,7 +23,9 @@ export type ConnectorSkillId =
   | "calendar"
   | "gmail"
   | "outlook"
-  | "spotify";
+  | "spotify"
+  | "onedrive"
+  | "dropbox";
 
 interface ConnectorSkillDef {
   id: ConnectorSkillId;
@@ -36,6 +40,8 @@ export const CONNECTOR_SKILL_DEFS: ConnectorSkillDef[] = [
   { id: "gmail", slash: "/gmail", label: "Gmail", contextLabel: "Recent Gmail messages" },
   { id: "outlook", slash: "/outlook", label: "Outlook", contextLabel: "Recent Outlook messages" },
   { id: "spotify", slash: "/spotify", label: "Spotify", contextLabel: "Spotify playback state" },
+  { id: "onedrive", slash: "/onedrive", label: "OneDrive", contextLabel: "OneDrive files" },
+  { id: "dropbox", slash: "/dropbox", label: "Dropbox", contextLabel: "Dropbox files" },
 ];
 
 const CONNECTOR_BY_SLASH = new Map<string, ConnectorSkillDef>(
@@ -87,6 +93,19 @@ function formatSpotifyPreview(data: SpotifyPreviewResult): string {
   return `${status}: ${data.track.name} — ${data.track.artists} (${data.track.album})${device}`;
 }
 
+function formatCloudFiles(files: CloudFile[]): string {
+  if (files.length === 0) return "(no files)";
+  return files
+    .map((file) => {
+      const kind = file.kind === "folder" ? "folder" : "file";
+      const size = typeof file.size === "number" ? ` · ${file.size} bytes` : "";
+      const modified = file.modified ? ` · ${file.modified}` : "";
+      const url = file.url ? ` · ${file.url}` : "";
+      return `- [${kind}] ${file.path || file.name}${size}${modified}${url}`;
+    })
+    .join("\n");
+}
+
 function formatCalendarEvents(events: GoogleCalendarEvent[]): string {
   if (events.length === 0) return "(no events today)";
   return events
@@ -101,6 +120,7 @@ function formatCalendarEvents(events: GoogleCalendarEvent[]): string {
 
 async function fetchConnectorContext(
   id: ConnectorSkillId,
+  query = "",
 ): Promise<string> {
   switch (id) {
     case "gmail":
@@ -114,6 +134,9 @@ async function fetchConnectorContext(
       const events = await fetchGoogleCalendarEvents(todayKey);
       return `Date: ${todayKey}\n${formatCalendarEvents(events)}`;
     }
+    case "onedrive":
+    case "dropbox":
+      return formatCloudFiles(await fetchCloudFiles(id, query));
     default:
       return "(no data)";
   }
@@ -139,16 +162,16 @@ export async function buildConnectorAugmentedPrompt(
 ): Promise<ConnectorAugmentedPrompt> {
   let contextBody: string;
   try {
-    contextBody = await fetchConnectorContext(parsed.def.id);
+    contextBody = await fetchConnectorContext(parsed.def.id, parsed.query);
   } catch (err) {
     const reason = err instanceof Error ? err.message : "Unknown error";
     if (/not[_\s-]?connected/i.test(reason)) {
       throw new Error(
-        `Le connecteur ${parsed.def.label} n'est pas connecté. Ouvrez Paramètres → Plugins puis cliquez sur Connecter pour ${parsed.def.label}, et réessayez ${parsed.def.slash}.`,
+        `Le connecteur ${parsed.def.label} n'est pas connecté. Ouvrez Paramètres → Connectors puis cliquez sur Connecter pour ${parsed.def.label}, et réessayez ${parsed.def.slash}.`,
       );
     }
     throw new Error(
-      `Impossible de récupérer les données ${parsed.def.label} (${reason}). Vérifiez que ce connecteur est bien connecté dans Paramètres → Plugins.`,
+      `Impossible de récupérer les données ${parsed.def.label} (${reason}). Vérifiez que ce connecteur est bien connecté dans Paramètres → Connectors.`,
     );
   }
 

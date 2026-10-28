@@ -278,7 +278,7 @@ export default function NotificationsPanel({
           "bottom-overlay__backdrop bottom-overlay__backdrop--left",
           underChatPanel && "notifications-panel__backdrop--under-chat",
         )}
-        aria-label="Fermer les notifications"
+        aria-label="Fermer la réception"
         onClick={closePanel}
       />
       <div
@@ -288,7 +288,7 @@ export default function NotificationsPanel({
           underChatPanel && "notifications-panel--under-chat",
         )}
         role="dialog"
-        aria-label="Notifications"
+        aria-label="Réception"
         style={{
           left: panelPos.left,
           bottom: panelPos.bottom,
@@ -299,14 +299,14 @@ export default function NotificationsPanel({
         <button
           type="button"
           className="notifications-panel__close"
-          aria-label="Fermer toutes les notifications"
+          aria-label="Fermer toute la réception"
           onClick={handleDismissAll}
         >
           <X size={13} strokeWidth={2.25} aria-hidden />
         </button>
 
         {items.length === 0 || !item ? (
-          <p className="notifications-panel__empty-state">Aucune notification pour le moment.</p>
+          <p className="notifications-panel__empty-state">Rien à la réception pour le moment.</p>
         ) : (
           <article
             className={clsx(

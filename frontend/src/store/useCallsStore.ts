@@ -995,7 +995,9 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     });
 
     for (const { roomId, channelId } of removedForFirebase) {
-      void removeOpenVoiceChannel(roomId, channelId);
+      void removeOpenVoiceChannel(roomId, channelId).catch(() => {
+        // Only the channel creator or the workspace owner can delete it.
+      });
     }
   },
 

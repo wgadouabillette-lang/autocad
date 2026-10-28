@@ -6,18 +6,18 @@ export type SettingsTab =
   | "workspaces"
   | "usage"
   | "billing"
-  | "agents"
   | "audio"
-  | "models"
-  | "plugins";
+  | "plugins"
+  | "skills";
 
 /** Anciens identifiants conservés pour la recherche et les liens profonds. */
 export type LegacySettingsTab =
   | "chat"
+  | "agents"
+  | "models"
   | "account"
   | "plan"
   | "recording"
-  | "skills"
   | "workspace"
   | "voice";
 
@@ -29,18 +29,18 @@ const SETTINGS_TABS: SettingsTab[] = [
   "workspaces",
   "usage",
   "billing",
-  "agents",
   "audio",
-  "models",
   "plugins",
+  "skills",
 ];
 
 const LEGACY_TAB_MAP: Record<LegacySettingsTab, SettingsTab> = {
-  chat: "agents",
+  chat: "general",
+  agents: "general",
+  models: "general",
   account: "general",
   plan: "usage",
   recording: "audio",
-  skills: "plugins",
   workspace: "workspaces",
   voice: "audio",
 };
@@ -66,32 +66,12 @@ export interface SettingsSearchSuggestion {
 
 const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
   {
-    id: "chat-mode",
-    tab: "agents",
-    label: "Instructions chat",
-    hint: "Personnaliser le comportement de l'assistant",
-    keywords: "agents chat assistant instructions comportement agent render",
-  },
-  {
-    id: "ai-notes-agent",
-    tab: "agents",
-    label: "Instructions AI Notes",
-    hint: "Personnaliser la prise de notes live",
-    keywords: "agents ai notes transcription instructions appel",
-  },
-  {
-    id: "chat-mode-auto",
-    tab: "agents",
-    label: "Mode assistant",
-    hint: "Bascule automatique Agent / Render",
-    keywords: "chat assistant agent render automatique agents",
-  },
-  {
-    id: "models",
-    tab: "models",
-    label: "Modèle IA",
-    hint: "GPT, Grok, Claude",
-    keywords: "models modèle ia gpt grok claude opus génération",
+    id: "skills",
+    tab: "skills",
+    label: "Skills",
+    hint: "Commandes / utilisables dans le chat",
+    keywords:
+      "skills skill slash manage group handoff meeting mail play calendar gmail outlook onedrive dropbox recap",
   },
   {
     id: "accent-color",
@@ -110,9 +90,9 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
   {
     id: "audio-devices",
     tab: "audio",
-    label: "Audio & Video",
+    label: "Préférences",
     hint: "Micro, sortie, enregistrements et caméra",
-    keywords: "audio video micro microphone haut-parleur sortie écho bruit appel vocal enregistrement camera caméra",
+    keywords: "preferences préférences preference préférence audio video micro microphone haut-parleur sortie écho bruit appel vocal enregistrement camera caméra",
   },
   {
     id: "recording-camera-preview",
@@ -208,8 +188,8 @@ const PLUGIN_SUGGESTIONS: SettingsSearchSuggestion[] = CHAT_CONNECTORS.map((conn
     label: connector.label,
     hint: comingSoon ? "Bientôt disponible" : `Connecteur chat ${connector.slash}`,
     keywords: comingSoon
-      ? `plugins api connecteur ${connector.label} ${connector.slash} ${connector.id} coming soon bientôt disponible`
-      : `plugins api connecteur ${connector.label} ${connector.slash} ${connector.id}`,
+      ? `plugins connectors connecteurs api connecteur ${connector.label} ${connector.slash} ${connector.id} coming soon bientôt disponible`
+      : `plugins connectors connecteurs api connecteur ${connector.label} ${connector.slash} ${connector.id}`,
   };
 });
 

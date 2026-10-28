@@ -75,6 +75,7 @@ try:
     from app.api.billing import router as billing_router
     from app.api.desktop_auth import router as desktop_auth_router
     from app.api.handoffs import router as handoffs_router
+    from app.api.images import router as images_router
     from app.api.transcribe import router as transcribe_router
 
     app.include_router(account_router)
@@ -83,6 +84,7 @@ try:
     app.include_router(desktop_auth_router)
     app.include_router(handoffs_router)
     app.include_router(transcribe_router)
+    app.include_router(images_router)
 except Exception as exc:  # noqa: BLE001 — payments/auth must not take down connectors
     @app.get("/api/boot-extra-error")
     def boot_extra_error():

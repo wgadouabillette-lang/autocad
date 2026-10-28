@@ -98,7 +98,16 @@
     player.addListener("not_ready", ({ device_id }) => {
       if (!device_id || deviceId === device_id) deviceId = null;
     });
-    player.addListener("player_state_changed", (state) => syncPosition(state));
+    let lastVolumeTrackId = "";
+    player.addListener("player_state_changed", (state) => {
+      syncPosition(state);
+      const trackId = state?.track_window?.current_track?.id || "";
+      if (!trackId || trackId === lastVolumeTrackId || !player) return;
+      lastVolumeTrackId = trackId;
+      const saved = window.__hallSpotifyVolume;
+      if (typeof saved !== "number" || !Number.isFinite(saved)) return;
+      void player.setVolume(Math.min(1, Math.max(0, saved))).catch(() => undefined);
+    });
     player.addListener("authentication_error", ({ message }) => {
       post({ event: "error", message: message || "auth" });
     });
@@ -178,6 +187,18 @@
       cachedPositionMs = 0;
       cachedPositionAt = performance.now();
       cachedDurationMs = 0;
+      const saved = window.__hallSpotifyVolume;
+      if (typeof saved === "number" && Number.isFinite(saved)) {
+        const next = Math.min(1, Math.max(0, saved));
+        try {
+          await webPlayer.setVolume(next);
+        } catch {
+          // le morceau suivant réapplique le même niveau
+        }
+        window.setTimeout(() => {
+          void webPlayer.setVolume(next).catch(() => undefined);
+        }, 700);
+      }
       try {
         syncPosition(await webPlayer.getCurrentState());
       } catch {

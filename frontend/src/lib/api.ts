@@ -250,13 +250,34 @@ export const api = {
     return r.json();
   },
 
-  async transcribeChunk(file: Blob, filename = "chunk.webm"): Promise<string> {
+  async transcribeChunk(
+    file: Blob,
+    filename = "chunk.webm",
+    timeoutMs = 8000,
+    hint?: { language?: string; prompt?: string },
+  ): Promise<string> {
     const fd = new FormData();
     fd.append("file", file, filename);
+    const language = hint?.language?.trim();
+    const prompt = hint?.prompt?.trim();
+    if (language) fd.append("language", language);
+    if (prompt) fd.append("prompt", prompt.slice(0, 200));
     const headers: Record<string, string> = {};
     const token = await getAuthIdToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    const r = await fetch(apiPath("/transcribe"), { method: "POST", body: fd, headers });
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+    let r: Response;
+    try {
+      r = await fetch(apiPath("/transcribe"), {
+        method: "POST",
+        body: fd,
+        headers,
+        signal: controller.signal,
+      });
+    } finally {
+      window.clearTimeout(timer);
+    }
     if (!r.ok) throw new Error(await parseApiError(r));
     const payload = (await r.json()) as { text?: unknown };
     return typeof payload.text === "string" ? payload.text.trim() : "";
@@ -275,6 +296,27 @@ export const api = {
     title?: string;
   }): Promise<{ handoffId: string; inboxText: string; title: string; preview: string }> {
     return jsonPost("/handoffs", body);
+  },
+
+  async editPromptImage(
+    file: File,
+    prompt: string,
+    signal?: AbortSignal,
+  ): Promise<{ mime: string; data_b64: string }> {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("prompt", prompt);
+    const headers: Record<string, string> = {};
+    const token = await getAuthIdToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(apiPath("/images/edit"), {
+      method: "POST",
+      headers,
+      body: fd,
+      signal,
+    });
+    if (!response.ok) throw new Error(await parseApiError(response));
+    return response.json() as Promise<{ mime: string; data_b64: string }>;
   },
 
   async importDrawing(

@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { useEffect, useRef } from "react";
-import { Mic } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { resolveCallParticipantVideoDisplay } from "../../lib/callMediaFeeds";
 import { type TheaterParticipant } from "../../lib/theater";
 import { useCallsStore } from "../../store/useCallsStore";
@@ -8,6 +8,7 @@ import { useMiniChatStore } from "../../store/useMiniChatStore";
 import UserAvatar from "../UserAvatar";
 import ParticipantAvatarSignetHost from "./ParticipantAvatarSignetHost";
 import VoiceMuteBadge from "./VoiceMuteBadge";
+import LocalScreenSharePreview from "./LocalScreenSharePreview";
 
 interface TheaterSpeakerCardProps {
   participant: TheaterParticipant;
@@ -18,8 +19,8 @@ interface TheaterSpeakerCardProps {
 export default function TheaterSpeakerCard({
   participant,
   workspaceId,
-  isOwner = false,
 }: TheaterSpeakerCardProps) {
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const speakingByParticipant = useCallsStore((s) => s.speakingByParticipant);
   const cameraOn = useCallsStore((s) => s.cameraOn);
@@ -46,6 +47,7 @@ export default function TheaterSpeakerCard({
     remoteMedia,
   });
   const showVideo = !!videoStream;
+  const showLocalScreen = !!participant.isLocal && screenSharing && videoStream === screenShareStream;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -63,7 +65,9 @@ export default function TheaterSpeakerCard({
         speakingByParticipant[participant.id] && "theater-speaker-card--speaking",
       )}
     >
-      {showVideo ? (
+      {showLocalScreen && screenShareStream ? (
+        <LocalScreenSharePreview stream={screenShareStream} className="theater-speaker-card__media" />
+      ) : showVideo ? (
         <video
           ref={videoRef}
           autoPlay
@@ -85,7 +89,7 @@ export default function TheaterSpeakerCard({
               "theater-speaker-card__avatar--message",
               speakingByParticipant[participant.id] && "call-voice-speaking",
             )}
-            aria-label={`Message à ${participant.name}`}
+            aria-label={t("calls.message", { name: participant.name })}
             onClick={openMessage}
             onKeyDown={(e) => {
               if (e.key !== "Enter" && e.key !== " ") return;
@@ -110,14 +114,6 @@ export default function TheaterSpeakerCard({
 
       <div className="theater-speaker-card__footer">
         <p className="theater-speaker-card__name">{participant.name}</p>
-        <p className="theater-speaker-card__role">
-          <Mic size={11} aria-hidden />
-          {participant.role === "question"
-            ? "Question"
-            : isOwner
-              ? "Propriétaire"
-              : "Intervenant"}
-        </p>
       </div>
 
       {(participant.isLocal ? localMuted : mutedByParticipant[participant.id]) ? (

@@ -32,6 +32,7 @@
         "A collaborative workspace application that helps teams communicate, organize meetings, manage tasks, and connect productivity tools.",
       "hero.cta.start": "Get started",
       "hero.cta.pricing": "View pricing",
+      "hero.cta.demo": "Book a Demo",
       "hero.shots.trio.title": "From conversation to action",
       "hero.shot.main.alt":
         "Meetra preview — main view with voice channels and AI chat",
@@ -50,7 +51,7 @@
       "hero.shot.calendar.alt": "Meetra preview — calendar and connectors",
       "hero.shot.calendar.title": "Calendar & connectors",
       "hero.shot.calendar.desc":
-        "Schedule meetings and connect Gmail, Calendar, Spotify, and more.",
+        "Schedule meetings and connect Calendar, Spotify, Gmail, and Outlook.",
       "hero.shot.notes.alt": "Meetra preview — Starboy playing in the workspace",
       "hero.shot.notes.title": "Spotify integrated",
       "hero.shot.notes.desc":
@@ -191,6 +192,7 @@
         "Une application d'espace de travail collaboratif qui aide les équipes à communiquer, organiser des réunions, gérer des tâches et connecter leurs outils de productivité.",
       "hero.cta.start": "Commencer",
       "hero.cta.pricing": "Voir les tarifs",
+      "hero.cta.demo": "Réserver une démo",
       "hero.shots.trio.title": "From conversation to action",
       "hero.shot.main.alt":
         "Aperçu de Meetra — vue principale avec salons vocaux et chat IA",
@@ -209,7 +211,7 @@
       "hero.shot.calendar.alt": "Meetra preview — calendar and connectors",
       "hero.shot.calendar.title": "Calendar & connectors",
       "hero.shot.calendar.desc":
-        "Schedule meetings and connect Gmail, Calendar, Spotify, and more.",
+        "Planifiez des réunions et connectez Calendar, Spotify, Gmail et Outlook.",
       "hero.shot.notes.alt": "Aperçu Meetra — Starboy en lecture dans l’espace de travail",
       "hero.shot.notes.title": "Spotify intégré",
       "hero.shot.notes.desc":
@@ -352,6 +354,7 @@
       "hero.lead": "Una aplicación de workspace colaborativo que ayuda a los equipos a comunicar, organizar reuniones, gestionar tareas y conectar herramientas.",
       "hero.cta.start": "Empezar",
       "hero.cta.pricing": "Ver precios",
+      "hero.cta.demo": "Reservar una demo",
       "hero.shots.trio.title": "De la conversación a la acción",
       "hero.shot.notes.cta": "Probar Spotify",
       "hero.shot.workspace.cta": "Probar handoff",
@@ -408,6 +411,7 @@
       "hero.lead": "Eine kollaborative Workspace-App, die Teams bei Kommunikation, Meetings, Aufgaben und Tool-Integrationen unterstützt.",
       "hero.cta.start": "Loslegen",
       "hero.cta.pricing": "Preise ansehen",
+      "hero.cta.demo": "Demo buchen",
       "hero.shots.trio.title": "Vom Gespräch zur Aktion",
       "hero.shot.notes.cta": "Spotify ausprobieren",
       "hero.shot.workspace.cta": "Handoff ausprobieren",
@@ -464,6 +468,7 @@
       "hero.lead": "Um aplicativo de workspace colaborativo que ajuda equipes a comunicar, organizar reuniões, gerenciar tarefas e conectar ferramentas.",
       "hero.cta.start": "Começar",
       "hero.cta.pricing": "Ver preços",
+      "hero.cta.demo": "Agendar uma demo",
       "hero.shots.trio.title": "Da conversa à ação",
       "hero.shot.notes.cta": "Experimentar Spotify",
       "hero.shot.workspace.cta": "Experimentar handoff",
@@ -520,6 +525,7 @@
       "hero.lead": "Un'app di workspace collaborativo che aiuta i team a comunicare, organizzare meeting, gestire attività e collegare strumenti.",
       "hero.cta.start": "Inizia",
       "hero.cta.pricing": "Vedi i prezzi",
+      "hero.cta.demo": "Prenota una demo",
       "hero.shots.trio.title": "Dalla conversazione all'azione",
       "hero.shot.notes.cta": "Prova Spotify",
       "hero.shot.workspace.cta": "Prova handoff",
@@ -576,6 +582,7 @@
       "hero.lead": "コミュニケーション、会議、タスク、ツール連携をまとめたコラボレーションワークスペース。",
       "hero.cta.start": "はじめる",
       "hero.cta.pricing": "料金を見る",
+      "hero.cta.demo": "デモを予約",
       "hero.shots.trio.title": "会話からアクションへ",
       "hero.shot.notes.cta": "Spotify を試す",
       "hero.shot.workspace.cta": "handoff を試す",
@@ -632,6 +639,7 @@
       "hero.lead": "帮助团队沟通、安排会议、管理工作并连接生产力工具的协作应用。",
       "hero.cta.start": "开始使用",
       "hero.cta.pricing": "查看价格",
+      "hero.cta.demo": "预约演示",
       "hero.shots.trio.title": "从对话到行动",
       "hero.shot.notes.cta": "试用 Spotify",
       "hero.shot.workspace.cta": "试用 handoff",

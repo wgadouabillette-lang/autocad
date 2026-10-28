@@ -15,16 +15,22 @@
     "openSettings": "Ouvrir les paramètres"
   },
   "settings": {
+    "backToApp": "Retour à l'app",
     "tabs": {
-      "general": "Général",
+      "general": "Account",
       "friends": "Amis",
       "workspaces": "Workspaces",
       "usage": "Forfait & usage",
       "billing": "Facturation",
       "agents": "Agents",
-      "audio": "Audio & vidéo",
+      "audio": "Préférences",
       "models": "Modèles",
-      "plugins": "Plugins"
+      "plugins": "Connectors",
+      "skills": "Skills"
+    },
+    "groups": {
+      "personal": "Personnel",
+      "workspace": "Workspace"
     },
     "descriptions": {
       "friends": "Amis et invitations.",
@@ -33,7 +39,8 @@
       "billing": "Forfait actuel et date de prochain prélèvement.",
       "agents": "Personnalisation du chat et des AI Notes.",
       "models": "Choix du modèle IA pour la génération.",
-      "plugins": "Connecteurs utilisables dans le chat."
+      "plugins": "Connecteurs utilisables dans le chat.",
+      "skills": "Commandes / utilisables dans le chat."
     },
     "language": {
       "title": "Langue",
@@ -106,8 +113,8 @@
       "workspaceAiNotes": "AI Notes workspace",
       "centralizedBilling": "Facturation centralisée"
     },
-    "ownedLimitPro": "Serveurs personnels illimités avec Pro.",
-    "ownedLimitFree": "Jusqu'à {{limit}} serveurs personnels sur le plan gratuit. Passez à Pro pour en créer davantage.",
+    "ownedLimitPro": "Workspaces personnels illimités avec Pro.",
+    "ownedLimitFree": "Jusqu'à {{limit}} workspaces personnels sur le plan gratuit. Passez à Pro pour en créer davantage.",
     "planFree": "Gratuit",
     "planPro": "Pro"
   },
@@ -117,6 +124,9 @@
     "messages": "Messages",
     "typeMessage": "Écrire un message…",
     "send": "Envoyer",
+    "dictate": "Dicter dans le prompt",
+    "dictateStop": "Arrêter la dictée",
+    "dictateWorking": "Transcription…",
     "notesPromoTitle": "Notes automatiques",
     "notesPromoBody": "Passez à Pro pour des notes automatiques avec l'Assistance IA.",
     "notesPromoCta": "Passer à Pro",
@@ -155,7 +165,7 @@
     "writeIn": "Écrire dans {{name}}…",
     "applyToCalendar": "Appliquer au calendrier",
     "appliedToCalendar": "Appliqué au calendrier",
-    "messagesBadge": "Messages, {{count}} notifications",
+    "messagesBadge": "Messages, {{count}} à la réception",
     "categories": {
       "friends": "Amis",
       "friendsEmpty": "Pas encore d'amis. Ajoutez-en par e-mail dans les réglages.",
@@ -175,6 +185,14 @@
       "unavailable": "Indisponible",
       "notConfigured": "Non configuré sur le serveur",
       "oauthMissing": "Ajoutez les clés OAuth dans backend/.env",
+      "describe": {
+        "calendar": "Lit l’agenda Google du jour et y ajoute les réunions planifiées dans le chat.",
+        "spotify": "Joue Spotify dans Meetra, y compris le Meetra DJ.",
+        "gmail": "Envoie un email et joint les messages Gmail récents au prompt.",
+        "outlook": "Joint les emails Outlook récents au prompt.",
+        "onedrive": "Retrouve un fichier OneDrive et l’ajoute au prompt, sans le modifier.",
+        "dropbox": "Retrouve un fichier Dropbox et l’ajoute au prompt, sans le modifier."
+      },
       "signInToLink": "Connectez-vous pour lier un connecteur",
       "insertSlash": "Insérer {{slash}}",
       "use": "utiliser"
@@ -189,6 +207,22 @@
     "raiseHand": "Lever la main",
     "micMuted": "Micro coupé",
     "connecting": "Connexion…",
-    "inCall": "En appel"
+    "inCall": "En appel",
+    "speaker": "Intervenant",
+    "owner": "Propriétaire",
+    "question": "Question",
+    "audienceMember": "Spectateur",
+    "speakers": "Intervenants",
+    "audience": "Spectateurs",
+    "bench": "Banc {{n}}",
+    "sitHere": "S'installer ici",
+    "message": "Message à {{name}}",
+    "stageActions": "Actions scène",
+    "goOnStage": "Monter sur scène",
+    "goOnStageTitle": "Monter sur scène en tant qu'intervenant",
+    "backstage": "Retour coulisses",
+    "backstageTitle": "Retour coulisses",
+    "askInChat": "Question au chat",
+    "askInChatTitle": "Poser une question dans le chat du théâtre"
   }
 }

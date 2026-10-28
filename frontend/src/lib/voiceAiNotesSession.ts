@@ -34,17 +34,63 @@ function getRecognitionCtor(): (new () => SpeechRecognition) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-function pickRecorderMime(): string {
-  if (typeof MediaRecorder === "undefined") return "";
-  if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) return "audio/webm;codecs=opus";
-  if (MediaRecorder.isTypeSupported("audio/webm")) return "audio/webm";
-  if (MediaRecorder.isTypeSupported("audio/mp4")) return "audio/mp4";
-  return "";
+function pickRecorderMimeCandidates(): string[] {
+  if (typeof MediaRecorder === "undefined") return [];
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/aac",
+  ];
+  return candidates.filter((mime) => {
+    try {
+      return MediaRecorder.isTypeSupported(mime);
+    } catch {
+      return false;
+    }
+  });
 }
 
-function createRecorder(stream: MediaStream): MediaRecorder {
-  const mimeType = pickRecorderMime();
+function audioOnlyLiveStream(stream: MediaStream): MediaStream {
+  const tracks = stream
+    .getAudioTracks()
+    .filter((track) => track.readyState === "live")
+    .map((track) => track.clone());
+  if (tracks.length === 0) {
+    throw new Error("Micro inaccessible.");
+  }
+  return new MediaStream(tracks);
+}
+
+function createRecorder(stream: MediaStream, mimeType?: string): MediaRecorder {
   return mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+}
+
+function startRecorder(stream: MediaStream, timesliceMs: number): MediaRecorder {
+  const mimes = [...pickRecorderMimeCandidates(), ""];
+  let lastError: unknown = null;
+  for (const mime of mimes) {
+    try {
+      const recorder = createRecorder(stream, mime || undefined);
+      recorder.start(timesliceMs);
+      return recorder;
+    } catch (error) {
+      lastError = error;
+      // audio/mp4 + timeslice is flaky on some Chromium builds — retry without timeslice.
+      if (mime.startsWith("audio/mp4")) {
+        try {
+          const recorder = createRecorder(stream, mime);
+          recorder.start();
+          return recorder;
+        } catch (inner) {
+          lastError = inner;
+        }
+      }
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Impossible de démarrer l'enregistrement audio.");
 }
 
 export function isVoiceNotesSupported(): boolean {
@@ -58,7 +104,7 @@ function prefersServerStt(): boolean {
 }
 
 function cloneAudioStream(stream: MediaStream): MediaStream {
-  return new MediaStream(stream.getAudioTracks().map((track) => track.clone()));
+  return audioOnlyLiveStream(stream);
 }
 
 function stopClonedSliceStream() {
@@ -123,7 +169,15 @@ function stopSliceRecorder() {
 function startServerStt(stream: MediaStream) {
   const beginSlice = () => {
     if (!running) return;
-    const rec = createRecorder(stream);
+    let rec: MediaRecorder;
+    try {
+      rec = startRecorder(stream, 250);
+    } catch (error) {
+      errorListener?.(
+        error instanceof Error ? error.message : "Impossible de démarrer l'enregistrement audio.",
+      );
+      return;
+    }
     sliceRecorder = rec;
     const chunks: Blob[] = [];
     rec.ondataavailable = (event) => {
@@ -146,7 +200,6 @@ function startServerStt(stream: MediaStream) {
       }
       if (running) beginSlice();
     };
-    rec.start(250);
     sliceTimer = window.setTimeout(() => {
       sliceTimer = null;
       if (rec.state === "recording") {
@@ -229,6 +282,10 @@ export async function startVoiceNotesSession(
   const stream = getLocalMediaStream();
   if (!stream) throw new Error("Micro inaccessible.");
 
+  // Never feed the shared A/V call stream into MediaRecorder — Mac Chromium
+  // rejects audio mimeTypes when video tracks are present (camera on).
+  const recordStream = audioOnlyLiveStream(stream);
+
   transcriptListener = onTranscript;
   errorListener = onError;
   startedAt = Date.now();
@@ -236,11 +293,19 @@ export async function startVoiceNotesSession(
   running = true;
   sliceEpoch = 0;
 
-  recorder = createRecorder(stream);
+  recorder = startRecorder(recordStream, 1000);
   recorder.ondataavailable = (event) => {
     if (event.data.size > 0) audioChunks.push(event.data);
   };
-  recorder.start(1000);
+  recorder.addEventListener("stop", () => {
+    recordStream.getTracks().forEach((track) => {
+      try {
+        track.stop();
+      } catch {
+        /* ignore */
+      }
+    });
+  });
 
   if (prefersServerStt()) {
     stopClonedSliceStream();

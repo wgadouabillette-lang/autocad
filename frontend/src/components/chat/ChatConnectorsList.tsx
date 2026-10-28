@@ -7,7 +7,6 @@ import {
   type ChatConnectorId,
 } from "./chatConnectors";
 import type { ConnectorStatus } from "../../lib/connectorsApi";
-import SpotifyPluginSettingsExpand from "../settings/SpotifyPluginSettingsExpand";
 
 export default function ChatConnectorsList({
   statuses,
@@ -78,7 +77,6 @@ export default function ChatConnectorsList({
         const configured = status?.configured ?? false;
         const connecting = connectingId === id;
         const comingSoon = isConnectorComingSoon(id);
-        const accountLabel = status?.accountLabel;
         const rowMain = (
           <div className="chat-connectors-row__main">
             <span className="chat-connectors-row__icon">
@@ -86,14 +84,11 @@ export default function ChatConnectorsList({
             </span>
             <span className="chat-connectors-row__label-wrap">
               <span className="chat-connectors-row__label">{label}</span>
-              {connected && accountLabel && (
-                <span className="chat-connectors-row__meta">{accountLabel}</span>
+              {isSettings && (
+                <span className="chat-connectors-row__desc">{t(`chat.connectors.describe.${id}`)}</span>
               )}
               {comingSoon && (
                 <span className="chat-connectors-row__meta">{t("chat.connectors.comingSoon")}</span>
-              )}
-              {!comingSoon && !configured && isSettings && statusesFromApi && (
-                <span className="chat-connectors-row__meta">{t("chat.connectors.notConfigured")}</span>
               )}
             </span>
           </div>
@@ -158,36 +153,17 @@ export default function ChatConnectorsList({
           </button>
         );
 
-        const spotifySettingsExpanded = isSettings && id === "spotify" && connected;
         return (
           <div
             key={id}
             role="listitem"
-            className={
-              spotifySettingsExpanded
-                ? "chat-connectors-row chat-connectors-row--spotify-expanded"
-                : "chat-connectors-row"
-            }
+            className="chat-connectors-row"
             style={
               isSettings ? undefined : { animationDelay: `${(items.length - 1 - index) * 55}ms` }
             }
           >
-            {spotifySettingsExpanded ? (
-              <>
-                <div className="chat-connectors-row__header">
-                  {rowMain}
-                  {rowActions}
-                </div>
-                <div className="chat-connectors-row__expand">
-                  <SpotifyPluginSettingsExpand />
-                </div>
-              </>
-            ) : (
-              <>
-                {rowMain}
-                {rowActions}
-              </>
-            )}
+            {rowMain}
+            {rowActions}
           </div>
         );
       })}

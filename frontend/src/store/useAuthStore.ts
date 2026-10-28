@@ -49,7 +49,7 @@ import { normalizeHallDjGenre } from "../lib/hallDjGenres";
 import { applyDocumentAccentColor, normalizeAccentColorPreference } from "../lib/accentColor";
 import { applyDocumentTheme, normalizeColorThemePreference } from "../lib/theme";
 import type { AiModel } from "../lib/aiModels";
-import { isValidAiModel } from "../lib/aiModels";
+import { isValidAiModel, normalizeAiNotesModel } from "../lib/aiModels";
 import { isLegacyPublicWorkspaceId } from "../lib/workspaces";
 import { resolveActiveWorkspaceId } from "../lib/lastActiveWorkspace";
 import { useStore, type AutosavePayload } from "./useStore";
@@ -123,8 +123,6 @@ function displayNameFromUser(user: User): string {
 function providerFromUser(user: User): AuthProvider | null {
   const providerId = user.providerData[0]?.providerId;
   if (providerId === "google.com") return "google";
-  if (providerId === "microsoft.com") return "microsoft";
-  if (providerId === "facebook.com") return "facebook";
   return null;
 }
 
@@ -213,7 +211,12 @@ function applyLocalProfile(profile: UserProfileDoc) {
     hallDjPreferredGenre: normalizeHallDjGenre(
       profile.hallDjPreferredGenre ?? currentState.hallDjPreferredGenre,
     ),
+    hallDjVolume:
+      typeof profile.hallDjVolume === "number"
+        ? normalizeHallDjVolume(profile.hallDjVolume)
+        : currentState.hallDjVolume,
     aiModel: isAiModel(profile.aiModel) ? profile.aiModel : useStore.getState().aiModel,
+    aiNotesModel: normalizeAiNotesModel(profile.aiNotesModel),
   });
   applyDocumentAccentColor(
     normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
@@ -250,7 +253,11 @@ function applyLocalProfile(profile: UserProfileDoc) {
     hallDjPreferredGenre: normalizeHallDjGenre(
       profile.hallDjPreferredGenre ?? currentState.hallDjPreferredGenre,
     ),
-    hallDjVolume: normalizeHallDjVolume(profile.hallDjVolume),
+    hallDjVolume:
+      typeof profile.hallDjVolume === "number"
+        ? normalizeHallDjVolume(profile.hallDjVolume)
+        : currentState.hallDjVolume,
+    aiNotesModel: normalizeAiNotesModel(profile.aiNotesModel),
   });
   useCallsStore.getState().syncLocalParticipantProfile({
     photoURL: profile.photoURL ?? null,
@@ -288,6 +295,7 @@ function profileFromStore(user: User): UserProfileDoc {
     availabilityDays: normalizeAvailabilityDays(state.availabilityDays),
     hallDjPreferredGenre: state.hallDjPreferredGenre,
     hallDjVolume: normalizeHallDjVolume((state as { hallDjVolume?: number }).hallDjVolume),
+    aiNotesModel: normalizeAiNotesModel(state.aiNotesModel),
   };
   return profile;
 }
@@ -322,6 +330,7 @@ function profileSyncKey(profile: UserProfileDoc): string {
     calendarWorkEndMinutes: profile.calendarWorkEndMinutes ?? null,
     availabilityDays: normalizeAvailabilityDays(profile.availabilityDays),
     aiModel: profile.aiModel ?? null,
+    aiNotesModel: profile.aiNotesModel ?? null,
   });
 }
 
@@ -972,5 +981,6 @@ export function currentUserPreferencesSnapshot(): UserPreferences {
     availabilityDays: normalizeAvailabilityDays(state.availabilityDays),
     hallDjPreferredGenre: state.hallDjPreferredGenre,
     hallDjVolume: normalizeHallDjVolume((state as { hallDjVolume?: number }).hallDjVolume),
+    aiNotesModel: normalizeAiNotesModel(state.aiNotesModel),
   };
 }

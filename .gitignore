@@ -22,6 +22,8 @@ functions/lib/
 desktop/node_modules/
 desktop/.npm-cache/
 desktop/.electron-cache/
+desktop/.electron-dev-userdata/
+node_modules/
 desktop/build-resources/
 desktop/release/
 landing/downloads/*.dmg

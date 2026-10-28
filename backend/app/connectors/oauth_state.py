@@ -28,6 +28,7 @@ def _state_secret() -> bytes:
         "SPOTIFY_CLIENT_SECRET",
         "GOOGLE_CLIENT_SECRET",
         "MICROSOFT_OAUTH_CLIENT_SECRET",
+        "DROPBOX_CLIENT_SECRET",
     ):
         raw = (os.getenv(key) or "").strip()
         if raw:

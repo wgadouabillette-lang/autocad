@@ -38,6 +38,7 @@ export default function UserAvatar({
         key={photoURL}
         src={photoURL}
         alt=""
+        referrerPolicy="no-referrer"
         className={clsx("user-avatar", shapeClass, className)}
         onError={() => setImageFailed(true)}
         {...(rest as HTMLAttributes<HTMLImageElement>)}

@@ -76,7 +76,7 @@ export default function ChatPanelModeTabs() {
   };
 
   return (
-    <div className="chat-panel-mode-tabs">
+    <div className={clsx("chat-panel-mode-tabs", tabs.length <= 4 && "chat-panel-mode-tabs--centered")}>
       <div className="chat-panel-mode-tabs__fade-wrap">
         {fadeRight && (
           <div className="chat-panel-mode-tabs__fade chat-panel-mode-tabs__fade--right" aria-hidden />

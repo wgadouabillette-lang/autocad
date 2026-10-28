@@ -66,7 +66,6 @@ export function BottomBarButton({
   badge,
   segment,
   signetAlign = "center",
-  showSignet = true,
   className,
   children,
 }: {
@@ -82,8 +81,6 @@ export function BottomBarButton({
   segment?: SegmentRole;
   /** Décale le signet vers le centre de l'écran pour éviter le clipping aux bords. */
   signetAlign?: SignetAlign;
-  /** Tooltip signet au survol — désactiver si un contrôle flottant est juste au-dessus. */
-  showSignet?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -93,7 +90,7 @@ export function BottomBarButton({
       data-segment={segment}
       className={clsx(
         "bottom-bar-btn",
-        showSignet && signetHostClassName(signetAlign),
+        signetHostClassName(signetAlign),
         active && "is-active",
         danger && "is-danger",
         recording && "is-recording",
@@ -105,10 +102,9 @@ export function BottomBarButton({
       onFocus={onFocus}
       disabled={disabled}
       aria-label={label}
-      title={!showSignet ? label : undefined}
       aria-pressed={active}
     >
-      {showSignet ? <ChromeSignetLabel label={label} placement="above" /> : null}
+      <ChromeSignetLabel label={label} placement="above" />
       {children}
       {badge != null && badge > 0 && <span className="forma-unread-dot" aria-hidden />}
     </button>

@@ -42,6 +42,11 @@ export function isMarketingPreview(): boolean {
   return window.__LYTE_MARKETING_PREVIEW__ === true;
 }
 
+/** Landing preview copy stays English. The app keeps its own labels. */
+export function landingLabel(english: string, french: string): string {
+  return isMarketingPreview() ? english : french;
+}
+
 export function parseMarketingPreviewNavAction(data: unknown): MarketingPreviewNavAction | null {
   if (!data || typeof data !== "object") return null;
   const payload = data as { type?: unknown; action?: unknown };

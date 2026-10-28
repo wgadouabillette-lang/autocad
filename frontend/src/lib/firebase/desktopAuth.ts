@@ -1,7 +1,5 @@
 import {
   GoogleAuthProvider,
-  FacebookAuthProvider,
-  OAuthProvider,
   signInWithCredential,
   signInWithCustomToken,
   type AuthCredential,
@@ -176,34 +174,7 @@ export function oauthPayloadFromResult(
   provider: FirebaseAuthProvider,
   result: UserCredential,
 ): DesktopAuthOAuthPayload {
-  if (provider === "google") {
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    const idToken = credential?.idToken ?? undefined;
-    const accessToken = credential?.accessToken ?? undefined;
-    if (!idToken) {
-      throw new Error("Jeton OAuth introuvable après connexion.");
-    }
-    return {
-      provider,
-      idToken,
-      accessToken: accessToken || undefined,
-    };
-  }
-
-  if (provider === "facebook") {
-    const credential = FacebookAuthProvider.credentialFromResult(result);
-    const accessToken = credential?.accessToken ?? undefined;
-    if (!accessToken) {
-      throw new Error("Jeton OAuth introuvable après connexion.");
-    }
-    return {
-      provider,
-      idToken: accessToken,
-      accessToken,
-    };
-  }
-
-  const credential = OAuthProvider.credentialFromResult(result);
+  const credential = GoogleAuthProvider.credentialFromResult(result);
   const idToken = credential?.idToken ?? undefined;
   const accessToken = credential?.accessToken ?? undefined;
   if (!idToken) {
@@ -217,16 +188,7 @@ export function oauthPayloadFromResult(
 }
 
 function oauthCredentialFromPayload(payload: DesktopAuthOAuthPayload): AuthCredential {
-  if (payload.provider === "google") {
-    return GoogleAuthProvider.credential(payload.idToken || null, payload.accessToken);
-  }
-  if (payload.provider === "facebook") {
-    return FacebookAuthProvider.credential(payload.accessToken ?? payload.idToken);
-  }
-  return new OAuthProvider("microsoft.com").credential({
-    idToken: payload.idToken,
-    accessToken: payload.accessToken,
-  });
+  return GoogleAuthProvider.credential(payload.idToken || null, payload.accessToken);
 }
 
 async function openExternalAuthUrl(url: string): Promise<void> {
@@ -260,12 +222,16 @@ async function completeDesktopAuthSessionViaFirestore(
   sessionId: string,
   payload: DesktopAuthOAuthPayload,
 ): Promise<void> {
-  await setDoc(doc(db, "desktopAuthSessions", sessionId), {
-    provider: payload.provider,
-    idToken: payload.idToken,
-    accessToken: payload.accessToken ?? null,
-    createdAt: serverTimestamp(),
-  });
+  await setDoc(
+    doc(db, "desktopAuthSessions", sessionId),
+    {
+      provider: payload.provider,
+      idToken: payload.idToken,
+      accessToken: payload.accessToken ?? null,
+      createdAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
 }
 
 async function completeDesktopAuthSessionViaFunctions(sessionId: string): Promise<void> {
@@ -312,10 +278,7 @@ function completionFromSessionFields(data: DesktopAuthSessionFields): DesktopAut
   const provider = data.provider;
   const idToken = typeof data.idToken === "string" ? data.idToken : "";
   const accessToken = typeof data.accessToken === "string" ? data.accessToken : undefined;
-  if (
-    (provider === "google" || provider === "microsoft" || provider === "facebook") &&
-    (idToken || (provider === "google" && accessToken))
-  ) {
+  if (provider === "google" && (idToken || accessToken)) {
     return {
       kind: "oauth",
       payload: {
@@ -329,13 +292,41 @@ function completionFromSessionFields(data: DesktopAuthSessionFields): DesktopAut
   return null;
 }
 
+function createClaimSecret(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function startDesktopAuthSession(sessionId: string, claimSecret: string): Promise<void> {
+  const response = await fetch(apiUrl("/api/auth/desktop/start"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, claimSecret }),
+  });
+  if (!response.ok) {
+    throw new Error("Impossible de démarrer la connexion bureau.");
+  }
+}
+
+function fatalClaimStatus(status: number): boolean {
+  return status === 403 || status === 410;
+}
+
 async function claimDesktopAuthSessionViaBackend(
   sessionId: string,
+  claimSecret: string,
   signal?: AbortSignal,
 ): Promise<DesktopAuthCompletion | null> {
-  const response = await fetch(apiUrl(`/api/auth/desktop/claim?sessionId=${encodeURIComponent(sessionId)}`), {
+  const response = await fetch(apiUrl("/api/auth/desktop/claim"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     signal,
+    body: JSON.stringify({ sessionId, claimSecret }),
   });
+  if (fatalClaimStatus(response.status)) {
+    throw new Error("Connexion bureau refusée.");
+  }
   if (!response.ok) return null;
   const data = (await response.json()) as DesktopAuthSessionFields & { status?: string };
   if (data.status !== "ready") return null;
@@ -344,9 +335,10 @@ async function claimDesktopAuthSessionViaBackend(
 
 async function claimDesktopAuthSessionViaFunctions(
   sessionId: string,
+  claimSecret: string,
 ): Promise<DesktopAuthCompletion | null> {
   const callable = httpsCallable(functions, "claimDesktopAuthSession");
-  const result = await callable({ sessionId });
+  const result = await callable({ sessionId, claimSecret });
   const data = result.data as DesktopAuthSessionFields & { status?: string };
   if (data.status !== "ready") return null;
   return completionFromSessionFields(data);
@@ -357,8 +349,16 @@ function logClaimFailure(channel: string, error: unknown): void {
   console.info("[desktop-auth] claim failed", channel, message);
 }
 
+function isFatalClaimError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.message === "Connexion bureau refusée.") return true;
+  const code = "code" in error ? String((error as { code?: unknown }).code) : "";
+  return code.includes("permission-denied") || code.includes("deadline-exceeded");
+}
+
 async function pollDesktopAuthSession(
   sessionId: string,
+  claimSecret: string,
   signal: AbortSignal,
 ): Promise<DesktopAuthCompletion> {
   const started = Date.now();
@@ -366,8 +366,9 @@ async function pollDesktopAuthSession(
   while (Date.now() - started < POLL_TIMEOUT_MS) {
     throwIfAborted(signal);
 
-    const backendResult = await claimDesktopAuthSessionViaBackend(sessionId, signal).catch(
+    const backendResult = await claimDesktopAuthSessionViaBackend(sessionId, claimSecret, signal).catch(
       (error) => {
+        if (isFatalClaimError(error)) throw error;
         logClaimFailure("backend", error);
         return null;
       },
@@ -378,10 +379,13 @@ async function pollDesktopAuthSession(
     }
 
     throwIfAborted(signal);
-    const functionsResult = await claimDesktopAuthSessionViaFunctions(sessionId).catch((error) => {
-      logClaimFailure("function", error);
-      return null;
-    });
+    const functionsResult = await claimDesktopAuthSessionViaFunctions(sessionId, claimSecret).catch(
+      (error) => {
+        if (isFatalClaimError(error)) throw error;
+        logClaimFailure("function", error);
+        return null;
+      },
+    );
     if (functionsResult) {
       console.info("[desktop-auth] claimed session via function");
       return functionsResult;
@@ -426,6 +430,8 @@ export function cancelDesktopWebAuth(): void {
 export async function signInViaDesktopWebAuth(onSessionReady?: () => void): Promise<void> {
   activeDesktopWebAuth?.controller.abort();
   const sessionId = crypto.randomUUID();
+  const claimSecret = createClaimSecret();
+  await startDesktopAuthSession(sessionId, claimSecret);
   const url = buildDesktopWebAuthUrl(sessionId);
   const controller = new AbortController();
   activeDesktopWebAuth = { url, controller };
@@ -433,7 +439,7 @@ export async function signInViaDesktopWebAuth(onSessionReady?: () => void): Prom
     console.info("[desktop-auth] waiting for session", sessionId);
     await openExternalAuthUrl(url);
     throwIfAborted(controller.signal);
-    const completion = await pollDesktopAuthSession(sessionId, controller.signal);
+    const completion = await pollDesktopAuthSession(sessionId, claimSecret, controller.signal);
     onSessionReady?.();
     await applyDesktopAuthCompletion(completion);
     clearDesktopAuthAccountChoiceRequired();

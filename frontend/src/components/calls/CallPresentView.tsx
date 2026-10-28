@@ -13,6 +13,7 @@ import { participantVideoStream } from "../../lib/webrtc/workspaceVoiceRtc";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 import VoiceMuteBadge from "./VoiceMuteBadge";
+import LocalScreenSharePreview from "./LocalScreenSharePreview";
 
 interface CallPresentViewProps {
   blocks: CallBlock[];
@@ -47,16 +48,12 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
   useEffect(() => {
     const video = primaryVideoRef.current;
     if (!video) return;
-    if (showScreen) {
-      video.srcObject = screenShareStream;
-      return;
-    }
     if (showCamera) {
       video.srcObject = localStream;
       return;
     }
     video.srcObject = null;
-  }, [showScreen, showCamera, screenShareStream, localStream]);
+  }, [showCamera, localStream]);
 
   useEffect(() => {
     const video = partnerVideoRef.current;
@@ -75,7 +72,12 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
           speakingByParticipant.local && "call-present-tile--speaking",
         )}
       >
-        {showScreen || showCamera ? (
+        {showScreen && screenShareStream ? (
+          <LocalScreenSharePreview
+            stream={screenShareStream}
+            className="call-present-tile__media"
+          />
+        ) : showCamera ? (
           <video
             ref={primaryVideoRef}
             autoPlay

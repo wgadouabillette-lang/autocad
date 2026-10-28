@@ -18,13 +18,33 @@ import WorkspaceIcon from "./WorkspaceIcon";
 type OverlayView = "list" | "create" | "join";
 
 const PANEL_GAP_PX = 8;
+const PANEL_EDGE_GAP_PX = 8;
+const PANEL_WIDTH_REM = 16.5;
+
+function contentColumnRect(): DOMRect | null {
+  const main = document.querySelector(".app-layout__main");
+  if (!(main instanceof HTMLElement)) return null;
+  const rect = main.getBoundingClientRect();
+  if (rect.width < 48) return null;
+  return rect;
+}
 
 function panelStyleFromAnchor(anchor: HTMLElement | null): CSSProperties | undefined {
   if (!anchor) return undefined;
   const rect = anchor.getBoundingClientRect();
+  const rootFont = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const column = contentColumnRect();
+  const minLeft = (column?.left ?? PANEL_EDGE_GAP_PX) + PANEL_EDGE_GAP_PX;
+  const maxRight = (column?.right ?? window.innerWidth - PANEL_EDGE_GAP_PX) - PANEL_EDGE_GAP_PX;
+  const available = Math.max(160, maxRight - minLeft);
+  const width = Math.min(PANEL_WIDTH_REM * rootFont, available);
+  let left = rect.left;
+  if (left + width > maxRight) left = maxRight - width;
+  if (left < minLeft) left = minLeft;
   return {
-    left: Math.round(rect.left),
+    left: Math.round(left),
     top: Math.round(rect.bottom + PANEL_GAP_PX),
+    width: Math.round(width),
   };
 }
 
@@ -144,9 +164,13 @@ export default function WorkspaceOverlay() {
     if (!panelOpen) return;
     const update = () => setPanelStyle(panelStyleFromAnchor(anchorEl));
     update();
+    const column = document.querySelector(".app-layout__main");
+    const observer = column instanceof HTMLElement ? new ResizeObserver(update) : null;
+    if (column instanceof HTMLElement) observer?.observe(column);
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
     return () => {
+      observer?.disconnect();
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
@@ -248,7 +272,7 @@ export default function WorkspaceOverlay() {
     roleIn(activeRoomId, ownerUserId) === "owner" && incomingJoinRequests.length > 0;
 
   return createPortal(
-    <div className="workspace-edge-overlay" role="dialog" aria-modal="true" aria-label="Choisir un serveur">
+    <div className="workspace-edge-overlay" role="dialog" aria-modal="true" aria-label="Choisir un workspace">
       <div className="workspace-edge-overlay__backdrop" aria-hidden />
       <div
         ref={cardRef}
@@ -267,7 +291,7 @@ export default function WorkspaceOverlay() {
         {view === "list" ? (
           <>
             <header className="workspace-edge-overlay__header">
-              <h2 className="workspace-edge-overlay__title">Serveurs</h2>
+              <h2 className="workspace-edge-overlay__title">Workspaces</h2>
             </header>
 
             <div className="workspace-edge-overlay__scroll">
@@ -289,7 +313,7 @@ export default function WorkspaceOverlay() {
                 </ul>
               ) : (
                 <p className="workspace-edge-overlay__empty">
-                  Vous n'avez encore rejoint aucun serveur.
+                  Vous n'avez encore rejoint aucun workspace.
                 </p>
               )}
 
@@ -346,7 +370,7 @@ export default function WorkspaceOverlay() {
                 type="button"
                 className="workspace-edge-overlay__cta workspace-edge-overlay__cta--secondary"
                 onClick={() => setView("join")}
-                aria-label="Rejoindre un serveur"
+                aria-label="Rejoindre un workspace"
               >
                 <UsersRound size={16} aria-hidden />
                 Rejoindre
@@ -355,7 +379,7 @@ export default function WorkspaceOverlay() {
                 type="button"
                 className="workspace-edge-overlay__cta workspace-edge-overlay__cta--primary"
                 onClick={() => setView("create")}
-                aria-label="Créer un serveur"
+                aria-label="Créer un workspace"
               >
                 <Plus size={16} aria-hidden />
                 Créer
@@ -374,7 +398,7 @@ export default function WorkspaceOverlay() {
                 Retour
               </button>
               <h2 className="workspace-edge-overlay__title">
-                {view === "create" ? "Créer un serveur" : "Rejoindre un serveur"}
+                {view === "create" ? "Créer un workspace" : "Rejoindre un workspace"}
               </h2>
             </header>
 
@@ -385,7 +409,7 @@ export default function WorkspaceOverlay() {
                     id="workspace-create-name"
                     type="text"
                     className="workspace-edge-overlay__input"
-                    placeholder="Nom du serveur…"
+                    placeholder="Nom du workspace…"
                     value={draftName}
                     disabled={!canCreate}
                     autoFocus
@@ -418,7 +442,7 @@ export default function WorkspaceOverlay() {
                     disabled={!canCreate || !draftName.trim()}
                   >
                     <Plus size={16} aria-hidden />
-                    Créer le serveur
+                    Créer le workspace
                   </button>
                 </form>
               ) : (
@@ -429,7 +453,7 @@ export default function WorkspaceOverlay() {
                   <input
                     type="text"
                     className="workspace-edge-overlay__input"
-                    placeholder="Lien ou identifiant du serveur…"
+                    placeholder="Lien ou identifiant du workspace…"
                     value={joinId}
                     disabled={joinBusy}
                     autoFocus

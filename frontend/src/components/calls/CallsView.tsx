@@ -14,7 +14,6 @@ import {
 } from "../../lib/calls";
 import { createTheaterState } from "../../lib/theater";
 import { debugLog } from "../../lib/debugLog";
-import HandRaiseOverlay from "./HandRaiseOverlay";
 import MiniChatPopover from "../messages/MiniChatPopover";
 import OpenVoiceInCallView from "./OpenVoiceInCallView";
 import TheaterView from "./TheaterView";
@@ -170,7 +169,6 @@ export default function CallsView() {
             </div>
           )}
 
-          {viewMode === "theater" && <HandRaiseOverlay theater={theaterState} />}
           <MiniChatPopover />
         </>
       ) : null}

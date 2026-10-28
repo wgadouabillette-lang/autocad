@@ -154,18 +154,22 @@ async function fetchRandomDjTracks(genre: string): Promise<SpotifyTrackCard[]> {
 export async function buildHallDjBatch(preferredGenre: string): Promise<SpotifyTrackCard[]> {
   const seedGenre = resolveSeedGenre(preferredGenre);
   const blocked = hallDjBlockedTrackIds();
+  // Pop keeps the personalized mix. Any other style must not be filled with it.
+  const genreLocked = seedGenre !== DEFAULT_HALL_DJ_GENRE;
 
-  const localPopular = hallDjPopularTracksLast7Days(12);
+  const localPopular = genreLocked ? [] : hallDjPopularTracksLast7Days(12);
   let popular = localPopular;
-  try {
-    const recent = await fetchSpotifyRecentlyPlayed(50);
-    popular = mergeSpotifyRecentPlays(localPopular, recent);
-  } catch {
-    // Local history still works when Spotify recently-played scope is missing.
+  if (!genreLocked) {
+    try {
+      const recent = await fetchSpotifyRecentlyPlayed(50);
+      popular = mergeSpotifyRecentPlays(localPopular, recent);
+    } catch {
+      // Local history still works when Spotify recently-played scope is missing.
+    }
   }
 
-  const replays = pickReplays(popular);
-  const seedTracks = seedTrackIds(popular);
+  const replays = genreLocked ? [] : pickReplays(popular);
+  const seedTracks = genreLocked ? [] : seedTrackIds(popular);
 
   const discoveryPools: SpotifyTrackCard[] = [];
 

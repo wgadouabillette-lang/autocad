@@ -58,7 +58,7 @@ export function useSpotifyTrackProgress(): SpotifyTrackProgress {
         ? trackDurationMs / 1000
         : 0;
     setDurationSec(seeded);
-    seedSpotifyPlaybackDurationMs(trackDurationMs);
+    seedSpotifyPlaybackDurationMs(trackDurationMs, currentTrackId);
 
     let cancelled = false;
 
@@ -80,17 +80,19 @@ export function useSpotifyTrackProgress(): SpotifyTrackProgress {
       }
 
       if (playbackMode === "full") {
-        seedSpotifyPlaybackDurationMs(trackDurationMs);
+        seedSpotifyPlaybackDurationMs(trackDurationMs, currentTrackId);
         const position = await getSpotifyPlaybackPositionSec();
         if (!cancelled && position !== null) {
           setElapsedSec(position);
         }
-        const duration = getSpotifyPlaybackDurationSecSync();
+        // This song's metadata is the bar's length. A leftover SDK duration
+        // from the previous track must not stretch or shrink it.
         if (!cancelled) {
-          if (duration !== null && duration > 0) {
-            setDurationSec(duration);
-          } else if (seeded > 0) {
+          if (seeded > 0) {
             setDurationSec(seeded);
+          } else {
+            const duration = getSpotifyPlaybackDurationSecSync();
+            if (duration !== null && duration > 0) setDurationSec(duration);
           }
         }
         return;

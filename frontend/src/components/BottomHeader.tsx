@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bell,
   Calendar,
@@ -35,17 +35,14 @@ import { useVoicePollStore } from "../store/useVoicePollStore";
 import { useStore } from "../store/useStore";
 import { useMobileLayout } from "../hooks/useMobileLayout";
 import { useConnectors } from "../hooks/useConnectors";
-import { useSpotifyAudioPulse } from "../hooks/useSpotifyAudioPulse";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
 import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
 import { useHallDjStore } from "../store/useHallDjStore";
-import { isMarketingPreview } from "../lib/marketingPreview";
+import { isMarketingPreview, landingLabel } from "../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { warmSpotifyWebPlayer, activateSpotifyPlaybackFromUserGesture } from "../lib/spotifyWebPlayback";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
 import HallDjDiscoIcon from "./bottomBar/HallDjDiscoIcon";
-import CameraBackgroundControl from "./calls/CameraBackgroundControl";
-
 const ICON_SIZE = 19;
 
 export default function BottomHeader() {
@@ -203,21 +200,23 @@ export default function BottomHeader() {
   const micLabel =
     mediaError ??
     (viewMode === "theater" && !canSpeak && inCall
-      ? "Micro coupé (spectateur)"
+      ? landingLabel("Mic muted (audience)", "Micro coupé (spectateur)")
       : muted
-        ? "Réactiver le micro"
-        : "Couper le micro");
+        ? landingLabel("Unmute", "Réactiver le micro")
+        : landingLabel("Mute", "Couper le micro"));
   const theaterListenerLocked = viewMode === "theater" && inCall && !canSpeak;
-  const handLabel = raiseHand ? "Baisser la main" : "Lever la main";
+  const handLabel = raiseHand
+    ? landingLabel("Lower hand", "Baisser la main")
+    : landingLabel("Raise hand", "Lever la main");
   const cameraLabel = theaterListenerLocked
-    ? "Caméra indisponible (listener)"
+    ? landingLabel("Camera unavailable (listener)", "Caméra indisponible (listener)")
     : cameraOn
-      ? "Couper la caméra"
-      : "Activer la caméra";
+      ? landingLabel("Turn camera off", "Couper la caméra")
+      : landingLabel("Turn camera on", "Activer la caméra");
 
   const notificationButton = (
     <BottomBarButton
-      label="Notifications"
+      label={landingLabel("Inbox", "Réception")}
       onClick={toggleNotifications}
       active={notificationsOpen}
       badge={notificationBadge}
@@ -231,26 +230,15 @@ export default function BottomHeader() {
     spotifyCurrentTrack != null || hallDjActive || hallDjLoading;
   const spotifyStopLocked = isMarketingPreview() && spotifyPlaybackActive;
   const spotifyIconShimmerClass = queueShimmer ? "bottom-bar-btn__icon-shimmer" : undefined;
-  const spotifyPulseLevel = useSpotifyAudioPulse();
-  const spotifyPulseActive =
-    spotifyPlaybackActive && (spotifyPlaying || spotifyPlaybackMode !== null);
-  const footerPulseStyle = spotifyPulseActive
-    ? ({
-        "--spotify-pulse": String(spotifyPulseLevel * 0.22),
-      } as CSSProperties)
-    : undefined;
-  const footerPulseClass = spotifyPulseActive ? "app-bottom-header--spotify-pulse" : undefined;
 
   const spotifyLabel = spotifyPlaybackActive
     ? spotifyPlaying && spotifyCurrentTrack
-      ? `Arrêter · ${spotifyCurrentTrack.name}`
-      : "Arrêter la musique"
+      ? `${landingLabel("Stop", "Arrêter")} · ${spotifyCurrentTrack.name}`
+      : landingLabel("Stop music", "Arrêter la musique")
     : spotifyConnected
-      ? spotifyStatus?.accountLabel
-        ? `Spotify · ${spotifyStatus.accountLabel}`
-        : "Spotify connecté"
+      ? "Spotify"
       : spotifyConfigured
-        ? "Connecter Spotify"
+        ? landingLabel("Connect Spotify", "Connecter Spotify")
         : "Spotify (non configuré)";
 
   const spotifyButton = (
@@ -301,7 +289,7 @@ export default function BottomHeader() {
   const hallDjIdleLabel =
     hallDjError?.trim() ||
     (spotifyPlayerNotice?.includes("Meetra DJ") ? spotifyPlayerNotice : null) ||
-    "Démarrer le Meetra DJ";
+    landingLabel("Start Meetra DJ", "Démarrer le Meetra DJ");
 
   const spotifyDjButton = spotifyConnected ? (
     <BottomBarButton
@@ -311,7 +299,7 @@ export default function BottomHeader() {
           : showHallDjLoading
             ? "Meetra DJ…"
             : showHallDjSkip
-              ? "Chanson suivante"
+              ? landingLabel("Next track", "Chanson suivante")
               : hallDjIdleLabel
       }
       onPointerEnter={primeSpotifyOnIntent}
@@ -407,6 +395,26 @@ export default function BottomHeader() {
         </BottomBarButton>
       )}
 
+      {showAssistButtons && (
+        <BottomBarButton
+          label={
+            aiNotesBusy
+              ? "Préparation AI Notes…"
+              : aiNotesActive
+                ? "Ouvrir AI Notes"
+                : "AI Notes"
+          }
+          onClick={() => {
+            openAiNotesPanel();
+            if (!aiNotesActive) void toggleAiNotes(activeRoomId);
+          }}
+          active={aiNotesActive}
+          disabled={aiNotesBusy}
+        >
+          <Sparkles size={ICON_SIZE} />
+        </BottomBarButton>
+      )}
+
       <BottomBarButton
         label={micLabel}
         onClick={() => void toggleMuted()}
@@ -424,13 +432,16 @@ export default function BottomHeader() {
         onClick={() => void toggleCamera()}
         active={cameraOn}
         disabled={(viewMode === "theater" && !inCall) || theaterListenerLocked}
-        showSignet={false}
       >
         {cameraOn ? <Video size={ICON_SIZE} /> : <VideoOff size={ICON_SIZE} />}
       </BottomBarButton>
 
       <BottomBarButton
-        label={theaterListenerLocked ? "Partage écran indisponible (listener)" : "Partage d'écran"}
+        label={
+          theaterListenerLocked
+            ? landingLabel("Screen share unavailable (listener)", "Partage écran indisponible (listener)")
+            : landingLabel("Share screen", "Partage d'écran")
+        }
         onClick={() => void toggleScreenShare()}
         active={screenSharing}
         disabled={(viewMode === "theater" && !inCall) || theaterListenerLocked}
@@ -461,29 +472,13 @@ export default function BottomHeader() {
           </label>
         )}
 
-      {showAssistButtons && (
-        <BottomBarButton
-          label={
-            aiNotesBusy
-              ? "Préparation AI Notes…"
-              : aiNotesActive
-                ? "Ouvrir AI Notes"
-                : "AI Notes"
-          }
-          onClick={() => {
-            openAiNotesPanel();
-            if (!aiNotesActive) void toggleAiNotes(activeRoomId);
-          }}
-          active={aiNotesActive}
-          disabled={aiNotesBusy}
-        >
-          <Sparkles size={ICON_SIZE} />
-        </BottomBarButton>
-      )}
-
       {showLeaveCall && (
         <BottomBarButton
-          label={viewMode === "theater" && inTheaterCall ? "Quitter le théâtre" : "Quitter"}
+          label={
+            viewMode === "theater" && inTheaterCall
+              ? landingLabel("Leave theater", "Quitter le théâtre")
+              : landingLabel("Leave", "Quitter")
+          }
           onClick={() => leaveCall(activeRoomId)}
           danger
         >
@@ -496,7 +491,7 @@ export default function BottomHeader() {
   const utilityControls = (
     <>
       <BottomBarButton
-        label="Calendrier"
+        label={landingLabel("Calendar", "Calendrier")}
         onClick={toggleCalendar}
         active={calendarOpen}
       >
@@ -504,7 +499,11 @@ export default function BottomHeader() {
       </BottomBarButton>
 
       <BottomBarButton
-        label={chatOpen ? "Fermer l'agent" : "Ouvrir l'agent"}
+        label={
+          chatOpen
+            ? landingLabel("Close agent", "Fermer l'agent")
+            : landingLabel("Open agent", "Ouvrir l'agent")
+        }
         onClick={toggleChatPanel}
         active={chatOpen}
       >
@@ -527,14 +526,8 @@ export default function BottomHeader() {
   if (isMobileLayout) {
     return (
       <footer
-        className={clsx("app-bottom-header app-bottom-header--mobile", footerPulseClass)}
-        style={footerPulseStyle}
+        className="app-bottom-header app-bottom-header--mobile"
       >
-        {inCall && cameraOn ? (
-          <div className="app-bottom-header__camera-bg">
-            <CameraBackgroundControl />
-          </div>
-        ) : null}
         <div
           ref={notificationsAnchorRef}
           className="bottom-bar-capsule-anchor app-bottom-header__unified"
@@ -556,12 +549,7 @@ export default function BottomHeader() {
   }
 
   return (
-    <footer className={clsx("app-bottom-header", footerPulseClass)} style={footerPulseStyle}>
-      {inCall && cameraOn ? (
-        <div className="app-bottom-header__camera-bg">
-          <CameraBackgroundControl />
-        </div>
-      ) : null}
+    <footer className="app-bottom-header">
       <div
         ref={notificationsAnchorRef}
         className="bottom-bar-capsule-anchor app-bottom-header__cluster"

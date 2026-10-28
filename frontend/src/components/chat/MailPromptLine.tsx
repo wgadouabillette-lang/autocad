@@ -15,6 +15,7 @@ interface MailPromptLineProps {
   onRecipientsKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   attachments?: File[];
   onAttachmentsChange?: (files: File[]) => void;
+  autoFocus?: "recipients" | "body";
 }
 
 function assignRef<T>(ref: Ref<T> | undefined, node: T | null) {
@@ -40,15 +41,21 @@ export default function MailPromptLine({
   onRecipientsKeyDown,
   attachments = [],
   onAttachmentsChange,
+  autoFocus = "recipients",
 }: MailPromptLineProps) {
   const localRecipientsRef = useRef<HTMLTextAreaElement | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (readOnly) return;
+    if (autoFocus === "body") {
+      bodyRef.current?.focus();
+      return;
+    }
     const input = recipientsRef?.current ?? localRecipientsRef.current;
     input?.focus();
-  }, [readOnly, recipientsRef]);
+  }, [autoFocus, readOnly, recipientsRef]);
 
   const patch = (partial: Partial<MailPromptDraft>) => {
     onChange?.({ ...draft, ...partial });
@@ -134,6 +141,7 @@ export default function MailPromptLine({
         <p className="mail-prompt-line__readonly-body">{draft.body}</p>
       ) : (
         <textarea
+          ref={bodyRef}
           className="mail-prompt-line__body"
           value={draft.body}
           onChange={(event) => patch({ body: event.target.value })}

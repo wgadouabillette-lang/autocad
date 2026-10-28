@@ -30,16 +30,35 @@ export function platformKeyStatus(): Record<LlmProvider, boolean> {
   };
 }
 
+const LLM_PROVIDERS: LlmProvider[] = ["xai", "openai", "anthropic"];
+
+/**
+ * One document per provider.
+ * `users/{uid}/private/apiKeys` is a document path (even segment count), so it
+ * cannot be queried as a collection. Keys live one level deeper.
+ */
+export function userApiKeysCollectionPath(uid: string): string {
+  return `users/${uid}/private/apiKeys/providers`;
+}
+
+export function userApiKeyDocPath(uid: string, provider: string): string {
+  return `${userApiKeysCollectionPath(uid)}/${provider}`;
+}
+
 /** User keys override platform keys per provider (same rule as the Python backend). */
 export async function loadLlmKeys(uid: string): Promise<LlmKeySet> {
   const merged = platformKeys();
   const db = getFirestore();
-  const snap = await db.collection(`users/${uid}/private/apiKeys`).get();
-  for (const doc of snap.docs) {
-    const provider = doc.id as LlmProvider;
-    if (provider !== "xai" && provider !== "openai" && provider !== "anthropic") continue;
-    const apiKey = trimKey(doc.data()?.apiKey);
-    if (apiKey) merged[provider] = apiKey;
+  try {
+    const snap = await db.collection(userApiKeysCollectionPath(uid)).get();
+    for (const doc of snap.docs) {
+      const provider = doc.id as LlmProvider;
+      if (!LLM_PROVIDERS.includes(provider)) continue;
+      const apiKey = trimKey(doc.data()?.apiKey);
+      if (apiKey) merged[provider] = apiKey;
+    }
+  } catch (error) {
+    console.warn("User API key lookup failed; using platform keys", error);
   }
   return merged;
 }

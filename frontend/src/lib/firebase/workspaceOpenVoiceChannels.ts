@@ -1,13 +1,14 @@
 import {
   collection,
+  deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   serverTimestamp,
   setDoc,
-  deleteDoc,
   type Unsubscribe,
 } from "firebase/firestore";
-import { db } from "./client";
+import { auth, db } from "./client";
 
 export interface OpenVoiceChannelDoc {
   id: string;
@@ -29,12 +30,26 @@ export async function upsertOpenVoiceChannel(
   channelId: string,
   name: string,
 ): Promise<void> {
-  await setDoc(channelRef(workspaceId, channelId), {
+  const ref = channelRef(workspaceId, channelId);
+  const existing = await getDoc(ref);
+  const payload: {
+    id: string;
+    workspaceId: string;
+    name: string;
+    createdAt: ReturnType<typeof serverTimestamp>;
+    createdByUid?: string;
+  } = {
     id: channelId,
     workspaceId,
     name: name.trim() || "Salon vocal",
     createdAt: serverTimestamp(),
-  });
+  };
+  if (!existing.exists()) {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    payload.createdByUid = uid;
+  }
+  await setDoc(ref, payload, { merge: true });
 }
 
 export async function removeOpenVoiceChannel(

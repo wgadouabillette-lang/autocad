@@ -390,12 +390,12 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   createWorkspace: (name, ownerName, userId = LOCAL_USER_ID) => {
     const trimmed = name.trim();
     if (!trimmed) {
-      throw new Error("Le nom du serveur est requis.");
+      throw new Error("Le nom du workspace est requis.");
     }
     const ownerId = auth.currentUser?.uid ?? userId;
     if (!get().canUserCreateWorkspace(ownerId)) {
       throw new Error(
-        `Limite de ${FREE_OWNED_WORKSPACE_LIMIT} serveurs personnels atteinte. Passez à Pro pour en créer davantage.`,
+        `Limite de ${FREE_OWNED_WORKSPACE_LIMIT} workspaces personnels atteinte. Passez à Pro pour en créer davantage.`,
       );
     }
     const existing = new Set(get().customServers.map((server) => server.id));

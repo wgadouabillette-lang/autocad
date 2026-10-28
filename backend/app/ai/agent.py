@@ -263,8 +263,6 @@ def run(
         if llm_result.data:
             data = llm_result.data
             message = data.get("message", "") or message
-            if ai_model_fallback:
-                message = quota.prepend_fallback_notice(message)
             if mutates and isinstance(data.get("operations"), list):
                 operations = data["operations"]
             elif not mutates:

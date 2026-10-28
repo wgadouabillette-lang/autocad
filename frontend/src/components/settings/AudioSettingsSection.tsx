@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   audioDeviceLabelsHidden,
   ensureAudioDevicePermission,
@@ -11,12 +11,56 @@ import {
   type MediaDeviceOption,
 } from "../../lib/audioDevices";
 import { useCallsStore } from "../../store/useCallsStore";
+import { SETTINGS_AI_MODELS, type AiModel } from "../../lib/aiModels";
+import { LOCAL_USER_ID, workspaceMembersCanInvite } from "../../lib/workspaces";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
+import { useWorkspacesStore } from "../../store/useWorkspacesStore";
+import { AiModelIcon } from "../chat/aiModelLogos";
 import HallDjSettingsSection from "./HallDjSettingsSection";
 import RecordingSettingsSection from "./RecordingSettingsSection";
 import SettingsFieldRow from "./SettingsFieldRow";
 import SettingsFieldToggle from "./SettingsFieldToggle";
 import SettingsPicker from "./SettingsControls";
+
+function InviteMembersPreference() {
+  const activeRoomId = useStore((s) => s.activeRoomId);
+  const firebaseUid = useAuthStore((s) => s.firebaseUid);
+  const memberships = useWorkspacesStore((s) => s.memberships);
+  const customServers = useWorkspacesStore((s) => s.customServers);
+  const roleIn = useWorkspacesStore((s) => s.roleIn);
+  const updateWorkspace = useWorkspacesStore((s) => s.updateWorkspace);
+  const ownerUserId = firebaseUid ?? LOCAL_USER_ID;
+
+  const activeWorkspace = useMemo(
+    () =>
+      useWorkspacesStore
+        .getState()
+        .joinedWorkspaces(ownerUserId)
+        .find((workspace) => workspace.id === activeRoomId) ?? null,
+    [memberships, customServers, ownerUserId, activeRoomId],
+  );
+
+  if (!activeWorkspace || roleIn(activeWorkspace.id, ownerUserId) !== "owner") return null;
+
+  return (
+    <section className="settings-preferences__group">
+      <h3 className="settings-preferences__title">Invitations</h3>
+      <div className="settings-field-list">
+        <SettingsFieldToggle
+          id="invite-members"
+          label="Autoriser les membres à inviter"
+          description="Par défaut, tous les membres peuvent copier le lien d'invitation et approuver les demandes d'adhésion. Désactivé : seul le propriétaire peut partager le workspace et valider les demandes."
+          checked={workspaceMembersCanInvite(activeWorkspace)}
+          onChange={(checked) => {
+            updateWorkspace(activeWorkspace.id, { membersCanInvite: checked }, ownerUserId);
+            void useAuthStore.getState().syncWorkspacesToCloud();
+          }}
+        />
+      </div>
+    </section>
+  );
+}
 
 export default function AudioSettingsSection() {
   const audioInputDeviceId = useStore((s) => s.audioInputDeviceId);
@@ -29,6 +73,9 @@ export default function AudioSettingsSection() {
   const setVideoInputDeviceId = useStore((s) => s.setVideoInputDeviceId);
   const setAudioEchoCancellation = useStore((s) => s.setAudioEchoCancellation);
   const setAudioNoiseSuppression = useStore((s) => s.setAudioNoiseSuppression);
+  const aiNotesModel = useStore((s) => s.aiNotesModel);
+  const setAiNotesModel = useStore((s) => s.setAiNotesModel);
+  const notesModel = SETTINGS_AI_MODELS.find((model) => model.id === aiNotesModel);
 
   const [inputs, setInputs] = useState<MediaDeviceOption[]>([]);
   const [outputs, setOutputs] = useState<MediaDeviceOption[]>([]);
@@ -89,6 +136,36 @@ export default function AudioSettingsSection() {
   }, [refreshDevices]);
 
   return (
+    <div className="settings-preferences">
+    <section className="settings-preferences__group">
+    <h3 className="settings-preferences__title">AI Notes</h3>
+    <div className="settings-field-list">
+      <SettingsFieldRow
+        label="Modèle"
+        description="Modèle utilisé pour structurer les notes."
+      >
+        <SettingsPicker
+          value={aiNotesModel}
+          ariaLabel="Modèle AI Notes"
+          prefix={
+            notesModel?.icon ? (
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                <AiModelIcon icon={notesModel.icon} />
+              </span>
+            ) : undefined
+          }
+          options={SETTINGS_AI_MODELS.map((model) => ({
+            value: model.id,
+            label: model.label,
+          }))}
+          onChange={(modelId) => setAiNotesModel(modelId as AiModel)}
+        />
+      </SettingsFieldRow>
+    </div>
+    </section>
+
+    <section className="settings-preferences__group">
+    <h3 className="settings-preferences__title">Audio et vidéo</h3>
     <div className="settings-field-list">
       <SettingsFieldRow
         label="Microphone"
@@ -215,14 +292,24 @@ export default function AudioSettingsSection() {
         checked={audioNoiseSuppression}
         onChange={setAudioNoiseSuppression}
       />
+    </div>
+    </section>
 
-      <div className="settings-field-list__divider" role="presentation" />
-
+    <section className="settings-preferences__group">
+    <h3 className="settings-preferences__title">Enregistrement</h3>
+    <div className="settings-field-list">
       <RecordingSettingsSection />
+    </div>
+    </section>
 
-      <div className="settings-field-list__divider" role="presentation" />
-
+    <section className="settings-preferences__group">
+    <h3 className="settings-preferences__title">Meetra DJ</h3>
+    <div className="settings-field-list">
       <HallDjSettingsSection />
+    </div>
+    </section>
+
+    <InviteMembersPreference />
     </div>
   );
 }

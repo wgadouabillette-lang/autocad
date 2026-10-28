@@ -15,16 +15,22 @@
     "openSettings": "Abrir ajustes"
   },
   "settings": {
+    "backToApp": "Volver a la app",
     "tabs": {
-      "general": "General",
+      "general": "Cuenta",
       "friends": "Amigos",
       "workspaces": "Workspaces",
       "usage": "Plan y uso",
       "billing": "Facturación",
       "agents": "Agentes",
-      "audio": "Audio y vídeo",
+      "audio": "Preferencias",
       "models": "Modelos",
-      "plugins": "Plugins"
+      "plugins": "Conectores",
+      "skills": "Skills"
+    },
+    "groups": {
+      "personal": "Personal",
+      "workspace": "Workspace"
     },
     "descriptions": {
       "friends": "Amigos e invitaciones.",
@@ -33,7 +39,8 @@
       "billing": "Plan actual y próxima fecha de cobro.",
       "agents": "Personaliza el chat y AI Notes.",
       "models": "Elige el modelo de IA para la generación.",
-      "plugins": "Conectores disponibles en el chat."
+      "plugins": "Conectores disponibles en el chat.",
+      "skills": "Comandos / disponibles en el chat."
     },
     "language": {
       "title": "Idioma",
@@ -175,6 +182,14 @@
       "unavailable": "No disponible",
       "notConfigured": "No configurado en el servidor",
       "oauthMissing": "Añade las claves OAuth en backend/.env",
+      "describe": {
+        "calendar": "Lee la agenda de Google de hoy y añade las reuniones creadas en el chat.",
+        "spotify": "Reproduce Spotify en Meetra, incluido el Meetra DJ.",
+        "gmail": "Envía un email y añade los mensajes recientes de Gmail al prompt.",
+        "outlook": "Añade los emails recientes de Outlook al prompt.",
+        "onedrive": "Encuentra un archivo de OneDrive y lo añade al prompt, sin modificarlo.",
+        "dropbox": "Encuentra un archivo de Dropbox y lo añade al prompt, sin modificarlo."
+      },
       "signInToLink": "Inicia sesión para vincular un conector",
       "insertSlash": "Insertar {{slash}}",
       "use": "usar"
@@ -189,6 +204,22 @@
     "raiseHand": "Levantar la mano",
     "micMuted": "Micrófono silenciado",
     "connecting": "Conectando…",
-    "inCall": "En llamada"
+    "inCall": "En llamada",
+    "speaker": "Orador",
+    "owner": "Propietario",
+    "question": "Pregunta",
+    "audienceMember": "Público",
+    "speakers": "Oradores",
+    "audience": "Público",
+    "bench": "Banco {{n}}",
+    "sitHere": "Sentarse aquí",
+    "message": "Mensaje a {{name}}",
+    "stageActions": "Acciones del escenario",
+    "goOnStage": "Subir al escenario",
+    "goOnStageTitle": "Subir al escenario como orador",
+    "backstage": "Volver al público",
+    "backstageTitle": "Volver al público",
+    "askInChat": "Preguntar en el chat",
+    "askInChatTitle": "Hacer una pregunta en el chat del teatro"
   }
 }

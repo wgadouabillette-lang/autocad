@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Check, Copy, Crown, LogOut, Trash2, X } from "lucide-react";
+import { Check, Copy, LogOut, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   fetchSharedWorkspace,
@@ -12,7 +12,6 @@ import { buildWorkspaceJoinUrl } from "../../lib/workspaceInvite";
 import {
   LOCAL_USER_ID,
   serverRoleLabel,
-  workspaceMembersCanInvite,
   type ServerRole,
   type Workspace,
 } from "../../lib/workspaces";
@@ -119,9 +118,6 @@ function WorkspacePickerRow({
             <span className="settings-workspaces-list__meta text-red-300">{iconError}</span>
           ) : null}
         </span>
-        {isOwner ? (
-          <Crown size={12} className="shrink-0 text-amber-300/90" aria-hidden />
-        ) : null}
       </button>
       {canCopyInvite ? (
         <button
@@ -131,6 +127,11 @@ function WorkspacePickerRow({
             copied && "settings-workspaces-list__copy--done",
           )}
           onClick={() => onCopyLink(workspace.id)}
+          title={
+            copied
+              ? `Lien copié pour ${workspace.name}`
+              : `Copier le lien d'invitation pour ${workspace.name}`
+          }
           aria-label={
             copied
               ? `Lien copié pour ${workspace.name}`
@@ -138,15 +139,9 @@ function WorkspacePickerRow({
           }
         >
           {copied ? (
-            <>
-              <Check size={12} strokeWidth={2.5} aria-hidden />
-              Copié
-            </>
+            <Check size={14} strokeWidth={2.5} aria-hidden />
           ) : (
-            <>
-              <Copy size={12} strokeWidth={2.25} aria-hidden />
-              Copier
-            </>
+            <Copy size={14} strokeWidth={2.25} aria-hidden />
           )}
         </button>
       ) : null}
@@ -158,18 +153,14 @@ function WorkspacePickerRow({
         )}
         disabled={removeBusy}
         onClick={() => onRemove(workspace.id, role)}
-        aria-label={
-          isOwner
-            ? `Supprimer ${workspace.name}`
-            : `Quitter ${workspace.name}`
-        }
+        title={isOwner ? `Supprimer ${workspace.name}` : `Quitter ${workspace.name}`}
+        aria-label={isOwner ? `Supprimer ${workspace.name}` : `Quitter ${workspace.name}`}
       >
         {isOwner ? (
-          <Trash2 size={12} strokeWidth={2.25} aria-hidden />
+          <Trash2 size={14} strokeWidth={2.25} aria-hidden />
         ) : (
-          <LogOut size={12} strokeWidth={2.25} aria-hidden />
+          <LogOut size={14} strokeWidth={2.25} aria-hidden />
         )}
-        {removeBusy ? "…" : isOwner ? "Supprimer" : "Quitter"}
       </button>
     </li>
   );
@@ -211,9 +202,6 @@ export default function WorkspacesSettingsSection() {
     () => joined.filter((workspace) => canManageWorkspaceInvites(workspace.id, ownerUserId)),
     [joined, canManageWorkspaceInvites, ownerUserId],
   );
-
-  const activeWorkspace = joined.find((workspace) => workspace.id === activeRoomId);
-  const activeWorkspaceRole = activeWorkspace ? roleIn(activeWorkspace.id, ownerUserId) : null;
 
   const [incomingRequests, setIncomingRequests] = useState<IncomingRequestRow[]>([]);
   const [pendingLabels, setPendingLabels] = useState<Record<string, string>>({});
@@ -426,38 +414,6 @@ export default function WorkspacesSettingsSection() {
     <div className="settings-workspaces">
       <WorkspaceEnterpriseUsageSection />
 
-      {activeWorkspace && activeWorkspaceRole === "owner" ? (
-        <section className="settings-section settings-section--card">
-          <h3 className="settings-section__label">Invitations</h3>
-          <p className="settings-section__hint">
-            Par défaut, tous les membres peuvent copier le lien d&apos;invitation et approuver
-            les demandes d&apos;adhésion.
-          </p>
-          <label className="settings-toggle mt-3">
-            <input
-              type="checkbox"
-              className="settings-toggle__input"
-              checked={workspaceMembersCanInvite(activeWorkspace)}
-              onChange={(event) => {
-                updateWorkspace(
-                  activeWorkspace.id,
-                  { membersCanInvite: event.target.checked },
-                  ownerUserId,
-                );
-                void useAuthStore.getState().syncWorkspacesToCloud();
-              }}
-            />
-            <span className="settings-toggle__text">
-              <span className="settings-toggle__title">Autoriser les membres à inviter</span>
-              <span className="settings-toggle__desc">
-                Désactivé : seul le propriétaire peut partager le workspace et valider les
-                demandes.
-              </span>
-            </span>
-          </label>
-        </section>
-      ) : null}
-
       {incomingRequests.length > 0 && (
         <section className="settings-section settings-section--card">
           <h3 className="settings-section__label">Invitations reçues</h3>
@@ -536,8 +492,9 @@ export default function WorkspacesSettingsSection() {
         </section>
       )}
 
-      <section className="settings-section settings-section--card">
-        <h3 className="settings-section__label">Rejoindre un workspace</h3>
+      <section className="settings-preferences__group">
+        <h3 className="settings-preferences__title">Rejoindre un workspace</h3>
+        <div className="settings-section settings-section--card">
         <p className="settings-section__hint">
           Collez le lien d&apos;invitation reçu d&apos;un collègue.
         </p>
@@ -564,19 +521,16 @@ export default function WorkspacesSettingsSection() {
             Demande envoyée. Vous serez notifié si le propriétaire accepte.
           </p>
         ) : null}
+        </div>
       </section>
 
-      <section className="settings-section settings-section--card">
-        <h3 className="settings-section__label">Mes workspaces</h3>
-        <p className="settings-section__hint">
-          Cliquez sur un workspace pour basculer dessus. Propriétaires : icône pour la changer,
-          option Invitations pour restreindre le partage. Copier pour le lien d&apos;invitation
-          (propriétaire et membres, sauf restriction). Supprimer / Quitter selon votre rôle.
-        </p>
+      <section className="settings-preferences__group">
+        <h3 className="settings-preferences__title">Mes workspaces</h3>
+        <div className="settings-section settings-section--card">
         {joined.length === 0 ? (
-          <p className="settings-section__meta mt-4">Aucun workspace pour le moment.</p>
+          <p className="settings-section__meta">Aucun workspace pour le moment.</p>
         ) : (
-          <ul className="settings-workspaces-list mt-4">
+          <ul className="settings-workspaces-list">
             {joined.map((workspace) => {
               const role = roleIn(workspace.id, ownerUserId);
               if (!role) return null;
@@ -600,6 +554,7 @@ export default function WorkspacesSettingsSection() {
             })}
           </ul>
         )}
+        </div>
       </section>
     </div>
   );

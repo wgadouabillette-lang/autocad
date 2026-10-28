@@ -1,7 +1,29 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { createRoot } from "react-dom/client";
 import clsx from "clsx";
-import { Users } from "lucide-react";
+
+/** Aperçu design : création de groupe figée. Remettre à false pour le comportement réel. */
+export const PREVIEW_CREATE_GROUP: boolean = false;
+
+export function useCreateGroupDesignPreview(): void {
+  useEffect(() => {
+    if (!PREVIEW_CREATE_GROUP) return;
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    root.render(<CreateGroupChatPreview />);
+    return () => {
+      root.unmount();
+      host.remove();
+    };
+  }, [PREVIEW_CREATE_GROUP]);
+}
+
+function CreateGroupChatPreview() {
+  const workspaceId = useStore((s) => s.activeRoomId);
+  return <CreateGroupChatOverlay workspaceId={workspaceId} onClose={() => {}} />;
+}
 import { useAuthStore } from "../../store/useAuthStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
@@ -27,6 +49,7 @@ export default function CreateGroupChatOverlay({
   const [busy, setBusy] = useState(false);
 
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
+  const localName = useStore((s) => s.userDisplayName);
   const friends = usePeopleStore((s) => s.friends);
   const createGroupChat = usePeopleStore((s) => s.createGroupChat);
   const membersByWorkspace = useWorkspacePresenceStore((s) => s.membersByWorkspace);
@@ -72,7 +95,7 @@ export default function CreateGroupChatOverlay({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (busy) return;
+    if (PREVIEW_CREATE_GROUP || busy) return;
     setError(null);
     setBusy(true);
     const result = await createGroupChat(name, selectedIds);
@@ -98,34 +121,43 @@ export default function CreateGroupChatOverlay({
         role="dialog"
         aria-labelledby="group-chat-create-title"
       >
-        <div className="group-chat-create-overlay__icon" aria-hidden>
-          <Users size={24} strokeWidth={1.75} />
+        <div className="group-chat-create-overlay__faces" aria-hidden>
+          <UserAvatar
+            userId={firebaseUid || "local"}
+            name={localName || "Vous"}
+            isLocal
+            className="group-chat-create-overlay__face"
+            style={{ zIndex: selectedIds.length + 1 }}
+          />
+          {selectedIds.map((memberId, index) => {
+            const member = eligibleMembers.find((entry) => entry.id === memberId);
+            return (
+              <UserAvatar
+                key={memberId}
+                userId={memberId}
+                name={member?.name || "Membre"}
+                photoURL={resolvePersonPhotoURL(memberId, membersByWorkspace, photoLookup)}
+                className="group-chat-create-overlay__face"
+                style={{ zIndex: selectedIds.length - index }}
+              />
+            );
+          })}
         </div>
 
-        <p id="group-chat-create-title" className="join-knock__title">
-          Nouveau groupe
-        </p>
-        <p className="join-knock__hint">
-          Ajoutez vos amis ou des personnes avec qui vous partagez un workspace.
-        </p>
-
         <form className="group-chat-create-overlay__form" onSubmit={handleSubmit}>
-          <label className="group-chat-create-overlay__label" htmlFor="group-chat-name">
-            Nom du groupe
-          </label>
           <input
             ref={nameRef}
-            id="group-chat-name"
+            id="group-chat-create-title"
             type="text"
-            className="group-chat-create-overlay__input"
+            className="group-chat-create-overlay__title"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Équipe produit, Projet Acme…"
+            placeholder="New Group Title"
+            aria-label="New Group Title"
             maxLength={80}
             autoComplete="off"
           />
 
-          <p className="group-chat-create-overlay__label">Membres</p>
           {eligibleMembers.length === 0 ? (
             <p className="group-chat-create-overlay__empty">
               Aucun contact éligible. Ajoutez des amis ou rejoignez un workspace avec d&apos;autres
@@ -175,13 +207,13 @@ export default function CreateGroupChatOverlay({
 
           {error ? <p className="group-chat-create-overlay__error">{error}</p> : null}
 
-          <div className="group-chat-create-overlay__actions">
-            <button type="button" className="group-chat-create-overlay__ghost" onClick={onClose}>
+          <div className="join-knock__actions join-knock__actions--split">
+            <button type="button" className="join-knock__btn" onClick={onClose}>
               Annuler
             </button>
             <button
               type="submit"
-              className="group-chat-create-overlay__submit"
+              className="join-knock__btn"
               disabled={
                 busy ||
                 !name.trim() ||

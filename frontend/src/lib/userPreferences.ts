@@ -6,6 +6,7 @@ import { normalizeColorThemePreference } from "./theme";
 import type { AccentColorPreference } from "./accentColor";
 import { normalizeAccentColorPreference } from "./accentColor";
 import { DEFAULT_HALL_DJ_GENRE, normalizeHallDjGenre } from "./hallDjGenres";
+import { AI_NOTES_CHEAP_MODEL_PREFERRED, normalizeAiNotesModel, type AiModel } from "./aiModels";
 import {
   DEFAULT_APP_LOCALE,
   normalizeLocalePreference,
@@ -99,6 +100,8 @@ export interface UserPreferences {
   hallDjPreferredGenre: string;
   /** Meetra DJ / Spotify in-app playback volume (0–1). */
   hallDjVolume: number;
+  /** Model used to structure AI Notes. */
+  aiNotesModel: AiModel;
 }
 
 export const DEFAULT_HALL_DJ_VOLUME = 0.85;
@@ -136,6 +139,7 @@ const DEFAULTS: UserPreferences = {
   availabilityDays: [...DEFAULT_AVAILABILITY_DAYS],
   hallDjPreferredGenre: DEFAULT_HALL_DJ_GENRE,
   hallDjVolume: DEFAULT_HALL_DJ_VOLUME,
+  aiNotesModel: AI_NOTES_CHEAP_MODEL_PREFERRED,
 };
 
 function clampMinutes(value: number, min: number, max: number): number {
@@ -238,6 +242,7 @@ export function readUserPreferences(): UserPreferences {
       availabilityDays: normalizeAvailabilityDays(data.availabilityDays),
       hallDjPreferredGenre: normalizeHallDjGenre(data.hallDjPreferredGenre),
       hallDjVolume: normalizeHallDjVolume(data.hallDjVolume),
+      aiNotesModel: normalizeAiNotesModel(data.aiNotesModel),
     };
   } catch {
     return { ...DEFAULTS };

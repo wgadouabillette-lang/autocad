@@ -6,16 +6,13 @@ from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import urlencode
 
-ProviderId = Literal["google", "microsoft", "spotify"]
+ProviderId = Literal["google", "microsoft", "spotify", "dropbox"]
 AuthType = Literal["oauth"]
 
-CONNECTOR_IDS = ("calendar", "gmail", "outlook", "spotify")
+CONNECTOR_IDS = ("calendar", "gmail", "outlook", "spotify", "onedrive", "dropbox")
 
 # Catalog-only — shown in Settings → Plugins, no OAuth / no API.
-COMING_SOON_CONNECTORS: dict[str, str] = {
-    "figma": "Figma",
-    "dropbox": "Dropbox",
-}
+COMING_SOON_CONNECTORS: dict[str, str] = {}
 
 
 @dataclass(frozen=True)
@@ -76,6 +73,27 @@ CONNECTORS: dict[str, ConnectorDef] = {
             "user-read-private",
             "user-top-read",
             "user-read-recently-played",
+        ),
+    ),
+    "onedrive": ConnectorDef(
+        id="onedrive",
+        label="OneDrive",
+        provider="microsoft",
+        scopes=(
+            "openid",
+            "profile",
+            "offline_access",
+            "User.Read",
+            "Files.Read",
+        ),
+    ),
+    "dropbox": ConnectorDef(
+        id="dropbox",
+        label="Dropbox",
+        provider="dropbox",
+        scopes=(
+            "account_info.read",
+            "files.metadata.read",
         ),
     ),
 }
@@ -297,6 +315,8 @@ def provider_configured(provider: ProviderId) -> bool:
         )
     if provider == "spotify":
         return bool(os.getenv("SPOTIFY_CLIENT_ID") and os.getenv("SPOTIFY_CLIENT_SECRET"))
+    if provider == "dropbox":
+        return bool(os.getenv("DROPBOX_CLIENT_ID") and os.getenv("DROPBOX_CLIENT_SECRET"))
     return False
 
 
@@ -369,6 +389,23 @@ def spotify_authorize_url(
     return f"https://accounts.spotify.com/authorize?{urlencode(params)}"
 
 
+def dropbox_authorize_url(
+    state: str,
+    scopes: tuple[str, ...],
+    *,
+    redirect_base: str | None = None,
+) -> str:
+    params = {
+        "client_id": os.getenv("DROPBOX_CLIENT_ID", ""),
+        "response_type": "code",
+        "redirect_uri": callback_url(redirect_base),
+        "token_access_type": "offline",
+        "scope": " ".join(scopes),
+        "state": state,
+    }
+    return f"https://www.dropbox.com/oauth2/authorize?{urlencode(params)}"
+
+
 def build_authorize_url(
     connector_id: str,
     state: str,
@@ -382,4 +419,6 @@ def build_authorize_url(
         return microsoft_authorize_url(state, spec.scopes, redirect_base=redirect_base)
     if spec.provider == "spotify":
         return spotify_authorize_url(state, spec.scopes, redirect_base=redirect_base)
+    if spec.provider == "dropbox":
+        return dropbox_authorize_url(state, spec.scopes, redirect_base=redirect_base)
     raise ValueError(f"Unknown provider: {spec.provider}")

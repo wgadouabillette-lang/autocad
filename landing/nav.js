@@ -86,12 +86,18 @@
     var aria = window.HallLandingI18n
       ? t(target.ariaKey)
       : target.fallbackAria;
+    var platformIcon =
+      typeof window.HallDownloadPlatformIcon === "function"
+        ? window.HallDownloadPlatformIcon(target.platform || "mac", "nav__cta-platform-icon")
+        : "";
     return (
       '<a class="nav__cta" id="nav-download" href="' +
       target.href +
       '" aria-label="' +
       aria +
-      '"><span id="nav-download-label">' +
+      '">' +
+      platformIcon +
+      '<span id="nav-download-label">' +
       label +
       "</span></a>"
     );
@@ -261,6 +267,7 @@
           (isActive ? ' aria-current="page"' : "") +
           ">" +
           t(tab.labelKey) +
+          (tab.id === "affiliate" ? '<span class="nav__new">New</span>' : "") +
           "</a></li>"
         );
       })

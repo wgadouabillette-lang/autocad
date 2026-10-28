@@ -208,7 +208,14 @@ function removeCursor(): void {
 }
 
 function ensureCursor(): HTMLDivElement {
-  if (cursorEl?.isConnected) return cursorEl;
+  const existing = document.querySelectorAll<HTMLElement>(`.${CURSOR_CLASS}`);
+  if (cursorEl?.isConnected) {
+    existing.forEach((node) => {
+      if (node !== cursorEl) node.remove();
+    });
+    return cursorEl;
+  }
+  existing.forEach((node) => node.remove());
   const el = document.createElement("div");
   el.className = CURSOR_CLASS;
   el.setAttribute("aria-hidden", "true");
@@ -257,19 +264,27 @@ function findSendButton(): HTMLButtonElement | null {
 }
 
 function findBlindingLightsRow(): HTMLElement | null {
-  const rows = Array.from(document.querySelectorAll<HTMLElement>(".spotify-track-list__row"));
+  const rows = Array.from(
+    document.querySelectorAll<HTMLElement>(".spotify-track-picker__row, .spotify-track-list__row"),
+  );
   return (
     rows.find((row) => {
-      const title = row.querySelector(".spotify-track-list__title")?.textContent?.trim() ?? "";
+      const title =
+        row.querySelector(".spotify-track-picker__title, .spotify-track-list__title")?.textContent?.trim() ??
+        "";
       return title.toLowerCase() === "blinding lights";
-    }) ?? rows[0] ?? null
+    }) ??
+    rows[0] ??
+    null
   );
 }
 
 function findPlayResultButton(): HTMLButtonElement | null {
   return (
-    findBlindingLightsRow()?.querySelector<HTMLButtonElement>(".spotify-track-list__play") ??
-    document.querySelector<HTMLButtonElement>(".spotify-track-list__play")
+    findBlindingLightsRow()?.querySelector<HTMLButtonElement>(
+      ".spotify-track-picker__play, .spotify-track-list__play",
+    ) ??
+    document.querySelector<HTMLButtonElement>(".spotify-track-picker__play, .spotify-track-list__play")
   );
 }
 
@@ -369,7 +384,7 @@ async function clickTarget(
 }
 
 async function typeCommand(field: HTMLTextAreaElement, gen: number): Promise<boolean> {
-  field.focus();
+  field.blur();
   for (let i = 1; i <= PLAY_COMMAND.length; i += 1) {
     if (gen !== demoGen) return false;
     setComposerText(PLAY_COMMAND.slice(0, i));
@@ -381,7 +396,9 @@ async function typeCommand(field: HTMLTextAreaElement, gen: number): Promise<boo
 
 function pinSearchListTop(): { x: number; y: number } | null {
   const scroll = document.querySelector<HTMLElement>(".chat-messages-scroll");
-  const list = document.querySelector<HTMLElement>(".spotify-track-list");
+  const list = document.querySelector<HTMLElement>(
+    ".spotify-track-picker-block, .spotify-track-picker, .spotify-track-list",
+  );
   const prompt = document.querySelector<HTMLElement>(".chat-user-bubble--play-prompt");
   const pin = prompt ?? list;
   if (scroll && pin && scroll.contains(pin)) {
@@ -394,6 +411,48 @@ function pinSearchListTop(): { x: number; y: number } | null {
   const rect = frame.getBoundingClientRect();
   if (rect.width < 8 || rect.height < 8) return null;
   return { x: rect.left + rect.width / 2, y: rect.top + Math.min(20, rect.height * 0.12) };
+}
+
+function focusVisible(selector: string, zoom: CameraZoom, yBias = 0.35): boolean {
+  const el = document.querySelector<HTMLElement>(selector);
+  if (!el) return false;
+  const rect = el.getBoundingClientRect();
+  if (rect.width < 8 || rect.height < 8) return false;
+  postFeatureFocus(rect.left + rect.width / 2, rect.top + rect.height * yBias, ZOOM_MS, zoom);
+  return true;
+}
+
+/** The picker stays hidden while the play skill shows its 5–8s browsing status. */
+async function waitForPlayResults(gen: number): Promise<HTMLElement | null> {
+  const started = Date.now();
+  let framedSearch = false;
+  while (gen === demoGen && Date.now() - started < 10000) {
+    const list = document.querySelector<HTMLElement>(
+      ".spotify-track-picker-block, .spotify-track-picker, .spotify-track-list",
+    );
+    if (list && list.getBoundingClientRect().height > 8) return list;
+    if (!framedSearch) framedSearch = focusVisible(".play-browsing", "results", 0.5);
+    if (!(await wait(140, gen))) return null;
+  }
+  return null;
+}
+
+async function waitForPlayButton(gen: number): Promise<HTMLButtonElement | null> {
+  const started = Date.now();
+  while (gen === demoGen && Date.now() - started < 2000) {
+    const button = findPlayResultButton();
+    if (button) return button;
+    if (!(await wait(80, gen))) return null;
+  }
+  return null;
+}
+
+async function finishPlayLoop(gen: number): Promise<void> {
+  removeCursor();
+  restoreSpotifyIdle();
+  postFeaturePhase("reset");
+  if (!(await wait(LOOP_GAP_MS, gen))) return;
+  if (gen === demoGen) void runPlayCommandDemo(gen);
 }
 
 async function runPlayCommandDemo(gen: number): Promise<void> {
@@ -433,34 +492,44 @@ async function runPlayCommandDemo(gen: number): Promise<void> {
   if (!(await clickTarget(send, gen, "composer", true))) return;
   postFeaturePhase("searching");
 
-  const list = await waitForEl(".spotify-track-list", gen, 4500);
-  if (!list || gen !== demoGen) return;
+  const list = await waitForPlayResults(gen);
+  if (!list || gen !== demoGen) {
+    await finishPlayLoop(gen);
+    return;
+  }
   postFeaturePhase("results");
   const resultsFocus = pinSearchListTop() ?? { x: sendAt.x, y: sendAt.y - 280 };
   postFeatureFocus(resultsFocus.x, resultsFocus.y, ZOOM_MS, "results");
   if (!(await wait(ZOOM_MS, gen))) return;
   if (!(await wait(400, gen))) return;
-  const playBtn = findPlayResultButton();
-  if (!playBtn) return;
+  const playBtn = await waitForPlayButton(gen);
+  if (!playBtn) {
+    await finishPlayLoop(gen);
+    return;
+  }
   const playAt = buttonCenter(playBtn);
   placeCursor(playAt.x, playAt.y, false, MOVE_MS, "results");
   if (!(await wait(MOVE_MS, gen))) return;
   const playBtnNow = findPlayResultButton() ?? playBtn;
   if (!(await clickTarget(playBtnNow, gen, "results"))) return;
   postFeaturePhase("playing");
-  const endFocus = holdFocus ?? {
-    x: (buttonCenter(field).x + buttonCenter(send).x) / 2,
-    y: (buttonCenter(field).y + buttonCenter(send).y) / 2,
-  };
+  const nowPlaying = await waitForEl(".hall-dj-track-feedback", gen, 2500);
+  const nowPlayingRect = nowPlaying?.getBoundingClientRect();
+  const endFocus =
+    nowPlayingRect && nowPlayingRect.width > 8
+      ? {
+          x: nowPlayingRect.left + nowPlayingRect.width / 2,
+          y: nowPlayingRect.bottom + 36,
+        }
+      : holdFocus ?? {
+          x: (buttonCenter(field).x + buttonCenter(send).x) / 2,
+          y: (buttonCenter(field).y + buttonCenter(send).y) / 2,
+        };
   placeCursor(playAt.x + TUCK_OFFSET_X, playAt.y + TUCK_OFFSET_Y, false, MOVE_MS, "hold", true);
   postFeatureFocus(endFocus.x, endFocus.y, MOVE_MS, "hold");
 
   if (!(await wait(PLAYING_HOLD_MS, gen))) return;
-  removeCursor();
-  restoreSpotifyIdle();
-  postFeaturePhase("reset");
-  if (!(await wait(LOOP_GAP_MS, gen))) return;
-  if (gen === demoGen) void runPlayCommandDemo(gen);
+  await finishPlayLoop(gen);
 }
 
 async function runSpotifyCursorDemo(gen: number): Promise<void> {

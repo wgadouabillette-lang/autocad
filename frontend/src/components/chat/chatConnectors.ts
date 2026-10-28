@@ -24,21 +24,18 @@ export const CHAT_CONNECTORS = [
     label: "Outlook",
     slash: "/outlook",
     Logo: CHAT_APP_LOGOS.outlook,
-    comingSoon: true,
   },
   {
-    id: "figma",
-    label: "Figma",
-    slash: "/figma",
-    Logo: CHAT_APP_LOGOS.figma,
-    comingSoon: true,
+    id: "onedrive",
+    label: "OneDrive",
+    slash: "/onedrive",
+    Logo: CHAT_APP_LOGOS.onedrive,
   },
   {
     id: "dropbox",
     label: "Dropbox",
     slash: "/dropbox",
     Logo: CHAT_APP_LOGOS.dropbox,
-    comingSoon: true,
   },
 ] as const;
 

@@ -1,5 +1,5 @@
 import { api } from "./api";
-import { aiNotesStructureModel } from "./aiModels";
+import { normalizeAiNotesModel } from "./aiModels";
 import { useStore } from "../store/useStore";
 
 function stripMarkdownFence(text: string): string {
@@ -137,7 +137,7 @@ export async function structureAiNotesTranscript(input: {
 
   const response = await api.chat(
     prompt,
-    aiNotesStructureModel(false),
+    normalizeAiNotesModel(useStore.getState().aiNotesModel),
     [],
     input.signal,
     undefined,

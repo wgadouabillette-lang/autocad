@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Check, Copy, UserPlus } from "lucide-react";
+import { Check, Copy, Plus } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { copyTextToClipboard } from "../../lib/clipboard";
@@ -131,9 +131,6 @@ export default function HeaderInviteButton() {
               aria-label="Inviter au workspace"
             >
               <p className="header-invite-menu__title">Inviter au workspace</p>
-              <p className="header-invite-menu__hint">
-                Invitez un ami, ou copiez le lien pour rejoindre {workspaceName}.
-              </p>
               {friends.length > 0 ? (
                 <ul className="header-invite-menu__friends">
                   {friends.map((friend) => {
@@ -189,19 +186,15 @@ export default function HeaderInviteButton() {
       <button
         ref={buttonRef}
         type="button"
-        className={clsx(
-          "workspace-switcher-capsule",
-          "toolbar-btn",
-          "header-invite-btn",
-          open && "is-active",
-        )}
+        className={clsx("header-invite-capsule", open && "is-active")}
         onClick={() => setOpen((value) => !value)}
         title={`Inviter à ${workspaceName}`}
         aria-label={`Inviter à ${workspaceName}`}
         aria-expanded={open}
         aria-haspopup="dialog"
       >
-        <UserPlus size={14} strokeWidth={2.25} aria-hidden />
+        <span className="header-invite-capsule__label">Invite</span>
+        <Plus size={12} strokeWidth={2.5} className="header-invite-capsule__plus" aria-hidden />
       </button>
       {menu}
     </>

@@ -1,13 +1,11 @@
 (function () {
   var PREVIEW_WIDTH = 1680;
   var PREVIEW_HEIGHT = 940;
-  // Notes tab after a completed meeting.
-  var VISIBLE_WIDTH = 920;
-  var VISIBLE_HEIGHT = 560;
-  var VISIBLE_LEFT = 380;
-  var VISIBLE_TOP = PREVIEW_HEIGHT - VISIBLE_HEIGHT - 8;
-  var TOP_PAD = 0;
-  var BOTTOM_PAD = 72;
+  // Hero workspace on the left, docked Notes panel (live transcription) on the right.
+  var CONTENT_WIDTH = 900;
+  var CONTENT_HEIGHT = 700;
+  var CONTENT_LEFT = PREVIEW_WIDTH - CONTENT_WIDTH;
+  var CONTENT_TOP = 20;
   var LOAD_TIMEOUT_MS = 8000;
 
   function resolvePreviewHref() {
@@ -28,9 +26,9 @@
     var height = mount.clientHeight;
     if (width <= 0 || height <= 0) return;
 
-    var scale = Math.max(width / VISIBLE_WIDTH, height / VISIBLE_HEIGHT);
-    var offsetX = -VISIBLE_LEFT * scale + (width - VISIBLE_WIDTH * scale) / 2;
-    var offsetY = -VISIBLE_TOP * scale + TOP_PAD - BOTTOM_PAD;
+    var scale = Math.max(width / CONTENT_WIDTH, height / CONTENT_HEIGHT);
+    var offsetX = width - (CONTENT_LEFT + CONTENT_WIDTH) * scale;
+    var offsetY = (height - CONTENT_HEIGHT * scale) / 2 - CONTENT_TOP * scale;
 
     wrapper.style.width = width + "px";
     wrapper.style.height = height + "px";

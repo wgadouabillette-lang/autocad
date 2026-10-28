@@ -11,11 +11,16 @@ import type {
 import type { DrawingDocument } from "../lib/drawing/types";
 import { EMPTY_DRAWING } from "../lib/drawing/types";
 import { useDrawingStore } from "./useDrawingStore";
-import type { AiModel } from "../lib/aiModels";
+import { normalizeAiNotesModel, type AiModel } from "../lib/aiModels";
 import { handleAiModelFallback } from "../lib/aiQuota";
 import { useHallDjStore } from "./useHallDjStore";
 import type { AiRun, AiRunExpand } from "../lib/aiRun";
 import { beginAiRequest, cancelAiRequest, endAiRequest } from "../lib/aiRequest";
+import {
+  compressEditedImage,
+  imageEditNeedsInstruction,
+  isImageEditRequest,
+} from "../lib/imageEditIntent";
 import { AI_STUB_INFINITE_LOADING, waitUntilAborted } from "../lib/aiMock";
 import { activeStepLabel, advanceRunSteps, createRunningRun, summarizeActions } from "../lib/aiRun";
 import { stepTickIntervalMs } from "../lib/aiRunSteps";
@@ -76,7 +81,26 @@ import {
 } from "../lib/manageScheduleSkill";
 import { isMarketingPreview } from "../lib/marketingPreview";
 import { marketingPlaySearchResult } from "../lib/marketingPlayDemo";
-import { parseAddQueueSkillQuery, parsePlaySkillQuery, runPlaySearchSkill } from "../lib/playSkill";
+import {
+  parseAddQueueSkillQuery,
+  parsePlaySkillQuery,
+  pickTopSpotifyTracks,
+  runPlayTrackChoices,
+} from "../lib/playSkill";
+import {
+  PLAY_QUERY_MISSING,
+  calendarAskMessage,
+  calendarFollowUpText,
+  formatCalendarAddPrompt,
+  isCalendarAddRequest,
+  isPlaySongRequest,
+  resolveCalendarAdd,
+  resolvePlayQuery,
+  type CalendarAddDraft,
+} from "../lib/chatActionIntents";
+import { createUserCalendarEvents, fetchUserCalendarEvents } from "../lib/calendarEventsApi";
+import { notifyCalendarEventsChanged } from "../hooks/usePersistedCalendarEvents";
+import { useCalendarStore } from "./useCalendarStore";
 import type { ManageSchedulePromptDraft } from "../lib/manageSchedulePrompt";
 import type { MeetingPromptDraft } from "../lib/meetingSkill";
 
@@ -85,11 +109,44 @@ function pushDevSubscriptionToFirestore(plan: SubscriptionPlan, onDemand: boolea
 }
 import type { MailPromptDraft } from "../lib/mailSkill";
 import {
+  formatMailSendPrompt,
+  isMailSendRequest,
+  mailFollowUpText,
+  resolveMailSend,
+  type MailSendDraft,
+} from "../lib/mailIntent";
+import {
   isMeetingSkillPrompt,
   isNaturalLanguageMeetingRequest,
   runNaturalLanguageMeetingSkill,
 } from "../lib/meetingSkill";
 import type { SpotifyPlayState, SpotifyTrackCard } from "../lib/connectorsApi";
+import { sendGmailMessage } from "../lib/connectorsApi";
+import {
+  buildPluginActionPrompt,
+  parsePluginActionBlock,
+  stripPluginActionBlock,
+  type StoredPluginAction,
+} from "../lib/pluginActions";
+import { resolveAppLocale } from "../lib/appLocale";
+import {
+  nextHallDjVolume,
+  parseVolumeDownRequest,
+  volumeDownConfirmation,
+  volumeRequestFromPlugin,
+} from "../lib/volumeIntent";
+import {
+  buildNoteSharePrompt,
+  collectNoteShareColleagues,
+  deliverOwnedNotesByEmail,
+  listOwnedNoteFiles,
+  parseNoteShareBlock,
+  resolveDirectNoteShare,
+  stripNoteShareBlock,
+} from "../lib/noteShare";
+import { useWorkspacePresenceStore } from "./useWorkspacePresenceStore";
+import { useConnectorsStore } from "./useConnectorsStore";
+import { useSpotifyPlayerStore } from "./useSpotifyPlayerStore";
 import {
   buildConnectorAugmentedPrompt,
   parseConnectorSlashCommand,
@@ -115,10 +172,24 @@ export interface ChatMessage {
   manageEventsApplied?: boolean;
   playQuery?: string;
   spotifySearch?: SpotifyTrackCard[];
-  spotifySearchMode?: "play" | "queue-add";
+  spotifySearchMode?: "play" | "queue-add" | "picker";
+  /** Décalage Spotify de la page affichée dans le sélecteur. */
+  spotifyPickerOffset?: number;
+  spotifyPickerGeneration?: number;
+  spotifyPickerVerdict?: "accepted" | "rejected";
   spotifyTrack?: SpotifyTrackCard;
   spotifyPlay?: SpotifyPlayState;
+  /** Événement proposé, ajouté seulement après le bouton Add. */
+  calendarAdd?: CalendarAddDraft & { applied?: boolean; eventId?: string };
+  calendarAddError?: string;
+  /** Email proposé, envoyé seulement après le bouton Send. */
+  mailSend?: MailSendDraft & { applied?: boolean };
+  mailSendError?: string;
+  /** Action plugin proposée par l'assistant, exécutée au clic sur Play ou Send. */
+  pluginAction?: StoredPluginAction;
   actions?: { kind: string; description: string }[];
+  /** Image renvoyée après une édition de la pièce jointe. */
+  editedImageSrc?: string;
 }
 
 export interface ChatSession {
@@ -435,6 +506,7 @@ interface State {
   availabilityDays: number[];
   hallDjPreferredGenre: string;
   hallDjVolume: number;
+  aiNotesModel: AiModel;
   aiRun: AiRun | null;
   activePage: MainPageId | null;
   openPages: MainPageId[];
@@ -470,7 +542,10 @@ interface State {
   setAvailabilityDays: (days: number[]) => void;
   setHallDjPreferredGenre: (genre: string) => void;
   setHallDjVolume: (volume: number) => void;
+  setAiNotesModel: (model: AiModel) => void;
   clearSpotifySearchResults: (chatIndex: number) => void;
+  reloadSpotifyPicker: (chatIndex: number) => Promise<void>;
+  setSpotifyPickerVerdict: (chatIndex: number, verdict: "accepted" | "rejected") => void;
   clearSettingsScrollTarget: () => void;
   select: (id: string | null) => void;
   /** additive=true : ⌘/Ctrl+clic pour ajouter ou retirer une face de la sélection. */
@@ -559,10 +634,15 @@ interface State {
   sendChat: (
     prompt: string,
     userChatText?: string,
-    options?: { managePrompt?: ManageSchedulePromptDraft },
+    options?: { managePrompt?: ManageSchedulePromptDraft; imageFiles?: File[] },
   ) => Promise<void>;
   /** Pousse les blocs proposés par /manage dans le calendrier (déclenché par "Appliquer au calendrier"). */
   applyManageEventsForChatMessage: (chatIndex: number) => Promise<void>;
+  /** Ajoute l'événement proposé après le bouton Add. */
+  applyCalendarAddForChatMessage: (chatIndex: number) => Promise<void>;
+  applyMailSendForChatMessage: (chatIndex: number) => Promise<void>;
+  /** Lance Play ou Send sur l'action plugin proposée. */
+  applyPluginActionForChatMessage: (chatIndex: number) => Promise<void>;
   sendAgent: (
     prompt: string,
     imageFiles?: File[],
@@ -639,6 +719,7 @@ function userPreferencesSnapshot(state: {
   availabilityDays: number[];
   hallDjPreferredGenre: string;
   hallDjVolume: number;
+  aiNotesModel: AiModel;
 }): UserPreferences {
   const calendarHours = resolveCalendarWorkingHours(
     state.calendarWorkStartMinutes,
@@ -674,6 +755,7 @@ function userPreferencesSnapshot(state: {
     availabilityDays: normalizeAvailabilityDays(state.availabilityDays),
     hallDjPreferredGenre: state.hallDjPreferredGenre,
     hallDjVolume: normalizeHallDjVolume(state.hallDjVolume),
+    aiNotesModel: normalizeAiNotesModel(state.aiNotesModel),
   };
 }
 
@@ -936,6 +1018,12 @@ export const useStore = create<State>((set, get) => ({
     });
   },
 
+  setAiNotesModel: (model) => {
+    const aiNotesModel = normalizeAiNotesModel(model);
+    set({ aiNotesModel });
+    writeUserPreferences(userPreferencesSnapshot({ ...get(), aiNotesModel }));
+  },
+
   clearSpotifySearchResults: (chatIndex) => {
     set((s) => {
       const message = s.chat[chatIndex];
@@ -945,6 +1033,75 @@ export const useStore = create<State>((set, get) => ({
       );
       return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
     });
+  },
+
+  reloadSpotifyPicker: async (chatIndex) => {
+    const message = get().chat[chatIndex];
+    const query = message?.playQuery?.trim();
+    const current = message?.spotifySearch ?? [];
+    if (!message || message.spotifySearchMode !== "picker" || !query || current.length === 0) return;
+    const pageSize = 4;
+    const page = message.spotifyPickerOffset ?? 0;
+    const generation = (message.spotifyPickerGeneration ?? 0) + 1;
+    if (page + pageSize < current.length) {
+      set((s) => {
+        const nextChat = s.chat.map((entry, index) =>
+          index === chatIndex
+            ? {
+                ...entry,
+                spotifyPickerOffset: page + pageSize,
+                spotifyPickerGeneration: generation,
+                spotifyPickerVerdict: undefined,
+              }
+            : entry,
+        );
+        return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+      });
+      writeAutosave(get());
+      return;
+    }
+
+    const seen = new Set(current.map((track) => track.id?.trim() || `${track.name}::${track.artists}`));
+    let more: SpotifyTrackCard[] = [];
+    if (isMarketingPreview()) {
+      more = pickTopSpotifyTracks(marketingPlaySearchResult(query).tracks, query, 24).filter(
+        (track) => !seen.has(track.id?.trim() || `${track.name}::${track.artists}`),
+      );
+    } else {
+      more = (await runPlayTrackChoices(query, undefined, current.length)).filter(
+        (track) => !seen.has(track.id?.trim() || `${track.name}::${track.artists}`),
+      );
+    }
+    const nextTracks = more.length ? [...current, ...more] : current;
+    const nextOffset = more.length ? current.length : 0;
+    set((s) => {
+      const nextChat = s.chat.map((entry, index) =>
+        index === chatIndex
+          ? {
+              ...entry,
+              spotifySearch: nextTracks,
+              spotifyPickerOffset: nextOffset,
+              spotifyPickerGeneration: generation,
+              spotifyPickerVerdict: undefined,
+            }
+          : entry,
+      );
+      return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+    });
+    writeAutosave(get());
+  },
+
+  setSpotifyPickerVerdict: (chatIndex, verdict) => {
+    set((s) => {
+      const message = s.chat[chatIndex];
+      if (!message || message.spotifySearchMode !== "picker") return s;
+      const nextVerdict = message.spotifyPickerVerdict === verdict ? undefined : verdict;
+      const nextChat = s.chat.map((entry, index) =>
+        index === chatIndex ? { ...entry, spotifyPickerVerdict: nextVerdict } : entry,
+      );
+      return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+    });
+    writeAutosave(get());
   },
 
   clearSettingsScrollTarget: () => set({ settingsScrollTarget: null }),
@@ -1107,12 +1264,19 @@ export const useStore = create<State>((set, get) => ({
   ) => {
     const trimmed = prompt.trim();
     const userChatText = options?.userDisplayText?.trim() || trimmed || "(Attachments)";
-    await get().sendChat(trimmed, userChatText, options);
+    await get().sendChat(trimmed, userChatText, {
+      managePrompt: options?.managePrompt,
+      imageFiles: _imageFiles,
+    });
     writeAutosave(get());
     return { blocked: false as const };
   },
 
-  sendChat: async (prompt, userChatText, options?: { managePrompt?: ManageSchedulePromptDraft }) => {
+  sendChat: async (
+    prompt,
+    userChatText,
+    options?: { managePrompt?: ManageSchedulePromptDraft; imageFiles?: File[] },
+  ) => {
     const displayText = userChatText ?? prompt;
 
     const { aiModel, chat, activeRoomId, agentChatInstructions } = get();
@@ -1163,9 +1327,115 @@ export const useStore = create<State>((set, get) => ({
     const tickMs = stepTickIntervalMs("chat");
     const stepTimer = window.setInterval(() => get().tickAiRunStep(), tickMs);
     const processingStartedAt = Date.now();
+    const imageFiles = (options?.imageFiles ?? []).filter((file) => file.type.startsWith("image/"));
     try {
       if (AI_STUB_INFINITE_LOADING) {
         await waitUntilAborted(signal);
+        return;
+      }
+
+      if (isImageEditRequest(displayText)) {
+        const french = resolveAppLocale(get().locale).startsWith("fr");
+        const finishImageEdit = async (assistantText: string, editedImageSrc?: string, failed = false) => {
+          await waitMinChatProcessing(processingStartedAt, signal);
+          set((s) => ({
+            ...patchChatState(
+              [
+                ...s.chat,
+                {
+                  role: "assistant",
+                  text: assistantText,
+                  source: "image-edit",
+                  ...(editedImageSrc ? { editedImageSrc } : {}),
+                },
+              ],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: failed ? "error" : "done",
+              finishedAt: Date.now(),
+              summary: assistantText.replace(/\*\*/g, "").slice(0, 140),
+              message: assistantText,
+              source: "image-edit",
+              ...(failed ? { error: assistantText } : {}),
+              steps: run.steps.map((step) => ({
+                ...step,
+                status: failed ? ("error" as const) : ("done" as const),
+              })),
+            },
+          }));
+          writeAutosave(get());
+        };
+
+        if (imageFiles.length === 0) {
+          await finishImageEdit(
+            french
+              ? "Ajoutez l'image en pièce jointe, puis redemandez l'édition."
+              : "Attach the image, then ask for the edit again.",
+          );
+          return;
+        }
+        if (imageEditNeedsInstruction(displayText)) {
+          await finishImageEdit(
+            french
+              ? "Décrivez la modification à appliquer à l'image."
+              : "Describe the change to make on the image.",
+          );
+          return;
+        }
+        try {
+          get().tickAiRunStep();
+          const edited = await api.editPromptImage(imageFiles[0], displayText, signal);
+          const editedImageSrc = await compressEditedImage(edited.data_b64, edited.mime);
+          await finishImageEdit(
+            french ? "Voici l'image modifiée." : "Here's the edited image.",
+            editedImageSrc,
+          );
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "La modification de l'image a échoué.";
+          await finishImageEdit(detail, undefined, true);
+        }
+        return;
+      }
+
+      const volumeRequest =
+        isPlaySkillPrompt(displayText) ||
+        isAddQueueSkillPrompt(displayText) ||
+        isManageSchedulePrompt(displayText) ||
+        isMeetingSkillPrompt(displayText)
+          ? null
+          : parseVolumeDownRequest(displayText);
+      if (volumeRequest) {
+        get().tickAiRunStep();
+        const current = get().hallDjVolume;
+        const next = nextHallDjVolume(current, volumeRequest);
+        const alreadyMin = current <= 0.001 && next <= 0.001;
+        get().setHallDjVolume(next);
+        const assistantText = volumeDownConfirmation(
+          Math.round(next * 100),
+          resolveAppLocale(get().locale),
+          alreadyMin,
+        );
+        await waitMinChatProcessing(processingStartedAt, signal);
+        set((s) => ({
+          ...patchChatState(
+            [...s.chat, { role: "assistant", text: assistantText, source: "volume" }],
+            s.openChatTabs,
+            s.activeChatTabId,
+          ),
+          aiRun: {
+            ...run,
+            status: "done",
+            finishedAt: Date.now(),
+            summary: assistantText.replace(/\*\*/g, "").slice(0, 140),
+            message: assistantText,
+            source: "volume",
+            steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+          },
+        }));
+        writeAutosave(get());
         return;
       }
 
@@ -1223,18 +1493,55 @@ export const useStore = create<State>((set, get) => ({
         }
 
         try {
-          const [playResult] = await Promise.all([
-            isMarketingPreview()
-              ? Promise.resolve(marketingPlaySearchResult(playQuery))
-              : runPlaySearchSkill(playQuery, signal),
+          if (isMarketingPreview()) {
+            const [playResult] = await Promise.all([
+              Promise.resolve(marketingPlaySearchResult(playQuery)),
+              waitMinChatProcessing(processingStartedAt, signal),
+            ]);
+            if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+            const tracks = playResult.tracks;
+            const assistantText = tracks.length ? "" : playResult.summary;
+            set((s) => ({
+              ...patchChatState(
+                [
+                  ...s.chat,
+                  {
+                    role: "assistant",
+                    text: assistantText,
+                    source: "play-skill",
+                    ...(tracks.length
+                      ? {
+                          playQuery,
+                          spotifySearch: tracks,
+                          spotifySearchMode: "picker" as const,
+                          spotifyPickerOffset: 0,
+                        }
+                      : {}),
+                  },
+                ],
+                s.openChatTabs,
+                s.activeChatTabId,
+              ),
+              aiRun: {
+                ...run,
+                status: "done",
+                finishedAt: Date.now(),
+                summary: tracks[0]?.name ?? assistantText.slice(0, 140),
+                message: tracks[0]?.name ?? assistantText,
+                source: "play-skill",
+                steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+              },
+            }));
+            writeAutosave(get());
+            return;
+          }
+
+          const [tracks] = await Promise.all([
+            runPlayTrackChoices(playQuery, signal),
             waitMinChatProcessing(processingStartedAt, signal),
           ]);
-          if (signal.aborted) {
-            throw new DOMException("Aborted", "AbortError");
-          }
-          const assistantText = playResult.summary;
-          const summary =
-            assistantText.length > 140 ? `${assistantText.slice(0, 137)}…` : assistantText;
+          if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+          const assistantText = tracks.length ? "" : `Aucun titre trouvé pour « ${playQuery} ».`;
           set((s) => ({
             ...patchChatState(
               [
@@ -1243,7 +1550,14 @@ export const useStore = create<State>((set, get) => ({
                   role: "assistant",
                   text: assistantText,
                   source: "play-skill",
-                  spotifySearch: playResult.tracks,
+                  ...(tracks.length
+                    ? {
+                        playQuery,
+                        spotifySearch: tracks,
+                        spotifySearchMode: "picker" as const,
+                        spotifyPickerOffset: 0,
+                      }
+                    : {}),
                 },
               ],
               s.openChatTabs,
@@ -1253,8 +1567,8 @@ export const useStore = create<State>((set, get) => ({
               ...run,
               status: "done",
               finishedAt: Date.now(),
-              summary,
-              message: assistantText,
+              summary: tracks[0]?.name ?? assistantText.slice(0, 140),
+              message: tracks[0]?.name ?? assistantText,
               source: "play-skill",
               steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
             },
@@ -1289,7 +1603,12 @@ export const useStore = create<State>((set, get) => ({
         }
       }
 
-      if (!hasAiAccess(get().subscriptionPlan, get().billingManaged, get().workspaceEnterpriseActive)) {
+      if (
+        !hasAiAccess(get().subscriptionPlan, get().billingManaged, get().workspaceEnterpriseActive) &&
+        !isCalendarAddRequest(calendarFollowUpText(get().chat.slice(0, -1), displayText)) &&
+        !isMailSendRequest(mailFollowUpText(get().chat.slice(0, -1), displayText)) &&
+        !isPlaySongRequest(displayText)
+      ) {
         const assistantText = freePlanAiReply(displayText);
         await waitMinChatProcessing(processingStartedAt, signal);
         set((s) => ({
@@ -1564,12 +1883,246 @@ export const useStore = create<State>((set, get) => ({
         }
       }
 
+      const allowLlm = hasAiAccess(
+        get().subscriptionPlan,
+        get().billingManaged,
+        get().workspaceEnterpriseActive,
+      );
+      const intentOptions = { signal, workspaceId: activeRoomId, allowLlm };
+
+      const calendarText = calendarFollowUpText(get().chat.slice(0, -1), displayText);
+      const calendarIntent = await resolveCalendarAdd(calendarText, intentOptions);
+      if (calendarIntent) {
+        get().tickAiRunStep();
+        const assistantText =
+          calendarIntent === "ask" ? calendarAskMessage(calendarText) : formatCalendarAddPrompt(calendarIntent);
+        await waitMinChatProcessing(processingStartedAt, signal);
+        set((s) => ({
+          ...patchChatState(
+            [
+              ...s.chat,
+              {
+                role: "assistant" as const,
+                text: assistantText,
+                source: "calendar-add",
+                ...(calendarIntent === "ask" ? {} : { calendarAdd: calendarIntent }),
+              },
+            ],
+            s.openChatTabs,
+            s.activeChatTabId,
+          ),
+          aiRun: {
+            ...run,
+            status: "done" as const,
+            finishedAt: Date.now(),
+            summary: assistantText.slice(0, 140),
+            message: assistantText,
+            source: "calendar-add",
+            steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+          },
+        }));
+        writeAutosave(get());
+        return;
+      }
+
+      const mailText = mailFollowUpText(get().chat.slice(0, -1), displayText);
+      const mailIntent = await resolveMailSend(mailText, mentionable, get().userEmail);
+      if (mailIntent) {
+        get().tickAiRunStep();
+        const assistantText = "ask" in mailIntent ? mailIntent.ask : formatMailSendPrompt(mailIntent);
+        await waitMinChatProcessing(processingStartedAt, signal);
+        set((s) => ({
+          ...patchChatState(
+            [
+              ...s.chat,
+              {
+                role: "assistant" as const,
+                text: assistantText,
+                source: "mail-send",
+                ...("ask" in mailIntent ? {} : { mailSend: mailIntent }),
+              },
+            ],
+            s.openChatTabs,
+            s.activeChatTabId,
+          ),
+          aiRun: {
+            ...run,
+            status: "done" as const,
+            finishedAt: Date.now(),
+            summary: assistantText.slice(0, 140),
+            message: assistantText,
+            source: "mail-send",
+            steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+          },
+        }));
+        writeAutosave(get());
+        return;
+      }
+
+      const playIntent = await resolvePlayQuery(displayText, intentOptions);
+      if (playIntent) {
+        get().tickAiRunStep();
+        if (playIntent === "ask") {
+          await waitMinChatProcessing(processingStartedAt, signal);
+          set((s) => ({
+            ...patchChatState(
+              [...s.chat, { role: "assistant" as const, text: PLAY_QUERY_MISSING, source: "play-skill" }],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "done" as const,
+              finishedAt: Date.now(),
+              summary: PLAY_QUERY_MISSING.slice(0, 140),
+              message: PLAY_QUERY_MISSING,
+              source: "play-skill",
+              steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+            },
+          }));
+          writeAutosave(get());
+          return;
+        }
+
+        try {
+          const [tracks] = await Promise.all([
+            isMarketingPreview()
+              ? Promise.resolve(
+                  pickTopSpotifyTracks(marketingPlaySearchResult(playIntent).tracks, playIntent, 10),
+                )
+              : runPlayTrackChoices(playIntent, signal),
+            waitMinChatProcessing(processingStartedAt, signal),
+          ]);
+          if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+          const assistantText = tracks.length ? "" : `Aucun titre trouvé pour « ${playIntent} ».`;
+          set((s) => ({
+            ...patchChatState(
+              [
+                ...s.chat,
+                {
+                  role: "assistant" as const,
+                  text: assistantText,
+                  source: "play-skill",
+                  ...(tracks.length
+                    ? {
+                        playQuery: playIntent,
+                        spotifySearch: tracks,
+                        spotifySearchMode: "picker" as const,
+                        spotifyPickerOffset: 0,
+                      }
+                    : {}),
+                },
+              ],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "done" as const,
+              finishedAt: Date.now(),
+              summary: tracks[0]?.name ?? assistantText.slice(0, 140),
+              message: tracks[0]?.name ?? assistantText,
+              source: "play-skill",
+              steps: run.steps.map((step) => ({ ...step, status: "done" as const })),
+            },
+          }));
+          writeAutosave(get());
+          return;
+        } catch (playErr: unknown) {
+          if (playErr instanceof DOMException && playErr.name === "AbortError") throw playErr;
+          const message =
+            playErr instanceof Error ? playErr.message : "Impossible de chercher ce titre sur Spotify.";
+          await waitMinChatProcessing(processingStartedAt, signal);
+          set((s) => ({
+            ...patchChatState(
+              [...s.chat, { role: "assistant" as const, text: message, source: "play-skill" }],
+              s.openChatTabs,
+              s.activeChatTabId,
+            ),
+            aiRun: {
+              ...run,
+              status: "error" as const,
+              finishedAt: Date.now(),
+              summary: message.slice(0, 140),
+              error: message,
+              source: "play-skill",
+              steps: [{ id: "1", label: "Spotify", detail: message, status: "error" as const }],
+            },
+          }));
+          writeAutosave(get());
+          return;
+        }
+      }
+
+      const noteSources = [...get().chatSessions, ...get().openChatTabs];
+      const noteColleagues = collectNoteShareColleagues({
+        localUserId: auth.currentUser?.uid ?? "",
+        threads: peopleState.colleagueThreadsForWorkspace(activeRoomId),
+        roster: useWorkspacePresenceStore.getState().membersByWorkspace[activeRoomId] ?? {},
+      });
+      const directShare = resolveDirectNoteShare(
+        displayText,
+        listOwnedNoteFiles(noteSources),
+        noteColleagues,
+        get().activeManualNoteId,
+      );
+      if (directShare?.action === "send") {
+        get().tickAiRunStep();
+        const gmailConnected = useConnectorsStore
+          .getState()
+          .statuses.some((status) => status.id === "gmail" && status.connected);
+        const delivery = await deliverOwnedNotesByEmail({
+          request: directShare.request,
+          sources: noteSources,
+          colleagues: noteColleagues,
+          gmailConnected,
+        });
+        if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+        await waitMinChatProcessing(processingStartedAt, signal);
+        set((s) => ({
+          ...patchChatState(
+            [
+              ...s.chat,
+              { role: "assistant" as const, text: delivery.message, source: "note-share" },
+            ],
+            s.openChatTabs,
+            s.activeChatTabId,
+          ),
+          aiRun: {
+            ...run,
+            status: delivery.ok ? ("done" as const) : ("error" as const),
+            finishedAt: Date.now(),
+            summary: delivery.message.slice(0, 140),
+            message: delivery.message,
+            ...(delivery.ok ? {} : { error: delivery.message }),
+            source: "note-share",
+            steps: run.steps.map((step) => ({
+              ...step,
+              status: delivery.ok ? ("done" as const) : ("error" as const),
+            })),
+          },
+        }));
+        writeAutosave(get());
+        return;
+      }
+
       const history = chatWithoutLastUserPrompt(get().chat, displayText)
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role, content: m.text }));
       get().tickAiRunStep();
+      const connectorStatuses = useConnectorsStore.getState().statuses.map((status) => ({
+        id: status.id,
+        connected: status.connected,
+      }));
+      const pluginPrompt = buildPluginActionPrompt(connectorStatuses);
+      const noteSharePrompt = await buildNoteSharePrompt({
+        sources: noteSources,
+        colleagues: noteColleagues,
+        gmailConnected: connectorStatuses.some((status) => status.id === "gmail" && status.connected),
+      });
+      if (signal.aborted) throw new DOMException("Aborted", "AbortError");
       const res = await api.chat(
-        apiPrompt,
+        `${apiPrompt}\n\n${pluginPrompt}\n\n${noteSharePrompt}`,
         aiModel,
         history,
         signal,
@@ -1578,7 +2131,52 @@ export const useStore = create<State>((set, get) => ({
       );
       handleAiModelFallback(res, get().setAiModel);
 
-      let assistantText = stripDispatchBlock(res.message) || res.message;
+      const noteShare = parseNoteShareBlock(res.message);
+      const pluginAction = noteShare ? null : parsePluginActionBlock(res.message);
+      let assistantText =
+        stripNoteShareBlock(stripPluginActionBlock(stripDispatchBlock(res.message))) ||
+        stripDispatchBlock(res.message) ||
+        res.message;
+      if (noteShare) {
+        const delivery = await deliverOwnedNotesByEmail({
+          request: noteShare,
+          sources: [...get().chatSessions, ...get().openChatTabs],
+          colleagues: noteColleagues,
+          gmailConnected: connectorStatuses.some((status) => status.id === "gmail" && status.connected),
+        });
+        if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+        if (!delivery.ok || !assistantText.trim()) assistantText = delivery.message;
+      }
+      let spotifyChoices: SpotifyTrackCard[] | undefined;
+      if (pluginAction?.kind === "calendar.add" && pluginAction.calendar && !assistantText.trim()) {
+        assistantText = formatCalendarAddPrompt(pluginAction.calendar);
+      }
+      if (pluginAction?.kind === "spotify.play" && pluginAction.query) {
+        const tracks = await runPlayTrackChoices(pluginAction.query, signal);
+        if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+        if (tracks.length) {
+          spotifyChoices = tracks;
+          assistantText = "";
+        } else if (!assistantText.trim()) {
+          assistantText = `Aucun titre trouvé pour « ${pluginAction.query} ».`;
+        }
+      }
+      if (pluginAction?.kind === "gmail.send" && pluginAction.mail && !assistantText.trim()) {
+        assistantText = `Envoyer « ${pluginAction.mail.subject} » à ${pluginAction.mail.to.join(", ")} ?`;
+      }
+      if (pluginAction?.kind === "volume.down") {
+        const current = get().hallDjVolume;
+        const next = nextHallDjVolume(current, volumeRequestFromPlugin(pluginAction.volume ?? {}));
+        const alreadyMin = current <= 0.001 && next <= 0.001;
+        get().setHallDjVolume(next);
+        if (!assistantText.trim()) {
+          assistantText = volumeDownConfirmation(
+            Math.round(next * 100),
+            resolveAppLocale(get().locale),
+            alreadyMin,
+          );
+        }
+      }
       if (mentions.length > 0) {
         dispatchMessagesToMentionedPeople({
           userPrompt: displayText,
@@ -1600,7 +2198,39 @@ export const useStore = create<State>((set, get) => ({
         ...patchChatState(
           [
             ...s.chat,
-            { role: "assistant", text: assistantText, source: res.source },
+            {
+              role: "assistant",
+              text: assistantText,
+              source: pluginAction ? "plugin-action" : res.source,
+              ...(pluginAction?.kind === "calendar.add" && pluginAction.calendar
+                ? { calendarAdd: pluginAction.calendar }
+                : {}),
+              ...(pluginAction?.kind === "gmail.send" && pluginAction.mail
+                ? {
+                    mailSend: {
+                      to: pluginAction.mail.to,
+                      subject: pluginAction.mail.subject,
+                      body: pluginAction.mail.body,
+                      label: pluginAction.mail.to.join(", "),
+                    },
+                  }
+                : {}),
+              ...(spotifyChoices?.length
+                ? {
+                    playQuery: pluginAction?.query,
+                    spotifySearch: spotifyChoices,
+                    spotifySearchMode: "picker" as const,
+                    spotifyPickerOffset: 0,
+                  }
+                : {}),
+              ...(pluginAction &&
+              pluginAction.kind !== "calendar.add" &&
+              pluginAction.kind !== "spotify.play" &&
+              pluginAction.kind !== "volume.down" &&
+              pluginAction.kind !== "gmail.send"
+                ? { pluginAction }
+                : {}),
+            },
           ],
           s.openChatTabs,
           s.activeChatTabId,
@@ -1716,6 +2346,163 @@ export const useStore = create<State>((set, get) => ({
       return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
     });
     writeAutosave(get());
+  },
+
+  applyCalendarAddForChatMessage: async (chatIndex) => {
+    const message = get().chat[chatIndex];
+    if (!message || message.role !== "assistant" || !message.calendarAdd || message.calendarAdd.applied) {
+      return;
+    }
+    const draft = message.calendarAdd;
+    try {
+      const created = await createUserCalendarEvents(
+        [
+          {
+            title: draft.title,
+            dateKey: draft.dateKey,
+            startMinutes: draft.startMinutes,
+            endMinutes: draft.endMinutes,
+          },
+        ],
+        "user",
+      );
+      let fresh = created.events;
+      try {
+        fresh = await fetchUserCalendarEvents();
+      } catch (error) {
+        if (created.events.length === 0) throw error;
+        const createdIds = new Set(created.events.map((event) => event.id));
+        fresh = [
+          ...useCalendarStore.getState().userEvents.filter((event) => !createdIds.has(event.id)),
+          ...created.events,
+        ];
+      }
+      useCalendarStore.getState().setUserEvents(fresh);
+      notifyCalendarEventsChanged();
+      const createdEvent = created.events[0];
+      const eventId =
+        fresh.find((event) => event.id === createdEvent?.id)?.id ??
+        fresh.find(
+          (event) =>
+            event.dateKey === draft.dateKey &&
+            event.startMinutes === draft.startMinutes &&
+            event.title === draft.title,
+        )?.id ??
+        createdEvent?.id;
+      set((s) => {
+        const nextChat = s.chat.map((entry, index) =>
+          index === chatIndex && entry.calendarAdd
+            ? {
+                ...entry,
+                calendarAdd: { ...entry.calendarAdd, applied: true, eventId },
+                calendarAddError: undefined,
+              }
+            : entry,
+        );
+        return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+      });
+      writeAutosave(get());
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Impossible d'ajouter l'événement.";
+      set((s) => {
+        const nextChat = s.chat.map((entry, index) =>
+          index === chatIndex ? { ...entry, calendarAddError: detail } : entry,
+        );
+        return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+      });
+    }
+  },
+
+  applyMailSendForChatMessage: async (chatIndex) => {
+    const message = get().chat[chatIndex];
+    if (!message || message.role !== "assistant" || !message.mailSend || message.mailSend.applied) return;
+    const draft = message.mailSend;
+    try {
+      await sendGmailMessage({
+        to: draft.to,
+        subject: draft.subject,
+        body: draft.body,
+      });
+      set((s) => {
+        const nextChat = s.chat.map((entry, index) =>
+          index === chatIndex && entry.mailSend
+            ? { ...entry, mailSend: { ...entry.mailSend, applied: true }, mailSendError: undefined }
+            : entry,
+        );
+        return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+      });
+      writeAutosave(get());
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Impossible d'envoyer l'email.";
+      const friendly =
+        /gmail_send_scope_required|send permission|insufficient/i.test(detail)
+          ? "Reconnectez Gmail dans Paramètres → Connectors pour autoriser l'envoi d'emails."
+          : /not_connected|not connected/i.test(detail)
+            ? "Gmail n'est pas connecté. Ouvrez Paramètres → Connectors, puis réessayez."
+            : detail;
+      set((s) => {
+        const nextChat = s.chat.map((entry, index) =>
+          index === chatIndex ? { ...entry, mailSendError: friendly } : entry,
+        );
+        return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+      });
+    }
+  },
+
+  applyPluginActionForChatMessage: async (chatIndex) => {
+    const message = get().chat[chatIndex];
+    const action = message?.pluginAction;
+    if (!message || message.role !== "assistant" || !action || action.applied) return;
+
+    const fail = (detail: string) => {
+      set((s) => {
+        const nextChat = s.chat.map((entry, index) =>
+          index === chatIndex && entry.pluginAction
+            ? { ...entry, pluginAction: { ...entry.pluginAction, error: detail } }
+            : entry,
+        );
+        return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+      });
+    };
+
+    try {
+      if (action.kind === "spotify.play") {
+        const track = message.spotifyTrack;
+        if (!track) {
+          fail("Aucun titre à lancer.");
+          return;
+        }
+        const started = await useSpotifyPlayerStore.getState().playTrack(track);
+        if (!started) {
+          fail("Impossible de lancer la lecture. Vérifiez que Spotify est connecté dans Connectors.");
+          return;
+        }
+      } else if (action.kind === "gmail.send" && action.mail) {
+        await sendGmailMessage({
+          to: action.mail.to,
+          subject: action.mail.subject,
+          body: action.mail.body,
+        });
+      } else {
+        return;
+      }
+
+      set((s) => {
+        const nextChat = s.chat.map((entry, index) =>
+          index === chatIndex && entry.pluginAction
+            ? { ...entry, pluginAction: { ...entry.pluginAction, applied: true, error: undefined } }
+            : entry,
+        );
+        return patchChatState(nextChat, s.openChatTabs, s.activeChatTabId);
+      });
+      writeAutosave(get());
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Impossible de faire cette action.";
+      const friendly = /not_connected|not connected/i.test(detail)
+        ? "Ce connecteur n'est pas connecté. Ouvrez Paramètres → Connectors, puis réessayez."
+        : detail;
+      fail(friendly);
+    }
   },
 
   sendAgent: async (

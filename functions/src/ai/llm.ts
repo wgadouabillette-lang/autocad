@@ -26,6 +26,21 @@ async function readErrorBody(response: Response): Promise<string> {
   }
 }
 
+/** Quota, crédit épuisé, ou limite de débit : on peut essayer un autre compte. */
+export function isProviderCreditExhausted(status: number, detail: string): boolean {
+  if (status === 402 || status === 429) return true;
+  const low = detail.toLowerCase();
+  return (
+    low.includes("credit") ||
+    low.includes("quota") ||
+    low.includes("insufficient") ||
+    low.includes("billing") ||
+    low.includes("rate limit") ||
+    low.includes("rate_limit") ||
+    low.includes("too many requests")
+  );
+}
+
 async function openAiCompatChat(
   baseUrl: string,
   apiKey: string,
@@ -51,17 +66,18 @@ async function openAiCompatChat(
     return {
       message: null,
       error: detail,
-      rateLimited: response.status === 402 || response.status === 429,
+      rateLimited: isProviderCreditExhausted(response.status, detail),
       inputTokens: 0,
       outputTokens: 0,
       modelId: model,
     };
   }
   const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
+    choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
     usage?: { prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number };
   };
-  const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+  const message = data.choices?.[0]?.message;
+  const text = (message?.content || message?.reasoning_content || "").trim();
   const usage = data.usage ?? {};
   const inputTokens = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0);
   const outputTokens = Number(usage.completion_tokens ?? usage.output_tokens ?? 0);
@@ -110,7 +126,7 @@ async function anthropicChat(
     return {
       message: null,
       error: detail,
-      rateLimited: response.status === 402 || response.status === 429,
+      rateLimited: isProviderCreditExhausted(response.status, detail),
       inputTokens: 0,
       outputTokens: 0,
       modelId: model,

@@ -133,24 +133,19 @@ Collez-y votre `XAI_API_KEY=...` puis relancez l’app.
 
 L’app bureau utilise le même projet Firebase que le web (`forma-cad-dev`) :
 
-- **Connexion** : Google / Microsoft / Facebook via **navigateur externe** → page web `https://forma-cad-dev.web.app/auth` (ou `https://forma.app/auth` après déploiement Netlify), puis retour automatique dans l'app
+- **Connexion** : Google via le navigateur → `https://meetra.cc/app/auth.html`, puis retour automatique dans l'app
 - **Clés API LLM** : enregistrées via Cloud Functions (Settings → Plugins), sans `.env`
 - **Données** : profil, workspaces et projets synchronisés dans Firestore après connexion
 
 Configuration Firebase Console requise :
 
-1. [Domaines autorisés](https://console.firebase.google.com/project/forma-cad-dev/authentication/settings) : ajoutez `forma-cad-dev.web.app`, `forma.app`, `127.0.0.1`, `localhost`
-2. Activez **Microsoft** et **Facebook** — guide Facebook : [`docs/FACEBOOK_AUTH.md`](../docs/FACEBOOK_AUTH.md)
-   ```bash
-   cp oauth.env.example oauth.env   # remplir FACEBOOK_OAUTH_* (+ MICROSOFT_OAUTH_* si besoin)
-   ./scripts/setup-facebook-login.sh
-   ```
-3. Déployez la landing + page d'auth :
+1. [Domaines autorisés](https://console.firebase.google.com/project/forma-cad-dev/authentication/settings) : `meetra.cc`, `www.meetra.cc`, `localhost`, `127.0.0.1`
+2. Déployez la landing + page d'auth :
    ```bash
    ./scripts/deploy-landing.sh
    ```
-   (Firebase Hosting — auth live sur `https://forma-cad-dev.web.app/auth`)
-4. *(Optionnel)* Cloud Functions si plan Blaze :
+   (Firebase Hosting — auth sur `https://meetra.cc/app/auth.html`)
+3. *(Optionnel)* Cloud Functions si plan Blaze :
    ```bash
    cd functions && npm run build && firebase deploy --only functions
    ```

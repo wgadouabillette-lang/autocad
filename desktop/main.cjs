@@ -124,13 +124,11 @@ const OAUTH_POPUP_PREFIXES = [
   "https://spotify.com/",
   "https://appleid.apple.com/",
   "https://appleid.cdn-apple.com/",
-  "https://www.facebook.com/",
-  "https://facebook.com/",
-  "https://login.microsoftonline.com/",
-  "https://login.live.com/",
   "https://forma-cad-dev.firebaseapp.com/",
   "https://checkout.stripe.com/",
   "https://billing.stripe.com/",
+  "https://meetra.cc/",
+  "https://www.meetra.cc/",
 ];
 
 const EXTERNAL_URL_ALLOWLIST = [
@@ -202,11 +200,81 @@ function oauthPopupBrowserOptions() {
   };
 }
 
+function isConnectorOAuthCallbackUrl(url) {
+  if (typeof url !== "string" || !url) return false;
+  try {
+    const parsed = new URL(url);
+    return (
+      (parsed.hostname === "meetra.cc" ||
+        parsed.hostname === "www.meetra.cc" ||
+        parsed.hostname === "127.0.0.1" ||
+        parsed.hostname === "localhost") &&
+      parsed.pathname.includes("/api/connectors/oauth/callback")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function deliverConnectorOAuthResult(payload) {
+  if (!payload || typeof payload !== "object") return;
+  if (payload.type !== "forma-connector-oauth") return;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("forma:connector-oauth-result", payload);
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+}
+
+async function harvestConnectorOAuthResult(contents) {
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    if (!contents || contents.isDestroyed()) return null;
+    try {
+      const result = await contents.executeJavaScript(
+        `(() => {
+          try {
+            const raw = localStorage.getItem("forma-connector-oauth-result");
+            if (!raw) return null;
+            const data = JSON.parse(raw);
+            if (!data || data.type !== "forma-connector-oauth") return null;
+            return data;
+          } catch (e) {
+            return null;
+          }
+        })()`,
+        true,
+      );
+      if (result && result.type === "forma-connector-oauth") return result;
+    } catch {
+      /* page may still be navigating */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 120));
+  }
+  return null;
+}
+
 function attachOAuthPopupNavigation(win) {
   if (!win || win.isDestroyed()) return;
   const contents = win.webContents;
+  let harvested = false;
+
+  const tryHarvest = async (url) => {
+    if (harvested || !isConnectorOAuthCallbackUrl(url)) return;
+    const result = await harvestConnectorOAuthResult(contents);
+    if (!result || harvested) return;
+    harvested = true;
+    deliverConnectorOAuthResult(result);
+    if (!win.isDestroyed()) {
+      try {
+        win.close();
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
   contents.setWindowOpenHandler(({ url }) => {
-    if (isOAuthPopupUrl(url)) {
+    if (isOAuthPopupUrl(url) || isConnectorOAuthCallbackUrl(url)) {
       void contents.loadURL(url);
       return { action: "deny" };
     }
@@ -215,6 +283,12 @@ function attachOAuthPopupNavigation(win) {
   });
   contents.on("did-create-window", (childWindow) => {
     attachOAuthPopupNavigation(childWindow);
+  });
+  contents.on("did-navigate", (_event, url) => {
+    void tryHarvest(url);
+  });
+  contents.on("did-finish-load", () => {
+    void tryHarvest(contents.getURL());
   });
 }
 
@@ -778,6 +852,29 @@ function splashWindowChrome(bounds = getCenteredSplashBounds()) {
   };
 }
 
+/**
+ * macOS main window: keep a frameless look but retain native traffic lights.
+ * `frame: false` + `transparent` hides the green/yellow/red buttons even after
+ * setWindowButtonVisibility(true). titleBarStyle:hidden is the supported path.
+ */
+function mainWindowChrome(bounds = getCenteredSplashBounds()) {
+  const base = splashWindowChrome(bounds);
+  if (process.platform !== "darwin") return base;
+  return {
+    ...base,
+    frame: true,
+    transparent: false,
+    backgroundColor: "#121212",
+    titleBarStyle: "hidden",
+    trafficLightPosition: { x: 16, y: 14 },
+    hasShadow: true,
+    // Keep green FS button creatable; splash hides the lights and locks size instead.
+    fullscreenable: true,
+    maximizable: true,
+    minimizable: true,
+  };
+}
+
 function closeSplashWindow() {
   if (splashWindow && !splashWindow.isDestroyed()) {
     splashWindow.close();
@@ -879,8 +976,8 @@ function applySplashChromeNow() {
   mainWindow.setMaximumSize(SPLASH_WINDOW_SIZE.width, SPLASH_WINDOW_SIZE.height);
   mainWindow.setBounds(bounds);
   mainWindow.setResizable(false);
-  mainWindow.setHasShadow(false);
-  mainWindow.setBackgroundColor("#00000000");
+  mainWindow.setHasShadow(process.platform === "darwin");
+  mainWindow.setBackgroundColor(process.platform === "darwin" ? "#121212" : "#00000000");
   setNativeWindowButtonsVisible(false);
 }
 
@@ -936,33 +1033,58 @@ function enterLaunchFullScreen(win) {
   win.maximize();
 }
 
+/**
+ * macOS hides/disables the green traffic light when the window is not
+ * fullscreenable+maximizable+resizable, or when a tight maximumSize is set.
+ * Splash mode locks size; app mode must fully clear those constraints.
+ */
+function applyAppWindowSizing(win) {
+  if (!win || win.isDestroyed()) return;
+  win.setFullScreenable(true);
+  win.setResizable(true);
+  win.setMaximizable(true);
+  win.setMinimizable(true);
+  win.setMinimumSize(APP_WINDOW_MIN_SIZE.width, APP_WINDOW_MIN_SIZE.height);
+  if (process.platform === "darwin") {
+    // 0 unsets the constraint — required for the green FS button to stay enabled.
+    win.setMaximumSize(0, 0);
+    return;
+  }
+  const display = screen.getDisplayMatching(win.getBounds()) ?? screen.getPrimaryDisplay();
+  win.setMaximumSize(display.bounds.width, display.bounds.height);
+}
+
 function showAppWindow() {
   if (mainWindowMode === "app") return;
   mainWindowMode = "app";
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.setFullScreenable(true);
-    mainWindow.setResizable(true);
-    mainWindow.setMaximizable(true);
-    mainWindow.setMinimizable(true);
-    const display = screen.getDisplayMatching(mainWindow.getBounds()) ?? screen.getPrimaryDisplay();
-    const { width, height } = display.bounds;
-    mainWindow.setMaximumSize(width, height);
-    mainWindow.setMinimumSize(APP_WINDOW_MIN_SIZE.width, APP_WINDOW_MIN_SIZE.height);
+    applyAppWindowSizing(mainWindow);
     mainWindow.setHasShadow(true);
     mainWindow.setBackgroundColor("#121212");
-    mainWindow.setBounds(getCenteredAppBounds());
+    const alreadyFullScreen = mainWindow.isFullScreen();
+    if (!alreadyFullScreen) {
+      mainWindow.setBounds(getCenteredAppBounds());
+    }
     // Maximize while still hidden on Windows/Linux so the first paint is not 1440×900.
     // macOS native fullscreen is applied after show() — setFullScreen on a hidden
-    // window is unreliable.
-    if (process.platform !== "darwin") {
+    // window is unreliable. If the splash was already fullscreen, keep that space
+    // and only drop the splash size lock.
+    if (process.platform !== "darwin" && !alreadyFullScreen) {
       enterLaunchFullScreen(mainWindow);
     }
     mainWindow.show();
-    if (process.platform === "darwin") {
+    if (process.platform === "darwin" && !alreadyFullScreen) {
       enterLaunchFullScreen(mainWindow);
     }
+    // Fullscreen transitions can drop button visibility; assert after show/FS.
     setNativeWindowButtonsVisible(true);
+    if (process.platform === "darwin") {
+      setTimeout(() => {
+        applyAppWindowSizing(mainWindow);
+        setNativeWindowButtonsVisible(true);
+      }, 400);
+    }
     mainWindow.focus();
     sendMainWindowState();
   }
@@ -1006,7 +1128,14 @@ function setNativeWindowButtonsVisible(visible) {
 }
 
 function attachMainWindowStateListeners(win) {
-  const emit = () => sendMainWindowState();
+  const emit = () => {
+    sendMainWindowState();
+    // Native FS enter/leave can hide or disable traffic lights on hidden-titlebar windows.
+    if (process.platform === "darwin" && mainWindowMode === "app") {
+      applyAppWindowSizing(win);
+      setNativeWindowButtonsVisible(true);
+    }
+  };
   for (const event of [
     "maximize",
     "unmaximize",
@@ -1059,9 +1188,11 @@ function createWindow() {
   createSplashWindow();
 
   mainWindow = new BrowserWindow({
-    ...splashWindowChrome(),
+    ...mainWindowChrome(),
     paintWhenInitiallyHidden: true,
-    fullscreenable: false,
+    // Windows/Linux: lock FS until showAppWindow. macOS: mainWindowChrome keeps
+    // fullscreenable so the green traffic light is never created in a disabled state.
+    ...(process.platform === "darwin" ? {} : { fullscreenable: false }),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -1072,6 +1203,8 @@ function createWindow() {
       plugins: process.platform === "darwin",
     },
   });
+  // Hidden during splash/auth; shown again in showAppWindow.
+  setNativeWindowButtonsVisible(false);
 
   applyDesktopUserAgent(mainWindow.webContents);
   attachRendererDiagnostics(mainWindow);

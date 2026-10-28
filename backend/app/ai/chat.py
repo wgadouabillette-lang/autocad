@@ -99,8 +99,6 @@ def run(
         provider = llm.provider_for_model(model_id) or llm.active_provider() or "llm"
         if result.data and result.data.get("message"):
             message = str(result.data["message"]).strip()
-            if fallback:
-                message = quota.prepend_fallback_notice(message)
             return ChatResponse(
                 message=message,
                 source=provider,

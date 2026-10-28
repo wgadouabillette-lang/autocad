@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { AGENT_PANEL_TITLE } from "../../lib/appBrand";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Calendar, Hash, History, Maximize2, Minimize2, Plus, Users, UsersRound } from "lucide-react";
+import { ArrowLeft, Hash, History, Maximize2, Minimize2, Plus, Users, UsersRound } from "lucide-react";
 import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { isVoiceAssistPanelMode } from "../../lib/voiceAssistPanel";
 import { resolvePersonPhotoURL } from "../../lib/peopleChat";
@@ -193,10 +193,7 @@ export default function ChatPanelHeader() {
         ) : theaterMode ? (
           t("chat.theaterChat")
         ) : calendarMode ? (
-          <span className="inline-flex items-center gap-1.5">
-            <Calendar size={13} className="text-muted-400" aria-hidden />
-            {t("chat.calendarTitle")}
-          </span>
+          t("chat.calendarTitle")
         ) : voiceAssistMode ? (
           t("chat.aiNotes")
         ) : (

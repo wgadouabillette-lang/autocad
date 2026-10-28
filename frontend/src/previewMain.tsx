@@ -20,9 +20,22 @@ import {
 } from "./lib/marketingPreviewSeed";
 import { applyDocumentTheme, bootstrapDocumentTheme } from "./lib/theme";
 import { bootstrapDocumentAccentColor } from "./lib/accentColor";
+import { applyAppLocale } from "./lib/i18n";
 import "./index.css";
 
+function applyMarketingPreviewDesktopChrome(): void {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("chrome") !== "mac") return;
+  document.documentElement.classList.add("has-desktop-mac-traffic-lights");
+  window.formaDesktop = {
+    isDesktop: true,
+    platform: "darwin",
+  } as NonNullable<Window["formaDesktop"]>;
+}
+
 markMarketingPreview();
+applyAppLocale("en");
+applyMarketingPreviewDesktopChrome();
 applyMarketingPreviewThemeFromUrl();
 bootstrapDocumentTheme();
 bootstrapDocumentAccentColor();

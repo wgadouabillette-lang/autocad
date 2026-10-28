@@ -1,23 +1,60 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "experimentalServices": {
+  "services": {
     "landing": {
       "root": "landing",
-      "routePrefix": "/",
-      "framework": "vite"
+      "framework": "vite",
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
     },
     "frontend": {
       "root": "frontend",
-      "routePrefix": "/app",
-      "framework": "vite"
+      "framework": "vite",
+      "rewrites": [
+        {
+          "source": "/app/:path(.*)?",
+          "destination": "/:path"
+        },
+        {
+          "source": "/:path*",
+          "destination": "/index.html"
+        }
+      ]
     },
     "backend": {
-      "entrypoint": "backend/main.py",
+      "root": "backend",
       "framework": "fastapi",
-      "routePrefix": "/_/backend",
-      "memory": 1024,
-      "maxDuration": 30,
-      "excludeFiles": "backend/{.venv/**,**/__pycache__/**,app/engine/**,app/vision/**,app/ai/**}"
+      "entrypoint": "main.py",
+      "functions": {
+        "main.py": {
+          "maxDuration": 30,
+          "excludeFiles": "backend/{.venv/**,**/__pycache__/**,app/engine/**,app/vision/**,app/ai/**}"
+        }
+      },
+      "rewrites": [
+        {
+          "source": "/_/backend/:path(.*)?",
+          "destination": "/:path"
+        }
+      ],
+      "bindings": [
+        {
+          "type": "service",
+          "service": "landing",
+          "format": "url",
+          "env": "LANDING_URL"
+        },
+        {
+          "type": "service",
+          "service": "frontend",
+          "format": "url",
+          "env": "FRONTEND_URL"
+        }
+      ]
     }
   },
   "redirects": [
@@ -97,6 +134,24 @@
     {
       "source": "/app",
       "destination": "/app/"
+    },
+    {
+      "source": "/_/backend(/.*)?",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/app(/.*)?",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "landing"
+      }
     }
   ],
   "headers": [
@@ -140,5 +195,12 @@
         }
       ]
     }
-  ]
+  ],
+  "build": {
+    "env": {
+      "VITE_LANDING_URL": "/",
+      "VITE_FRONTEND_URL": "/app",
+      "VITE_BACKEND_URL": "/_/backend"
+    }
+  }
 }

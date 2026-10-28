@@ -1,7 +1,31 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, CircleHelp } from "lucide-react";
+import { createRoot } from "react-dom/client";
+import { CircleHelp } from "lucide-react";
 import { useStore } from "../../store/useStore";
+
+/** Aperçu design : ticket support figé. Remettre à false pour le comportement réel. */
+export const PREVIEW_SUPPORT_TICKET: boolean = false;
+
+export function useSupportTicketDesignPreview(): void {
+  useEffect(() => {
+    if (!PREVIEW_SUPPORT_TICKET) return;
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    root.render(<SupportTicketPreview />);
+    return () => {
+      root.unmount();
+      host.remove();
+    };
+  }, [PREVIEW_SUPPORT_TICKET]);
+}
+
+function SupportTicketPreview() {
+  const [open, setOpen] = useState(true);
+  if (!open) return null;
+  return <SupportTicketOverlay onClose={() => setOpen(false)} />;
+}
 
 const SUPPORT_EMAIL = "support@hall.app";
 
@@ -34,17 +58,11 @@ export default function SupportTicketOverlay({ onClose }: SupportTicketOverlayPr
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (step === "details") {
-          setStep("reason");
-          return;
-        }
-        onClose();
-      }
+      if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, step]);
+  }, [onClose]);
 
   useEffect(() => {
     if (step !== "details") return;
@@ -61,7 +79,7 @@ export default function SupportTicketOverlay({ onClose }: SupportTicketOverlayPr
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (!selectedReason || !details.trim()) return;
+    if (PREVIEW_SUPPORT_TICKET || !selectedReason || !details.trim()) return;
 
     const subject = encodeURIComponent(`[Meetra Support] ${selectedReason.subject}`);
     const body = encodeURIComponent(
@@ -125,20 +143,8 @@ export default function SupportTicketOverlay({ onClose }: SupportTicketOverlayPr
           </>
         ) : (
           <form className="support-ticket-overlay__form" onSubmit={handleSubmit}>
-            <button
-              type="button"
-              className="support-ticket-overlay__back"
-              onClick={() => setStep("reason")}
-            >
-              <ArrowLeft size={14} strokeWidth={2.25} aria-hidden />
-              {selectedReason?.label ?? "Retour"}
-            </button>
-
             <p id="support-ticket-title" className="join-knock__title">
               Raison de l&apos;appel
-            </p>
-            <p className="join-knock__hint">
-              Décrivez votre demande — nous vous répondrons à {SUPPORT_EMAIL}.
             </p>
 
             <label className="group-chat-create-overlay__label" htmlFor="support-ticket-details">

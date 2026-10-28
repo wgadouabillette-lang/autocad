@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "crypto";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -5,7 +6,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { runAiChat, assertAuthenticated } from "./ai/chat";
 import { runAiTranscribe } from "./ai/transcribe";
-import { platformKeyStatus } from "./ai/keys";
+import { platformKeyStatus, userApiKeyDocPath, userApiKeysCollectionPath } from "./ai/keys";
 import { syncDevSubscriptionPlan as applyDevSubscriptionPlan } from "./billing/syncDevSubscription";
 import { ensureFunctionsSecretsLoaded } from "./loadSecrets";
 import "./loadSecrets";
@@ -36,7 +37,7 @@ const db = getFirestore();
 const ALLOWED_PROVIDERS = new Set(["xai", "openai", "anthropic"]);
 
 function apiKeyRef(uid: string, provider: string) {
-  return db.doc(`users/${uid}/private/apiKeys/${provider}`);
+  return db.doc(userApiKeyDocPath(uid, provider));
 }
 
 function keyPreview(apiKey: string): string {
@@ -96,7 +97,7 @@ export const getUserApiKeyStatus = onCall({ cors: true }, async (request) => {
   }
   await ensureFunctionsSecretsLoaded();
   const uid = request.auth.uid;
-  const snap = await db.collection(`users/${uid}/private/apiKeys`).get();
+  const snap = await db.collection(userApiKeysCollectionPath(uid)).get();
   const status: Record<string, { configured: boolean; keyPreview?: string }> = {
     xai: { configured: false },
     openai: { configured: false },
@@ -145,7 +146,7 @@ export const syncDevSubscriptionPlan = onCall({ cors: true }, async (request) =>
 export const aiHealth = onCall({ cors: true }, async (request) => {
   assertAuthenticated(request.auth?.uid);
   await ensureFunctionsSecretsLoaded();
-  const snap = await db.collection(`users/${request.auth.uid}/private/apiKeys`).get();
+  const snap = await db.collection(userApiKeysCollectionPath(request.auth.uid)).get();
   const userConfigured = snap.docs.some((doc) => {
     const value = doc.data()?.apiKey;
     return typeof value === "string" && value.trim().length > 0;
@@ -173,22 +174,47 @@ function desktopAuthSessionRef(sessionId: string) {
   return db.doc(`desktopAuthSessions/${sessionId}`);
 }
 
+function claimSecretDigest(secret: string): string {
+  return createHash("sha256").update(secret, "utf8").digest("hex");
+}
+
+function claimSecretMatches(stored: unknown, secret: string): boolean {
+  if (typeof stored !== "string" || typeof secret !== "string") return false;
+  const digest = claimSecretDigest(secret);
+  const left = Buffer.from(stored);
+  const right = Buffer.from(digest);
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
+function assertClaimSecret(secret: unknown): string {
+  if (typeof secret !== "string" || secret.length < 32 || secret.length > 200) {
+    throw new HttpsError("permission-denied", "Desktop auth claim was refused.");
+  }
+  return secret;
+}
+
 export const completeDesktopAuthSession = onCall({ cors: true }, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError("unauthenticated", "Authentication required.");
   }
   const sessionId = assertDesktopAuthSessionId(request.data?.sessionId);
+  const ref = desktopAuthSessionRef(sessionId);
   const customToken = await getAuth().createCustomToken(request.auth.uid);
-  await desktopAuthSessionRef(sessionId).set({
-    token: customToken,
-    uid: request.auth.uid,
-    createdAt: FieldValue.serverTimestamp(),
-  });
+  await ref.set(
+    {
+      token: customToken,
+      uid: request.auth.uid,
+      createdAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
   return { ok: true };
 });
 
 export const claimDesktopAuthSession = onCall({ cors: true }, async (request) => {
   const sessionId = assertDesktopAuthSessionId(request.data?.sessionId);
+  const rawSecret = request.data?.claimSecret;
   const ref = desktopAuthSessionRef(sessionId);
   const snap = await ref.get();
   if (!snap.exists) {
@@ -196,6 +222,16 @@ export const claimDesktopAuthSession = onCall({ cors: true }, async (request) =>
   }
 
   const data = snap.data();
+  const storedHash = data?.claimSecretHash;
+  const hasClaimHash = typeof storedHash === "string" && storedHash.length === 64;
+  if (hasClaimHash) {
+    const claimSecret = assertClaimSecret(rawSecret);
+    if (!claimSecretMatches(storedHash, claimSecret)) {
+      throw new HttpsError("permission-denied", "Desktop auth claim was refused.");
+    }
+  } else if (typeof rawSecret === "string" && rawSecret.length > 0) {
+    return { status: "pending" as const };
+  }
   const createdAt = data?.createdAt?.toDate?.()?.getTime?.() ?? 0;
   if (createdAt && Date.now() - createdAt > DESKTOP_AUTH_SESSION_TTL_MS) {
     await ref.delete();
@@ -211,7 +247,7 @@ export const claimDesktopAuthSession = onCall({ cors: true }, async (request) =>
   const provider = data?.provider;
   const idToken = data?.idToken;
   if (
-    (provider === "google" || provider === "microsoft" || provider === "facebook") &&
+    provider === "google" &&
     typeof idToken === "string" &&
     idToken
   ) {

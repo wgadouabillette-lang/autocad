@@ -25,6 +25,7 @@ interface Props {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  dictating?: boolean;
   peopleHandles?: string[];
   composerSkill?: ComposerSkillMode;
   onClick?: () => void;
@@ -50,6 +51,7 @@ const HighlightedPromptInput = forwardRef<HTMLTextAreaElement, Props>(function H
     value,
     onChange,
     placeholder,
+    dictating = false,
     peopleHandles = [],
     composerSkill = null,
     onClick,
@@ -136,6 +138,12 @@ const HighlightedPromptInput = forwardRef<HTMLTextAreaElement, Props>(function H
               </span>
             ),
           )
+        ) : dictating ? (
+          <span className="composer-dictation-dots" aria-hidden>
+            <span />
+            <span />
+            <span />
+          </span>
         ) : (
           <span className="text-muted-500">{placeholder}</span>
         )}

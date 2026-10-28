@@ -1,6 +1,31 @@
 import { Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { createRoot } from "react-dom/client";
+
+/** Aperçu design : suppression de conversation figée. Remettre à false pour le comportement réel. */
+export const PREVIEW_DELETE_CHAT: boolean = false;
+
+export function useDeleteChatDesignPreview(): void {
+  useEffect(() => {
+    if (!PREVIEW_DELETE_CHAT) return;
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    root.render(
+      <DeletePeopleChatOverlay
+        title="Supprimer la conversation avec Camille ?"
+        hint="Cette conversation et tous ses messages seront supprimés définitivement pour les deux participants."
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    return () => {
+      root.unmount();
+      host.remove();
+    };
+  }, [PREVIEW_DELETE_CHAT]);
+}
 
 interface DeletePeopleChatOverlayProps {
   title: string;
