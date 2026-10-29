@@ -1393,7 +1393,17 @@ html:not(.app-loading-splash) #root {
     box-shadow: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    background-color: var(--forma-shell-bg);
+    background-color: var(--forma-content-bg);
+    border-bottom-color: transparent;
+  }
+  html.is-desktop-windows .app-chrome-row__main {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+  }
+  html.is-desktop-windows .app-chrome-row__leading,
+  html.is-desktop-windows .app-chrome-row__workspace-brand-group {
+    display: none;
   }
   .desktop-window-controls__brand {
     display: flex;
