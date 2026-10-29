@@ -6191,6 +6191,33 @@ html:not(.app-loading-splash) #root {
     min-height: var(--forma-top-toolbar-height);
     max-height: var(--forma-top-toolbar-height);
   }
+  .chat-panel-header__tools {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+  }
+  .chat-panel-header__tools--start {
+    justify-self: start;
+  }
+  .chat-panel-header__tools--end {
+    justify-self: end;
+  }
+  /* Same pitch as the Windows caption buttons (2.25rem, no gap) so the icons line up. */
+  html.is-desktop-windows .chat-panel-header__tools {
+    gap: 0;
+  }
+  html.is-desktop-windows .chat-panel-header__tools .toolbar-btn {
+    width: 2.25rem;
+  }
+  html.is-desktop-windows .chat-panel--dock-right .chat-panel-header,
+  html.is-desktop-windows .chat-panel--expanded .chat-panel-header {
+    padding-right: 0;
+  }
+  html.is-desktop-windows.is-desktop-windows-maximized .chat-panel--dock-right .chat-panel-header,
+  html.is-desktop-windows.is-desktop-windows-maximized .chat-panel--expanded .chat-panel-header {
+    /* 6px matches the maximized titlebar inset, minus the layout border. */
+    padding-right: calc(6px - var(--forma-divider-width));
+  }
   .chat-panel-header__title {
     @apply inline-flex max-w-full items-center justify-center;
   }

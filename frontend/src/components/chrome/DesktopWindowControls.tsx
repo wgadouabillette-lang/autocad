@@ -56,8 +56,17 @@ export default function DesktopWindowControls() {
     return () => {
       root.classList.remove("has-desktop-autohide-titlebar");
       root.classList.remove("is-desktop-windows");
+      root.classList.remove("is-desktop-windows-maximized");
     };
   }, [enabled, windows]);
+
+  useLayoutEffect(() => {
+    if (!windows) return;
+    document.documentElement.classList.toggle(
+      "is-desktop-windows-maximized",
+      windowState.fullScreen || windowState.maximized,
+    );
+  }, [windows, windowState.fullScreen, windowState.maximized]);
 
   useEffect(() => {
     if (!enabled) return;

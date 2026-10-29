@@ -75,7 +75,7 @@ export default function ChatPanelHeader() {
 
   return (
     <div className="chat-panel-header grid w-full min-w-0 grid-cols-[1fr_auto_1fr] items-center gap-1">
-      <div className="flex items-center gap-0.5 justify-self-start">
+      <div className="chat-panel-header__tools chat-panel-header__tools--start">
         {inFriendThread && !friendsSplit ? (
           <button
             type="button"
@@ -201,7 +201,7 @@ export default function ChatPanelHeader() {
         )}
       </h2>
 
-      <div className="flex items-center gap-0.5 justify-self-end">
+      <div className="chat-panel-header__tools chat-panel-header__tools--end">
         <button
           type="button"
           className={clsx("toolbar-btn", friendsMode && "is-active")}
