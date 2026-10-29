@@ -6,6 +6,10 @@ function subscribe(channel, handler) {
   return () => ipcRenderer.removeListener(channel, listener);
 }
 
+if (process.platform === "win32") {
+  document.documentElement.classList.add("is-desktop-windows", "has-desktop-autohide-titlebar");
+}
+
 contextBridge.exposeInMainWorld("formaDesktop", {
   isDesktop: true,
   platform: process.platform,

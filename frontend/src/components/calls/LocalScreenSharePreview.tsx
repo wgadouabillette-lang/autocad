@@ -1,9 +1,11 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
+import { isFormaDesktopWindows } from "../../lib/formaDesktop";
 
 /**
  * Chromium blurs a <video> that shows the page's own screen capture.
  * Peers receive the sharp frames. Paint those frames on a canvas so the
- * sharer sees the same image.
+ * sharer sees the same image. On Windows the local preview stays blurred.
  */
 export default function LocalScreenSharePreview({
   stream,
@@ -15,6 +17,7 @@ export default function LocalScreenSharePreview({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [fallback, setFallback] = useState(false);
+  const previewClass = clsx(className, isFormaDesktopWindows() && "local-screen-share-preview--blurred");
 
   useEffect(() => {
     setFallback(false);
@@ -97,8 +100,8 @@ export default function LocalScreenSharePreview({
   }, [fallback, stream]);
 
   if (fallback) {
-    return <video ref={videoRef} autoPlay muted playsInline className={className} />;
+    return <video ref={videoRef} autoPlay muted playsInline className={previewClass} />;
   }
 
-  return <canvas ref={canvasRef} className={className ? `block ${className}` : "block"} />;
+  return <canvas ref={canvasRef} className={clsx("block", previewClass)} />;
 }

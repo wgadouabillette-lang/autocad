@@ -4697,16 +4697,17 @@ html:not(.app-loading-splash) #root {
       inset 0 1px 0 var(--forma-tint-14),
       inset 0 0 0 1px var(--forma-tint-10);
   }
-  /* Windows draws the hairline mask and negative-spread shadow as a hard white rim. */
+  /* Windows: same edge as the bottom-header capsules. */
   html.is-desktop-windows .forma-capsule.call-block::before,
   html.is-desktop-windows .theater-speaker-card::before {
-    inset: 0;
-    padding: 1px;
+    inset: -0.2px;
+    padding: 0.2px;
     background: linear-gradient(
       180deg,
-      rgb(255 255 255 / 0.045) 0%,
-      rgb(255 255 255 / 0.015) 34%,
-      transparent 62%
+      var(--forma-tint-34) 0%,
+      var(--forma-tint-12) 38%,
+      var(--forma-tint-02) 62%,
+      transparent 100%
     );
   }
   html.is-desktop-windows .forma-capsule.call-block:not(.call-block--ai-stroke),
@@ -4718,14 +4719,18 @@ html:not(.app-loading-splash) #root {
   html.is-desktop-windows .theater-speaker-card--local,
   html.is-desktop-windows .theater-speaker-card--question {
     box-shadow:
-      0 1px 2px rgb(0 0 0 / 0.08),
-      0 14px 36px rgb(0 0 0 / 0.16);
+      0 1px 2px rgb(0 0 0 / 0.16),
+      inset 0 1px 0 var(--forma-tint-07);
   }
   html.is-desktop-windows .theater-speaker-card--speaking {
     box-shadow:
       0 0 0 2px rgb(100 181 246 / 0.45),
-      0 1px 2px rgb(0 0 0 / 0.08),
-      0 14px 36px rgb(0 0 0 / 0.16);
+      0 1px 2px rgb(0 0 0 / 0.16),
+      inset 0 1px 0 var(--forma-tint-07);
+  }
+  html.is-desktop-windows .local-screen-share-preview--blurred {
+    filter: blur(24px);
+    transform: scale(1.14);
   }
   .theater-speaker-card__avatar {
     @apply flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-full text-2xl font-semibold text-white;
@@ -11730,4 +11735,38 @@ html:not(.app-loading-splash) #root {
       inset 0 0 0 1px rgb(250 204 21 / 0.45),
       inset 0 0 36px rgb(250 204 21 / 0.1);
   }
+}
+
+/* Windows header: Invite stays between Workspace and Settings, on the right. */
+html.is-desktop-windows .app-chrome-row__leading,
+html.is-desktop-windows .app-chrome-row__workspace-brand-group {
+  display: none !important;
+}
+html.is-desktop-windows .app-chrome-row__main {
+  display: flex !important;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end !important;
+  width: 100%;
+}
+html.is-desktop-windows .app-chrome-row__actions {
+  margin-left: auto;
+}
+html.is-desktop-windows .header-toolbar-actions {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+}
+html.is-desktop-windows .header-toolbar-actions > .workspace-switcher-capsule {
+  order: 1;
+}
+html.is-desktop-windows .header-toolbar-actions > .header-invite-capsule {
+  order: 2;
+}
+html.is-desktop-windows .header-toolbar-actions > .toolbar-btn:not(.workspace-switcher-capsule) {
+  order: 3;
+}
+html.is-desktop-windows .app-voice-settings-floating {
+  left: auto;
+  right: 0.75rem;
 }
