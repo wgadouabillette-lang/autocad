@@ -204,7 +204,7 @@ def _callback_html(
     return f"""<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Connector OAuth</title></head>
-<body>
+<body style="margin:0;background:#121212;color:#e0e0e0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;">
 <p id="status">Connexion en cours…</p>
 <script>
   const payload = {data};
@@ -239,7 +239,12 @@ def _callback_html(
       }}, payload.status === "error" ? 1600 : 400);
       return;
     }}
-    window.location.replace(redirect);
+    // Desktop popups have no opener. Stay here so the app can read the result
+    // before this page is replaced by a blank Meetra window.
+    window.setTimeout(function () {{
+      window.close();
+      if (!window.closed) window.location.replace(redirect);
+    }}, 2500);
   }}
 
   window.setTimeout(finish, 80);

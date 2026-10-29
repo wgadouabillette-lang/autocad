@@ -290,6 +290,22 @@ function attachOAuthPopupNavigation(win) {
   contents.on("did-finish-load", () => {
     void tryHarvest(contents.getURL());
   });
+  // The callback page has no window.opener in Electron, so it used to navigate
+  // into a blank Meetra window and drop the result. Keep the callback up until
+  // the main window has the payload.
+  let allowingLeave = false;
+  contents.on("will-navigate", (event, url) => {
+    if (harvested || allowingLeave) return;
+    const current = contents.getURL();
+    if (!isConnectorOAuthCallbackUrl(current) || isConnectorOAuthCallbackUrl(url)) return;
+    event.preventDefault();
+    void (async () => {
+      await tryHarvest(current);
+      if (harvested || win.isDestroyed()) return;
+      allowingLeave = true;
+      void contents.loadURL(url);
+    })();
+  });
 }
 
 let backendProc = null;
