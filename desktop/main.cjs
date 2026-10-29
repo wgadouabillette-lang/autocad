@@ -859,6 +859,17 @@ function splashWindowChrome(bounds = getCenteredSplashBounds()) {
  */
 function mainWindowChrome(bounds = getCenteredSplashBounds()) {
   const base = splashWindowChrome(bounds);
+  if (process.platform === "win32") {
+    // Opaque frameless window. A transparent layered window on Windows drops CSS
+    // transform animations and clips 1px strokes along rounded edges.
+    return {
+      ...base,
+      transparent: false,
+      backgroundColor: "#0a0a0a",
+      hasShadow: true,
+      roundedCorners: true,
+    };
+  }
   if (process.platform !== "darwin") return base;
   return {
     ...base,

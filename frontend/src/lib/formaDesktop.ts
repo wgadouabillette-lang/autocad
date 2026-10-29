@@ -138,3 +138,7 @@ export function hasSpotifyWidevineDesktop(): boolean {
 export function isFormaDesktopMac(): boolean {
   return hasFormaDesktop() && window.formaDesktop?.platform === "darwin";
 }
+
+export function isFormaDesktopWindows(): boolean {
+  return hasFormaDesktop() && window.formaDesktop?.platform === "win32";
+}

@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { Settings } from "lucide-react";
 import { landingLabel } from "../../lib/marketingPreview";
-import { isFormaDesktopMac } from "../../lib/formaDesktop";
+import { isFormaDesktopMac, isFormaDesktopWindows } from "../../lib/formaDesktop";
 import { useStore } from "../../store/useStore";
 import HeaderInviteButton from "../workspace/HeaderInviteButton";
 import WorkspaceSwitcherButton from "../workspace/WorkspaceSwitcherButton";
@@ -11,12 +11,12 @@ export default function PanelToolbarButtons() {
   const openSettingsPage = useStore((s) => s.openSettingsPage);
   const activePage = useStore((s) => s.activePage);
   const settingsOpen = activePage === "settings";
-  const macDesktop = isFormaDesktopMac();
+  const inviteInToolbar = isFormaDesktopMac() || isFormaDesktopWindows();
 
   return (
     <div className="header-toolbar-actions">
       <WorkspaceSwitcherButton />
-      {macDesktop ? <HeaderInviteButton /> : null}
+      {inviteInToolbar ? <HeaderInviteButton /> : null}
       <button
         type="button"
         className={clsx("toolbar-btn", settingsOpen && "is-active")}

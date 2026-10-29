@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { Copy, Minus, Square, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { hasFormaDesktop, type DesktopWindowState } from "../../lib/formaDesktop";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { hasFormaDesktop, isFormaDesktopWindows, type DesktopWindowState } from "../../lib/formaDesktop";
 
 /** macOS-fullscreen-style hit target at the very top of the window. */
 const TOP_EDGE_HIT_PX = 6;
@@ -18,13 +18,14 @@ function canShowDesktopWindowControls(): boolean {
 
 export default function DesktopWindowControls() {
   const [enabled] = useState(canShowDesktopWindowControls);
-  const [revealed, setRevealed] = useState(false);
+  const [windows] = useState(() => enabled && isFormaDesktopWindows());
+  const [revealed, setRevealed] = useState(windows);
   const [windowState, setWindowState] = useState<DesktopWindowState>({
     maximized: true,
     fullScreen: false,
   });
   const hideTimerRef = useRef<number | null>(null);
-  const revealedRef = useRef(false);
+  const revealedRef = useRef(windows);
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current == null) return;
@@ -47,10 +48,19 @@ export default function DesktopWindowControls() {
     }, HIDE_DELAY_MS);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!enabled) return;
     const root = document.documentElement;
     root.classList.add("has-desktop-autohide-titlebar");
+    if (windows) root.classList.add("is-desktop-windows");
+    return () => {
+      root.classList.remove("has-desktop-autohide-titlebar");
+      root.classList.remove("is-desktop-windows");
+    };
+  }, [enabled, windows]);
+
+  useEffect(() => {
+    if (!enabled) return;
     const desktop = window.formaDesktop;
     void desktop?.getWindowState?.().then((state) => {
       if (state) setWindowState(state);
@@ -58,6 +68,12 @@ export default function DesktopWindowControls() {
     const unsubscribe = desktop?.onWindowState?.((state) => {
       setWindowState(state);
     });
+
+    if (windows) {
+      return () => {
+        unsubscribe?.();
+      };
+    }
 
     const onPointerMove = (event: PointerEvent) => {
       const y = event.clientY;
@@ -79,17 +95,17 @@ export default function DesktopWindowControls() {
     window.addEventListener("pointerover", onPointerMove);
     document.documentElement.addEventListener("mouseleave", onWindowLeave);
     return () => {
-      root.classList.remove("has-desktop-autohide-titlebar");
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerover", onPointerMove);
       document.documentElement.removeEventListener("mouseleave", onWindowLeave);
       clearHideTimer();
       unsubscribe?.();
     };
-  }, [enabled, showBar, scheduleHide, clearHideTimer]);
+  }, [enabled, windows, showBar, scheduleHide, clearHideTimer]);
 
   if (!enabled) return null;
 
+  const shown = windows || revealed;
   const expanded = windowState.fullScreen || windowState.maximized;
   const desktop = window.formaDesktop;
 
@@ -97,17 +113,29 @@ export default function DesktopWindowControls() {
     <div
       className={clsx(
         "desktop-window-controls",
-        revealed && "desktop-window-controls--revealed",
+        shown && "desktop-window-controls--revealed",
+        windows && "desktop-window-controls--persistent",
         expanded && "desktop-window-controls--expanded",
       )}
       role="toolbar"
       aria-label="Fenêtre"
-      aria-hidden={!revealed}
+      aria-hidden={windows ? undefined : !shown}
     >
       <div
         className="desktop-window-controls__bar"
-        onPointerEnter={showBar}
+        onPointerEnter={windows ? undefined : showBar}
       >
+        {windows ? (
+          <div className="desktop-window-controls__brand" aria-label="Meetra">
+            <img
+              src={`${import.meta.env.BASE_URL}meetra-mark.svg`}
+              alt=""
+              className="app-chrome-row__brand-logo"
+              draggable={false}
+            />
+            <span className="app-chrome-row__brand-wordmark">Meetra</span>
+          </div>
+        ) : null}
         <div className="desktop-window-controls__drag" aria-hidden />
         <div className="desktop-window-controls__buttons">
           <button
@@ -116,7 +144,7 @@ export default function DesktopWindowControls() {
             onClick={() => void desktop?.windowMinimize?.()}
             aria-label="Réduire"
             title="Réduire"
-            tabIndex={revealed ? 0 : -1}
+            tabIndex={shown ? 0 : -1}
           >
             <Minus size={12} strokeWidth={2.4} aria-hidden />
           </button>
@@ -126,7 +154,7 @@ export default function DesktopWindowControls() {
             onClick={() => void desktop?.windowToggleFullscreen?.()}
             aria-label={expanded ? "Restaurer" : "Plein écran"}
             title={expanded ? "Restaurer" : "Plein écran"}
-            tabIndex={revealed ? 0 : -1}
+            tabIndex={shown ? 0 : -1}
           >
             {expanded ? (
               <Copy size={11} strokeWidth={2.2} aria-hidden />
@@ -140,7 +168,7 @@ export default function DesktopWindowControls() {
             onClick={() => void desktop?.windowClose?.()}
             aria-label="Fermer"
             title="Fermer"
-            tabIndex={revealed ? 0 : -1}
+            tabIndex={shown ? 0 : -1}
           >
             <X size={13} strokeWidth={2.4} aria-hidden />
           </button>
