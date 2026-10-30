@@ -439,8 +439,7 @@ async function runNotesCursorDemo(gen: number): Promise<void> {
   }
   if (!(await wait(360, gen))) return;
 
-  const expandAt = expand ? buttonCenter(expand) : { x: window.innerWidth * 0.72, y: window.innerHeight * 0.22 };
-  placeCursor(expandAt.x + 56, expandAt.y + 72, false);
+  placeCursor(window.innerWidth * 0.72 + 56, window.innerHeight * 0.22 + 72, false);
   beginMarketingPreviewAiNotesFromClick();
 
   await runLiveNotesAnimation(gen);
