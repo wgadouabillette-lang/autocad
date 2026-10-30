@@ -272,10 +272,6 @@ function findNotesTab(): HTMLButtonElement | null {
   );
 }
 
-function findExpandButton(): HTMLButtonElement | null {
-  return document.querySelector<HTMLButtonElement>('[data-expand-panel], [aria-label="Expand panel"]');
-}
-
 function prepareBlankLiveNote(): void {
   useStore.setState((state) => ({
     activeManualNoteId: MARKETING_PREVIEW_NOTE_ID,
@@ -442,20 +438,6 @@ async function runNotesCursorDemo(gen: number): Promise<void> {
     useStore.getState().openAiNotesPanel();
   }
   if (!(await wait(360, gen))) return;
-
-  const expand = findExpandButton();
-  if (expand) {
-    const expandAt = buttonCenter(expand);
-    placeCursor(expandAt.x, expandAt.y, false);
-    if (!(await wait(MOVE_MS, gen))) return;
-    if (!(await clickTarget(expand, gen))) return;
-  } else {
-    useStore.setState({
-      chatPanelExpanded: true,
-      chatPanelLeaveAnimating: false,
-    });
-  }
-  if (!(await wait(420, gen))) return;
 
   const expandAt = expand ? buttonCenter(expand) : { x: window.innerWidth * 0.72, y: window.innerHeight * 0.22 };
   placeCursor(expandAt.x + 56, expandAt.y + 72, false);

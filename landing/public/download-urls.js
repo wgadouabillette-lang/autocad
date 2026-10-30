@@ -29,22 +29,12 @@
     ) {
       return "windows";
     }
-    if (
-      ua.includes("linux") ||
-      platform.includes("linux") ||
-      uaDataPlatform.includes("linux") ||
-      ua.includes("x11") ||
-      ua.includes("cros")
-    ) {
-      return "linux";
-    }
     return "mac";
   }
 
   var urls = {
     windows: storageDownloadUrl("Meetra.exe"),
     mac: storageDownloadUrl("Hall-mac.dmg"),
-    linux: storageDownloadUrl("Meetra-linux.AppImage"),
   };
 
   global.HallDownloadUrls = urls;
@@ -98,9 +88,6 @@
     if (platform === "windows") {
       path =
         '<path fill="currentColor" d="M3 5.25h8.25V12H3V5.25zm9.75 0H21V12h-8.25V5.25zM3 13.5h8.25v5.25H3V13.5zm9.75 0H21v5.25h-8.25V13.5z"/>';
-    } else if (platform === "linux") {
-      path =
-        '<path fill="currentColor" d="M12 2.2c-1.85 0-3.2 1.55-2.95 3.35-.85.25-1.5.95-1.75 1.8C5.7 9.1 5.15 11.2 5.35 13.4c.2 2.35 1.45 3.95 3.15 4.55L8 21.2h1.9l.45-1.85h3.3l.45 1.85H16l-.5-3.25c1.7-.6 2.95-2.2 3.15-4.55.2-2.2-.35-4.3-1.95-5.55-.25-.85-.9-1.55-1.75-1.8C15.2 3.75 13.85 2.2 12 2.2zm-1.35 3.9c.4 0 .75.35.75.8s-.35.8-.75.8-.75-.35-.75-.8.35-.8.75-.8zm2.7 0c.4 0 .75.35.75.8s-.35.8-.75.8-.75-.35-.75-.8.35-.8.75-.8zM9.7 11.1c.7 1.05 1.55 1.6 2.3 1.6s1.6-.55 2.3-1.6c.15 1.35-.55 2.7-2.3 2.7s-2.45-1.35-2.3-2.7z"/>';
     } else {
       // macOS / Apple
       path =
@@ -137,16 +124,6 @@
         fallbackLabel: "Download for Windows",
         fallbackAria: "Download Meetra for Windows",
         platform: "windows",
-      };
-    }
-    if (platform === "linux") {
-      return {
-        href: urls.linux,
-        labelKey: "try.downloadLinux",
-        ariaKey: "try.downloadLinuxAria",
-        fallbackLabel: "Download for Linux",
-        fallbackAria: "Download Meetra for Linux",
-        platform: "linux",
       };
     }
     return {

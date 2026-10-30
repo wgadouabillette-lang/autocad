@@ -38,6 +38,7 @@ import { useSpotifyVoiceMix } from "./hooks/useSpotifyVoiceMix";
 import { useMobileLayout } from "./hooks/useMobileLayout";
 import { canAccessApp, DESKTOP_VIEWPORT_QUERY, getLandingUrl } from "./lib/appAccess";
 import { hasFormaDesktop, isFormaDesktopMac } from "./lib/formaDesktop";
+import { isMarketingPreview } from "./lib/marketingPreview";
 import { parseWorkspaceInviteInput } from "./lib/workspaceInvite";
 import { runAppBoot, type AppBootStatus } from "./lib/appBoot";
 import { applyDocumentTheme } from "./lib/theme";
@@ -112,10 +113,11 @@ export default function App() {
   const activePage = useStore((s) => s.activePage);
   const settingsOpen = activePage === "settings";
   const chatPanelOpen = useStore((s) => s.chatPanelOpen);
-  const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
+  const storedChatPanelExpanded = useStore((s) => s.chatPanelExpanded);
   const chatPanelLeaveAnimating = useStore((s) => s.chatPanelLeaveAnimating);
+  const chatPanelExpanded = isMarketingPreview() && storedChatPanelExpanded;
   const chatFullscreenOverlay =
-    !isMobileLayout && (chatPanelExpanded || chatPanelLeaveAnimating);
+    isMarketingPreview() && !isMobileLayout && (chatPanelExpanded || chatPanelLeaveAnimating);
   const sidePanelSide = useStore((s) => s.sidePanelSide);
   const panelOnLeft = sidePanelSide === "left";
   const activeRoomId = useStore((s) => s.activeRoomId);
@@ -204,7 +206,7 @@ export default function App() {
   }, [workspaceSwitching, activeRoomId, presenceLoaded, finishWorkspaceSwitch]);
 
   useEffect(() => {
-    if (!isMobileLayout) return;
+    if (isMarketingPreview()) return;
     const state = useStore.getState();
     if (!state.chatPanelExpanded && !state.chatPanelLeaveAnimating) return;
     useStore.setState({

@@ -79,16 +79,6 @@
       "permanent": false
     },
     {
-      "source": "/downloads/Meetra-linux.AppImage",
-      "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra-linux.AppImage?alt=media",
-      "permanent": false
-    },
-    {
-      "source": "/downloads/Hall-linux.AppImage",
-      "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra-linux.AppImage?alt=media",
-      "permanent": false
-    },
-    {
       "source": "/desktop-updates/:file",
       "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/desktop-updates%2F:file?alt=media",
       "permanent": false

@@ -109,7 +109,8 @@ export default function ChatPanelShell() {
   const isMobileLayout = useMobileLayout();
   const chatPanelOpen = useStore((s) => s.chatPanelOpen);
   const closeChatPanel = useStore((s) => s.closeChatPanel);
-  const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
+  const storedChatPanelExpanded = useStore((s) => s.chatPanelExpanded);
+  const chatPanelExpanded = isMarketingPreview() && storedChatPanelExpanded;
   const sidePanelSide = useStore((s) => s.sidePanelSide);
   const showChatHistory = useStore((s) => s.showChatHistory);
   const chatPanelMode = useStore((s) => s.chatPanelMode);

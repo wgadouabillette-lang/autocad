@@ -16,10 +16,19 @@ CONNECTORS_DOC_ID = "connectors"
 _LOCAL_STORE_DIR = _data_dir() / "connector_tokens"
 _ITEMS_CACHE: dict[str, tuple[dict[str, Any], float]] = {}
 _ITEMS_CACHE_TTL_SEC = 30.0
+# An empty read must not hide a connection that lands a few seconds later.
+_EMPTY_ITEMS_CACHE_TTL_SEC = 2.0
 
 
 def _invalidate_items_cache(uid: str) -> None:
     _ITEMS_CACHE.pop(uid, None)
+
+
+def _remember_items(uid: str, items: dict[str, Any], now: float) -> dict[str, Any]:
+    ttl = _ITEMS_CACHE_TTL_SEC if items else _EMPTY_ITEMS_CACHE_TTL_SEC
+    snapshot = dict(items)
+    _ITEMS_CACHE[uid] = (snapshot, now + ttl)
+    return dict(snapshot)
 
 
 def _local_store_path(uid: str) -> Path:
@@ -63,6 +72,28 @@ def _connectors_ref(uid: str):
     )
 
 
+def _items_from_firestore_data(data: dict[str, Any]) -> dict[str, Any]:
+    """Read connector tokens from the nested map and from legacy literal keys.
+
+    set(merge=True) stored ``items.outlook`` as a top-level field name, so the
+    success page appeared while the status read of ``items`` stayed empty.
+    """
+    raw_items = data.get("items")
+    items: dict[str, Any] = dict(raw_items) if isinstance(raw_items, dict) else {}
+    for key, value in data.items():
+        if not isinstance(key, str) or not key.startswith("items.") or not isinstance(value, dict):
+            continue
+        connector_id = key[6:]
+        if not connector_id:
+            continue
+        current = items.get(connector_id)
+        if isinstance(current, dict) and current.get("access_token"):
+            continue
+        if value.get("access_token"):
+            items[connector_id] = value
+    return items
+
+
 def _load_firestore_items(uid: str) -> dict[str, Any] | None:
     """Return connector map, or None if the read failed (do not treat as empty)."""
     ref = _connectors_ref(uid)
@@ -73,8 +104,7 @@ def _load_firestore_items(uid: str) -> dict[str, Any] | None:
         if not snap.exists:
             return {}
         data = snap.to_dict() or {}
-        items = data.get("items")
-        return dict(items) if isinstance(items, dict) else {}
+        return _items_from_firestore_data(data)
     except Exception as exc:
         logger.warning("Failed to load connectors for %s: %s", uid, exc)
         return None
@@ -88,13 +118,25 @@ def _set_firestore_connector(uid: str, connector_id: str, entry: dict[str, Any])
     try:
         from firebase_admin import firestore
 
-        ref.set(
-            {
-                f"items.{connector_id}": entry,
-                "updatedAt": firestore.SERVER_TIMESTAMP,
-            },
-            merge=True,
-        )
+        # update() nests items.<id>. set(merge=True) would store a literal
+        # field named "items.<id>", which the status read never sees.
+        try:
+            ref.update(
+                {
+                    f"items.{connector_id}": entry,
+                    "updatedAt": firestore.SERVER_TIMESTAMP,
+                }
+            )
+        except Exception as exc:
+            if exc.__class__.__name__ != "NotFound":
+                raise
+            ref.set(
+                {
+                    "items": {connector_id: entry},
+                    "updatedAt": firestore.SERVER_TIMESTAMP,
+                },
+                merge=True,
+            )
         return True
     except Exception as exc:
         logger.warning("Failed to save connector %s for %s: %s", connector_id, uid, exc)
@@ -141,8 +183,7 @@ def _load_doc(uid: str) -> dict[str, Any]:
 
     if _using_local_store():
         items = _load_local_doc(uid)
-        _ITEMS_CACHE[uid] = (items, now + _ITEMS_CACHE_TTL_SEC)
-        return dict(items)
+        return _remember_items(uid, items, now)
 
     items = _load_firestore_items(uid)
     if items is None:
@@ -151,8 +192,7 @@ def _load_doc(uid: str) -> dict[str, Any]:
         return dict(local_items)
 
     if items:
-        _ITEMS_CACHE[uid] = (items, now + _ITEMS_CACHE_TTL_SEC)
-        return dict(items)
+        return _remember_items(uid, items, now)
 
     local_items = _load_local_doc(uid)
     if local_items and _migrate_local_items_to_firestore(uid, local_items):
@@ -164,9 +204,7 @@ def _load_doc(uid: str) -> dict[str, Any]:
     else:
         items = local_items or {}
 
-    # Only cache definitive empty docs (successful Firestore read with no items).
-    _ITEMS_CACHE[uid] = (items, now + _ITEMS_CACHE_TTL_SEC)
-    return dict(items)
+    return _remember_items(uid, items, now)
 
 
 def load_all_connections(uid: str) -> dict[str, Any]:

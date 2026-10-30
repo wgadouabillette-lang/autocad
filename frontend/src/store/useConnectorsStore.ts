@@ -98,21 +98,48 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
     set({ connectingId: id, error: null });
     const watchConnection = () => {
       const deadline = Date.now() + 3 * 60 * 1000;
-      const tick = async () => {
-        if (get().connectingId !== id) return;
-        if (Date.now() > deadline) {
-          set({ connectingId: null });
+      let timer = 0;
+      let stopped = false;
+      function stop() {
+        if (stopped) return;
+        stopped = true;
+        window.clearTimeout(timer);
+        document.removeEventListener("visibilitychange", onVisible);
+      }
+      async function tick() {
+        if (stopped || get().connectingId !== id) {
+          stop();
           return;
         }
-        await get().refresh(true);
+        if (Date.now() > deadline) {
+          set({ connectingId: null });
+          stop();
+          return;
+        }
+        try {
+          await get().refresh(true);
+        } catch {
+          // Keep polling. A single failed status read must not leave the row on "connecting".
+        }
+        if (stopped || get().connectingId !== id) {
+          stop();
+          return;
+        }
         if (get().statuses.some((status) => status.id === id && status.connected)) {
           set({ connectingId: null, error: null });
           window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
+          stop();
           return;
         }
-        window.setTimeout(() => void tick(), 1500);
-      };
-      window.setTimeout(() => void tick(), 1200);
+        timer = window.setTimeout(() => void tick(), 1500);
+      }
+      function onVisible() {
+        if (document.visibilityState !== "visible" || stopped) return;
+        window.clearTimeout(timer);
+        void tick();
+      }
+      document.addEventListener("visibilitychange", onVisible);
+      timer = window.setTimeout(() => void tick(), 800);
     };
     try {
       const url = await startConnectorOAuth(id);
@@ -120,19 +147,19 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
         window.location.assign(url);
         return;
       }
-      if (hasFormaDesktop()) {
-        const desktop = window.formaDesktop;
-        if (desktop?.openConnectorOAuth) {
-          const opened = await desktop.openConnectorOAuth(url);
-          if (!opened?.ok) throw new Error("Impossible d'ouvrir la fenêtre de connexion.");
-          watchConnection();
-          return;
-        }
-        if (desktop?.openExternal) {
-          await desktop.openExternal(url);
-          watchConnection();
-          return;
-        }
+      const desktop = window.formaDesktop;
+      // Mac keeps a window with opener so the callback can message the app.
+      // Windows opens the system browser; the status poll marks the account connected.
+      if (hasFormaDesktop() && desktop?.platform === "win32" && desktop.openConnectorOAuth) {
+        const opened = await desktop.openConnectorOAuth(url);
+        if (!opened?.ok) throw new Error("Impossible d'ouvrir la fenêtre de connexion.");
+        watchConnection();
+        return;
+      }
+      if (hasFormaDesktop() && desktop?.platform === "win32" && desktop.openExternal) {
+        await desktop.openExternal(url);
+        watchConnection();
+        return;
       }
       const popup = window.open(
         url,

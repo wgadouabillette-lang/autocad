@@ -2,8 +2,9 @@ import clsx from "clsx";
 import { AGENT_PANEL_TITLE } from "../../lib/appBrand";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Hash, History, Maximize2, Minimize2, Plus, Users, UsersRound } from "lucide-react";
+import { ArrowLeft, Hash, History, Plus, Users, UsersRound } from "lucide-react";
 import { useMobileLayout } from "../../hooks/useMobileLayout";
+import { isMarketingPreview } from "../../lib/marketingPreview";
 import { isVoiceAssistPanelMode } from "../../lib/voiceAssistPanel";
 import { resolvePersonPhotoURL } from "../../lib/peopleChat";
 import { usePeopleStore } from "../../store/usePeopleStore";
@@ -24,7 +25,6 @@ export default function ChatPanelHeader() {
   const chatPanelMode = useStore((s) => s.chatPanelMode);
   const toggleFriendsChatMode = useStore((s) => s.toggleFriendsChatMode);
   const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
-  const toggleChatPanelExpanded = useStore((s) => s.toggleChatPanelExpanded);
   const activeFriendThreadId = usePeopleStore((s) => s.activeFriendThreadId);
   const friendThreads = usePeopleStore((s) => s.friendThreads);
   const groupThreads = usePeopleStore((s) => s.groupThreads);
@@ -59,7 +59,8 @@ export default function ChatPanelHeader() {
     workspaceChannelThreadsByWorkspace,
   ]);
   const friendsMode = chatPanelMode === "friends";
-  const friendsSplit = friendsMode && chatPanelExpanded && !isMobileLayout;
+  const friendsSplit =
+    isMarketingPreview() && friendsMode && chatPanelExpanded && !isMobileLayout;
   const inFriendThread = friendsMode && !!activeFriendThread;
   const inGroupThread = inFriendThread && activeFriendThread?.section === "groups";
   const inWorkspaceChannelThread =
@@ -212,19 +213,6 @@ export default function ChatPanelHeader() {
         >
           <Users size={14} />
         </button>
-        {!isMobileLayout && (
-          <button
-            type="button"
-            className={clsx("toolbar-btn", chatPanelExpanded && "is-active")}
-            onClick={() => toggleChatPanelExpanded()}
-            title={chatPanelExpanded ? t("chat.collapsePanel") : t("chat.expandPanel")}
-            aria-label={chatPanelExpanded ? t("chat.collapsePanel") : t("chat.expandPanel")}
-            data-expand-panel={!chatPanelExpanded || undefined}
-            aria-pressed={chatPanelExpanded}
-          >
-            {chatPanelExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
-        )}
       </div>
 
       {createGroupOpen ? (

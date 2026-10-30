@@ -3016,13 +3016,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   toggleChatPanelExpanded: () => {
-    const state = get();
-    if (!state.chatPanelOpen) {
-      set({ chatPanelOpen: true, chatPanelExpanded: true });
-      writeUserPreferences(userPreferencesSnapshot({ ...get(), chatPanelOpen: true }));
-      return;
-    }
-    set({ chatPanelExpanded: !state.chatPanelExpanded });
+    set({ chatPanelExpanded: false, chatPanelLeaveAnimating: false });
   },
 
   switchChatPanelMode: (mode) => {

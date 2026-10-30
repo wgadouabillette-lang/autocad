@@ -1640,7 +1640,9 @@ async function openScreenCaptureSettings() {
 
 ipcMain.handle("forma:open-connector-oauth", async (_event, url) => {
   if (!isOAuthPopupUrl(url)) return { ok: false };
-  if (isMicrosoftOAuthUrl(url)) {
+  // Windows: Spotify rejects the embedded window, and Microsoft already has to
+  // finish in the system browser. The app then reads the saved connection.
+  if (process.platform === "win32" || isMicrosoftOAuthUrl(url)) {
     await shell.openExternal(url);
     return { ok: true, external: true };
   }
