@@ -6,10 +6,6 @@ function subscribe(channel, handler) {
   return () => ipcRenderer.removeListener(channel, listener);
 }
 
-if (process.platform === "win32") {
-  document.documentElement.classList.add("is-desktop-windows", "has-desktop-autohide-titlebar");
-}
-
 contextBridge.exposeInMainWorld("formaDesktop", {
   isDesktop: true,
   platform: process.platform,
@@ -62,3 +58,20 @@ contextBridge.exposeInMainWorld("formaDesktop", {
   onWorkspaceInvite: (handler) => subscribe("forma:workspace-invite", handler),
   onConnectorOAuthResult: (handler) => subscribe("forma:connector-oauth-result", handler),
 });
+
+if (process.platform === "win32") {
+  const markWindowsChrome = () => {
+    const root = document.documentElement;
+    if (!root) return;
+    root.classList.add("is-desktop-windows", "has-desktop-autohide-titlebar");
+  };
+  try {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", markWindowsChrome, { once: true });
+    } else {
+      markWindowsChrome();
+    }
+  } catch {
+    // The bridge above must stay available even if the document is not ready.
+  }
+}
