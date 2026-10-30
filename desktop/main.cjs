@@ -668,11 +668,15 @@ function attachRendererDiagnostics(win) {
         validatedURL ? `URL : ${validatedURL}` : "",
       ),
     );
+    // The error page loads in the hidden main window. Show that window so the
+    // splash cannot cover it.
+    ensureMainWindowShown();
   });
   contents.on("render-process-gone", (_event, details) => {
     appendBackendLog(`[hall] renderer gone reason=${details?.reason} exit=${details?.exitCode}\n`);
     if (details?.reason === "clean-exit") return;
     rendererRestarts += 1;
+    ensureMainWindowShown();
     if (rendererRestarts > 2) {
       win.loadURL(
         loadErrorHtml(
@@ -1137,6 +1141,72 @@ function applyAppWindowSizing(win) {
   win.setMaximumSize(display.bounds.width, display.bounds.height);
 }
 
+const LAUNCH_ACK_AFTER_LOAD_MS = 6000;
+const LAUNCH_ACK_ABSOLUTE_MS = 15000;
+let rendererAckedWindowMode = false;
+let launchRevealTimer = null;
+let launchAbsoluteTimer = null;
+
+function clearLaunchRevealTimers() {
+  if (launchRevealTimer) {
+    clearTimeout(launchRevealTimer);
+    launchRevealTimer = null;
+  }
+  if (launchAbsoluteTimer) {
+    clearTimeout(launchAbsoluteTimer);
+    launchAbsoluteTimer = null;
+  }
+}
+
+function markRendererAckedWindowMode() {
+  rendererAckedWindowMode = true;
+  clearLaunchRevealTimers();
+}
+
+/**
+ * Open the real window and drop the standalone splash. Safe to call when the
+ * window is already visible. A preload or renderer failure must not leave the
+ * user on splash.html, because that window cannot install the next update.
+ */
+function ensureMainWindowShown() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindowMode !== "app") {
+    showAppWindow();
+    return;
+  }
+  if (!mainWindow.isVisible()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+  closeSplashWindow();
+}
+
+function forceRevealMainWindow(reason) {
+  if (rendererAckedWindowMode) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  appendBackendLog(
+    `[hall] launch watchdog (${reason}): opening the window without a renderer ack\n`,
+  );
+  clearLaunchRevealTimers();
+  ensureMainWindowShown();
+}
+
+function armLaunchWatchdog(win) {
+  clearLaunchRevealTimers();
+  rendererAckedWindowMode = false;
+  launchAbsoluteTimer = setTimeout(() => {
+    forceRevealMainWindow("absolute");
+  }, LAUNCH_ACK_ABSOLUTE_MS);
+  win.webContents.on("did-finish-load", () => {
+    if (rendererAckedWindowMode) return;
+    if (launchRevealTimer) clearTimeout(launchRevealTimer);
+    launchRevealTimer = setTimeout(() => {
+      forceRevealMainWindow("after-load");
+    }, LAUNCH_ACK_AFTER_LOAD_MS);
+  });
+}
+
 function showAppWindow() {
   if (mainWindowMode === "app") return;
   mainWindowMode = "app";
@@ -1292,6 +1362,7 @@ function createWindow() {
   applyDesktopUserAgent(mainWindow.webContents);
   attachRendererDiagnostics(mainWindow);
   attachMainWindowStateListeners(mainWindow);
+  armLaunchWatchdog(mainWindow);
 
   mainWindow.loadURL(START_URL);
   spotifyWebView2.setMainWindow(mainWindow);
@@ -1304,6 +1375,7 @@ function createWindow() {
     }
   });
   mainWindow.on("closed", () => {
+    clearLaunchRevealTimers();
     spotifyWebView2.setMainWindow(null);
     hideRecordingCameraOverlay();
     closeSplashWindow();
@@ -1578,6 +1650,8 @@ ipcMain.handle("forma:open-connector-oauth", async (_event, url) => {
 
 ipcMain.handle("forma:set-window-mode", async (_event, mode) => {
   if (mode !== "splash" && mode !== "app") return { ok: false };
+  // Cancel the splash watchdog before any await. The renderer has the bridge.
+  markRendererAckedWindowMode();
   await setMainWindowMode(mode);
   return { ok: true, mode: mainWindowMode };
 });
@@ -1884,6 +1958,7 @@ app.whenReady().then(async () => {
       hint =
         "Relancez depuis le dossier du projet : ./scripts/desktop-dev.sh — ou reconstruisez : ./scripts/build-desktop-mac.sh";
     }
+    closeSplashWindow();
     if (process.platform === "win32") {
       Menu.setApplicationMenu(null);
     }

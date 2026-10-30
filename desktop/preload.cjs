@@ -6,7 +6,14 @@ function subscribe(channel, handler) {
   return () => ipcRenderer.removeListener(channel, listener);
 }
 
-contextBridge.exposeInMainWorld("formaDesktop", {
+// The bridge has to be installed before anything else in this file. If this
+// script throws first, the page never receives formaDesktop and the splash
+// window stays up. scripts/check-desktop-boot.cjs rejects that order.
+function exposeDesktopBridge(api) {
+  contextBridge.exposeInMainWorld("formaDesktop", api);
+}
+
+const desktopBridge = {
   isDesktop: true,
   platform: process.platform,
   setWindowMode: (mode) => ipcRenderer.invoke("forma:set-window-mode", mode),
@@ -58,7 +65,22 @@ contextBridge.exposeInMainWorld("formaDesktop", {
   getPendingWorkspaceInvite: () => ipcRenderer.invoke("forma:get-pending-workspace-invite"),
   onWorkspaceInvite: (handler) => subscribe("forma:workspace-invite", handler),
   onConnectorOAuthResult: (handler) => subscribe("forma:connector-oauth-result", handler),
-});
+};
+
+try {
+  exposeDesktopBridge(desktopBridge);
+} catch {
+  try {
+    exposeDesktopBridge({
+      isDesktop: true,
+      platform: process.platform,
+      setWindowMode: (mode) => ipcRenderer.invoke("forma:set-window-mode", mode),
+      windowClose: () => ipcRenderer.invoke("forma:window-close"),
+    });
+  } catch {
+    // The main-process launch watchdog still opens the window.
+  }
+}
 
 if (process.platform === "win32") {
   const markWindowsChrome = () => {

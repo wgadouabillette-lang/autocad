@@ -21,6 +21,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check the app cannot stay stuck on the splash
+        run: node scripts/check-desktop-boot.cjs
+
       - name: Validate Castlabs EVS secrets
         shell: bash
         run: |

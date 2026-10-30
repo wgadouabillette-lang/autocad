@@ -538,6 +538,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }, 2500);
 
+    let absoluteReady = 0;
+
     const handleAuthenticatedUser = (user: User, source: string) => {
       if (disposed) return;
       // #region agent log
@@ -627,6 +629,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })();
     };
 
+    // If Firebase never answers, leave the loader and show the sign-in screen.
+    // A stuck loader keeps the desktop splash up, and that splash cannot apply
+    // the next update.
+    absoluteReady = window.setTimeout(() => {
+      if (disposed || get().ready) return;
+      const user = auth.currentUser;
+      if (user) {
+        handleAuthenticatedUser(user, "absolute-ready-timeout");
+        return;
+      }
+      setSignedOut("absolute-ready-timeout");
+    }, 15_000);
+
     void (async () => {
       try {
         await completeEmailLinkSignInIfPresent();
@@ -711,6 +726,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const cleanup = () => {
       disposed = true;
       window.clearTimeout(readyFallback);
+      window.clearTimeout(absoluteReady);
       stopProfileAutosync?.();
       unsubscribe?.();
       if (activeAuthHydrateCleanup === cleanup) {
