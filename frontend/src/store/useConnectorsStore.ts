@@ -11,6 +11,7 @@ import {
   type ConnectorStatus,
 } from "../lib/connectorsApi";
 import { tryFinishConnectorOAuthFromStorage } from "../lib/connectorOAuthResult";
+import { hasFormaDesktop } from "../lib/formaDesktop";
 
 const VISUAL_STATUSES: ConnectorStatus[] = CHAT_CONNECTORS.map(({ id, label }) => ({
   id,
@@ -95,11 +96,43 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
       return;
     }
     set({ connectingId: id, error: null });
+    const watchConnection = () => {
+      const deadline = Date.now() + 3 * 60 * 1000;
+      const tick = async () => {
+        if (get().connectingId !== id) return;
+        if (Date.now() > deadline) {
+          set({ connectingId: null });
+          return;
+        }
+        await get().refresh(true);
+        if (get().statuses.some((status) => status.id === id && status.connected)) {
+          set({ connectingId: null, error: null });
+          window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
+          return;
+        }
+        window.setTimeout(() => void tick(), 1500);
+      };
+      window.setTimeout(() => void tick(), 1200);
+    };
     try {
       const url = await startConnectorOAuth(id);
       if (prefersSameTabOAuth()) {
         window.location.assign(url);
         return;
+      }
+      if (hasFormaDesktop()) {
+        const desktop = window.formaDesktop;
+        if (desktop?.openConnectorOAuth) {
+          const opened = await desktop.openConnectorOAuth(url);
+          if (!opened?.ok) throw new Error("Impossible d'ouvrir la fenêtre de connexion.");
+          watchConnection();
+          return;
+        }
+        if (desktop?.openExternal) {
+          await desktop.openExternal(url);
+          watchConnection();
+          return;
+        }
       }
       const popup = window.open(
         url,
@@ -110,6 +143,7 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
         window.location.assign(url);
         return;
       }
+      watchConnection();
       const timer = window.setInterval(() => {
         if (tryFinishConnectorOAuthFromStorage()) {
           window.clearInterval(timer);
@@ -122,10 +156,7 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
         }
         if (popup.closed) {
           window.clearInterval(timer);
-          set({ connectingId: null });
-          if (!tryFinishConnectorOAuthFromStorage()) {
-            void get().refresh(true);
-          }
+          void get().refresh(true);
         }
       }, 400);
     } catch (err) {

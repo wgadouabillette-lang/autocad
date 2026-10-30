@@ -201,9 +201,15 @@ def _callback_html(
             base_path=safe_path,
         )
     )
+    lowered_origin = safe_origin.lower()
+    desktop_return = (
+        lowered_origin.startswith("http://127.0.0.1")
+        or lowered_origin.startswith("http://localhost")
+    )
+    desktop_return_js = "true" if desktop_return else "false"
     return f"""<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Connector OAuth</title></head>
+<head><meta charset="utf-8"><title>Connexion</title></head>
 <body style="margin:0;background:#121212;color:#e0e0e0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;">
 <p id="status">Connexion en cours…</p>
 <script>
@@ -211,6 +217,7 @@ def _callback_html(
   const storageKey = "forma-connector-oauth-result";
   const openerOrigin = {opener_origin};
   const redirect = {redirect};
+  const desktopReturn = {desktop_return_js};
 
   try {{
     localStorage.setItem(storageKey, JSON.stringify(payload));
@@ -219,7 +226,11 @@ def _callback_html(
   function finish() {{
     const status = document.getElementById("status");
     if (payload.status === "success") {{
-      if (status) status.textContent = "Connecté — fermeture…";
+      if (status) {{
+        status.textContent = desktopReturn
+          ? "Connecté. Retournez dans Meetra."
+          : "Connecté — fermeture…";
+      }}
     }} else if (status) {{
       status.textContent = payload.message || "Connexion impossible.";
     }}
@@ -239,12 +250,10 @@ def _callback_html(
       }}, payload.status === "error" ? 1600 : 400);
       return;
     }}
-    // Desktop popups have no opener. Stay here so the app can read the result
-    // before this page is replaced by a blank Meetra window.
-    window.setTimeout(function () {{
-      window.close();
-      if (!window.closed) window.location.replace(redirect);
-    }}, 2500);
+    // Desktop has no opener. Closing or loading the app here quits Meetra on
+    // Windows. The desktop app reads the saved connection itself.
+    if (desktopReturn) return;
+    window.location.replace(redirect);
   }}
 
   window.setTimeout(finish, 80);

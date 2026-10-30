@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("formaDesktop", {
   windowClose: () => ipcRenderer.invoke("forma:window-close"),
   onWindowState: (handler) => subscribe("forma:window-state", handler),
   openExternal: (url) => ipcRenderer.invoke("forma:open-external", url),
+  openConnectorOAuth: (url) => ipcRenderer.invoke("forma:open-connector-oauth", url),
   getAppWindowSourceId: () => ipcRenderer.invoke("forma:get-app-window-source-id"),
   getPreferredScreenSourceId: () =>
     ipcRenderer.invoke("forma:get-preferred-screen-source-id"),

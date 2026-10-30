@@ -129,6 +129,14 @@ const OAUTH_POPUP_PREFIXES = [
   "https://billing.stripe.com/",
   "https://meetra.cc/",
   "https://www.meetra.cc/",
+  "https://login.microsoftonline.com/",
+  "https://login.microsoft.com/",
+  "https://login.live.com/",
+  "https://login.windows.net/",
+  "https://account.live.com/",
+  "https://account.microsoft.com/",
+  "https://www.dropbox.com/",
+  "https://dropbox.com/",
 ];
 
 const EXTERNAL_URL_ALLOWLIST = [
@@ -150,6 +158,33 @@ const OAUTH_PARTITION = "persist:forma-oauth";
 
 function isOAuthPopupUrl(url) {
   return typeof url === "string" && OAUTH_POPUP_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
+function isMicrosoftOAuthUrl(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return (
+      host === "login.microsoftonline.com" ||
+      host.endsWith(".microsoftonline.com") ||
+      host === "login.microsoft.com" ||
+      host === "login.live.com" ||
+      host === "login.windows.net" ||
+      host === "account.live.com" ||
+      host === "account.microsoft.com"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isDesktopAppUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") return false;
+    return parsed.pathname === "/app" || parsed.pathname.startsWith("/app/");
+  } catch {
+    return false;
+  }
 }
 
 function isAllowedExternalUrl(url) {
@@ -290,22 +325,43 @@ function attachOAuthPopupNavigation(win) {
   contents.on("did-finish-load", () => {
     void tryHarvest(contents.getURL());
   });
-  // The callback page has no window.opener in Electron, so it used to navigate
-  // into a blank Meetra window and drop the result. Keep the callback up until
-  // the main window has the payload.
-  let allowingLeave = false;
+  // Never let the callback replace this window with the Meetra app. That blank
+  // window was titled Meetra and, on Windows, closing it quit the application.
   contents.on("will-navigate", (event, url) => {
-    if (harvested || allowingLeave) return;
-    const current = contents.getURL();
-    if (!isConnectorOAuthCallbackUrl(current) || isConnectorOAuthCallbackUrl(url)) return;
+    if (!isDesktopAppUrl(url)) return;
     event.preventDefault();
+    const current = contents.getURL();
     void (async () => {
-      await tryHarvest(current);
-      if (harvested || win.isDestroyed()) return;
-      allowingLeave = true;
-      void contents.loadURL(url);
+      if (isConnectorOAuthCallbackUrl(current)) await tryHarvest(current);
+      if (!win.isDestroyed()) win.close();
     })();
   });
+}
+
+let connectorOAuthWindow = null;
+
+function openConnectorOAuthWindow(url) {
+  if (connectorOAuthWindow && !connectorOAuthWindow.isDestroyed()) {
+    connectorOAuthWindow.close();
+  }
+  const win = new BrowserWindow({
+    width: 520,
+    height: 720,
+    title: "Connexion",
+    autoHideMenuBar: true,
+    parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      partition: OAUTH_PARTITION,
+    },
+  });
+  connectorOAuthWindow = win;
+  win.on("closed", () => {
+    if (connectorOAuthWindow === win) connectorOAuthWindow = null;
+  });
+  attachOAuthPopupNavigation(win);
+  void win.loadURL(url);
 }
 
 let backendProc = null;
@@ -1509,6 +1565,16 @@ async function openScreenCaptureSettings() {
 
   return false;
 }
+
+ipcMain.handle("forma:open-connector-oauth", async (_event, url) => {
+  if (!isOAuthPopupUrl(url)) return { ok: false };
+  if (isMicrosoftOAuthUrl(url)) {
+    await shell.openExternal(url);
+    return { ok: true, external: true };
+  }
+  openConnectorOAuthWindow(url);
+  return { ok: true, external: false };
+});
 
 ipcMain.handle("forma:set-window-mode", async (_event, mode) => {
   if (mode !== "splash" && mode !== "app") return { ok: false };

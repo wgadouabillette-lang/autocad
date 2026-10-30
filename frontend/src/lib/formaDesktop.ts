@@ -69,6 +69,7 @@ export interface FormaDesktopBridge {
   windowClose?: () => Promise<{ ok: boolean }>;
   onWindowState?: (handler: (state: DesktopWindowState) => void) => () => void;
   openExternal: (url: string) => Promise<void>;
+  openConnectorOAuth?: (url: string) => Promise<{ ok: boolean; external?: boolean }>;
   getAppWindowSourceId: () => Promise<string | null>;
   getPreferredScreenSourceId?: () => Promise<string | null>;
   showRecordingCameraOverlay?: (opts?: { mirror?: boolean }) => Promise<boolean>;
