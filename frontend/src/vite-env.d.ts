@@ -13,6 +13,10 @@ declare module "*.webp" {
 }
 
 declare global {
+  interface ImportMetaEnv {
+    readonly VITE_MIXPANEL_TOKEN?: string;
+  }
+
   interface Window {
     formaDesktop?: FormaDesktopBridge;
     webkitSpeechRecognition?: new () => SpeechRecognition;

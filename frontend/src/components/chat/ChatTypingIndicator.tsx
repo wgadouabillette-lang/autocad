@@ -22,10 +22,11 @@ function TypingDots() {
 }
 
 export default function ChatTypingIndicator({ typers }: ChatTypingIndicatorProps) {
-  if (typers.length === 0) return null;
+  const others = typers.filter((typer) => !typer.isLocal);
+  if (others.length === 0) return null;
 
-  if (typers.length > 1) {
-    const visibleTypers = typers.filter((typer) => !typer.isLocal).slice(0, 3);
+  if (others.length > 1) {
+    const visibleTypers = others.slice(0, 3);
 
     return (
       <div className="chat-typing-indicator" role="status" aria-live="polite">
@@ -54,22 +55,7 @@ export default function ChatTypingIndicator({ typers }: ChatTypingIndicatorProps
     );
   }
 
-  const typer = typers[0]!;
-
-  if (typer.isLocal) {
-    return (
-      <div
-        className="chat-typing-indicator chat-typing-indicator--self"
-        role="status"
-        aria-live="polite"
-      >
-        <p className="chat-typing-indicator__text">
-          Vous êtes en train d&apos;écrire
-          <TypingDots />
-        </p>
-      </div>
-    );
-  }
+  const typer = others[0]!;
 
   return (
     <div className="chat-typing-indicator" role="status" aria-live="polite">

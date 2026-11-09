@@ -34,7 +34,7 @@
     },
     "descriptions": {
       "friends": "好友与邀请。",
-      "workspaces": "你的工作区、邀请与 Team AI 用量。",
+      "workspaces": "你的工作区与邀请。",
       "usage": "Pro、Pro+ 与 Team 套餐。",
       "billing": "当前套餐与下次扣款日期。",
       "agents": "自定义聊天、跟进与 AI Notes。",
@@ -74,6 +74,18 @@
         "cyan": "青色"
       }
     }
+  },
+  "billingSeats": {
+    "given": "已分配",
+    "total": "总计",
+    "perMonth": "每月",
+    "summary": "已分配 {{given}}，总计 {{total}}，{{value}} / 月",
+    "open": "空闲席位",
+    "assigned": "已分配",
+    "remove": "移除",
+    "confirm": "确认",
+    "removing": "正在移除…",
+    "error": "无法移除该席位。"
   },
   "billing": {
     "signIn": "登录后通过 Stripe 订阅。",
@@ -221,5 +233,107 @@
     "backstageTitle": "回到观众席",
     "askInChat": "在聊天中提问",
     "askInChatTitle": "在剧场聊天中提问"
+  },
+  "onboarding": {
+    "continue": "继续",
+    "welcomeTitle": "欢迎使用 Meetra",
+    "welcomeSubtitle": "继续之前请先登录。",
+    "q": {
+      "plan": {
+        "title": "你打算如何使用 Meetra？",
+        "subtitle": "选择最符合你工作方式的一项。",
+        "solo": "自己用",
+        "colleague": "和同事一起",
+        "friends": "和朋友一起",
+        "other": "其他"
+      },
+      "purpose": {
+        "title": "你要用 Meetra 做什么？",
+        "subtitle": "选择最适合你的一项。",
+        "automation": "AI 自动化",
+        "agent": "AI 助手",
+        "calendar": "日历",
+        "notes": "AI Notes",
+        "recording": "演示录制",
+        "all": "以上全部"
+      },
+      "source": {
+        "title": "你是从哪里知道我们的？",
+        "subtitle": "告诉我们你是怎么找到 Meetra 的。",
+        "youtube": "YouTube",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "google": "Google",
+        "colleague": "同事",
+        "x": "X",
+        "enterprise": "企业",
+        "other": "其他"
+      }
+    },
+    "seats": {
+      "title": "选择席位",
+      "joinTitle": "加入",
+      "subtitle": "一个席位给你，其余给你的团队。",
+      "joinSubtitle": "用邀请链接打开一个席位。",
+      "paths": "群组或加入",
+      "group": "群组",
+      "groupNote": "给你的群组的席位。",
+      "join": "加入",
+      "joinNote": "加入已有群组。",
+      "amount": "{{amount}} 美元",
+      "priceSuffix": " / 月，每个席位",
+      "seat": "个席位",
+      "seats": "个席位",
+      "removeSeat": "减少一个席位",
+      "addSeat": "增加一个席位",
+      "checkout": "去结账 - {{amount}}$",
+      "preparing": "准备中…",
+      "joinPlaceholder": "粘贴邀请链接",
+      "verifying": "正在验证…",
+      "joinAction": "加入"
+    },
+    "upgrade": {
+      "button": "升级",
+      "title": "要添加多少个席位？",
+      "subtitle": "这些席位会添加到 {{workspace}}。",
+      "continue": "继续"
+    },
+    "inviteSeats": {
+      "title": "席位已用完",
+      "subtitle": "购买更多席位，以便让更多成员加入",
+      "buyMore": "购买更多"
+    },
+    "pay": {
+      "title": "付款",
+      "perMonth": " / 月",
+      "promo": "优惠码",
+      "apply": "使用",
+      "applied": "优惠码已使用",
+      "pay": "支付",
+      "paying": "支付中…",
+      "mandate": "提供银行卡信息，即表示你允许 {{merchant}} 根据其条款在日后向你的卡扣款。"
+    },
+    "share": {
+      "title": "邀请链接",
+      "uses_one": "剩余 1 次。",
+      "uses_other": "剩余 {{count}} 次。",
+      "lead": "每个打开链接的人占用一个席位。",
+      "copy": "复制链接",
+      "copied": "链接已复制",
+      "continue": "继续"
+    },
+    "waiting": {
+      "title": "正在验证你的访问权限",
+      "authorized": "访问已授权",
+      "lead": "已收到付款。席位马上就会打开。"
+    },
+    "errors": {
+      "join": "无法用这个链接加入。",
+      "activation": "已收到付款。开通还需要一点时间。如果一直停在这个画面，请重新打开 Meetra。",
+      "startPay": "无法开始付款。",
+      "promo": "优惠码无效。",
+      "save": "无法保存回答。",
+      "copy": "无法复制链接。"
+    }
   }
 }

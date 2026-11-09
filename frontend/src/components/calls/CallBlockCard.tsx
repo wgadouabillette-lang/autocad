@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { aiStrokeClasses, type AiStrokeVariant } from "../../lib/aiModelStroke";
 import {
   participantHasHandRaised,
@@ -16,6 +16,55 @@ import VoiceParticipantTile from "./VoiceParticipantTile";
 export const CALL_BLOCK_AVATAR_SLOTS = 5;
 export const CALL_BLOCK_PRIVATE_AVATAR_SLOTS = 2;
 export const CALL_BLOCK_TILE_SLOTS = 2;
+
+/** Le 5e cercle d'un salon vocal rejoue son animation toutes les 2,5 minutes. */
+const OPEN_CHANNEL_MORE_ANIMATION_MS = 2.5 * 60 * 1000;
+const OPEN_CHANNEL_MORE_PLAY_MS = 1400;
+
+function OpenChannelMoreAvatar({
+  hiddenCount,
+  hiddenNames,
+}: {
+  hiddenCount: number;
+  hiddenNames: string[];
+}) {
+  const [animating, setAnimating] = useState(false);
+
+  useEffect(() => {
+    let playTimer = 0;
+    const play = () => {
+      setAnimating(true);
+      window.clearTimeout(playTimer);
+      playTimer = window.setTimeout(() => setAnimating(false), OPEN_CHANNEL_MORE_PLAY_MS);
+    };
+    play();
+    const interval = window.setInterval(play, OPEN_CHANNEL_MORE_ANIMATION_MS);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(playTimer);
+    };
+  }, []);
+
+  const label = hiddenCount > 1 ? `${hiddenCount} autres membres` : "1 autre membre";
+
+  return (
+    <span
+      className={clsx(
+        "call-block__avatar",
+        "call-block__avatar--more",
+        animating && "call-block__avatar--more-animating",
+      )}
+      title={hiddenNames.join(", ")}
+      aria-label={label}
+    >
+      <span className="call-block__more-dots" aria-hidden>
+        <span />
+        <span />
+        <span />
+      </span>
+    </span>
+  );
+}
 
 interface CallBlockCardProps {
   title: string;
@@ -80,10 +129,10 @@ export default function CallBlockCard({
 
   const previewTiles = participants.slice(0, CALL_BLOCK_TILE_SLOTS);
   const avatarSlotCount = fixedAvatarSlots && fixedAvatarSlots > 0 ? fixedAvatarSlots : 0;
-  const avatarParticipants = participants.slice(
-    0,
-    avatarSlotCount > 0 ? avatarSlotCount : CALL_BLOCK_AVATAR_SLOTS,
-  );
+  const avatarParticipants =
+    avatarSlotCount > 0
+      ? participants
+      : participants.slice(0, CALL_BLOCK_AVATAR_SLOTS);
   const audiencePreview = audienceParticipants.slice(0, CALL_BLOCK_AVATAR_SLOTS);
   const blockClassName = clsx("forma-capsule", className, ...aiStrokeClasses(aiStroke));
 
@@ -140,7 +189,19 @@ export default function CallBlockCard({
     if (!fixedSlots) {
       return users.map((user) => renderAvatar(user));
     }
+    const overflowSlot = fixedSlots - 1;
+    const showOverflow = fixedSlots === CALL_BLOCK_AVATAR_SLOTS && users.length > overflowSlot;
     return Array.from({ length: fixedSlots }, (_, index) => {
+      if (showOverflow && index === overflowSlot) {
+        const hidden = users.slice(overflowSlot);
+        return (
+          <OpenChannelMoreAvatar
+            key="open-channel-more"
+            hiddenCount={hidden.length}
+            hiddenNames={hidden.map((user) => user.name)}
+          />
+        );
+      }
       const user = users[index];
       if (user) return renderAvatar(user);
       return (

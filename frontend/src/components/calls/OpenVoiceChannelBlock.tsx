@@ -127,7 +127,7 @@ export default function OpenVoiceChannelBlock({ channel }: OpenVoiceChannelBlock
         "call-block--open-channel",
         canJoin && "call-block--clickable",
         isHere && "call-block--local",
-        hasRemoteParticipants && "call-block--connected",
+        hasRemoteParticipants && "call-block--local",
       )}
       title={channel.name}
       participants={channel.participants}

@@ -34,7 +34,7 @@
     },
     "descriptions": {
       "friends": "友達と招待。",
-      "workspaces": "ワークスペース、招待、Team AI の利用。",
+      "workspaces": "ワークスペースと招待。",
       "usage": "Pro、Pro+、Team プラン。",
       "billing": "現在のプランと次回請求日。",
       "agents": "チャットと AI Notes をカスタマイズ。",
@@ -74,6 +74,18 @@
         "cyan": "シアン"
       }
     }
+  },
+  "billingSeats": {
+    "given": "割当済み",
+    "total": "合計",
+    "perMonth": "月額",
+    "summary": "{{given}} 割当済み、合計 {{total}}、{{value}} / 月",
+    "open": "空いているシート",
+    "assigned": "割当済み",
+    "remove": "外す",
+    "confirm": "確認",
+    "removing": "外しています…",
+    "error": "このシートを外せませんでした。"
   },
   "billing": {
     "signIn": "Stripe で契約するにはサインインしてください。",
@@ -221,5 +233,107 @@
     "backstageTitle": "客席に戻る",
     "askInChat": "チャットで質問",
     "askInChatTitle": "シアターのチャットで質問する"
+  },
+  "onboarding": {
+    "continue": "続ける",
+    "welcomeTitle": "Meetraへようこそ",
+    "welcomeSubtitle": "続ける前にサインインしてください。",
+    "q": {
+      "plan": {
+        "title": "Meetraをどのように使う予定ですか？",
+        "subtitle": "働き方に近いものを選んでください。",
+        "solo": "ひとりで",
+        "colleague": "同僚と",
+        "friends": "友達と",
+        "other": "その他"
+      },
+      "purpose": {
+        "title": "Meetraを何に使いますか？",
+        "subtitle": "いちばん近いものを選んでください。",
+        "automation": "AI自動化",
+        "agent": "AIエージェント",
+        "calendar": "カレンダー",
+        "notes": "AI Notes",
+        "recording": "デモ録画",
+        "all": "すべて"
+      },
+      "source": {
+        "title": "どこで知りましたか？",
+        "subtitle": "Meetraを見つけたきっかけを教えてください。",
+        "youtube": "YouTube",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "google": "Google",
+        "colleague": "同僚",
+        "x": "X",
+        "enterprise": "企業",
+        "other": "その他"
+      }
+    },
+    "seats": {
+      "title": "シートを選ぶ",
+      "joinTitle": "参加",
+      "subtitle": "1つはあなた用、残りはチーム用です。",
+      "joinSubtitle": "招待リンクで席を開きます。",
+      "paths": "グループまたは参加",
+      "group": "グループ",
+      "groupNote": "グループ用のシート。",
+      "join": "参加",
+      "joinNote": "既存のグループに参加。",
+      "amount": "{{amount}} USD",
+      "priceSuffix": " / 月・シートごと",
+      "seat": "シート",
+      "seats": "シート",
+      "removeSeat": "シートを減らす",
+      "addSeat": "シートを増やす",
+      "checkout": "支払いに進む - {{amount}}$",
+      "preparing": "準備中…",
+      "joinPlaceholder": "招待リンクを貼り付け",
+      "verifying": "確認中…",
+      "joinAction": "参加"
+    },
+    "upgrade": {
+      "button": "アップグレード",
+      "title": "シートをいくつ追加しますか？",
+      "subtitle": "このシートは {{workspace}} に追加されます。",
+      "continue": "続ける"
+    },
+    "inviteSeats": {
+      "title": "シートを使い切りました",
+      "subtitle": "シートを追加購入して、より多くのメンバーにアクセスを渡せます",
+      "buyMore": "追加で購入"
+    },
+    "pay": {
+      "title": "お支払い",
+      "perMonth": " / 月",
+      "promo": "プロモコード",
+      "apply": "適用",
+      "applied": "コードを適用しました",
+      "pay": "支払う",
+      "paying": "支払い中…",
+      "mandate": "カード情報を提供すると、{{merchant}} が条件に従って今後の支払いでカードに請求することを許可します。"
+    },
+    "share": {
+      "title": "招待リンク",
+      "uses_one": "残り1回。",
+      "uses_other": "残り{{count}}回。",
+      "lead": "開いた人が1席を使います。",
+      "copy": "リンクをコピー",
+      "copied": "コピーしました",
+      "continue": "続ける"
+    },
+    "waiting": {
+      "title": "アクセスを確認しています",
+      "authorized": "アクセスが許可されました",
+      "lead": "支払いを受け取りました。シートはまもなく開きます。"
+    },
+    "errors": {
+      "join": "このリンクでは参加できません。",
+      "activation": "支払いは受け取っています。有効化に少し時間がかかっています。この画面のままなら Meetra を開き直してください。",
+      "startPay": "支払いを開始できませんでした。",
+      "promo": "プロモコードが無効です。",
+      "save": "回答を保存できませんでした。",
+      "copy": "リンクをコピーできませんでした。"
+    }
   }
 }

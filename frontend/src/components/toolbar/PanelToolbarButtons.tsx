@@ -3,6 +3,7 @@ import { Settings } from "lucide-react";
 import { landingLabel } from "../../lib/marketingPreview";
 import { isFormaDesktopMac, isFormaDesktopWindows } from "../../lib/formaDesktop";
 import { useStore } from "../../store/useStore";
+import HeaderUpgradeButton from "./HeaderUpgradeButton";
 import HeaderInviteButton from "../workspace/HeaderInviteButton";
 import WorkspaceSwitcherButton from "../workspace/WorkspaceSwitcherButton";
 
@@ -15,6 +16,7 @@ export default function PanelToolbarButtons() {
 
   return (
     <div className="header-toolbar-actions">
+      <HeaderUpgradeButton />
       <WorkspaceSwitcherButton />
       {inviteInToolbar ? <HeaderInviteButton /> : null}
       <button

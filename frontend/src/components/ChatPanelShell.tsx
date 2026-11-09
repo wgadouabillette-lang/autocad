@@ -130,7 +130,13 @@ export default function ChatPanelShell() {
       return;
     }
     if (isMarketingPreview()) {
-      applyChatPanelWidth(MARKETING_CHAT_PANEL_WIDTH_REM * rootRemPx());
+      const params = new URLSearchParams(window.location.search);
+      const narrowRecordingChat =
+        params.get("scene") === "recording" && params.get("chat") === "1";
+      const widthRem = narrowRecordingChat
+        ? CHAT_PANEL_WIDTH_MIN_REM
+        : MARKETING_CHAT_PANEL_WIDTH_REM;
+      applyChatPanelWidth(widthRem * rootRemPx());
       return;
     }
     try {

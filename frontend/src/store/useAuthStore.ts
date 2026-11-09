@@ -4,6 +4,7 @@ import {
   auth,
   completeEmailLinkSignInIfPresent,
   completeOAuthRedirectIfPresent,
+  isFirestoreWatchGlitch,
   OAuthRedirectStartedError,
   sendEmailSignInLink,
   signInWithOAuthProvider,
@@ -87,6 +88,34 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
+function meetraIntroMemoryKey(uid: string): string {
+  return `forma-meetra-intro:${uid}`;
+}
+
+function rememberedMeetraIntroCompleted(uid: string): boolean {
+  try {
+    return window.localStorage.getItem(meetraIntroMemoryKey(uid)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function rememberMeetraIntroCompleted(uid: string): void {
+  try {
+    window.localStorage.setItem(meetraIntroMemoryKey(uid), "1");
+  } catch {
+    // Le stockage local peut être indisponible.
+  }
+}
+
+function forgetMeetraIntroCompleted(uid: string): void {
+  try {
+    window.localStorage.removeItem(meetraIntroMemoryKey(uid));
+  } catch {
+    // Ignore.
+  }
+}
+
 interface AuthState {
   ready: boolean;
   isAuthenticated: boolean;
@@ -97,17 +126,19 @@ interface AuthState {
   emailLinkSent: boolean;
   desktopWebAuthPending: boolean;
   desktopWebAuthConnected: boolean;
+  meetraIntroCompleted: boolean;
   acknowledgeDesktopAuthConnected: () => boolean;
   hydrate: () => () => void;
   continueWithEmail: (email: string) => Promise<void>;
   signInWithProvider: (provider: AuthProvider) => Promise<void>;
   reopenDesktopWebAuth: () => Promise<void>;
   cancelDesktopWebAuth: () => void;
-  signOut: () => Promise<void>;
+  signOut: (options?: { forgetIntro?: boolean }) => Promise<void>;
   syncProfileToCloud: () => Promise<void>;
   syncWorkspacesToCloud: () => Promise<void>;
   markWorkspaceSetupCompleted: () => Promise<void>;
   markDashboardOnboardingCompleted: () => Promise<void>;
+  markMeetraIntroCompleted: () => Promise<void>;
   uploadAndSyncProfilePhoto: (file: File) => Promise<void>;
   restoreGoogleProfilePhoto: () => Promise<void>;
   removeAndSyncProfilePhoto: () => Promise<void>;
@@ -155,23 +186,21 @@ function resolveProfileSidePanelSide(profile: UserProfileDoc): SidePanelSide {
 function applyLocalProfile(profile: UserProfileDoc) {
   const sidePanelSide = resolveProfileSidePanelSide(profile);
   const currentState = useStore.getState();
-  // Webhook Stripe (Admin SDK) → billingManaged sur le profil ; sinon conserve le toggle local.
+  // Seul un abonnement confirmé sur le profil ouvre l'app. Le toggle local ne compte pas.
   const cloudManaged = profile.billingManaged === true;
   const subscriptionPlan = cloudManaged
     ? effectiveSubscriptionPlan(profile.subscriptionPlan, true)
-    : currentState.subscriptionPlan;
-  const billingManaged = cloudManaged ? true : currentState.billingManaged;
+    : "free";
+  const billingManaged = cloudManaged;
   const onDemandUsageEnabled = cloudManaged
     ? effectiveOnDemandUsage(subscriptionPlan, profile.onDemandUsageEnabled, true)
-    : currentState.onDemandUsageEnabled;
+    : false;
   const subscriptionTier =
     cloudManaged && subscriptionPlan === "pro"
       ? profile.subscriptionTier === "proPlus"
         ? "proPlus"
         : "pro"
-      : cloudManaged
-        ? ""
-        : currentState.subscriptionTier;
+      : "";
   const calendarHours = resolveCalendarWorkingHours(
     profile.calendarWorkStartMinutes ?? currentState.calendarWorkStartMinutes,
     profile.calendarWorkEndMinutes ?? currentState.calendarWorkEndMinutes,
@@ -200,6 +229,7 @@ function applyLocalProfile(profile: UserProfileDoc) {
     accentColor: normalizeAccentColorPreference(profile.accentColor ?? currentState.accentColor),
     subscriptionPlan,
     billingManaged,
+    seatCovered: profile.seatCovered === true,
     onDemandUsageEnabled,
     subscriptionTier,
     agentChatInstructions: profile.agentChatInstructions ?? "",
@@ -414,6 +444,17 @@ async function hydrateRemoteData(
     return false;
   }
 
+  const hasCloudWorkspaces =
+    workspaces.customServers.length > 0 || workspaces.memberships.length > 0;
+  // Un compte qui a déjà un workspace, ou dont l'intro est mémorisée, ne revoit pas l'onboarding.
+  const introCompleted =
+    profile?.meetraIntroCompleted === true ||
+    rememberedMeetraIntroCompleted(uid) ||
+    hasCloudWorkspaces;
+  if (introCompleted) rememberMeetraIntroCompleted(uid);
+  useAuthStore.setState({
+    meetraIntroCompleted: introCompleted,
+  });
   if (profile) {
     applyLocalProfile(profile);
     applyDashboardOnboardingFromProfile(
@@ -421,9 +462,6 @@ async function hydrateRemoteData(
       profile.dashboardOnboardingCompleted,
     );
   }
-
-  const hasCloudWorkspaces =
-    workspaces.customServers.length > 0 || workspaces.memberships.length > 0;
 
   const ownerUid = uid;
   const displayName = useStore.getState().userDisplayName;
@@ -499,6 +537,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   emailLinkSent: false,
   desktopWebAuthPending: false,
   desktopWebAuthConnected: false,
+  meetraIntroCompleted: false,
 
   hydrate: () => {
     activeAuthHydrateCleanup?.();
@@ -562,7 +601,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       stopProfileAutosync?.();
       stopProfileAutosync = null;
 
-      set({ ready: false });
+      const introStillValid =
+        get().meetraIntroCompleted || rememberedMeetraIntroCompleted(user.uid);
+      set({ ready: false, meetraIntroCompleted: introStillValid });
       set({ ...applyFirebaseUser(user), desktopWebAuthPending: false });
 
       const readySafety = window.setTimeout(() => {
@@ -593,7 +634,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (!isCurrent()) return;
           const message =
             error instanceof Error ? error.message : "Synchronisation cloud impossible.";
-          if (!message.endsWith(" timeout")) {
+          if (isFirestoreWatchGlitch(error)) {
+            if (rememberedMeetraIntroCompleted(user.uid)) {
+              set({ meetraIntroCompleted: true, authError: null });
+            }
+          } else if (!message.endsWith(" timeout")) {
             set({ authError: message });
           }
         } finally {
@@ -855,11 +900,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ desktopWebAuthPending: false, desktopWebAuthConnected: false, authError: null });
   },
 
-  signOut: async () => {
+  signOut: async (options) => {
     if (hasFormaDesktop()) {
       markDesktopAuthAccountChoiceRequired(get().authEmail);
       document.documentElement.classList.add("app-loading-splash");
       void window.formaDesktop?.setWindowMode?.("splash");
+    }
+    const signedOutUid = get().firebaseUid;
+    if (signedOutUid) {
+      if (options?.forgetIntro) forgetMeetraIntroCompleted(signedOutUid);
+      else rememberMeetraIntroCompleted(signedOutUid);
     }
     await signOutUser();
     clearConnectorAuthCache();
@@ -880,6 +930,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       emailLinkSent: false,
       desktopWebAuthPending: false,
       desktopWebAuthConnected: false,
+      meetraIntroCompleted: false,
     });
   },
 
@@ -914,6 +965,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await saveUserAccountProfile(uid, {
       ...profileFromStore(user),
       dashboardOnboardingCompleted: true,
+    });
+  },
+
+  markMeetraIntroCompleted: async () => {
+    const uid = get().firebaseUid;
+    const user = auth.currentUser;
+    if (uid) rememberMeetraIntroCompleted(uid);
+    set({ meetraIntroCompleted: true });
+    if (!uid || !user) return;
+    await saveUserAccountProfile(uid, {
+      ...profileFromStore(user),
+      meetraIntroCompleted: true,
     });
   },
 

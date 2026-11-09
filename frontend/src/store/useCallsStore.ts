@@ -8,12 +8,12 @@ import {
   absorbRemoteUserIntoBlock,
   canRequestJoin,
   clearConfirmedPrivateCallPeers,
+  canCreateOpenVoiceChannel,
+  collapseVacantOpenChannels,
   createDraftOpenChannel,
   createRoomCallsState,
-  ensureDefaultOpenChannel,
   forgetConfirmedPrivateCallPeer,
   isDefaultOpenChannel,
-  isOpenChannelIdleExpired,
   mapOpenChannelsVacancy,
   syncOpenChannelVacancy,
   applyRemoteVoiceFromPresence,
@@ -508,6 +508,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         void upsertOpenVoiceChannel(workspaceId, channel.id, channel.name);
       }
     }
+    get().purgeIdleOpenChannels();
   },
 
   syncPresenceMembers: (workspaceId, members, localFirebaseUid) => {
@@ -655,6 +656,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       playVoiceLeaveSound();
       pushVoicePresence(get, workspaceId);
     }
+    get().purgeIdleOpenChannels();
   },
 
   syncRemoteOpenVoiceChannels: (workspaceId, remoteChannels) => {
@@ -681,10 +683,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
           });
         }
       }
-      const openChannels = ensureDefaultOpenChannel(
-        workspaceId,
-        mapOpenChannelsVacancy([...byId.values()]),
-      );
+      const openChannels = mapOpenChannelsVacancy([...byId.values()]);
       if (openChannelsSignature(current.openChannels) === openChannelsSignature(openChannels)) {
         return s;
       }
@@ -695,6 +694,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         },
       };
     });
+    get().purgeIdleOpenChannels();
   },
 
   clearWorkspaceResources: (workspaceId) => {
@@ -876,6 +876,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
   startOpenChannelDraft: (roomId) => {
     const state = roomState(get, roomId);
+    if (!canCreateOpenVoiceChannel(state.openChannels)) return;
     const openChannels = state.openChannels.filter((channel) => !channel.isDraft);
     const channel = createDraftOpenChannel(roomId);
     set((s) => ({
@@ -910,6 +911,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
                     ...entry,
                     name: trimmedName,
                     isDraft: false,
+                    awaitingFirstJoin: true,
                   })
                 : entry,
             ),
@@ -924,8 +926,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const state = roomState(get, roomId);
     const channel = state.openChannels.find((entry) => entry.id === channelId);
     if (!channel) return;
-    // Seuls les brouillons s'annulent manuellement ; les salons vides expirent via TTL.
-    // Le salon permanent n'est jamais supprimé.
+    // Seuls les brouillons s'annulent à la main. Un salon qui se vide est retiré tout de suite.
     if (!channel.isDraft) return;
     if (isDefaultOpenChannel(roomId, channelId)) return;
 
@@ -955,9 +956,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       let changed = false;
 
       for (const [roomId, state] of Object.entries(s.callsByRoom)) {
-        const synced = mapOpenChannelsVacancy(state.openChannels, now);
-        const kept = synced.filter((channel) => !isOpenChannelIdleExpired(channel, now));
-        const openChannels = ensureDefaultOpenChannel(roomId, kept);
+        const openChannels = collapseVacantOpenChannels(roomId, state.openChannels, now);
         const roomChanged =
           openChannels.length !== state.openChannels.length ||
           openChannels.some((channel) => {
@@ -980,7 +979,6 @@ export const useCallsStore = create<CallsState>((set, get) => ({
             .map((channel) => channel.id),
         );
         for (const channelId of removedChannelIds) {
-          if (isDefaultOpenChannel(roomId, channelId)) continue;
           removedForFirebase.push({ roomId, channelId });
         }
         const localChannelId = localOpenChannelByRoom[roomId];
@@ -1038,6 +1036,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         },
       };
     });
+    get().purgeIdleOpenChannels();
   },
 
   joinOpenChannel: async (roomId, channelId) => {
@@ -1788,6 +1787,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     });
     if (wasInCall) playVoiceLeaveSound();
     pushVoicePresence(get, workspaceId);
+    get().purgeIdleOpenChannels();
   },
 
   disconnectRemoteFromPrivateCall: (roomId, remoteUserId) => {

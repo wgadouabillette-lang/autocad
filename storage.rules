@@ -50,6 +50,33 @@ service firebase.storage {
           == request.auth.uid;
     }
 
+    function isFriendChatParticipant(chatId) {
+      return request.auth != null
+        && exists(/databases/(default)/documents/friendChats/$(chatId))
+        && firestore.get(/databases/(default)/documents/friendChats/$(chatId)).data.participants is list
+        && request.auth.uid in firestore.get(/databases/(default)/documents/friendChats/$(chatId)).data.participants;
+    }
+
+    function isChatFileContentType() {
+      return request.resource.contentType.matches('image/.*')
+        || request.resource.contentType.matches('text/.*')
+        || request.resource.contentType == 'application/pdf'
+        || request.resource.contentType == 'application/json'
+        || request.resource.contentType == 'application/zip'
+        || request.resource.contentType == 'application/rtf'
+        || request.resource.contentType == 'application/msword'
+        || request.resource.contentType.matches('application/vnd\\..*');
+    }
+
+    match /friendChats/{chatId}/{authorUid}/{batchId}/{fileName} {
+      allow read: if isFriendChatParticipant(chatId);
+      allow write: if isFriendChatParticipant(chatId)
+        && request.auth.uid == authorUid
+        && request.resource.size < 20 * 1024 * 1024
+        && isChatFileContentType();
+      allow delete: if request.auth != null && request.auth.uid == authorUid;
+    }
+
     match /workspaces/{workspaceId}/{fileName} {
       allow read: if request.auth != null && (
         isSharedWorkspaceMemberForStorage(workspaceId)

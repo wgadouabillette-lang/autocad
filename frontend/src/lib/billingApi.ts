@@ -37,6 +37,46 @@ export interface ProCheckoutIntent {
   subscriptionId: string;
 }
 
+export interface SeatPassWorkspace {
+  id: string;
+  name: string;
+  accent: string;
+  ownerId: string;
+  ownerName: string;
+  createdAt: number;
+}
+
+export interface SeatPass {
+  code: string;
+  url: string;
+  remainingUses: number;
+  seatCount: number;
+  workspace: SeatPassWorkspace;
+}
+
+export interface SeatRedeemResult {
+  ok: boolean;
+  alreadyJoined: boolean;
+  remainingUses: number;
+  ownerUid: string;
+  workspace: SeatPassWorkspace;
+}
+
+export interface SeatCheckoutIntent {
+  clientSecret: string;
+  publishableKey: string;
+  subscriptionId: string;
+  seatCount: number;
+  unitAmountCents: number;
+  totalAmountCents: number;
+  mode: "personal" | "enterprise" | string;
+  workspaceId?: string | null;
+  workspaceName?: string | null;
+  promotionCode?: string | null;
+  merchantName?: string | null;
+  paid?: boolean;
+}
+
 export interface EnterpriseCheckoutIntent {
   clientSecret: string;
   publishableKey: string;
@@ -138,6 +178,33 @@ export interface BillingTransaction {
   amountLabel: string;
   status: string;
   invoiceUrl?: string | null;
+}
+
+export interface OwnedSeat {
+  id: string;
+  label: string;
+  assigned: boolean;
+  removable: boolean;
+}
+
+export interface OwnedSeatGroup {
+  id: string;
+  source: "personal" | "workspace" | string;
+  workspaceId?: string | null;
+  workspaceName?: string | null;
+  given: number;
+  total: number;
+  unitAmountCents: number;
+  valueAmountCents: number;
+  seats: OwnedSeat[];
+}
+
+export interface OwnedSeats {
+  given: number;
+  total: number;
+  valueAmountCents: number;
+  currency: string;
+  groups: OwnedSeatGroup[];
 }
 
 export interface BillingSummary {
@@ -285,6 +352,33 @@ export const billingApi = {
   checkoutProIntent(plan: "pro" | "proPlus" = "pro") {
     const path = plan === "proPlus" ? "/checkout/pro-plus/intent" : "/checkout/pro/intent";
     return jsonPost<ProCheckoutIntent>(path);
+  },
+
+  checkoutSeats(body: { mode: "personal" | "enterprise"; seatCount: number; workspaceId?: string }) {
+    return jsonPost<SeatCheckoutIntent>("/checkout/seats/intent", body);
+  },
+
+  applySeatPromotion(body: { subscriptionId: string; code: string }) {
+    return jsonPost<SeatCheckoutIntent>("/checkout/seats/promotion", body);
+  },
+
+  ownedSeats() {
+    return jsonGet<OwnedSeats>("/seats");
+  },
+
+  releaseSeat(body: { source: string; workspaceId?: string | null }) {
+    return jsonPost<OwnedSeats>("/seats/release", {
+      source: body.source,
+      workspaceId: body.workspaceId || undefined,
+    });
+  },
+
+  ensureSeatPass() {
+    return jsonPost<SeatPass>("/seats/pass");
+  },
+
+  redeemSeatPass(code: string) {
+    return jsonPost<SeatRedeemResult>("/seats/redeem", { code });
   },
 
   checkoutEnterprise(workspaceId: string) {

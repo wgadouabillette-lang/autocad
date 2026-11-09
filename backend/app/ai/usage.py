@@ -655,6 +655,9 @@ def maybe_sync_usage_period(
     allowance = (
         float(allowance_usd) if allowance_usd is not None else personal_usage_allowance_usd()
     )
+    stored_allowance = doc.get("allowanceUsdRetail")
+    if isinstance(stored_allowance, (int, float)) and float(stored_allowance) > allowance:
+        allowance = float(stored_allowance)
     if doc.get("stripePeriodStart") == stripe_start:
         stored = doc.get("allowanceUsdRetail")
         if not isinstance(stored, (int, float)) or abs(float(stored) - allowance) > 1e-9:
@@ -699,7 +702,13 @@ def init_usage_period_for_workspace(
     )
 
 
-def maybe_sync_workspace_usage_period(workspace_id: str, subscription: dict, seat_count: int) -> None:
+def maybe_sync_workspace_usage_period(
+    workspace_id: str,
+    subscription: dict,
+    seat_count: int,
+    *,
+    allowance_usd: Optional[float] = None,
+) -> None:
     period_start_ts = subscription.get("current_period_start")
     if not period_start_ts:
         return
@@ -707,7 +716,14 @@ def maybe_sync_workspace_usage_period(workspace_id: str, subscription: dict, sea
     wid = workspace_id.strip().lower()
     doc = load_workspace_usage(wid)
     seats = max(int(seat_count or 0), 1)
-    new_allowance = enterprise_usage_allowance_usd(seats)
+    new_allowance = (
+        float(allowance_usd)
+        if allowance_usd is not None
+        else enterprise_usage_allowance_usd(seats)
+    )
+    stored_allowance = doc.get("allowanceUsdRetail")
+    if isinstance(stored_allowance, (int, float)) and float(stored_allowance) > new_allowance:
+        new_allowance = float(stored_allowance)
 
     if doc.get("stripePeriodStart") == stripe_start:
         if doc.get("allowanceUsdRetail") != new_allowance or doc.get("seatCount") != seats:

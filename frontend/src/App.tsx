@@ -27,6 +27,9 @@ import WorkspaceOverlay from "./components/workspace/WorkspaceOverlay";
 import WorkspaceQuickMenu from "./components/workspace/WorkspaceQuickMenu";
 import EnterpriseCheckoutOverlay from "./components/billing/EnterpriseCheckoutOverlay";
 import ProCheckoutOverlay from "./components/billing/ProCheckoutOverlay";
+import SeatGateOverlay from "./components/billing/SeatGateOverlay";
+import InviteSeatPrompt from "./components/billing/InviteSeatPrompt";
+import WorkspaceUpgradeOverlay from "./components/billing/WorkspaceUpgradeOverlay";
 import { useProCheckoutStore } from "./store/useProCheckoutStore";
 import { useColorTheme } from "./hooks/useColorTheme";
 import { useAccentColor } from "./hooks/useAccentColor";
@@ -37,7 +40,7 @@ import { useMeetingReminders } from "./hooks/useMeetingReminders";
 import { useSpotifyVoiceMix } from "./hooks/useSpotifyVoiceMix";
 import { useMobileLayout } from "./hooks/useMobileLayout";
 import { canAccessApp, DESKTOP_VIEWPORT_QUERY, getLandingUrl } from "./lib/appAccess";
-import { hasFormaDesktop, isFormaDesktopMac } from "./lib/formaDesktop";
+import { hasFormaDesktop, isFormaDesktopMac, isFormaDesktopWindows } from "./lib/formaDesktop";
 import { isMarketingPreview } from "./lib/marketingPreview";
 import { parseWorkspaceInviteInput } from "./lib/workspaceInvite";
 import { runAppBoot, type AppBootStatus } from "./lib/appBoot";
@@ -91,6 +94,7 @@ export default function App() {
     return () => mediaQuery.removeEventListener("change", enforceDesktopAccess);
   }, []);
 
+  const [macFullscreen, setMacFullscreen] = useState(false);
   useEffect(() => {
     if (!isFormaDesktopMac()) return;
     const root = document.documentElement;
@@ -98,6 +102,7 @@ export default function App() {
     const desktop = window.formaDesktop;
     const applyFullscreen = (fullScreen: boolean) => {
       root.classList.toggle("is-desktop-mac-fullscreen", fullScreen);
+      setMacFullscreen(fullScreen);
     };
     void desktop?.getWindowState?.().then((state) => {
       if (state) applyFullscreen(state.fullScreen);
@@ -149,21 +154,19 @@ export default function App() {
 
   const { progress: updateProgress, blockingUpdate } = useDesktopUpdater();
   const showDesktopAuthSuccess = Boolean(desktopWebAuthConnected && !authReady);
+  const launchPending =
+    !authReady ||
+    (isAuthenticated && bootStatus !== "ready" && bootStatus !== "connection_error");
   const bootPending =
     !showDesktopAuthSuccess &&
     (blockingUpdate ||
       !authReady ||
       (isAuthenticated && bootStatus !== "ready"));
-  const { progress: splashProgress, holdOverlay } = useAnimatedBootProgress({
+  const { progress: splashProgress } = useAnimatedBootProgress({
     pending: bootPending,
     externalProgress: updateProgress,
   });
-  const desktopSplashWindow =
-    holdOverlay ||
-    !authReady ||
-    (hasFormaDesktop() && !isAuthenticated) ||
-    (isAuthenticated && bootStatus !== "ready") ||
-    blockingUpdate;
+  const desktopSplashWindow = blockingUpdate || (hasFormaDesktop() && launchPending);
   useLayoutEffect(() => {
     const root = document.documentElement;
     if (desktopSplashWindow) {
@@ -273,16 +276,7 @@ export default function App() {
 
   useEffect(() => {
     if (bootStatus !== "ready" || !authReady || !isAuthenticated || !authEmail) return;
-    if (!useAuthStore.getState().acknowledgeDesktopAuthConnected()) return;
-    useNotificationsStore.getState().push(
-      {
-        id: "desktop-auth-connected",
-        kind: "workspace",
-        title: "You're connected",
-        body: "Signed in successfully.",
-      },
-      { openPanel: true },
-    );
+    useAuthStore.getState().acknowledgeDesktopAuthConnected();
   }, [bootStatus, authReady, isAuthenticated, authEmail, desktopWebAuthConnected]);
 
   useEffect(() => {
@@ -346,7 +340,7 @@ export default function App() {
     const tab = params.get("tab");
     if (checkout !== "success" && checkout !== "cancel" && !tab) return;
 
-    useStore.getState().openSettingsTab(normalizeSettingsTab(tab ?? "usage"));
+    useStore.getState().openSettingsTab(normalizeSettingsTab(tab ?? "billing"));
 
     if (checkout === "success") {
       void billingApi.sync().catch((err) => {
@@ -442,42 +436,49 @@ export default function App() {
   }
   // #endregion
 
-  if (holdOverlay) {
+  const showEntryGate =
+    showDesktopAuthSuccess || !authReady || !isAuthenticated || bootStatus !== "ready";
+  const entryPhase =
+    (authReady && !isAuthenticated && !blockingUpdate) || showDesktopAuthSuccess
+      ? "signin"
+      : "loading";
+  const authPreviewSrc = (() => {
+    const base = import.meta.env.BASE_URL.endsWith("/")
+      ? import.meta.env.BASE_URL
+      : `${import.meta.env.BASE_URL}/`;
+    const params = new URLSearchParams({ theme: "dark", scene: "home" });
+    if (isFormaDesktopMac()) {
+      params.set("chrome", "mac");
+      if (macFullscreen) params.set("fullscreen", "1");
+    } else if (isFormaDesktopWindows()) {
+      params.set("chrome", "windows");
+      params.set("maximized", "1");
+    }
+    return `${base}preview.html?${params.toString()}`;
+  })();
+
+  if (hasFormaDesktop() && launchPending && !blockingUpdate) {
+    return null;
+  }
+
+  if (showEntryGate) {
     return (
-      <AppLoadingScreen
-        connectionError={bootStatus === "connection_error"}
-        label={blockingUpdate ? "Updating…" : "Loading…"}
-        onRetry={bootStatus === "connection_error" ? () => void runBoot() : undefined}
-        progress={bootStatus === "connection_error" ? null : splashProgress}
-      />
-    );
-  }
-
-  if (showDesktopAuthSuccess) {
-    return <AuthPage />;
-  }
-
-  if (!authReady) {
-    return (
-      <AppLoadingScreen
-        connectionError={false}
-        label="Loading…"
-        progress={splashProgress}
-      />
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <AuthPage />;
-  }
-
-  if (bootStatus !== "ready") {
-    return (
-      <AppLoadingScreen
-        connectionError={bootStatus === "connection_error"}
-        onRetry={() => void runBoot()}
-        progress={bootStatus === "connection_error" ? null : splashProgress}
-      />
+      <>
+        <iframe
+          className="auth-app-preview"
+          src={authPreviewSrc}
+          title=""
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+        <AuthPage
+          phase={entryPhase}
+          connectionError={bootStatus === "connection_error"}
+          label={blockingUpdate ? "Updating…" : "Loading…"}
+          onRetry={bootStatus === "connection_error" ? () => void runBoot() : undefined}
+          progress={bootStatus === "connection_error" ? null : splashProgress}
+        />
+      </>
     );
   }
 
@@ -492,6 +493,9 @@ export default function App() {
       <WorkspaceOverlay />
       <ProCheckoutOverlay />
       <EnterpriseCheckoutOverlay />
+      <SeatGateOverlay />
+      <WorkspaceUpgradeOverlay />
+      <InviteSeatPrompt />
       <WorkspaceQuickMenu />
       {workspaceSwitching ? (
         <AppLoadingScreen connectionError={false} label="Loading workspace…" />

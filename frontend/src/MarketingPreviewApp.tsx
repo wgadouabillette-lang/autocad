@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { type CSSProperties, useEffect } from "react";
 import AppChromeRow from "./components/AppChromeRow";
 import BottomHeader from "./components/BottomHeader";
+import DesktopWindowControls from "./components/chrome/DesktopWindowControls";
 import CallsView from "./components/calls/CallsView";
 import ChatPanelShell from "./components/ChatPanelShell";
 import { useAccentColor } from "./hooks/useAccentColor";
@@ -10,6 +11,7 @@ import {
   isMarketingHandoffPreviewScene,
   isMarketingNotesPreviewScene,
   isMarketingSpotifyPreviewScene,
+  readMarketingPreviewSceneParam,
 } from "./lib/marketingPreview";
 import {
   cancelMarketingPreviewHandoffDemo,
@@ -62,10 +64,13 @@ export default function MarketingPreviewApp() {
     "--app-chat-col": chatPanelOpen ? "var(--forma-chat-panel-width)" : "0px",
   } as CSSProperties;
 
+  const homeScene = readMarketingPreviewSceneParam() === "home";
+
   return (
     <div
       className={clsx(
         "app-shell marketing-preview-shell",
+        homeScene && "marketing-preview-shell--home",
         (isMarketingNotesPreviewScene() ||
           isMarketingHandoffPreviewScene() ||
           notesShowcase) &&
@@ -74,6 +79,7 @@ export default function MarketingPreviewApp() {
       )}
       aria-hidden="true"
     >
+      <DesktopWindowControls />
       <div
         className={clsx(
           "app-layout",

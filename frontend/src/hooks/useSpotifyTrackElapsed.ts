@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import {
   isMarketingPreview,
+  isMarketingRecordingPreviewScene,
   MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC,
+  MARKETING_RECORDING_DJ_DURATION_SEC,
+  MARKETING_RECORDING_DJ_ELAPSED_SEC,
 } from "../lib/marketingPreview";
 import {
   getSpotifyPlaybackDurationSecSync,
@@ -26,22 +29,33 @@ export interface SpotifyTrackProgress {
 
 const MARKETING_PREVIEW_DURATION_SEC = 210;
 
+function marketingPreviewClock(): { elapsed: number; duration: number } {
+  if (isMarketingRecordingPreviewScene()) {
+    return {
+      elapsed: MARKETING_RECORDING_DJ_ELAPSED_SEC,
+      duration: MARKETING_RECORDING_DJ_DURATION_SEC,
+    };
+  }
+  return {
+    elapsed: MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC,
+    duration: MARKETING_PREVIEW_DURATION_SEC,
+  };
+}
+
 export function useSpotifyTrackProgress(): SpotifyTrackProgress {
   const playing = useSpotifyPlayerStore((s) => s.playing);
   const playbackMode = useSpotifyPlayerStore((s) => s.playbackMode);
   const currentTrackId = useSpotifyPlayerStore((s) => s.currentTrack?.id);
   const trackDurationMs = useSpotifyPlayerStore((s) => s.currentTrack?.durationMs);
-  const [elapsedSec, setElapsedSec] = useState(
-    isMarketingPreview() ? MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC : 0,
-  );
-  const [durationSec, setDurationSec] = useState(
-    isMarketingPreview() ? MARKETING_PREVIEW_DURATION_SEC : 0,
-  );
+  const previewClock = isMarketingPreview() ? marketingPreviewClock() : null;
+  const [elapsedSec, setElapsedSec] = useState(previewClock?.elapsed ?? 0);
+  const [durationSec, setDurationSec] = useState(previewClock?.duration ?? 0);
 
   useEffect(() => {
     if (isMarketingPreview()) {
-      setElapsedSec(MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC);
-      setDurationSec(MARKETING_PREVIEW_DURATION_SEC);
+      const clock = marketingPreviewClock();
+      setElapsedSec(clock.elapsed);
+      setDurationSec(clock.duration);
       return;
     }
 

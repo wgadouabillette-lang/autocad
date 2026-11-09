@@ -16,7 +16,8 @@ import {
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "./client";
-import type { PeopleManageScheduleEvent } from "../peopleChat";
+import type { PeopleManageScheduleEvent, PeopleMessageAttachment } from "../peopleChat";
+import { peopleAttachmentPreview } from "./friendChatFiles";
 import { cloudMessageSortKey } from "../firestoreTime";
 
 export interface CloudFriendMessage {
@@ -42,6 +43,8 @@ export interface CloudFriendMessage {
   workspaceInviteName?: string;
   mentionedUids?: string[];
   mentionBroadcast?: "here" | "everyone";
+  clientMessageId?: string;
+  attachments?: PeopleMessageAttachment[];
 }
 
 export interface CloudFriendChat {
@@ -122,10 +125,14 @@ export async function sendFriendChatMessage(
     meetingOrganizerName?: string;
     workspaceInviteId?: string;
     workspaceInviteName?: string;
+    clientMessageId?: string;
+    clientCreatedAt?: number;
+    attachments?: PeopleMessageAttachment[];
   },
 ): Promise<void> {
   const trimmed = text.trim();
-  if (!trimmed) return;
+  const attachments = extras?.attachments?.filter((item) => item.url && item.name) ?? [];
+  if (!trimmed && attachments.length === 0) return;
   const previewText =
     extras?.kind === "handoff"
       ? extras.handoffTitle?.trim() || trimmed
@@ -137,14 +144,16 @@ export async function sendFriendChatMessage(
             ? extras.workspaceInviteName?.trim()
               ? `Invitation · ${extras.workspaceInviteName.trim()}`
               : trimmed
-            : trimmed;
+            : peopleAttachmentPreview(attachments, trimmed);
   await addDoc(messagesCol(chatId), {
     authorUid,
     authorName: authorName.trim() || authorUid,
     text: trimmed,
     participants: [...participants].sort(),
-    clientCreatedAt: Date.now(),
+    clientCreatedAt: extras?.clientCreatedAt ?? Date.now(),
     createdAt: serverTimestamp(),
+    ...(extras?.clientMessageId ? { clientMessageId: extras.clientMessageId } : {}),
+    ...(attachments.length > 0 ? { attachments } : {}),
     ...(extras?.kind === "handoff" && extras.handoffId
       ? {
           kind: "handoff",

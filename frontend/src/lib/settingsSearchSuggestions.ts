@@ -4,7 +4,6 @@ export type SettingsTab =
   | "general"
   | "friends"
   | "workspaces"
-  | "usage"
   | "billing"
   | "audio"
   | "plugins"
@@ -17,6 +16,7 @@ export type LegacySettingsTab =
   | "models"
   | "account"
   | "plan"
+  | "usage"
   | "recording"
   | "workspace"
   | "voice";
@@ -27,7 +27,6 @@ const SETTINGS_TABS: SettingsTab[] = [
   "general",
   "friends",
   "workspaces",
-  "usage",
   "billing",
   "audio",
   "plugins",
@@ -39,7 +38,8 @@ const LEGACY_TAB_MAP: Record<LegacySettingsTab, SettingsTab> = {
   agents: "general",
   models: "general",
   account: "general",
-  plan: "usage",
+  plan: "billing",
+  usage: "billing",
   recording: "audio",
   workspace: "workspaces",
   voice: "audio",
@@ -128,27 +128,6 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     label: "Workspaces",
     hint: "Changer de workspace et gérer les invitations",
     keywords: "workspaces serveurs workspace invitation rejoindre demande adhésion pivoter",
-  },
-  {
-    id: "plan-pro",
-    tab: "usage",
-    label: "Forfait Pro",
-    hint: "Plan personnel — crédits IA inclus",
-    keywords: "forfait pro usage abonnement ia plan credit",
-  },
-  {
-    id: "plan-pro-plus",
-    tab: "usage",
-    label: "Forfait Pro+",
-    hint: "Même accès que Pro, plus de crédit utilisable",
-    keywords: "forfait pro+ pro plus credit usage abonnement ia plan",
-  },
-  {
-    id: "plan-team",
-    tab: "usage",
-    label: "Forfait Team",
-    hint: "Sièges workspace, IA partagée",
-    keywords: "forfait team entreprise seats sièges workspace plan usage",
   },
   {
     id: "billing",

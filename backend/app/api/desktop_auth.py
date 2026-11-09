@@ -31,6 +31,9 @@ _sessions: dict[str, dict[str, object]] = {}
 
 class CompleteDesktopAuthRequest(BaseModel):
     sessionId: str = Field(min_length=36, max_length=36)
+    provider: Optional[str] = Field(default=None, max_length=32)
+    idToken: Optional[str] = Field(default=None, max_length=8192)
+    accessToken: Optional[str] = Field(default=None, max_length=8192)
 
 
 class StartDesktopAuthRequest(BaseModel):
@@ -187,6 +190,7 @@ def _create_custom_token(uid: str) -> str:
         token = auth.create_custom_token(uid)
         return token.decode("utf-8") if isinstance(token, bytes) else str(token)
     except Exception as exc:
+        logger.warning("Desktop custom token could not be created: %s", type(exc).__name__)
         raise HTTPException(503, "Unable to create desktop auth token.") from exc
 
 
@@ -315,18 +319,37 @@ def complete_desktop_auth(
     # 0.1.18 never calls /start. Completing those sessions keeps already
     # installed apps able to sign in. 0.1.19+ registers a claim hash first.
     firebase_user = _require_user(user)
-    custom_token = _create_custom_token(firebase_user.uid)
+    custom_token: Optional[str] = None
+    try:
+        custom_token = _create_custom_token(firebase_user.uid)
+    except HTTPException:
+        custom_token = None
+
+    provider = (body.provider or "").strip()
+    google_id = body.idToken if isinstance(body.idToken, str) and len(body.idToken) > 100 else None
+    access = body.accessToken if isinstance(body.accessToken, str) and body.accessToken else None
+    if custom_token is None and not (provider == "google" and google_id):
+        raise HTTPException(503, "Unable to create desktop auth token.")
+
     now = time.time()
     with _lock:
         _purge_expired(now)
         existing = _sessions.get(session_id) or {}
-        _sessions[session_id] = {
+        entry: dict[str, object] = {
             **existing,
-            "token": custom_token,
             "uid": firebase_user.uid,
             "expiresAt": now + SESSION_TTL_SECONDS,
         }
-    _publish_session_to_firestore(session_id, firebase_user.uid, custom_token)
+        if custom_token:
+            entry["token"] = custom_token
+        if provider == "google" and google_id:
+            entry["provider"] = "google"
+            entry["idToken"] = google_id
+            if access:
+                entry["accessToken"] = access
+        _sessions[session_id] = entry
+    if custom_token:
+        _publish_session_to_firestore(session_id, firebase_user.uid, custom_token)
     return {"ok": True}
 
 
@@ -370,6 +393,7 @@ def claim_desktop_auth(body: ClaimDesktopAuthRequest, request: Request):
         raise HTTPException(403, "Desktop auth claim was refused.")
     now = time.time()
     token: Optional[str] = None
+    oauth_payload: Optional[dict[str, Any]] = None
     with _lock:
         _purge_expired(now)
         entry = _sessions.get(session_id)
@@ -379,13 +403,28 @@ def claim_desktop_auth(body: ClaimDesktopAuthRequest, request: Request):
                 _sessions.pop(session_id, None)
                 raise HTTPException(410, "Desktop auth session expired.")
             stored_token = entry.get("token")
+            provider = entry.get("provider")
+            id_token = entry.get("idToken")
             if isinstance(stored_token, str) and stored_token:
                 _sessions.pop(session_id, None)
                 token = stored_token
+            elif provider == "google" and isinstance(id_token, str) and id_token:
+                _sessions.pop(session_id, None)
+                oauth_payload = {
+                    "status": "ready",
+                    "provider": "google",
+                    "idToken": id_token,
+                }
+                access = entry.get("accessToken")
+                if isinstance(access, str) and access:
+                    oauth_payload["accessToken"] = access
 
     if token is not None:
         _delete_firestore_session(session_id)
         return {"status": "ready", "customToken": token}
+
+    if oauth_payload is not None:
+        return oauth_payload
 
     firestore_claim = _claim_from_firestore(session_id)
     if firestore_claim is not None:

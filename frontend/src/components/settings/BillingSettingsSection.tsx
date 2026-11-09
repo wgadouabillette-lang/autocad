@@ -3,6 +3,7 @@ import { useBillingSummary } from "../../hooks/useBillingSummary";
 import { billingApi } from "../../lib/billingApi";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
+import BillingSeatsPanel from "./BillingSeatsPanel";
 
 function formatBillingDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -75,6 +76,8 @@ export default function BillingSettingsSection() {
   }
 
   return (
+    <>
+    <BillingSeatsPanel />
     <section className="settings-section settings-section--card">
       <h3 className="settings-section__label">Forfait actuel</h3>
       {loading && !summary ? <p className="settings-section__hint">Chargement…</p> : null}
@@ -123,5 +126,6 @@ export default function BillingSettingsSection() {
         </>
       ) : null}
     </section>
+    </>
   );
 }

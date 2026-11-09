@@ -57,11 +57,15 @@ export default function CallBlock({
     void s.presenceTick;
     return !s.isOnline(activeRoomId, remoteUserId);
   });
-  const remoteInPrivateCall = useWorkspacePresenceStore((s) => {
-    if (isLocal || !remoteUserId) return false;
-    const inPrivateCall =
-      s.membersByWorkspace[activeRoomId]?.[remoteUserId]?.voice.inPrivateCall === true;
-    return block.inCall === true || inPrivateCall;
+  const remoteVoiceActive = useWorkspacePresenceStore((s) => {
+    if (isLocal || !remoteUserId) return block.inCall === true;
+    const voice = s.membersByWorkspace[activeRoomId]?.[remoteUserId]?.voice;
+    return (
+      block.inCall === true ||
+      voice?.inPrivateCall === true ||
+      voice?.inTheaterCall === true ||
+      !!voice?.openChannelId
+    );
   });
   const canRequestJoin =
     !isLocal &&
@@ -91,8 +95,8 @@ export default function CallBlock({
         layout === "side" && "call-block--side",
         isLocal && blockActive && "call-block--local",
         isLocal && !blockActive && "call-block--idle",
-        !isLocal && !blockActive && !isOffline && !remoteInPrivateCall && "call-block--connected",
-        !isLocal && remoteInPrivateCall && !blockActive && "call-block--local",
+        !isLocal && !isOffline && !remoteVoiceActive && "call-block--connected",
+        !isLocal && remoteVoiceActive && "call-block--local",
         !isLocal && isOffline && "call-block--offline",
         isMerged && "call-block--merged",
         isActionable && !isOffline && "call-block--clickable",

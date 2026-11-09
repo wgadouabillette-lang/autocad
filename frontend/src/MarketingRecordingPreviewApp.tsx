@@ -1,8 +1,9 @@
 import clsx from "clsx";
-import { type CSSProperties } from "react";
+import { type CSSProperties, useEffect } from "react";
 import AppChromeRow from "./components/AppChromeRow";
 import BottomHeader from "./components/BottomHeader";
 import CallsView from "./components/calls/CallsView";
+import ChatPanelShell from "./components/ChatPanelShell";
 import { useColorTheme } from "./hooks/useColorTheme";
 import { useMarketingRecordingSectionPreview } from "./hooks/useMarketingRecordingSectionPreview";
 import { readMarketingPreviewRecordingActiveParam } from "./lib/marketingPreview";
@@ -16,9 +17,24 @@ export default function MarketingRecordingPreviewApp() {
 
   const sidePanelSide = useStore((s) => s.sidePanelSide);
   const recording = useCallsStore((s) => s.recording);
+  const showChat = new URLSearchParams(window.location.search).get("chat") === "1";
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; radius?: number } | null;
+      if (!data || data.type !== "meetra-recording-corner") return;
+      const radius = Number(data.radius);
+      if (!Number.isFinite(radius) || radius <= 0) return;
+      document.querySelectorAll<HTMLElement>(".app-recording-frame").forEach((node) => {
+        node.style.borderRadius = `0 ${radius}px ${radius}px 0`;
+      });
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   const layoutStyle = {
-    "--app-chat-col": "0px",
+    "--app-chat-col": showChat ? "var(--forma-chat-panel-width)" : "0px",
   } as CSSProperties;
 
   return (
@@ -32,6 +48,7 @@ export default function MarketingRecordingPreviewApp() {
       <div
         className={clsx(
           "app-layout",
+          showChat && "app-layout--chat-open",
           "app-layout--panel-right",
           sidePanelSide === "left" && "app-layout--panel-left",
         )}
@@ -42,6 +59,7 @@ export default function MarketingRecordingPreviewApp() {
           <CallsView />
         </main>
         <BottomHeader />
+        {showChat ? <ChatPanelShell /> : null}
       </div>
       <div
         className={clsx("app-recording-frame", !recording && "app-recording-frame--idle")}

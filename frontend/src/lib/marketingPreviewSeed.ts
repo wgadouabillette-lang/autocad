@@ -1,8 +1,11 @@
 import type { CallBlock, OpenVoiceChannel, RoomCallsState } from "./calls";
 import { memberBlockId } from "./calls";
 import {
+  MARKETING_PREVIEW_BEAUTIFUL_THINGS_COVER_URL,
   MARKETING_PREVIEW_NOTE_ID,
   MARKETING_PREVIEW_STARBOY_COVER_URL,
+  MARKETING_RECORDING_DJ_DURATION_SEC,
+  MARKETING_RECORDING_DJ_TRACK_ID,
   MARKETING_PREVIEW_USER_ID,
   MARKETING_PREVIEW_WORKSPACE_ID,
   readMarketingPreviewRecordingActiveParam,
@@ -871,6 +874,39 @@ export function seedMarketingPreview(): void {
   seedPeopleThreads();
 }
 
+/** Accueil au repos : grille des salons, sans lecture ni théâtre. */
+export function seedMarketingHome(): void {
+  seedMarketingPreview();
+  usePresenceActivityStore.setState({ byKey: {} });
+  useSpotifyPlayerStore.setState({
+    panelOpen: false,
+    currentTrack: null,
+    lastPlayedTrack: null,
+    queue: [],
+    history: [],
+    playing: false,
+    playbackMode: null,
+    playerNotice: null,
+  });
+  useHallDjStore.setState({
+    active: false,
+    loading: false,
+    error: null,
+  });
+  useCallsStore.setState((state) => ({
+    recording: false,
+    screenSharing: false,
+    localInCallByRoom: {
+      ...state.localInCallByRoom,
+      [MARKETING_PREVIEW_WORKSPACE_ID]: false,
+    },
+    callsViewModeByWorkspace: {
+      ...state.callsViewModeByWorkspace,
+      [MARKETING_PREVIEW_WORKSPACE_ID]: "blocks",
+    },
+  }));
+}
+
 /** Local user plus seven teammates on the landing hero workspace grid. */
 const LANDING_HERO_OTHER_MEMBERS = [
   { id: "jordan", name: "Jordan" },
@@ -1044,11 +1080,40 @@ export function seedMarketingLandingHero(): void {
 export function seedMarketingRecordingPreview(): void {
   seedMarketingPreview();
 
+  const showChat = new URLSearchParams(window.location.search).get("chat") === "1";
   useStore.setState({
-    chatPanelOpen: false,
+    chatPanelOpen: showChat,
     chatPanelMode: "agent",
     chatPanelExpanded: false,
   });
+
+  if (showChat) {
+    useHallDjStore.setState({
+      active: true,
+      loading: false,
+      error: null,
+      feedbackResolvedTrackId: null,
+      feedbackBusy: false,
+    });
+    useSpotifyPlayerStore.setState({
+      currentTrack: {
+        id: MARKETING_RECORDING_DJ_TRACK_ID,
+        name: "Beautiful Things",
+        artists: "Benson Boone",
+        album: "Fireworks & Rollerblades",
+        imageUrl: MARKETING_PREVIEW_BEAUTIFUL_THINGS_COVER_URL,
+        url: `https://open.spotify.com/track/${MARKETING_RECORDING_DJ_TRACK_ID}`,
+        durationMs: MARKETING_RECORDING_DJ_DURATION_SEC * 1000,
+      },
+      lastPlayedTrack: null,
+      playing: true,
+      playbackMode: "full",
+      playerNotice: null,
+      panelOpen: false,
+      premiumAvailable: true,
+      streamingScopeAvailable: true,
+    });
+  }
 
   useCallsStore.setState({
     recording: readMarketingPreviewRecordingActiveParam(),

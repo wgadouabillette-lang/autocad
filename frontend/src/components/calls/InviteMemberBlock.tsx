@@ -46,6 +46,10 @@ export default function InviteMemberBlock() {
     try {
       const result = await inviteMemberByEmail(activeRoomId, handle);
       if (!result.ok) {
+        if (result.seatRequired) {
+          setOpen(false);
+          return;
+        }
         setError(result.error ?? "Impossible d'envoyer l'invitation.");
         return;
       }

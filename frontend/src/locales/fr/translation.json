@@ -34,7 +34,7 @@
     },
     "descriptions": {
       "friends": "Amis et invitations.",
-      "workspaces": "Vos workspaces, invitations et consommation IA Team.",
+      "workspaces": "Vos workspaces et invitations.",
       "usage": "Forfaits Pro, Pro+ et Team.",
       "billing": "Forfait actuel et date de prochain prélèvement.",
       "agents": "Personnalisation du chat et des AI Notes.",
@@ -74,6 +74,18 @@
         "cyan": "Cyan"
       }
     }
+  },
+  "billingSeats": {
+    "given": "donnés",
+    "total": "total",
+    "perMonth": "par mois",
+    "summary": "{{given}} donnés, {{total}} total, {{value}} par mois",
+    "open": "Siège libre",
+    "assigned": "Attribué",
+    "remove": "Retirer",
+    "confirm": "Confirmer",
+    "removing": "Retrait…",
+    "error": "Impossible de retirer ce siège."
   },
   "billing": {
     "signIn": "Connectez-vous pour souscrire via Stripe.",
@@ -224,5 +236,107 @@
     "backstageTitle": "Retour coulisses",
     "askInChat": "Question au chat",
     "askInChatTitle": "Poser une question dans le chat du théâtre"
+  },
+  "onboarding": {
+    "continue": "Continuer",
+    "welcomeTitle": "Bienvenue sur Meetra",
+    "welcomeSubtitle": "Connectez-vous avant de continuer.",
+    "q": {
+      "plan": {
+        "title": "Comment comptez-vous utiliser Meetra ?",
+        "subtitle": "Choisissez l'usage qui vous correspond.",
+        "solo": "Seul",
+        "colleague": "Avec des collègues",
+        "friends": "Avec des amis",
+        "other": "Autre"
+      },
+      "purpose": {
+        "title": "À quoi allez-vous utiliser Meetra ?",
+        "subtitle": "Choisissez ce qui vous correspond le mieux.",
+        "automation": "Automatisation IA",
+        "agent": "Agent IA",
+        "calendar": "Calendrier",
+        "notes": "AI Notes",
+        "recording": "Enregistrement de démo",
+        "all": "Tout ça"
+      },
+      "source": {
+        "title": "Où avez-vous entendu parler de nous ?",
+        "subtitle": "Dites-nous comment vous avez trouvé Meetra.",
+        "youtube": "YouTube",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "google": "Google",
+        "colleague": "Un collègue",
+        "x": "X",
+        "enterprise": "Entreprise",
+        "other": "Autre"
+      }
+    },
+    "seats": {
+      "title": "Choisissez vos sièges",
+      "joinTitle": "Rejoindre",
+      "subtitle": "Un siège pour vous, les autres pour votre équipe.",
+      "joinSubtitle": "Ouvrez une place avec le lien d'invitation.",
+      "paths": "Groupe ou rejoindre",
+      "group": "Groupe",
+      "groupNote": "Des sièges pour votre groupe.",
+      "join": "Rejoindre",
+      "joinNote": "Rejoindre un groupe existant.",
+      "amount": "{{amount}} $ US",
+      "priceSuffix": " / mois par siège",
+      "seat": "siège",
+      "seats": "sièges",
+      "removeSeat": "Retirer un siège",
+      "addSeat": "Ajouter un siège",
+      "checkout": "Aller au paiement - {{amount}}$",
+      "preparing": "Préparation…",
+      "joinPlaceholder": "Collez le lien d'invitation",
+      "verifying": "Vérification…",
+      "joinAction": "Rejoindre"
+    },
+    "upgrade": {
+      "button": "Upgrade",
+      "title": "Combien de sièges voulez-vous ajouter ?",
+      "subtitle": "Ces sièges s’ajoutent à {{workspace}}.",
+      "continue": "Continuer"
+    },
+    "inviteSeats": {
+      "title": "Vous avez épuisé vos sièges",
+      "subtitle": "Achetez plus de sièges pour donner l'accès à plus de membres",
+      "buyMore": "Acheter plus"
+    },
+    "pay": {
+      "title": "Paiement",
+      "perMonth": " / mois",
+      "promo": "code promo",
+      "apply": "Appliquer",
+      "applied": "Code appliqué",
+      "pay": "Payer",
+      "paying": "Paiement…",
+      "mandate": "En fournissant vos informations de carte, vous autorisez {{merchant}} à débiter votre carte pour de futurs paiements, conformément à leurs conditions."
+    },
+    "share": {
+      "title": "Lien d'invitation",
+      "uses_one": "1 utilisation restante.",
+      "uses_other": "{{count}} utilisations restantes.",
+      "lead": "Chaque personne qui l'ouvre prend une place.",
+      "copy": "Copier le lien",
+      "copied": "Lien copié",
+      "continue": "Continuer"
+    },
+    "waiting": {
+      "title": "Validation de votre accès",
+      "authorized": "Accès autorisé",
+      "lead": "Paiement reçu. Les sièges s'ouvrent dans un instant."
+    },
+    "errors": {
+      "join": "Impossible de rejoindre avec ce lien.",
+      "activation": "Le paiement est reçu. L'activation prend un moment — rouvrez Meetra si l'écran reste là.",
+      "startPay": "Impossible de démarrer le paiement.",
+      "promo": "Code promo invalide.",
+      "save": "Impossible d'enregistrer les réponses.",
+      "copy": "Impossible de copier le lien."
+    }
   }
 }

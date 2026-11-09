@@ -68,6 +68,9 @@ interface NotificationsState {
   panelOpenGeneration: number;
   currentIndex: number;
   persistedEmail: string | null;
+  /** While the onboarding overlay is up, nothing opens or pops. */
+  onboardingSilence: boolean;
+  setOnboardingSilence: (silent: boolean) => void;
   unreadCount: () => number;
   hydrate: (email: string | null) => void;
   syncFriendRequests: (requests: FriendRequestNotificationInput[]) => void;
@@ -107,6 +110,15 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   panelOpenGeneration: 0,
   currentIndex: 0,
   persistedEmail: null,
+  onboardingSilence: false,
+
+  setOnboardingSilence: (silent) => {
+    if (!silent) {
+      set({ onboardingSilence: false });
+      return;
+    }
+    set({ onboardingSilence: true, panelOpen: false });
+  },
 
   unreadCount: () => get().items.filter((n) => !n.read).length,
 
@@ -213,6 +225,7 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   },
 
   togglePanel: () => {
+    if (get().onboardingSilence) return;
     const { panelOpen, items, panelOpenGeneration } = get();
     if (!panelOpen && items.length === 0) return;
     const next = !panelOpen;
@@ -229,6 +242,7 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   },
 
   openPanel: () => {
+    if (get().onboardingSilence) return;
     closePanelsOnSide("left", "notifications");
     const { items, panelOpenGeneration } = get();
     set({
@@ -257,6 +271,9 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         ...s.items,
       ]);
       const next = { items, currentIndex: 0 };
+      if (s.onboardingSilence) {
+        return { ...next, panelOpen: false };
+      }
       if (options?.openPanel && items.length > 0) {
         closePanelsOnSide("left", "notifications");
         return {

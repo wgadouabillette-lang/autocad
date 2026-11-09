@@ -25,9 +25,12 @@ export interface UserProfileDoc extends UserPreferences {
   photoURL?: string;
   aiModel?: string;
   billingManaged?: boolean;
+  /** Accordé par un lien de sièges. Écrit par le serveur seulement. */
+  seatCovered?: boolean;
   subscriptionTier?: string;
   workspaceSetupCompleted?: boolean;
   dashboardOnboardingCompleted?: boolean;
+  meetraIntroCompleted?: boolean;
   updatedAt?: unknown;
 }
 

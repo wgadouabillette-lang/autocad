@@ -25,6 +25,8 @@ import {
   type WorkspaceJoinRequestDoc,
 } from "../lib/firebase/workspaceRegistry";
 import { parseWorkspaceInviteInput } from "../lib/workspaceInvite";
+import { workspaceHasOpenInviteSeat } from "../lib/workspaceInviteSeats";
+import { useInviteSeatPromptStore } from "../components/billing/InviteSeatPrompt";
 import {
   releaseWorkspaceClientResources,
   waitForFirestoreListenerRelease,
@@ -146,7 +148,7 @@ interface WorkspacesState extends PersistedState {
   inviteMemberByEmail: (
     workspaceId: string,
     email: string,
-  ) => Promise<{ ok: boolean; error?: string }>;
+  ) => Promise<{ ok: boolean; error?: string; seatRequired?: boolean }>;
   acceptWorkspaceInvite: (workspaceId: string) => Promise<void>;
   declineWorkspaceInvite: (workspaceId: string) => Promise<void>;
   respondJoinRequest: (
@@ -611,6 +613,12 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     }
     if (currentUser.email?.trim().toLowerCase() === emailNorm) {
       return { ok: false, error: "Vous ne pouvez pas vous inviter vous-même." };
+    }
+
+    const openSeat = await workspaceHasOpenInviteSeat(normalized);
+    if (openSeat === false) {
+      useInviteSeatPromptStore.getState().show();
+      return { ok: false, seatRequired: true };
     }
 
     const directoryUser = await findUserDirectoryByEmail(emailNorm).catch(() => null);

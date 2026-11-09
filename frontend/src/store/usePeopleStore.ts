@@ -13,6 +13,7 @@ import {
   isCloudCapablePersonId,
   type FriendRequest,
   type PeopleMessage,
+  type PeopleMessageAttachment,
   type PeopleThread,
   type Person,
 } from "../lib/peopleChat";
@@ -36,6 +37,13 @@ import {
   type CloudFriendChat,
   type CloudFriendMessage,
 } from "../lib/firebase/friendChats";
+import {
+  chatFileContentType,
+  chatFileRejection,
+  normalizePeopleAttachments,
+  peopleAttachmentPreview,
+  uploadFriendChatFiles,
+} from "../lib/firebase/friendChatFiles";
 import { cloudMessageSortKey, firestoreTimeMs } from "../lib/firestoreTime";
 import {
   createGroupChatDoc,
@@ -141,6 +149,8 @@ function mapCloudPeopleMessage(message: CloudFriendMessage, uid: string): People
     workspaceInviteName: message.workspaceInviteName,
     mentionedUids: message.mentionedUids,
     mentionBroadcast: message.mentionBroadcast,
+    clientMessageId: message.clientMessageId,
+    attachments: normalizePeopleAttachments(message.attachments),
   };
 }
 
@@ -205,6 +215,13 @@ const pendingCloudMessages = new Map<
   { threadId: string; message: PeopleMessage }
 >();
 
+function pendingMatchesCloud(local: PeopleMessage, cloud: PeopleMessage): boolean {
+  if (!cloud.mine) return false;
+  if (cloud.clientMessageId && cloud.clientMessageId === local.id) return true;
+  if ((local.attachments?.length ?? 0) > 0 || (cloud.attachments?.length ?? 0) > 0) return false;
+  return cloud.text === local.text && Math.abs(cloud.at - local.at) < 60_000;
+}
+
 function mergeThreadMessages(
   existing: PeopleMessage[],
   incoming: PeopleMessage[],
@@ -215,12 +232,7 @@ function mergeThreadMessages(
       message.mine &&
       message.id.startsWith("msg-") &&
       !incomingIds.has(message.id) &&
-      !incoming.some(
-        (cloudMessage) =>
-          cloudMessage.mine &&
-          cloudMessage.text === message.text &&
-          Math.abs(cloudMessage.at - message.at) < 60_000,
-      ),
+      !incoming.some((cloudMessage) => pendingMatchesCloud(message, cloudMessage)),
   );
   const merged = [...incoming, ...pendingLocal];
   const seen = new Set<string>();
@@ -239,11 +251,8 @@ function mergeCloudMessagesWithPending(
 ): PeopleMessage[] {
   for (const [id, pending] of pendingCloudMessages.entries()) {
     if (pending.threadId !== threadId) continue;
-    const confirmed = cloudMessages.some(
-      (message) =>
-        message.mine &&
-        message.text === pending.message.text &&
-        Math.abs(message.at - pending.message.at) < 60_000,
+    const confirmed = cloudMessages.some((message) =>
+      pendingMatchesCloud(pending.message, message),
     );
     if (confirmed) pendingCloudMessages.delete(id);
   }
@@ -310,7 +319,7 @@ interface PeopleState {
   sendFriendRequest: (handle: string) => Promise<{ ok: boolean; error?: string }>;
   acceptFriendRequest: (requestId: string) => Promise<void>;
   declineFriendRequest: (requestId: string) => Promise<void>;
-  sendMessage: (threadId: string, text: string) => void;
+  sendMessage: (threadId: string, text: string, files?: File[]) => void;
   sendManageScheduleMessage: (
     threadId: string,
     draft: ManageSchedulePromptDraft,
@@ -1521,9 +1530,10 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     syncFriendRequestNotifications(nextRequests);
   },
 
-  sendMessage: (threadId, text) => {
+  sendMessage: (threadId, text, files) => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    const outgoingFiles = (files ?? []).filter((file) => file.size > 0);
+    if (!trimmed && outgoingFiles.length === 0) return;
 
     const currentUser = auth.currentUser;
     const myUid = currentUser?.uid;
@@ -1532,6 +1542,14 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     const thread = state.threadById(threadId);
 
     if (thread?.section === "groups") {
+      if (!trimmed) {
+        useNotificationsStore.getState().push({
+          kind: "message",
+          title: "Fichier non envoyé",
+          body: "Les fichiers et les images s'envoient dans une conversation directe.",
+        });
+        return;
+      }
       const groupId = groupIdFromThreadId(threadId);
       if (!myUid || !groupId || !thread.memberIds?.includes(myUid)) {
         useNotificationsStore.getState().push({
@@ -1595,6 +1613,14 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     }
 
     if (thread?.section === "workspace-channels") {
+      if (!trimmed) {
+        useNotificationsStore.getState().push({
+          kind: "message",
+          title: "Fichier non envoyé",
+          body: "Les fichiers et les images s'envoient dans une conversation directe.",
+        });
+        return;
+      }
       const channelRef = workspaceTextChannelFromThreadId(threadId);
       if (!myUid || !channelRef) {
         useNotificationsStore.getState().push({
@@ -1698,14 +1724,41 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
       return;
     }
 
-    const optimisticId = `msg-${Date.now()}`;
+    const fileError = outgoingFiles.map(chatFileRejection).find((reason) => reason);
+    if (fileError) {
+      useNotificationsStore.getState().push({
+        kind: "message",
+        title: "Fichier non envoyé",
+        body: fileError,
+      });
+      return;
+    }
+
+    const sentAt = Date.now();
+    const optimisticId = `msg-${sentAt}`;
+    const localAttachments: PeopleMessageAttachment[] | undefined = outgoingFiles.length
+      ? outgoingFiles.map((file, index) => {
+          const contentType = chatFileContentType(file) ?? "";
+          return {
+            id: `${optimisticId}-${index}`,
+            name: file.name,
+            url: URL.createObjectURL(file),
+            contentType,
+            size: file.size,
+            isImage: contentType.startsWith("image/"),
+          };
+        })
+      : undefined;
+    const preview = peopleAttachmentPreview(localAttachments, trimmed);
     const msg: PeopleMessage = {
       id: optimisticId,
       author: "Vous",
       authorUid: myUid,
       text: trimmed,
-      at: Date.now(),
+      at: sentAt,
       mine: true,
+      clientMessageId: optimisticId,
+      attachments: localAttachments,
     };
 
     const patchThread = (t: PeopleThread): PeopleThread => {
@@ -1715,8 +1768,8 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
       return {
         ...t,
         messages: [...t.messages, msg],
-        preview: trimmed,
-        updatedAt: Date.now(),
+        preview,
+        updatedAt: sentAt,
         unread: 0,
       };
     };
@@ -1730,7 +1783,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
       return {
         ...t,
         messages,
-        preview: last?.text ?? "",
+        preview: last ? peopleAttachmentPreview(last.attachments, last.text) : "",
         updatedAt: last?.at ?? t.updatedAt,
       };
     };
@@ -1765,15 +1818,17 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     if (isCloudFriend && cloudPersonId) {
       const chatId = friendChatId(myUid!, cloudPersonId);
       void ensureFriendChat(myUid!, cloudPersonId)
-        .then(() =>
-          sendFriendChatMessage(
-            chatId,
-            myUid!,
-            myName,
-            [myUid!, cloudPersonId],
-            trimmed,
-          ),
-        )
+        .then(async () => {
+          const uploaded =
+            outgoingFiles.length > 0
+              ? await uploadFriendChatFiles(chatId, myUid!, outgoingFiles)
+              : [];
+          await sendFriendChatMessage(chatId, myUid!, myName, [myUid!, cloudPersonId], trimmed, {
+            clientMessageId: optimisticId,
+            clientCreatedAt: sentAt,
+            attachments: uploaded,
+          });
+        })
         .catch((error) => {
           pendingCloudMessages.delete(optimisticId);
           set({

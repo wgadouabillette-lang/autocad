@@ -3,7 +3,6 @@ import {
   GoogleAuthProvider,
   getAuth,
   signInWithPopup,
-  signOut,
   type UserCredential,
 } from "firebase/auth";
 import { doc, getFirestore, serverTimestamp, setDoc } from "firebase/firestore";
@@ -335,16 +334,36 @@ function oauthPayloadFromResult(result: UserCredential) {
   };
 }
 
-async function completeViaBackend(sessionId: string): Promise<boolean> {
+async function completeViaBackend(
+  sessionId: string,
+  result: UserCredential | null,
+): Promise<boolean> {
   const idToken = await auth.currentUser?.getIdToken(true);
   if (!idToken) return false;
+  let oauth: ReturnType<typeof oauthPayloadFromResult> | null = null;
+  if (result) {
+    try {
+      oauth = oauthPayloadFromResult(result);
+    } catch {
+      oauth = null;
+    }
+  }
   const response = await fetch("/api/auth/desktop/complete", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${idToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ sessionId }),
+    body: JSON.stringify({
+      sessionId,
+      ...(oauth?.idToken
+        ? {
+            provider: oauth.provider,
+            idToken: oauth.idToken,
+            accessToken: oauth.accessToken,
+          }
+        : {}),
+    }),
   });
   if (!response.ok) return false;
   const contentType = response.headers.get("content-type") ?? "";
@@ -396,7 +415,7 @@ async function completeSession(result: UserCredential | null): Promise<void> {
   // Fan-out: Electron polls local backend, Firestore, and the claim function.
   // Redirect leftovers used to try the function first and never reach localhost.
   const writes = await Promise.allSettled([
-    completeViaBackend(sessionId),
+    completeViaBackend(sessionId, result),
     completeViaFunction(sessionId),
     result ? completeViaFirestore(result) : Promise.resolve(false),
   ]);
@@ -425,27 +444,47 @@ async function startGooglePopup(loginHint?: string | null): Promise<void> {
   await finishSignIn(result);
 }
 
+function browserSessionMatches(account: LastAccount | null): boolean {
+  const email = auth.currentUser?.email?.trim().toLowerCase() ?? "";
+  return Boolean(account && email && email === account.email);
+}
+
 async function continueAsLastAccount(): Promise<void> {
   showBusy();
   await auth.authStateReady();
-  if (auth.currentUser) {
+  const account = lastKnownAccount();
+  if (auth.currentUser && browserSessionMatches(account)) {
     try {
-      await finishSignIn(null);
-      return;
+      await auth.currentUser.getIdToken(true);
     } catch {
-      // Need a fresh Google credential from the picker.
+      await startGooglePopup(account?.email ?? null);
+      return;
     }
+    await finishSignIn(null);
+    return;
   }
-  await startGooglePopup(lastKnownEmail());
+  await startGooglePopup(account?.email ?? null);
 }
 
 async function useAnotherAccount(): Promise<void> {
   showBusy();
-  await auth.authStateReady();
-  if (auth.currentUser) {
-    await signOut(auth);
+  // Open Google in this click. Signing out first consumes the gesture, the
+  // popup is blocked, and the page falls back to "Continue with Google".
+  try {
+    const result = await signInWithPopup(auth, googleProvider());
+    await finishSignIn(result);
+  } catch (err) {
+    const code = errorCode(err);
+    if (
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/cancelled-popup-request" ||
+      code === "auth/popup-blocked"
+    ) {
+      showChoose(lastKnownAccount());
+      return;
+    }
+    throw err;
   }
-  await startGooglePopup();
 }
 
 async function boot(): Promise<void> {

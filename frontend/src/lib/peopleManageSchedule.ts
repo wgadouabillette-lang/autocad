@@ -32,6 +32,17 @@ export function peopleManageMessagePreview(message: PeopleMessage): string {
       ? `Invitation · ${message.workspaceInviteName.trim()}`
       : message.text.trim() || "Invitation workspace";
   }
+  const text = message.text.trim();
+  if (text) return message.text;
+  const attachments = message.attachments ?? [];
+  if (attachments.length === 1) {
+    return attachments[0]?.isImage ? "Image" : attachments[0]?.name || "Fichier";
+  }
+  if (attachments.length > 1) {
+    return attachments.every((item) => item.isImage)
+      ? `${attachments.length} images`
+      : `${attachments.length} fichiers`;
+  }
   return message.text;
 }
 

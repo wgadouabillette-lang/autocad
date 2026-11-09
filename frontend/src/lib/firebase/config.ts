@@ -7,7 +7,7 @@ export const firebaseConfig = {
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET ?? "forma-cad-dev.firebasestorage.app",
   messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "341690938979",
   appId: env.VITE_FIREBASE_APP_ID ?? "1:341690938979:web:e44bbe2e180e0b1cdaea56",
-  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID ?? "",
+  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID ?? "G-JW40ZKMN8S",
   databaseURL:
     env.VITE_FIREBASE_DATABASE_URL ??
     "https://forma-cad-dev-default-rtdb.firebaseio.com",

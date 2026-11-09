@@ -34,7 +34,7 @@
     },
     "descriptions": {
       "friends": "Friends and invitations.",
-      "workspaces": "Your workspaces, invitations, and Team AI usage.",
+      "workspaces": "Your workspaces and invitations.",
       "usage": "Pro, Pro+, and Team plans.",
       "billing": "Current plan and next billing date.",
       "agents": "Customize chat and AI Notes.",
@@ -74,6 +74,18 @@
         "cyan": "Cyan"
       }
     }
+  },
+  "billingSeats": {
+    "given": "given",
+    "total": "total",
+    "perMonth": "per month",
+    "summary": "{{given}} given, {{total}} total, {{value}} per month",
+    "open": "Open seat",
+    "assigned": "Assigned",
+    "remove": "Remove",
+    "confirm": "Confirm",
+    "removing": "Removing…",
+    "error": "This seat could not be removed."
   },
   "billing": {
     "signIn": "Sign in to subscribe with Stripe.",
@@ -224,5 +236,107 @@
     "backstageTitle": "Return backstage",
     "askInChat": "Ask in chat",
     "askInChatTitle": "Ask a question in the theater chat"
+  },
+  "onboarding": {
+    "continue": "Continue",
+    "welcomeTitle": "Welcome to Meetra",
+    "welcomeSubtitle": "Sign in before continuing.",
+    "q": {
+      "plan": {
+        "title": "How do you plan on using Meetra?",
+        "subtitle": "Choose the setup that matches how you'll work.",
+        "solo": "On my own",
+        "colleague": "With colleagues",
+        "friends": "With friends",
+        "other": "Other"
+      },
+      "purpose": {
+        "title": "What will you use Meetra for?",
+        "subtitle": "Pick the one that fits you best.",
+        "automation": "AI automation",
+        "agent": "AI agent",
+        "calendar": "Calendar",
+        "notes": "AI Notes",
+        "recording": "Demo recording",
+        "all": "All the above"
+      },
+      "source": {
+        "title": "Where did you hear about us?",
+        "subtitle": "Tell us how you found Meetra.",
+        "youtube": "YouTube",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "google": "Google",
+        "colleague": "Colleague",
+        "x": "X",
+        "enterprise": "Enterprise",
+        "other": "Other"
+      }
+    },
+    "seats": {
+      "title": "Choose your seats",
+      "joinTitle": "Join",
+      "subtitle": "One seat for you, the others for your team.",
+      "joinSubtitle": "Open a seat with an invite link.",
+      "paths": "Group or join",
+      "group": "Group",
+      "groupNote": "Seats for your group.",
+      "join": "Join",
+      "joinNote": "Join an existing group.",
+      "amount": "{{amount}} USD",
+      "priceSuffix": " / month per seat",
+      "seat": "seat",
+      "seats": "seats",
+      "removeSeat": "Remove a seat",
+      "addSeat": "Add a seat",
+      "checkout": "Go to checkout - {{amount}}$",
+      "preparing": "Preparing…",
+      "joinPlaceholder": "Paste the invite link",
+      "verifying": "Checking…",
+      "joinAction": "Join"
+    },
+    "upgrade": {
+      "button": "Upgrade",
+      "title": "How many seats do you want to add?",
+      "subtitle": "These seats are added to {{workspace}}.",
+      "continue": "Continue"
+    },
+    "inviteSeats": {
+      "title": "You've used up your seats",
+      "subtitle": "Buy more seats to give more members access",
+      "buyMore": "Buy more"
+    },
+    "pay": {
+      "title": "Payment",
+      "perMonth": " / month",
+      "promo": "promo code",
+      "apply": "Apply",
+      "applied": "Code applied",
+      "pay": "Pay",
+      "paying": "Paying…",
+      "mandate": "By providing your card information, you allow {{merchant}} to charge your card for future payments in accordance with their terms."
+    },
+    "share": {
+      "title": "Invite link",
+      "uses_one": "1 use left.",
+      "uses_other": "{{count}} uses left.",
+      "lead": "Each person who opens it takes a seat.",
+      "copy": "Copy link",
+      "copied": "Link copied",
+      "continue": "Continue"
+    },
+    "waiting": {
+      "title": "Validating your access",
+      "authorized": "Access authorized",
+      "lead": "Payment received. Seats will open in a moment."
+    },
+    "errors": {
+      "join": "Couldn't join with this link.",
+      "activation": "Payment received. Activation is taking a moment — reopen Meetra if this screen stays.",
+      "startPay": "Couldn't start payment.",
+      "promo": "Invalid promo code.",
+      "save": "Couldn't save your answers.",
+      "copy": "Couldn't copy the link."
+    }
   }
 }

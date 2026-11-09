@@ -26,9 +26,18 @@ export type MarketingPreviewNavAction =
 /** Frozen Spotify progress shown in the marketing dashboard preview. */
 export const MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC = 32;
 
+/** Beautiful Things, held at 1:34 in the recording preview. */
+export const MARKETING_RECORDING_DJ_TRACK_ID = "3xkHsmpQCBMytMJNiDf3Ii";
+export const MARKETING_RECORDING_DJ_ELAPSED_SEC = 94;
+export const MARKETING_RECORDING_DJ_DURATION_SEC = 180;
+
 /** After Hours album art for Blinding Lights (The Weeknd). */
 export const MARKETING_PREVIEW_BLINDING_LIGHTS_COVER_URL =
   "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/6f/bc/e6/6fbce6c4-c38c-72d8-4fd0-66cfff32f679/20UMGIM12176.rgb.jpg/600x600bb.jpg";
+
+/** Fireworks & Rollerblades art for Beautiful Things (Benson Boone). */
+export const MARKETING_PREVIEW_BEAUTIFUL_THINGS_COVER_URL =
+  "https://image-cdn-ak.spotifycdn.com/image/ab67616d0000b273831949037a1db10b87b005fa";
 
 /** Starboy album art (The Weeknd feat. Daft Punk). */
 export const MARKETING_PREVIEW_STARBOY_COVER_URL =
@@ -94,6 +103,7 @@ export function stripMarketingPlayDemoMessages<T extends {
 
 export type MarketingPreviewScene =
   | "dashboard"
+  | "home"
   | "connectors"
   | "recording"
   | "theater"
@@ -103,6 +113,7 @@ export type MarketingPreviewScene =
 
 export function readMarketingPreviewSceneParam(): MarketingPreviewScene {
   const raw = new URLSearchParams(window.location.search).get("scene");
+  if (raw === "home") return "home";
   if (raw === "connectors") return "connectors";
   if (raw === "recording") return "recording";
   if (raw === "theater") return "theater";

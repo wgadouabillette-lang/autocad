@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import {
+  canCreateOpenVoiceChannel,
   distributeMemberBlocksForGrid,
   memberBlocksForVoiceGrid,
   type CallBlock as CallBlockType,
@@ -78,6 +79,7 @@ function CenterColumn({
   onOpenTheater,
   onStartOpenChannelDraft,
   showInvite = false,
+  belowChannels = false,
 }: {
   memberBlocks: CallBlockType[];
   allBlocks: CallBlockType[];
@@ -88,6 +90,7 @@ function CenterColumn({
   onOpenTheater: () => void;
   onStartOpenChannelDraft: () => void;
   showInvite?: boolean;
+  belowChannels?: boolean;
 }) {
   const hasDraftChannel = openChannels.some((channel) => channel.isDraft);
 
@@ -97,12 +100,13 @@ function CenterColumn({
       {openChannels.map((channel) => (
         <OpenVoiceChannelBlock key={channel.id} channel={channel} />
       ))}
-      <AddVoiceChannelButton
-        onStartDraft={onStartOpenChannelDraft}
-        disabled={hasDraftChannel}
-      />
       {(memberBlocks.length > 0 || showInvite) && (
-        <div className="calls-view__member-grid">
+        <div
+          className={clsx(
+            "calls-view__member-grid",
+            belowChannels && "calls-view__member-grid--below-channels",
+          )}
+        >
           {memberBlocks.map((block) => (
             <CallBlock
               key={block.id}
@@ -116,6 +120,10 @@ function CenterColumn({
           {showInvite ? <InviteMemberBlock /> : null}
         </div>
       )}
+      <AddVoiceChannelButton
+        onStartDraft={onStartOpenChannelDraft}
+        disabled={hasDraftChannel || !canCreateOpenVoiceChannel(openChannels)}
+      />
     </div>
   );
 }
@@ -160,7 +168,11 @@ export default function CallsVoiceGrid({
 
   const slots = distributeMemberBlocksForGrid(gridBlocks, columnCount);
   const showRightSides = columnCount === 3 || columnCount === 4 || columnCount === 5;
-  const inviteInCenter = columnCount === 1;
+  const workspacePeople = new Set(
+    blocks.flatMap((block) => block.participants.map((participant) => participant.id)),
+  );
+  const showInviteBlock = workspacePeople.size <= 8;
+  const inviteInCenter = columnCount === 1 && showInviteBlock;
 
   return (
     <div
@@ -178,7 +190,7 @@ export default function CallsVoiceGrid({
               allBlocks={blocks}
               requests={requests}
               onRequestJoin={onRequestJoin}
-              showInvite
+              showInvite={showInviteBlock}
             />
           )}
           {columnCount === 5 && (
@@ -202,6 +214,7 @@ export default function CallsVoiceGrid({
         onOpenTheater={onOpenTheater}
         onStartOpenChannelDraft={onStartOpenChannelDraft}
         showInvite={inviteInCenter}
+        belowChannels
       />
 
       {columnCount > 1 && showRightSides && (

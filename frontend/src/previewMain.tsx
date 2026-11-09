@@ -14,6 +14,7 @@ import {
   seedMarketingLandingHero,
   seedMarketingNotesPreview,
   seedMarketingPreview,
+  seedMarketingHome,
   seedMarketingRecordingPreview,
   seedMarketingSpotifyPreview,
   seedMarketingTheaterPreview,
@@ -25,11 +26,32 @@ import "./index.css";
 
 function applyMarketingPreviewDesktopChrome(): void {
   const params = new URLSearchParams(window.location.search);
-  if (params.get("chrome") !== "mac") return;
-  document.documentElement.classList.add("has-desktop-mac-traffic-lights");
+  const chrome = params.get("chrome");
+  const root = document.documentElement;
+  if (chrome === "mac") {
+    root.classList.add("has-desktop-mac-traffic-lights", "has-desktop-autohide-titlebar");
+    if (params.get("fullscreen") === "1") {
+      root.classList.add("is-desktop-mac-fullscreen");
+    }
+    window.formaDesktop = {
+      isDesktop: true,
+      platform: "darwin",
+    } as NonNullable<Window["formaDesktop"]>;
+    return;
+  }
+  if (chrome !== "windows") return;
+  const maximized = params.get("maximized") === "1";
+  root.classList.add("is-desktop-windows", "has-desktop-autohide-titlebar");
+  if (maximized) root.classList.add("is-desktop-windows-maximized");
+  const state = { maximized, fullScreen: false };
   window.formaDesktop = {
     isDesktop: true,
-    platform: "darwin",
+    platform: "win32",
+    getWindowState: async () => state,
+    onWindowState: () => () => undefined,
+    windowMinimize: async () => ({ ok: true, ...state }),
+    windowToggleFullscreen: async () => ({ ok: true, ...state }),
+    windowClose: async () => ({ ok: true }),
   } as NonNullable<Window["formaDesktop"]>;
 }
 
@@ -41,7 +63,9 @@ bootstrapDocumentTheme();
 bootstrapDocumentAccentColor();
 
 const scene = readMarketingPreviewSceneParam();
-if (scene === "recording") {
+if (scene === "home") {
+  seedMarketingHome();
+} else if (scene === "recording") {
   seedMarketingRecordingPreview();
 } else if (scene === "theater") {
   seedMarketingTheaterPreview();

@@ -5,6 +5,7 @@ import { useBilling } from "../../hooks/useBilling";
 import { planCatalogCards, planSettingsCopy } from "../../lib/subscriptionPlans";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
+import SeatPassLink from "../billing/SeatPassLink";
 import BoostedWorkspacesList from "./BoostedWorkspacesList";
 import { resolveEnterpriseWorkspace } from "./EnterprisePlanSection";
 import SettingsPlanCard from "./SettingsPlanCard";
@@ -129,6 +130,7 @@ export default function PlanSettingsSection() {
         </section>
       )}
       {error ? <p className="settings-section__hint mt-2 text-red-400">{error}</p> : null}
+      <SeatPassLink />
 
       <div className="settings-plan-grid">
         <SettingsPlanCard

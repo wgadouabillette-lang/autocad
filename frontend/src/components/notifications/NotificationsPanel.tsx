@@ -105,6 +105,7 @@ export default function NotificationsPanel({
 }: NotificationsPanelProps) {
   const items = useNotificationsStore((s) => s.items);
   const panelOpen = useNotificationsStore((s) => s.panelOpen);
+  const onboardingSilence = useNotificationsStore((s) => s.onboardingSilence);
   const currentIndex = useNotificationsStore((s) => s.currentIndex);
   const panelOpenGeneration = useNotificationsStore((s) => s.panelOpenGeneration);
   const markRead = useNotificationsStore((s) => s.markRead);
@@ -153,7 +154,7 @@ export default function NotificationsPanel({
     };
   }, [panelOpen, updatePanelPosition]);
 
-  if (!panelOpen || !panelPos) return null;
+  if (onboardingSilence || !panelOpen || !panelPos) return null;
 
   const item = items[currentIndex];
   const isLast = currentIndex >= items.length - 1;

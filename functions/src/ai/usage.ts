@@ -339,7 +339,10 @@ export async function maybeSyncUsagePeriod(
   if (!stripeStart) return;
   const ref = await userUsageRef(uid);
   const existing = await loadUserUsageDoc(uid);
-  const allowance = typeof allowanceUsd === "number" ? allowanceUsd : proUsageAllowanceUsd();
+  let allowance = typeof allowanceUsd === "number" ? allowanceUsd : proUsageAllowanceUsd();
+  if (typeof existing.allowanceUsdRetail === "number" && existing.allowanceUsdRetail > allowance) {
+    allowance = existing.allowanceUsdRetail;
+  }
   if (existing.stripePeriodStart === stripeStart) {
     if (existing.allowanceUsdRetail !== allowance) {
       await ref.set({ allowanceUsdRetail: allowance }, { merge: true });
@@ -370,6 +373,7 @@ export async function maybeSyncWorkspaceUsagePeriod(
   workspaceId: string,
   subscription: { current_period_start?: number; current_period_end?: number },
   seatCount: number,
+  allowanceUsd?: number,
 ): Promise<void> {
   const stripeStart = subscription.current_period_start;
   if (!stripeStart) return;
@@ -377,7 +381,14 @@ export async function maybeSyncWorkspaceUsagePeriod(
   const ref = await workspaceUsageRef(wid);
   const existing = await loadWorkspaceUsageDoc(wid);
   const seats = Math.max(Number(seatCount) || 0, 1);
-  const newAllowance = enterpriseUsageAllowanceUsd(seats);
+  let newAllowance =
+    typeof allowanceUsd === "number" ? allowanceUsd : enterpriseUsageAllowanceUsd(seats);
+  if (
+    typeof existing.allowanceUsdRetail === "number" &&
+    existing.allowanceUsdRetail > newAllowance
+  ) {
+    newAllowance = existing.allowanceUsdRetail;
+  }
 
   if (existing.stripePeriodStart === stripeStart) {
     if (existing.allowanceUsdRetail !== newAllowance || existing.seatCount !== seats) {

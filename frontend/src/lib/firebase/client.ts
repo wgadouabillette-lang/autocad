@@ -29,12 +29,37 @@ const app = initializeApp({
   ...firebaseConfig,
   authDomain: resolveAuthDomain(),
 });
+export const firebaseApp = app;
 export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager(),
   }),
 });
+
+/** Bug connu du client Firestore (watch cible ve:-1). Il ne doit pas rouvrir l'UI. */
+export function isFirestoreWatchGlitch(value: unknown): boolean {
+  const message = value instanceof Error ? value.message : String(value ?? "");
+  return message.includes("INTERNAL ASSERTION FAILED");
+}
+
+if (typeof window !== "undefined") {
+  const swallowWatchGlitch = (value: unknown, event: Event) => {
+    if (!isFirestoreWatchGlitch(value)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  window.addEventListener(
+    "error",
+    (event) => swallowWatchGlitch(event.error ?? event.message, event),
+    true,
+  );
+  window.addEventListener(
+    "unhandledrejection",
+    (event) => swallowWatchGlitch(event.reason, event),
+    true,
+  );
+}
 export const rtdb = getDatabase(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, functionsRegion);

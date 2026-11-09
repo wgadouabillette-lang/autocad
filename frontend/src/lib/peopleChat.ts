@@ -14,6 +14,15 @@ export interface PeopleManageScheduleEvent {
   endMinutes: number;
 }
 
+export interface PeopleMessageAttachment {
+  id: string;
+  name: string;
+  url: string;
+  contentType: string;
+  size: number;
+  isImage: boolean;
+}
+
 export interface PeopleMessage {
   id: string;
   author: string;
@@ -21,6 +30,8 @@ export interface PeopleMessage {
   text: string;
   at: number;
   mine?: boolean;
+  clientMessageId?: string;
+  attachments?: PeopleMessageAttachment[];
   kind?: "text" | "handoff" | "manage" | "meeting" | "workspace_invite";
   handoffId?: string;
   handoffTitle?: string;

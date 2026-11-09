@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
   serverTimestamp,
@@ -28,6 +29,8 @@ export interface SharedWorkspaceDoc {
   enterpriseBillingManaged?: boolean;
   enterpriseMemberCount?: number;
   enterpriseSeatCount?: number;
+  /** Sièges personnels déjà payés pour ce workspace. */
+  seatsPrepaid?: boolean;
   membersCanInvite?: boolean;
 }
 
@@ -271,6 +274,35 @@ export async function ensureSharedWorkspacePublished(
       email: "",
     });
   }
+}
+
+export async function sharedWorkspaceGrantsSeat(workspaceId: string): Promise<boolean> {
+  const trimmed = workspaceId.trim().toLowerCase();
+  if (!trimmed) return false;
+  const snap = await getDoc(sharedWorkspaceRef(trimmed));
+  if (!snap.exists()) return false;
+  const data = snap.data() as SharedWorkspaceDoc;
+  return (
+    (data.enterpriseSubscriptionPlan === "enterprise" && data.enterpriseBillingManaged === true) ||
+    data.seatsPrepaid === true
+  );
+}
+
+export async function fetchSharedWorkspaceDoc(
+  workspaceId: string,
+): Promise<SharedWorkspaceDoc | null> {
+  const trimmed = workspaceId.trim().toLowerCase();
+  if (!trimmed) return null;
+  const snap = await getDoc(sharedWorkspaceRef(trimmed));
+  if (!snap.exists()) return null;
+  return snap.data() as SharedWorkspaceDoc;
+}
+
+export async function countWorkspaceMembers(workspaceId: string): Promise<number> {
+  const trimmed = workspaceId.trim().toLowerCase();
+  if (!trimmed) return 0;
+  const snap = await getDocs(workspaceMembersCol(trimmed));
+  return snap.size;
 }
 
 export async function fetchSharedWorkspace(workspaceId: string): Promise<Workspace | null> {

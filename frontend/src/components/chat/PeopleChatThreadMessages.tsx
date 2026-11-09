@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useMemo, type ReactNode, type RefObject } from "react";
 import clsx from "clsx";
 import type { PeopleMessage } from "../../lib/peopleChat";
 import { parseManageComposerText } from "../../lib/manageSchedulePrompt";
@@ -61,6 +61,56 @@ function PeopleChatBubbleAvatar({
   }
 
   return <span className="people-chat-bubble-wrap__avatar-spacer" aria-hidden />;
+}
+
+function formatAttachmentSize(size: number): string {
+  if (size < 1024) return `${size} o`;
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} Ko`;
+  return `${(size / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
+function PeopleChatAttachments({
+  attachments,
+}: {
+  attachments: NonNullable<PeopleMessage["attachments"]>;
+}) {
+  return (
+    <div className="people-chat-attachments">
+      {attachments.map((attachment) =>
+        attachment.isImage ? (
+          <a
+            key={attachment.id}
+            className="people-chat-attachment__image-link"
+            href={attachment.url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <img
+              className="people-chat-attachment__image"
+              src={attachment.url}
+              alt={attachment.name}
+            />
+          </a>
+        ) : (
+          <a
+            key={attachment.id}
+            className="people-chat-attachment__file"
+            href={attachment.url}
+            target="_blank"
+            rel="noreferrer"
+            download={attachment.name}
+          >
+            <span className="people-chat-attachment__file-name">{attachment.name}</span>
+            {attachment.size > 0 ? (
+              <span className="people-chat-attachment__file-size">
+                {formatAttachmentSize(attachment.size)}
+              </span>
+            ) : null}
+          </a>
+        ),
+      )}
+    </div>
+  );
 }
 
 function renderMessageText(text: string, mentionHighlightHandles?: string[]) {
@@ -238,9 +288,14 @@ function PeopleChatBubble({
             compact && "people-chat-bubble--compact",
           )}
         >
-          <p className="people-chat-bubble__text">
-            {renderMessageText(message.text, mentionHighlightHandles)}
-          </p>
+          {message.text ? (
+            <p className="people-chat-bubble__text">
+              {renderMessageText(message.text, mentionHighlightHandles)}
+            </p>
+          ) : null}
+          {message.attachments?.length ? (
+            <PeopleChatAttachments attachments={message.attachments} />
+          ) : null}
         </div>
       </div>
     </div>
@@ -269,7 +324,6 @@ function PeopleChatBubble({
 }
 
 export default function PeopleChatThreadMessages({
-  partnerId,
   messages,
   listRef,
   className,
@@ -288,38 +342,19 @@ export default function PeopleChatThreadMessages({
     () => new Map(messages.map((message, index) => [message.id, index])),
     [messages],
   );
-  const prevLastMessageIdRef = useRef<string | undefined>();
-  const [risingMessageId, setRisingMessageId] = useState<string | null>(null);
-
-  const lastMessageId = messages[messages.length - 1]?.id;
-
-  useEffect(() => {
-    prevLastMessageIdRef.current = lastMessageId;
-    setRisingMessageId(null);
-  }, [partnerId]);
-
-  useEffect(() => {
-    if (!lastMessageId || lastMessageId === prevLastMessageIdRef.current) return;
-    prevLastMessageIdRef.current = lastMessageId;
-    setRisingMessageId(lastMessageId);
-    const timer = window.setTimeout(() => setRisingMessageId(null), 360);
-    return () => window.clearTimeout(timer);
-  }, [lastMessageId]);
 
   return (
     <ul ref={listRef} className={clsx("people-chat-thread", className)}>
       <li className="people-chat-thread__spacer" aria-hidden />
       {timeline.map((entry) => {
-        const hasRisingMessage = entry.items.some(
-          (item) => item.message.id === risingMessageId,
-        );
         return (
           <li
             key={entry.key}
             className={clsx(
               "people-chat-thread__group",
-              entry.mine && "people-chat-thread__group--mine",
-              hasRisingMessage && "people-chat-thread__group--rise",
+              entry.mine
+                ? "people-chat-thread__group--mine"
+                : "people-chat-thread__group--theirs",
             )}
           >
             {entry.items.map((item) => {

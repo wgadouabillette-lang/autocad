@@ -31,6 +31,93 @@ class ProCheckoutIntentResponse(BaseModel):
     subscriptionId: str
 
 
+class SeatCheckoutRequest(BaseModel):
+    mode: str
+    seatCount: int
+    workspaceId: Optional[str] = None
+
+
+class SeatCheckoutResponse(BaseModel):
+    clientSecret: str
+    publishableKey: str
+    subscriptionId: str
+    seatCount: int
+    unitAmountCents: int
+    totalAmountCents: int
+    mode: str
+    workspaceId: Optional[str] = None
+    workspaceName: Optional[str] = None
+    promotionCode: Optional[str] = None
+    merchantName: Optional[str] = None
+    paid: bool = False
+
+
+class SeatPassWorkspace(BaseModel):
+    id: str
+    name: str
+    accent: str
+    ownerId: str
+    ownerName: str
+    createdAt: int
+
+
+class SeatPassResponse(BaseModel):
+    code: str
+    url: str
+    remainingUses: int
+    seatCount: int
+    workspace: SeatPassWorkspace
+
+
+class SeatPromotionRequest(BaseModel):
+    subscriptionId: str
+    code: str
+
+
+class SeatRedeemRequest(BaseModel):
+    code: str
+
+
+class SeatRedeemResponse(BaseModel):
+    ok: bool
+    alreadyJoined: bool = False
+    remainingUses: int
+    ownerUid: str
+    workspace: SeatPassWorkspace
+
+
+class OwnedSeatItem(BaseModel):
+    id: str
+    label: str = ""
+    assigned: bool = False
+    removable: bool = False
+
+
+class OwnedSeatGroup(BaseModel):
+    id: str
+    source: str
+    workspaceId: Optional[str] = None
+    workspaceName: Optional[str] = None
+    given: int = 0
+    total: int = 0
+    unitAmountCents: int = 0
+    valueAmountCents: int = 0
+    seats: list[OwnedSeatItem] = []
+
+
+class OwnedSeatsResponse(BaseModel):
+    given: int = 0
+    total: int = 0
+    valueAmountCents: int = 0
+    currency: str = "usd"
+    groups: list[OwnedSeatGroup] = []
+
+
+class ReleaseSeatRequest(BaseModel):
+    source: str
+    workspaceId: Optional[str] = None
+
+
 class EnterpriseCheckoutIntentResponse(BaseModel):
     clientSecret: str
     publishableKey: str
@@ -232,7 +319,7 @@ def billing_config(user: Optional[FirebaseUser] = Depends(optional_firebase_user
         enterpriseMinMembers=settings.stripe_enterprise_min_members,
         enterpriseSeatPriceLabel=os.getenv(
             "STRIPE_ENTERPRISE_SEAT_PRICE_LABEL",
-            "$24 / seat",
+            "$15 / seat",
         ),
         enterpriseSeatUnitAmountCents=stripe_service._enterprise_seat_unit_cents(),
         publishableKey=settings.stripe_publishable_key.strip(),
@@ -530,6 +617,136 @@ def checkout_pro_intent(user: FirebaseUser = Depends(require_firebase_user)):
     return ProCheckoutIntentResponse(**result)
 
 
+@router.post("/checkout/seats/intent", response_model=SeatCheckoutResponse)
+def checkout_seats_intent(
+    body: SeatCheckoutRequest,
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    """Sièges à 15 $ US : pour le compte, ou pour un workspace."""
+    _require_stripe()
+    if not settings.stripe_publishable_key.strip():
+        raise HTTPException(503, "STRIPE_PUBLISHABLE_KEY is not configured.")
+    mode = body.mode.strip().lower()
+    try:
+        if mode == "enterprise":
+            workspace_id = (body.workspaceId or "").strip()
+            if not workspace_id:
+                raise ValueError("Choisissez un workspace.")
+            result = stripe_service.create_workspace_seat_upgrade_intent(
+                user.uid,
+                user.email,
+                workspace_id,
+                body.seatCount,
+            )
+            return SeatCheckoutResponse(
+                clientSecret=result["clientSecret"],
+                publishableKey=result["publishableKey"],
+                subscriptionId=result["subscriptionId"],
+                seatCount=int(result.get("seatCount") or body.seatCount),
+                unitAmountCents=int(result.get("unitAmountCents") or 1500),
+                totalAmountCents=int(result.get("totalAmountCents") or 0),
+                mode="enterprise",
+                workspaceId=str(result.get("workspaceId") or workspace_id),
+                workspaceName=str(result.get("workspaceName") or ""),
+                paid=bool(result.get("paid")),
+            )
+        if mode != "personal":
+            raise ValueError("Choisissez un siège pour vous ou pour une entreprise.")
+        result = stripe_service.create_personal_seat_subscription_intent(
+            user.uid,
+            user.email,
+            body.seatCount,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Seat checkout failed for %s", user.uid)
+        raise HTTPException(502, "Impossible de démarrer le paiement.") from exc
+    return SeatCheckoutResponse(**result)
+
+
+@router.post("/checkout/seats/promotion", response_model=SeatCheckoutResponse)
+def seat_promotion(
+    body: SeatPromotionRequest,
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    """Applique un code promo Stripe au paiement de sièges en cours."""
+    _require_stripe()
+    try:
+        result = stripe_service.apply_personal_seat_promotion(
+            user.uid,
+            user.email,
+            body.subscriptionId,
+            body.code,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Seat promotion failed for %s", user.uid)
+        raise HTTPException(502, "Impossible d'appliquer le code promo.") from exc
+    return SeatCheckoutResponse(**result)
+
+
+@router.post("/seats/pass", response_model=SeatPassResponse)
+def seat_pass(user: FirebaseUser = Depends(require_firebase_user)):
+    """Lien d'invitation des sièges déjà payés. Une place reste au compte, le reste est limité."""
+    try:
+        from app.billing.seat_passes import ensure_seat_pass
+
+        result = ensure_seat_pass(user.uid, user.email)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Seat pass failed for %s", user.uid)
+        raise HTTPException(502, "Impossible de préparer le lien d'invitation.") from exc
+    return SeatPassResponse(**result)
+
+
+@router.get("/seats", response_model=OwnedSeatsResponse)
+def owned_seats(user: FirebaseUser = Depends(require_firebase_user)):
+    """Sièges payés par ce compte, pour les retirer depuis la facturation."""
+    try:
+        result = stripe_service.list_owned_seats(user.uid, user.email)
+    except Exception as exc:
+        logger.exception("Owned seats failed for %s", user.uid)
+        raise HTTPException(502, "Impossible de charger les sièges.") from exc
+    return OwnedSeatsResponse(**result)
+
+
+@router.post("/seats/release", response_model=OwnedSeatsResponse)
+def release_seat(body: ReleaseSeatRequest, user: FirebaseUser = Depends(require_firebase_user)):
+    """Retire un siège payé qui n'est pas encore attribué."""
+    _require_stripe()
+    try:
+        result = stripe_service.release_owned_seat(
+            user.uid,
+            user.email,
+            body.source,
+            body.workspaceId,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Seat release failed for %s", user.uid)
+        raise HTTPException(502, "Impossible de retirer ce siège.") from exc
+    return OwnedSeatsResponse(**result)
+
+
+@router.post("/seats/redeem", response_model=SeatRedeemResponse)
+def seat_redeem(body: SeatRedeemRequest, user: FirebaseUser = Depends(require_firebase_user)):
+    """Consomme une utilisation du lien et ouvre Meetra pour ce compte."""
+    try:
+        from app.billing.seat_passes import redeem_seat_pass
+
+        result = redeem_seat_pass(user.uid, user.email, body.code)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Seat redeem failed for %s", user.uid)
+        raise HTTPException(502, "Impossible de rejoindre avec ce lien.") from exc
+    return SeatRedeemResponse(**result)
+
+
 @router.post("/checkout/pro-plus/intent", response_model=ProCheckoutIntentResponse)
 def checkout_pro_plus_intent(user: FirebaseUser = Depends(require_firebase_user)):
     """Crée un abonnement Pro+ incomplete pour Stripe Payment Element (overlay)."""
@@ -634,13 +851,13 @@ def sync_enterprise_billing(
     user: FirebaseUser = Depends(require_firebase_user),
 ):
     """Filet de sécurité (sandbox/dev): synchronise l'abonnement Entreprise d'un workspace."""
-    if not settings.stripe_enterprise_enabled:
-        raise HTTPException(503, "Enterprise billing is not configured.")
+    _require_stripe()
     wid = body.workspaceId.strip().lower()
     try:
-        from app.core.firebase import assert_workspace_owner
+        from app.core.firebase import is_workspace_member
 
-        assert_workspace_owner(user.uid, wid)
+        if not is_workspace_member(user.uid, wid):
+            raise ValueError("Rejoignez ce workspace pour mettre à jour ses sièges.")
         result = stripe_service.sync_workspace_subscription_from_stripe(wid)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc

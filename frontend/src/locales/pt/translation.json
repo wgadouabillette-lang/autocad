@@ -34,7 +34,7 @@
     },
     "descriptions": {
       "friends": "Amigos e convites.",
-      "workspaces": "Seus workspaces, convites e uso de IA Team.",
+      "workspaces": "Seus workspaces e convites.",
       "usage": "Planos Pro, Pro+ e Team.",
       "billing": "Plano atual e próxima data de cobrança.",
       "agents": "Personalize chat e AI Notes.",
@@ -74,6 +74,18 @@
         "cyan": "Ciano"
       }
     }
+  },
+  "billingSeats": {
+    "given": "atribuídos",
+    "total": "total",
+    "perMonth": "por mês",
+    "summary": "{{given}} atribuídos, {{total}} total, {{value}} por mês",
+    "open": "Assento livre",
+    "assigned": "Atribuído",
+    "remove": "Remover",
+    "confirm": "Confirmar",
+    "removing": "Removendo…",
+    "error": "Não foi possível remover este assento."
   },
   "billing": {
     "signIn": "Entre para assinar com o Stripe.",
@@ -221,5 +233,107 @@
     "backstageTitle": "Voltar à plateia",
     "askInChat": "Perguntar no chat",
     "askInChatTitle": "Fazer uma pergunta no chat do teatro"
+  },
+  "onboarding": {
+    "continue": "Continuar",
+    "welcomeTitle": "Bem-vindo ao Meetra",
+    "welcomeSubtitle": "Entre antes de continuar.",
+    "q": {
+      "plan": {
+        "title": "Como você pretende usar o Meetra?",
+        "subtitle": "Escolha o jeito que combina com o seu trabalho.",
+        "solo": "Sozinho",
+        "colleague": "Com colegas",
+        "friends": "Com amigos",
+        "other": "Outro"
+      },
+      "purpose": {
+        "title": "Para que você vai usar o Meetra?",
+        "subtitle": "Escolha o que mais combina com você.",
+        "automation": "Automação com IA",
+        "agent": "Agente de IA",
+        "calendar": "Calendário",
+        "notes": "AI Notes",
+        "recording": "Gravação de demo",
+        "all": "Tudo isso"
+      },
+      "source": {
+        "title": "Onde você ouviu falar da gente?",
+        "subtitle": "Conte como você encontrou o Meetra.",
+        "youtube": "YouTube",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "google": "Google",
+        "colleague": "Um colega",
+        "x": "X",
+        "enterprise": "Empresa",
+        "other": "Outro"
+      }
+    },
+    "seats": {
+      "title": "Escolha seus lugares",
+      "joinTitle": "Entrar",
+      "subtitle": "Um lugar para você, os outros para a sua equipe.",
+      "joinSubtitle": "Abra uma vaga com o link de convite.",
+      "paths": "Grupo ou entrar",
+      "group": "Grupo",
+      "groupNote": "Lugares para o seu grupo.",
+      "join": "Entrar",
+      "joinNote": "Entrar em um grupo existente.",
+      "amount": "{{amount}} USD",
+      "priceSuffix": " / mês por lugar",
+      "seat": "lugar",
+      "seats": "lugares",
+      "removeSeat": "Remover um lugar",
+      "addSeat": "Adicionar um lugar",
+      "checkout": "Ir para o pagamento - {{amount}}$",
+      "preparing": "Preparando…",
+      "joinPlaceholder": "Cole o link de convite",
+      "verifying": "Verificando…",
+      "joinAction": "Entrar"
+    },
+    "upgrade": {
+      "button": "Melhorar",
+      "title": "Quantos assentos você quer adicionar?",
+      "subtitle": "Esses assentos são adicionados a {{workspace}}.",
+      "continue": "Continuar"
+    },
+    "inviteSeats": {
+      "title": "Você esgotou seus assentos",
+      "subtitle": "Compre mais assentos para dar acesso a mais membros",
+      "buyMore": "Comprar mais"
+    },
+    "pay": {
+      "title": "Pagamento",
+      "perMonth": " / mês",
+      "promo": "código promocional",
+      "apply": "Aplicar",
+      "applied": "Código aplicado",
+      "pay": "Pagar",
+      "paying": "Pagando…",
+      "mandate": "Ao informar os dados do cartão, você autoriza {{merchant}} a cobrá-lo em pagamentos futuros, de acordo com os termos."
+    },
+    "share": {
+      "title": "Link de convite",
+      "uses_one": "1 uso restante.",
+      "uses_other": "{{count}} usos restantes.",
+      "lead": "Cada pessoa que abrir o link ocupa uma vaga.",
+      "copy": "Copiar link",
+      "copied": "Link copiado",
+      "continue": "Continuar"
+    },
+    "waiting": {
+      "title": "Validando seu acesso",
+      "authorized": "Acesso autorizado",
+      "lead": "Pagamento recebido. Os lugares abrem em instantes."
+    },
+    "errors": {
+      "join": "Não foi possível entrar com este link.",
+      "activation": "Pagamento recebido. A ativação leva um instante — reabra o Meetra se esta tela continuar.",
+      "startPay": "Não foi possível iniciar o pagamento.",
+      "promo": "Código promocional inválido.",
+      "save": "Não foi possível salvar as respostas.",
+      "copy": "Não foi possível copiar o link."
+    }
   }
 }

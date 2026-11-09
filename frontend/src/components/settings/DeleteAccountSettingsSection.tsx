@@ -22,7 +22,7 @@ export default function DeleteAccountSettingsSection() {
       await deleteAccount();
       await clearLocalAccountData();
       useWorkspacesStore.getState().resetLocalMemberships();
-      await signOut();
+      await signOut({ forgetIntro: true });
       setConfirmOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Suppression impossible.");

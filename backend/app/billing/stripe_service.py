@@ -22,6 +22,8 @@ from app.core.firebase import (
     count_workspace_members,
     find_uid_by_stripe_customer,
     find_workspace_by_stripe_customer,
+    is_workspace_member,
+    load_shared_workspace,
     load_user_billing,
     load_workspace_billing,
     save_user_billing,
@@ -100,13 +102,19 @@ def _subscription_state(subscription: Dict[str, Any]) -> Tuple[str, bool, str]:
     has_on_demand = False
     on_demand_item_id = ""
 
+    intent = _subscription_intent(subscription)
     for item in _subscription_items(subscription):
         price_id = _price_id(item)
         if _is_personal_price(price_id):
             has_pro = True
+        if intent in {"personal", "seat"} and (_is_new_seat_price(item) or not _price_map(item)):
+            has_pro = True
         if on_demand_price and price_id == on_demand_price:
             has_on_demand = True
             on_demand_item_id = str(item.get("id") or "")
+
+    if intent in {"personal", "seat"} and _metadata_seat_count(subscription) > 0:
+        has_pro = True
 
     is_active = status in ACTIVE_SUBSCRIPTION_STATUSES
     subscription_plan = "pro" if is_active and has_pro else "free"
@@ -117,14 +125,21 @@ def _subscription_state(subscription: Dict[str, Any]) -> Tuple[str, bool, str]:
 def _enterprise_subscription_state(subscription: Dict[str, Any]) -> Tuple[str, int]:
     status = str(subscription.get("status") or "")
     enterprise_price = settings.stripe_enterprise_seat_price_id.strip()
+    intent = _subscription_intent(subscription)
     seat_count = 0
     has_enterprise = False
 
     for item in _subscription_items(subscription):
         price_id = _price_id(item)
-        if price_id == enterprise_price:
+        is_legacy = bool(enterprise_price) and price_id == enterprise_price
+        is_seat = intent == "enterprise" and (_is_new_seat_price(item) or not _price_map(item))
+        if is_legacy or is_seat:
             has_enterprise = True
-            seat_count = int(item.get("quantity") or 0)
+            seat_count += int(item.get("quantity") or 0)
+
+    if intent == "enterprise" and seat_count <= 0 and _metadata_seat_count(subscription) > 0:
+        has_enterprise = True
+        seat_count = _metadata_seat_count(subscription)
 
     is_active = status in ACTIVE_SUBSCRIPTION_STATUSES
     plan = "enterprise" if is_active and has_enterprise else "free"
@@ -143,6 +158,40 @@ def _is_enterprise_intent(metadata: Optional[Dict[str, Any]] = None) -> bool:
     if intent == "enterprise":
         return True
     return bool(_resolve_workspace_id(meta))
+
+
+def _subscription_metadata(subscription: Dict[str, Any]) -> Dict[str, Any]:
+    meta = subscription.get("metadata")
+    return meta if isinstance(meta, dict) else {}
+
+
+def _subscription_intent(subscription: Dict[str, Any]) -> str:
+    return str(_subscription_metadata(subscription).get("intent") or "").strip().lower()
+
+
+def _metadata_seat_count(subscription: Dict[str, Any]) -> int:
+    raw = str(_subscription_metadata(subscription).get("seat_count") or "").strip()
+    try:
+        return max(int(raw), 0)
+    except ValueError:
+        return 0
+
+
+def _price_map(item: Dict[str, Any]) -> Dict[str, Any]:
+    price = item.get("price")
+    return price if isinstance(price, dict) else {}
+
+
+def _is_new_seat_price(item: Dict[str, Any]) -> bool:
+    price = _price_map(item)
+    recurring = price.get("recurring") if isinstance(price.get("recurring"), dict) else {}
+    if str(recurring.get("interval") or "") != "month":
+        return False
+    try:
+        amount = int(price.get("unit_amount") or 0)
+    except (TypeError, ValueError):
+        return False
+    return amount == _enterprise_seat_unit_cents()
 
 
 def _resolve_uid(
@@ -195,12 +244,24 @@ def sync_subscription_for_uid(uid: str, subscription: Dict[str, Any]) -> None:
     )
     if plan == "pro":
         from app.ai.usage import maybe_sync_usage_period
-        from app.ai.usage_pricing import personal_usage_allowance_usd
+        from app.ai.usage_pricing import personal_usage_allowance_usd, seat_usage_allowance_usd
 
+        intent = _subscription_intent(subscription)
+        if intent in {"personal", "seat"}:
+            seats = _metadata_seat_count(subscription)
+            if seats <= 0:
+                seats = 1
+                for item in _subscription_items(subscription):
+                    if _is_new_seat_price(item):
+                        seats = max(int(item.get("quantity") or 1), 1)
+                        break
+            allowance = seat_usage_allowance_usd(seats)
+        else:
+            allowance = personal_usage_allowance_usd(plus=subscription_tier == "proPlus")
         maybe_sync_usage_period(
             uid,
             subscription,
-            allowance_usd=personal_usage_allowance_usd(plus=subscription_tier == "proPlus"),
+            allowance_usd=allowance,
         )
         _cancel_other_personal_subscriptions(customer_id, subscription_id)
     logger.info(
@@ -243,8 +304,18 @@ def sync_enterprise_subscription_for_workspace(
     save_workspace_billing(workspace_id, billing_patch)
     if plan == "enterprise":
         from app.ai.usage import maybe_sync_workspace_usage_period
+        from app.ai.usage_pricing import seat_usage_allowance_usd
 
-        maybe_sync_workspace_usage_period(workspace_id, subscription, seat_count or member_count)
+        seats = seat_count or member_count
+        new_seat = _subscription_intent(subscription) == "enterprise" and any(
+            _is_new_seat_price(item) for item in _subscription_items(subscription)
+        )
+        maybe_sync_workspace_usage_period(
+            workspace_id,
+            subscription,
+            seats,
+            allowance_usd=seat_usage_allowance_usd(seats) if new_seat else None,
+        )
     logger.info(
         "Synced enterprise subscription for workspace %s: plan=%s seats=%s status=%s",
         workspace_id,
@@ -567,21 +638,30 @@ def purge_stripe_for_deleted_account(uid: str, email: Optional[str] = None) -> N
             )
 
 
+def _grants_personal_access(subscription: Dict[str, Any]) -> bool:
+    """Pro, Pro+, or a personal seat plan. Enterprise workspace plans stay out."""
+    intent = _subscription_intent(subscription)
+    if intent == "enterprise" or _resolve_workspace_id(_subscription_metadata(subscription)):
+        return False
+    for item in _subscription_items(subscription):
+        if _is_personal_price(_price_id(item)):
+            return True
+        if intent in {"personal", "seat"} and (
+            _is_new_seat_price(item) or not _price_map(item)
+        ):
+            return True
+    return intent in {"personal", "seat"} and _metadata_seat_count(subscription) > 0
+
+
 def _pick_user_subscription(subscriptions: list[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Choisit un abonnement Pro / Pro+ actif uniquement (ignore incomplete / unpaid)."""
+    """Choisit un abonnement personnel actif (Pro, Pro+ ou sièges). Ignore incomplete."""
     if not subscriptions:
         return None
-
-    def has_personal_item(sub: Dict[str, Any]) -> bool:
-        for item in _subscription_items(sub):
-            if _is_personal_price(_price_id(item)):
-                return True
-        return False
 
     active = [
         s
         for s in subscriptions
-        if str(s.get("status") or "") in ACTIVE_SUBSCRIPTION_STATUSES and has_personal_item(s)
+        if str(s.get("status") or "") in ACTIVE_SUBSCRIPTION_STATUSES and _grants_personal_access(s)
     ]
     if not active:
         return None
@@ -607,7 +687,7 @@ def _cancel_other_personal_subscriptions(customer_id: str, keep_subscription_id:
                 continue
             if status not in ACTIVE_SUBSCRIPTION_STATUSES:
                 continue
-            if not any(_is_personal_price(_price_id(item)) for item in _subscription_items(sub)):
+            if not _grants_personal_access(sub):
                 continue
             try:
                 stripe.Subscription.cancel(sub_id)
@@ -867,6 +947,200 @@ def create_pro_subscription_intent(
     }
 
 
+def create_personal_seat_subscription_intent(
+    uid: str,
+    email: Optional[str],
+    seat_count: int,
+    promotion_code_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Abonnement incomplet : N sièges à 15 $ US sur le compte personnel."""
+    publishable = settings.stripe_publishable_key.strip()
+    if not publishable:
+        raise ValueError("STRIPE_PUBLISHABLE_KEY is not configured.")
+    requested = int(seat_count)
+    if requested < 1:
+        raise ValueError("Choisissez au moins un siège.")
+    if requested > 500:
+        raise ValueError("Maximum 500 sièges.")
+
+    stripe = _stripe()
+    live = sync_user_subscription_from_stripe(uid, email)
+    if (
+        str(live.get("subscriptionPlan") or "") == "pro"
+        and bool(live.get("billingManaged"))
+        and str(live.get("stripeSubscriptionStatus") or "") in ACTIVE_SUBSCRIPTION_STATUSES
+    ):
+        raise ValueError("Un abonnement est déjà actif. Utilisez le portail de facturation.")
+
+    customer_id = create_or_get_customer(uid, email)
+    seat_price = ensure_meetra_seat_price(stripe)
+
+    try:
+        incomplete = stripe.Subscription.list(
+            customer=customer_id,
+            status="incomplete",
+            limit=10,
+        )
+        for sub in incomplete.get("data") or []:
+            if not isinstance(sub, dict):
+                continue
+            meta = sub.get("metadata") if isinstance(sub.get("metadata"), dict) else {}
+            intent = str(meta.get("intent") or "").strip().lower()
+            if intent in {"personal", "seat", "pro", "pro_plus"} or any(
+                _is_personal_price(_price_id(item)) for item in _subscription_items(sub)
+            ):
+                try:
+                    stripe.Subscription.cancel(str(sub.get("id") or ""))
+                except Exception as exc:
+                    logger.debug("Cancel incomplete personal seat sub failed: %s", exc)
+    except Exception as exc:
+        logger.debug("List incomplete subscriptions failed for %s: %s", uid, exc)
+
+    pmc = settings.stripe_payment_method_configuration.strip()
+    create_params: Dict[str, Any] = {
+        "customer": customer_id,
+        "items": [{"price": seat_price, "quantity": requested}],
+        "payment_behavior": "default_incomplete",
+        "payment_settings": {"save_default_payment_method": "on_subscription"},
+        "metadata": {
+            "firebase_uid": uid,
+            "intent": "personal",
+            "seat_count": str(requested),
+        },
+        "expand": ["latest_invoice.confirmation_secret", "pending_setup_intent"],
+    }
+    if promotion_code_id:
+        create_params["discounts"] = [{"promotion_code": promotion_code_id}]
+    if pmc:
+        create_params["payment_method_configuration"] = pmc
+    subscription = stripe.Subscription.create(**create_params)
+    client_secret = _subscription_client_secret(subscription)
+    sub_id = str(subscription.get("id") or "").strip()
+    status = str(subscription.get("status") or "incomplete")
+    save_user_billing(
+        uid,
+        {
+            "stripeCustomerId": customer_id,
+            "stripeSubscriptionId": sub_id,
+            "stripeSubscriptionStatus": status,
+        },
+    )
+    unit_cents = _enterprise_seat_unit_cents()
+    invoice = subscription.get("latest_invoice") if isinstance(subscription, dict) else None
+    if isinstance(invoice, str) and invoice.strip():
+        invoice = stripe.Invoice.retrieve(invoice)
+    if not isinstance(invoice, dict) and hasattr(invoice, "to_dict_recursive"):
+        invoice = invoice.to_dict_recursive()
+    amount_due = unit_cents * requested
+    if isinstance(invoice, dict):
+        try:
+            amount_due = int(invoice.get("amount_due"))
+        except (TypeError, ValueError):
+            amount_due = unit_cents * requested
+    return {
+        "clientSecret": client_secret,
+        "publishableKey": publishable,
+        "subscriptionId": sub_id,
+        "seatCount": requested,
+        "unitAmountCents": unit_cents,
+        "totalAmountCents": amount_due,
+        "mode": "personal",
+        "merchantName": _merchant_display_name(stripe),
+    }
+
+
+def _merchant_display_name(stripe) -> str:
+    try:
+        account = stripe.Account.retrieve()
+        if not isinstance(account, dict) and hasattr(account, "to_dict_recursive"):
+            account = account.to_dict_recursive()
+        if not isinstance(account, dict):
+            return "Meetra"
+        profile = account.get("business_profile")
+        name = str(profile.get("name") or "").strip() if isinstance(profile, dict) else ""
+        if not name:
+            settings_obj = account.get("settings")
+            dashboard = settings_obj.get("dashboard") if isinstance(settings_obj, dict) else {}
+            if isinstance(dashboard, dict):
+                name = str(dashboard.get("display_name") or "").strip()
+        return name or "Meetra"
+    except Exception:
+        return "Meetra"
+
+
+def _stripe_data_list(payload: Any) -> list:
+    if isinstance(payload, dict):
+        data = payload.get("data")
+        return data if isinstance(data, list) else []
+    data = getattr(payload, "data", None)
+    return data if isinstance(data, list) else []
+
+
+def _stripe_id(obj: Any) -> str:
+    if isinstance(obj, dict):
+        return str(obj.get("id") or "").strip()
+    return str(getattr(obj, "id", "") or "").strip()
+
+
+def apply_personal_seat_promotion(
+    uid: str,
+    email: Optional[str],
+    subscription_id: str,
+    code: str,
+) -> Dict[str, Any]:
+    """Recrée le paiement incomplet avec un code promo Stripe."""
+    normalized = code.strip()
+    if not normalized:
+        raise ValueError("Entrez un code promo.")
+    stripe = _stripe()
+    billing = load_user_billing(uid)
+    sub_id = (subscription_id or str(billing.get("stripeSubscriptionId") or "")).strip()
+    stored = str(billing.get("stripeSubscriptionId") or "").strip()
+    if not sub_id or (stored and stored != sub_id):
+        raise ValueError("Ce paiement ne correspond pas à votre compte.")
+
+    current = stripe.Subscription.retrieve(sub_id)
+    if not isinstance(current, dict) and hasattr(current, "to_dict_recursive"):
+        current = current.to_dict_recursive()
+    if not isinstance(current, dict):
+        raise ValueError("Ce paiement ne peut plus être modifié.")
+    if str(current.get("status") or "") not in {"incomplete", "incomplete_expired"}:
+        raise ValueError("Ce paiement ne peut plus être modifié.")
+    customer = str(current.get("customer") or "")
+    expected = str(billing.get("stripeCustomerId") or "")
+    if expected and customer and expected != customer:
+        raise ValueError("Ce paiement ne correspond pas à votre compte.")
+
+    listing = stripe.PromotionCode.list(code=normalized, active=True, limit=1)
+    promos = _stripe_data_list(listing)
+    if not promos:
+        raise ValueError("Code promo invalide.")
+    promo_id = _stripe_id(promos[0])
+    if not promo_id:
+        raise ValueError("Code promo invalide.")
+
+    quantity = 0
+    for item in _subscription_items(current):
+        quantity += int(item.get("quantity") or 0)
+    seats = quantity or _metadata_seat_count(current) or 1
+    try:
+        result = create_personal_seat_subscription_intent(
+            uid,
+            email,
+            seats,
+            promotion_code_id=promo_id,
+        )
+    except ValueError:
+        raise
+    except Exception as exc:
+        logger.info("Seat promotion rejected for %s: %s", uid, exc)
+        raise ValueError(
+            "Ce code ne s'applique pas à cet abonnement. Revenez aux sièges pour relancer le paiement."
+        ) from exc
+    result["promotionCode"] = normalized
+    return result
+
+
 def create_pro_checkout_session(uid: str, email: Optional[str]) -> str:
     total_start = time.perf_counter()
     stripe = _stripe()
@@ -1056,18 +1330,77 @@ def sync_workspace_subscription_from_stripe(workspace_id: str) -> Dict[str, Any]
 
 
 def _enterprise_seat_unit_cents() -> int:
-    raw = (os.getenv("STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS") or "2400").strip()
+    raw = (os.getenv("STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS") or "1500").strip()
     try:
         return max(1, int(raw))
     except ValueError:
-        return 2400
+        return 1500
 
 
 def _enterprise_seat_price_label() -> str:
     return (
-        os.getenv("STRIPE_ENTERPRISE_SEAT_PRICE_LABEL", "$24 / seat").strip()
-        or "$24 / seat"
+        os.getenv("STRIPE_ENTERPRISE_SEAT_PRICE_LABEL", "$15 / seat").strip()
+        or "$15 / seat"
     )
+
+
+def ensure_meetra_seat_price(stripe) -> str:
+    """Prix mensuel à 15 $ US, partagé par les sièges perso et entreprise."""
+    target = _enterprise_seat_unit_cents()
+    product_id = ""
+    for price_id in (
+        settings.stripe_enterprise_seat_price_id.strip(),
+        settings.stripe_pro_price_id.strip(),
+    ):
+        if not price_id:
+            continue
+        try:
+            price = stripe.Price.retrieve(price_id)
+        except Exception as exc:
+            logger.info("Seat price lookup skipped for %s: %s", price_id, exc)
+            continue
+        recurring = price.get("recurring") if isinstance(price.get("recurring"), dict) else {}
+        amount = int(price.get("unit_amount") or 0)
+        if (
+            price.get("active", True)
+            and amount == target
+            and str(recurring.get("interval") or "") == "month"
+            and str(price.get("currency") or "") == "usd"
+        ):
+            return str(price.get("id") or price_id)
+        product = price.get("product")
+        if isinstance(product, str) and product:
+            product_id = product
+            break
+    if not product_id:
+        created_product = stripe.Product.create(name="Meetra")
+        product_id = str(created_product.get("id") or "")
+    if not product_id:
+        raise ValueError("Impossible de préparer le prix du siège.")
+    listing = stripe.Price.list(product=product_id, active=True, limit=100)
+    for price in listing.get("data") or []:
+        if not isinstance(price, dict):
+            continue
+        recurring = price.get("recurring") if isinstance(price.get("recurring"), dict) else {}
+        if (
+            int(price.get("unit_amount") or 0) == target
+            and str(recurring.get("interval") or "") == "month"
+            and str(price.get("currency") or "") == "usd"
+        ):
+            found = str(price.get("id") or "")
+            if found:
+                return found
+    created = stripe.Price.create(
+        product=product_id,
+        unit_amount=target,
+        currency="usd",
+        recurring={"interval": "month"},
+        nickname="Meetra seat",
+    )
+    created_id = str(created.get("id") or "")
+    if not created_id:
+        raise ValueError("Impossible de créer le prix du siège.")
+    return created_id
 
 
 def _format_usd_from_cents(cents: int) -> str:
@@ -1075,6 +1408,205 @@ def _format_usd_from_cents(cents: int) -> str:
     if dollars == int(dollars):
         return f"${int(dollars)}"
     return f"${dollars:.2f}"
+
+
+def _invoice_amount_due(invoice: Any) -> int:
+    if not isinstance(invoice, dict):
+        return 0
+    try:
+        return max(int(invoice.get("amount_due") or 0), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _invoice_is_settled(invoice: Any) -> bool:
+    if not isinstance(invoice, dict):
+        return False
+    return str(invoice.get("status") or "") in {"paid", "void"}
+
+
+def _resolve_invoice(stripe: Any, invoice: Any) -> Any:
+    if isinstance(invoice, str) and invoice.strip():
+        return stripe.Invoice.retrieve(
+            invoice,
+            expand=["confirmation_secret", "payment_intent", "payments.data.payment.payment_intent"],
+        )
+    return invoice
+
+
+def _seat_subscription_item(subscription: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    enterprise_price = settings.stripe_enterprise_seat_price_id.strip()
+    fallback: Optional[Dict[str, Any]] = None
+    for item in _subscription_items(subscription):
+        if _is_new_seat_price(item):
+            return item
+        price_id = _price_id(item)
+        if enterprise_price and price_id == enterprise_price:
+            return item
+        if fallback is None:
+            fallback = item
+    return fallback
+
+
+def create_workspace_seat_upgrade_intent(
+    uid: str,
+    email: Optional[str],
+    workspace_id: str,
+    seat_count: int,
+) -> Dict[str, Any]:
+    """Ajoute des sièges à un workspace. N'importe quel membre peut payer."""
+    publishable = settings.stripe_publishable_key.strip()
+    if not publishable:
+        raise ValueError("STRIPE_PUBLISHABLE_KEY is not configured.")
+
+    requested = int(seat_count)
+    if requested < 1:
+        raise ValueError("Choisissez au moins 1 siège.")
+    if requested > 50:
+        raise ValueError("Maximum 50 sièges.")
+
+    wid = workspace_id.strip().lower()
+    if not is_workspace_member(uid, wid):
+        raise ValueError("Rejoignez ce workspace pour ajouter des sièges.")
+    workspace = load_shared_workspace(wid)
+    if not workspace:
+        raise ValueError("Workspace introuvable.")
+
+    stripe = _stripe()
+    customer_id = create_or_get_workspace_customer(wid, uid, email)
+    live = sync_workspace_subscription_from_stripe(wid)
+    billing = load_workspace_billing(wid)
+    sub_id = str(billing.get("stripeSubscriptionId") or "").strip()
+    active = (
+        str(live.get("subscriptionPlan") or "") == "enterprise"
+        and bool(live.get("billingManaged"))
+        and str(live.get("stripeSubscriptionStatus") or "") in ACTIVE_SUBSCRIPTION_STATUSES
+        and bool(sub_id)
+    )
+    unit_cents = _enterprise_seat_unit_cents()
+    workspace_name = str(workspace.get("name") or wid).strip() or wid
+
+    if active:
+        current = stripe.Subscription.retrieve(sub_id, expand=["items.data.price"])
+        item = _seat_subscription_item(current)
+        current_qty = int(item.get("quantity") or 0) if item else 0
+        new_qty = current_qty + requested
+        if new_qty > 500:
+            raise ValueError("Maximum 500 sièges.")
+        seat_price = ensure_meetra_seat_price(stripe)
+        item_update: Dict[str, Any] = (
+            {"id": str(item.get("id") or ""), "quantity": new_qty}
+            if item and str(item.get("id") or "").strip()
+            else {"price": seat_price, "quantity": requested}
+        )
+        updated = stripe.Subscription.modify(
+            sub_id,
+            items=[item_update],
+            payment_behavior="pending_if_incomplete",
+            proration_behavior="always_invoice",
+            metadata={
+                "firebase_uid": uid,
+                "workspace_id": wid,
+                "intent": "enterprise",
+                "seat_count": str(new_qty if item else requested),
+            },
+            expand=["latest_invoice.confirmation_secret", "latest_invoice.payment_intent", "pending_setup_intent"],
+        )
+        invoice = _resolve_invoice(stripe, updated.get("latest_invoice"))
+        if isinstance(updated, dict):
+            updated["latest_invoice"] = invoice
+        amount_due = _invoice_amount_due(invoice)
+        needs_payment = bool(updated.get("pending_update")) or (
+            isinstance(invoice, dict)
+            and not _invoice_is_settled(invoice)
+            and amount_due > 0
+        )
+        if not needs_payment:
+            sync_enterprise_subscription_for_workspace(wid, updated, paid_by_uid=uid)
+            return {
+                "clientSecret": "",
+                "publishableKey": publishable,
+                "subscriptionId": sub_id,
+                "seatCount": int(live.get("seatCount") or 0) + requested,
+                "unitAmountCents": unit_cents,
+                "totalAmountCents": 0,
+                "mode": "enterprise",
+                "workspaceId": wid,
+                "workspaceName": workspace_name,
+                "paid": True,
+            }
+        return {
+            "clientSecret": _subscription_client_secret(updated),
+            "publishableKey": publishable,
+            "subscriptionId": sub_id,
+            "seatCount": int(live.get("seatCount") or 0) + requested,
+            "unitAmountCents": unit_cents,
+            "totalAmountCents": amount_due,
+            "mode": "enterprise",
+            "workspaceId": wid,
+            "workspaceName": workspace_name,
+            "paid": False,
+        }
+
+    seat_price = ensure_meetra_seat_price(stripe)
+    try:
+        incomplete = stripe.Subscription.list(
+            customer=customer_id,
+            status="incomplete",
+            limit=10,
+        )
+        for sub in incomplete.get("data") or []:
+            if not isinstance(sub, dict):
+                continue
+            meta = sub.get("metadata") if isinstance(sub.get("metadata"), dict) else {}
+            if str(meta.get("workspace_id") or "").strip().lower() == wid:
+                try:
+                    stripe.Subscription.cancel(str(sub.get("id") or ""))
+                except Exception as exc:
+                    logger.debug("Cancel incomplete workspace seat sub failed: %s", exc)
+    except Exception as exc:
+        logger.debug("List incomplete workspace subscriptions failed for %s: %s", wid, exc)
+
+    pmc = settings.stripe_payment_method_configuration.strip()
+    create_params: Dict[str, Any] = {
+        "customer": customer_id,
+        "items": [{"price": seat_price, "quantity": requested}],
+        "payment_behavior": "default_incomplete",
+        "payment_settings": {"save_default_payment_method": "on_subscription"},
+        "metadata": {
+            "firebase_uid": uid,
+            "workspace_id": wid,
+            "intent": "enterprise",
+            "seat_count": str(requested),
+        },
+        "expand": ["latest_invoice.confirmation_secret", "pending_setup_intent"],
+    }
+    if pmc:
+        create_params["payment_method_configuration"] = pmc
+    subscription = stripe.Subscription.create(**create_params)
+    sub_id = str(subscription.get("id") or "").strip()
+    save_workspace_billing(
+        wid,
+        {
+            "stripeCustomerId": customer_id,
+            "stripeSubscriptionId": sub_id,
+            "stripeSubscriptionStatus": str(subscription.get("status") or "incomplete"),
+            "paidByUid": uid,
+            "seatCount": requested,
+        },
+    )
+    return {
+        "clientSecret": _subscription_client_secret(subscription),
+        "publishableKey": publishable,
+        "subscriptionId": sub_id,
+        "seatCount": requested,
+        "unitAmountCents": unit_cents,
+        "totalAmountCents": unit_cents * requested,
+        "mode": "enterprise",
+        "workspaceId": wid,
+        "workspaceName": workspace_name,
+        "paid": False,
+    }
 
 
 def create_enterprise_subscription_intent(
@@ -1088,8 +1620,6 @@ def create_enterprise_subscription_intent(
     if not publishable:
         raise ValueError("STRIPE_PUBLISHABLE_KEY is not configured.")
     enterprise_price = settings.stripe_enterprise_seat_price_id.strip()
-    if not enterprise_price:
-        raise ValueError("Abonnement Entreprise non configuré côté serveur.")
 
     wid = workspace_id.strip().lower()
     workspace = assert_workspace_owner(uid, wid)
@@ -1143,9 +1673,10 @@ def create_enterprise_subscription_intent(
         logger.debug("List incomplete enterprise subscriptions failed for %s: %s", wid, exc)
 
     pmc = settings.stripe_payment_method_configuration.strip()
+    seat_price = ensure_meetra_seat_price(stripe)
     create_params: Dict[str, Any] = {
         "customer": customer_id,
-        "items": [{"price": enterprise_price, "quantity": requested}],
+        "items": [{"price": seat_price, "quantity": requested}],
         "payment_behavior": "default_incomplete",
         "payment_settings": {
             "save_default_payment_method": "on_subscription",
@@ -1319,6 +1850,333 @@ def list_enterprise_workspaces_for_owner(uid: str) -> list[Dict[str, Any]]:
         )
     )
     return workspaces
+
+
+def _subscription_record(subscription: Any) -> Dict[str, Any]:
+    if isinstance(subscription, dict):
+        return subscription
+    if hasattr(subscription, "to_dict_recursive"):
+        return subscription.to_dict_recursive()
+    try:
+        return dict(subscription)
+    except (TypeError, ValueError):
+        return {}
+
+
+def _load_subscription(subscription_id: str) -> Dict[str, Any]:
+    stripe = _stripe()
+    return _subscription_record(
+        stripe.Subscription.retrieve(subscription_id, expand=["items.data.price"])
+    )
+
+
+def _item_unit_cents(item: Optional[Dict[str, Any]]) -> int:
+    price = _price_map(item or {})
+    try:
+        amount = int(price.get("unit_amount") or 0)
+    except (TypeError, ValueError):
+        amount = 0
+    return amount or _enterprise_seat_unit_cents()
+
+
+def _purchased_seat_quantity(subscription: Dict[str, Any], *, personal: bool) -> int:
+    intent = _subscription_intent(subscription)
+    quantity = 0
+    enterprise_price = settings.stripe_enterprise_seat_price_id.strip()
+    for item in _subscription_items(subscription):
+        price_id = _price_id(item)
+        if personal:
+            counted = _is_new_seat_price(item) or (
+                intent in {"personal", "seat"} and not _price_map(item)
+            )
+        else:
+            counted = (
+                _is_new_seat_price(item)
+                or (bool(enterprise_price) and price_id == enterprise_price)
+                or (intent == "enterprise" and not _price_map(item))
+            )
+        if counted:
+            quantity += int(item.get("quantity") or 0)
+    if quantity <= 0:
+        if personal and intent in {"personal", "seat"}:
+            quantity = _metadata_seat_count(subscription)
+        elif not personal and intent == "enterprise":
+            quantity = _metadata_seat_count(subscription)
+    return max(quantity, 0)
+
+
+def _user_label(uid: str, email: Optional[str] = None) -> str:
+    from app.core.firebase import _db, _ensure_db
+
+    _ensure_db()
+    if _db is not None and uid:
+        try:
+            snap = _db.collection("users").document(uid).get()
+            data = snap.to_dict() if snap.exists else {}
+            name = str((data or {}).get("userDisplayName") or "").strip()
+            if name:
+                return name
+        except Exception as exc:
+            logger.debug("Seat owner label failed for %s: %s", uid, exc)
+    local = (email or "").split("@")[0].strip()
+    return local or "Member"
+
+
+def _workspace_member_labels(workspace_id: str) -> list[str]:
+    from app.core.firebase import _db, _ensure_db, load_shared_workspace
+
+    workspace = load_shared_workspace(workspace_id)
+    owner_id = str(workspace.get("ownerId") or "").strip()
+    _ensure_db()
+    if _db is None:
+        return [_user_label(owner_id)] if owner_id else []
+    rows: list[tuple[bool, str]] = []
+    try:
+        docs = _db.collection("workspacesShared").document(workspace_id).collection("members").stream()
+        for doc in docs:
+            data = doc.to_dict() or {}
+            member_id = str(data.get("uid") or doc.id or "").strip()
+            if not member_id:
+                continue
+            name = str(data.get("displayName") or "").strip() or _user_label(member_id)
+            rows.append((member_id == owner_id, name))
+    except Exception as exc:
+        logger.warning("Failed to list seat holders for %s: %s", workspace_id, exc)
+    if not rows and owner_id:
+        rows.append((True, _user_label(owner_id)))
+    rows.sort(key=lambda row: (not row[0], row[1].lower()))
+    return [name for _, name in rows]
+
+
+def _seat_rows(prefix: str, labels: list[str], total: int) -> tuple[int, list[Dict[str, Any]]]:
+    shown = [label for label in labels if label][: max(total, 0)]
+    given = len(shown)
+    protected = max(given, 1)
+    removable_open = max(0, total - protected)
+    seats: list[Dict[str, Any]] = []
+    for index, label in enumerate(shown):
+        seats.append(
+            {
+                "id": f"{prefix}:used:{index}",
+                "label": label,
+                "assigned": True,
+                "removable": False,
+            }
+        )
+    open_count = max(0, total - given)
+    for index in range(open_count):
+        seats.append(
+            {
+                "id": f"{prefix}:open:{index}",
+                "label": "",
+                "assigned": False,
+                "removable": index < removable_open,
+            }
+        )
+    return given, seats
+
+
+def _empty_owned_seats() -> Dict[str, Any]:
+    return {
+        "given": 0,
+        "total": 0,
+        "valueAmountCents": 0,
+        "currency": "usd",
+        "groups": [],
+    }
+
+
+def list_owned_seats(uid: str, email: Optional[str]) -> Dict[str, Any]:
+    """Sièges payés par ce compte : attribués, total, et valeur mensuelle."""
+    if not settings.stripe_enabled:
+        return _empty_owned_seats()
+    groups: list[Dict[str, Any]] = []
+    personal = _owned_personal_seat_group(uid, email)
+    if personal:
+        groups.append(personal)
+    try:
+        workspaces = list_enterprise_workspaces_for_owner(uid)
+    except Exception as exc:
+        logger.warning("Owned workspace seats failed for %s: %s", uid, exc)
+        workspaces = []
+    for workspace in workspaces:
+        if not workspace.get("paidByMe") or not workspace.get("enterpriseActive"):
+            continue
+        group = _owned_workspace_seat_group(str(workspace.get("workspaceId") or ""), str(workspace.get("name") or ""))
+        if group:
+            groups.append(group)
+    return {
+        "given": sum(int(group["given"]) for group in groups),
+        "total": sum(int(group["total"]) for group in groups),
+        "valueAmountCents": sum(int(group["valueAmountCents"]) for group in groups),
+        "currency": "usd",
+        "groups": groups,
+    }
+
+
+def _owned_personal_seat_group(uid: str, email: Optional[str]) -> Optional[Dict[str, Any]]:
+    from app.core.firebase import _db, _ensure_db, load_user_billing
+
+    billing = load_user_billing(uid)
+    sub_id = str(billing.get("stripeSubscriptionId") or "").strip()
+    status = str(billing.get("stripeSubscriptionStatus") or "").strip()
+    if not sub_id or status not in ACTIVE_SUBSCRIPTION_STATUSES:
+        return None
+    try:
+        subscription = _load_subscription(sub_id)
+    except Exception as exc:
+        logger.warning("Personal seat subscription read failed for %s: %s", uid, exc)
+        return None
+    if str(subscription.get("status") or "") not in ACTIVE_SUBSCRIPTION_STATUSES:
+        return None
+    total = _purchased_seat_quantity(subscription, personal=True)
+    if total <= 0:
+        return None
+    redeemed: list[str] = []
+    _ensure_db()
+    if _db is not None:
+        try:
+            snap = _db.collection("seatPasses").document(uid).get()
+            data = snap.to_dict() if snap.exists else {}
+            redeemed = [str(item) for item in (data or {}).get("redeemedUids") or [] if str(item)]
+        except Exception as exc:
+            logger.debug("Seat pass read failed for %s: %s", uid, exc)
+    labels = [_user_label(uid, email)] + [_user_label(item) for item in redeemed]
+    given, seats = _seat_rows("personal", labels, total)
+    unit = _item_unit_cents(_seat_subscription_item(subscription))
+    return {
+        "id": "personal",
+        "source": "personal",
+        "workspaceId": None,
+        "workspaceName": None,
+        "given": given,
+        "total": total,
+        "unitAmountCents": unit,
+        "valueAmountCents": unit * total,
+        "seats": seats,
+    }
+
+
+def _owned_workspace_seat_group(workspace_id: str, workspace_name: str) -> Optional[Dict[str, Any]]:
+    from app.core.firebase import load_workspace_billing
+
+    wid = workspace_id.strip().lower()
+    if not wid:
+        return None
+    billing = load_workspace_billing(wid)
+    sub_id = str(billing.get("stripeSubscriptionId") or "").strip()
+    status = str(billing.get("stripeSubscriptionStatus") or "").strip()
+    if not sub_id or status not in ACTIVE_SUBSCRIPTION_STATUSES:
+        return None
+    try:
+        subscription = _load_subscription(sub_id)
+    except Exception as exc:
+        logger.warning("Workspace seat subscription read failed for %s: %s", wid, exc)
+        return None
+    if str(subscription.get("status") or "") not in ACTIVE_SUBSCRIPTION_STATUSES:
+        return None
+    total = _purchased_seat_quantity(subscription, personal=False)
+    if total <= 0:
+        total = int(billing.get("seatCount") or 0)
+    if total <= 0:
+        return None
+    given, seats = _seat_rows(f"workspace:{wid}", _workspace_member_labels(wid), total)
+    unit = _item_unit_cents(_seat_subscription_item(subscription))
+    return {
+        "id": f"workspace:{wid}",
+        "source": "workspace",
+        "workspaceId": wid,
+        "workspaceName": workspace_name or wid,
+        "given": given,
+        "total": total,
+        "unitAmountCents": unit,
+        "valueAmountCents": unit * total,
+        "seats": seats,
+    }
+
+
+def _reduce_seat_quantity(subscription_id: str, subscription: Dict[str, Any], new_qty: int) -> Dict[str, Any]:
+    item = _seat_subscription_item(subscription)
+    item_id = str((item or {}).get("id") or "").strip()
+    if not item_id:
+        raise ValueError("Siège introuvable sur l'abonnement.")
+    stripe = _stripe()
+    updated = stripe.Subscription.modify(
+        subscription_id,
+        items=[{"id": item_id, "quantity": new_qty}],
+        proration_behavior="create_prorations",
+        metadata={"seat_count": str(new_qty)},
+    )
+    return _subscription_record(updated)
+
+
+def release_owned_seat(
+    uid: str,
+    email: Optional[str],
+    source: str,
+    workspace_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Retire un siège encore libre. Un siège déjà attribué reste en place."""
+    kind = (source or "").strip().lower()
+    if kind == "personal":
+        _release_personal_seat(uid, email)
+    elif kind == "workspace":
+        _release_workspace_seat(uid, workspace_id or "")
+    else:
+        raise ValueError("Siège introuvable.")
+    return list_owned_seats(uid, email)
+
+
+def _release_personal_seat(uid: str, email: Optional[str]) -> None:
+    group = _owned_personal_seat_group(uid, email)
+    if not group or not any(seat.get("removable") for seat in group["seats"]):
+        raise ValueError("Ce siège est déjà attribué.")
+    from app.core.firebase import load_user_billing
+
+    sub_id = str(load_user_billing(uid).get("stripeSubscriptionId") or "").strip()
+    subscription = _load_subscription(sub_id)
+    new_qty = int(group["total"]) - 1
+    if new_qty < max(int(group["given"]), 1):
+        raise ValueError("Ce siège est déjà attribué.")
+    updated = _reduce_seat_quantity(sub_id, subscription, new_qty)
+    sync_user_subscription_from_stripe(uid, email)
+    try:
+        from app.billing.seat_passes import ensure_seat_pass
+
+        ensure_seat_pass(uid, email)
+    except Exception as exc:
+        logger.debug("Seat pass refresh after release failed for %s: %s", uid, exc)
+    logger.info("Released a personal seat for %s: seats=%s", uid, updated.get("id"))
+
+
+def _release_workspace_seat(uid: str, workspace_id: str) -> None:
+    from app.core.firebase import load_shared_workspace, load_workspace_billing
+
+    wid = workspace_id.strip().lower()
+    if not wid:
+        raise ValueError("Choisissez un workspace.")
+    workspace = load_shared_workspace(wid)
+    if not workspace:
+        raise ValueError("Workspace introuvable.")
+    billing = load_workspace_billing(wid)
+    paid_by = str(billing.get("paidByUid") or "").strip()
+    owner_id = str(workspace.get("ownerId") or "").strip()
+    if paid_by:
+        allowed = paid_by == uid
+    else:
+        allowed = owner_id == uid
+    if not allowed:
+        raise ValueError("Seul le compte qui paie ces sièges peut en retirer.")
+    group = _owned_workspace_seat_group(wid, str(workspace.get("name") or wid))
+    if not group or not any(seat.get("removable") for seat in group["seats"]):
+        raise ValueError("Ce siège est déjà attribué.")
+    sub_id = str(billing.get("stripeSubscriptionId") or "").strip()
+    subscription = _load_subscription(sub_id)
+    new_qty = int(group["total"]) - 1
+    if new_qty < max(int(group["given"]), 1):
+        raise ValueError("Ce siège est déjà attribué.")
+    updated = _reduce_seat_quantity(sub_id, subscription, new_qty)
+    sync_enterprise_subscription_for_workspace(wid, updated, paid_by_uid=paid_by or uid)
 
 
 def create_enterprise_checkout_session(

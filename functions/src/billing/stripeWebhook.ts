@@ -158,20 +158,44 @@ function isEnterpriseIntent(metadata?: Stripe.Metadata | null): boolean {
   return intent === "enterprise" || Boolean(resolveWorkspaceId(meta));
 }
 
+function seatUnitCents(): number {
+  const raw = Number.parseInt(process.env.STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS ?? "1500", 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 1500;
+}
+
+function isNewSeatPrice(item: Stripe.SubscriptionItem): boolean {
+  const price = item.price;
+  if (!price || typeof price === "string") return false;
+  const amount = price.unit_amount ?? 0;
+  return amount === seatUnitCents() && price.recurring?.interval === "month";
+}
+
+function subscriptionIntent(subscription: Stripe.Subscription): string {
+  return (subscription.metadata?.intent || "").trim().toLowerCase();
+}
+
+function metadataSeatCount(subscription: Stripe.Subscription): number {
+  const raw = Number.parseInt(subscription.metadata?.seat_count || "", 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 0;
+}
+
 function subscriptionState(subscription: Stripe.Subscription): {
   plan: string;
   onDemand: boolean;
   onDemandItemId: string;
   plus: boolean;
+  seatCount: number;
 } {
   const status = subscription.status ?? "";
   const proPrice = process.env.STRIPE_PRO_PRICE_ID?.trim() ?? "";
   const proPlusPrice = process.env.STRIPE_PRO_PLUS_PRICE_ID?.trim() ?? "";
   const onDemandPrice = process.env.STRIPE_ON_DEMAND_PRICE_ID?.trim() ?? "";
+  const intent = subscriptionIntent(subscription);
   let hasPro = false;
   let plus = false;
   let hasOnDemand = false;
   let onDemandItemId = "";
+  let seatCount = 0;
 
   for (const item of subscription.items?.data ?? []) {
     const priceId = item.price?.id ?? "";
@@ -179,16 +203,25 @@ function subscriptionState(subscription: Stripe.Subscription): {
       hasPro = true;
     }
     if (proPlusPrice && priceId === proPlusPrice) plus = true;
+    if ((intent === "personal" || intent === "seat") && (isNewSeatPrice(item) || !item.price || typeof item.price === "string")) {
+      hasPro = true;
+      seatCount += item.quantity ?? 0;
+    }
     if (onDemandPrice && priceId === onDemandPrice) {
       hasOnDemand = true;
       onDemandItemId = item.id;
     }
   }
 
+  if ((intent === "personal" || intent === "seat") && metadataSeatCount(subscription) > 0) {
+    hasPro = true;
+    if (seatCount <= 0) seatCount = metadataSeatCount(subscription);
+  }
+
   const isActive = ACTIVE_SUBSCRIPTION_STATUSES.has(status);
   const plan = isActive && hasPro ? "pro" : "free";
   const onDemand = isActive && hasPro && hasOnDemand;
-  return { plan, onDemand, onDemandItemId, plus: isActive && plus };
+  return { plan, onDemand, onDemandItemId, plus: isActive && plus, seatCount };
 }
 
 function enterpriseSubscriptionState(subscription: Stripe.Subscription): {
@@ -197,15 +230,23 @@ function enterpriseSubscriptionState(subscription: Stripe.Subscription): {
 } {
   const status = subscription.status ?? "";
   const enterprisePrice = process.env.STRIPE_ENTERPRISE_SEAT_PRICE_ID?.trim() ?? "";
+  const intent = subscriptionIntent(subscription);
   let hasEnterprise = false;
   let seatCount = 0;
 
   for (const item of subscription.items?.data ?? []) {
     const priceId = item.price?.id ?? "";
-    if (priceId === enterprisePrice) {
+    const legacy = Boolean(enterprisePrice) && priceId === enterprisePrice;
+    const seat = intent === "enterprise" && (isNewSeatPrice(item) || !item.price || typeof item.price === "string");
+    if (legacy || seat) {
       hasEnterprise = true;
-      seatCount = item.quantity ?? 0;
+      seatCount += item.quantity ?? 0;
     }
+  }
+
+  if (intent === "enterprise" && seatCount <= 0 && metadataSeatCount(subscription) > 0) {
+    hasEnterprise = true;
+    seatCount = metadataSeatCount(subscription);
   }
 
   const isActive = ACTIVE_SUBSCRIPTION_STATUSES.has(status);
@@ -245,7 +286,7 @@ async function cancelOtherPersonalSubscriptions(
 }
 
 async function syncSubscriptionForUid(uid: string, subscription: Stripe.Subscription): Promise<void> {
-  const { plan, onDemand, onDemandItemId, plus } = subscriptionState(subscription);
+  const { plan, onDemand, onDemandItemId, plus, seatCount } = subscriptionState(subscription);
   const customerId =
     typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id ?? "";
 
@@ -258,8 +299,13 @@ async function syncSubscriptionForUid(uid: string, subscription: Stripe.Subscrip
   });
   if (plan === "pro") {
     const { maybeSyncUsagePeriod } = await import("../ai/usage");
-    const { personalUsageAllowanceUsd } = await import("../ai/usagePricing");
-    await maybeSyncUsagePeriod(uid, subscription, personalUsageAllowanceUsd(plus));
+    const { personalUsageAllowanceUsd, seatUsageAllowanceUsd } = await import("../ai/usagePricing");
+    const intent = subscriptionIntent(subscription);
+    const allowance =
+      intent === "personal" || intent === "seat"
+        ? seatUsageAllowanceUsd(seatCount || metadataSeatCount(subscription) || 1)
+        : personalUsageAllowanceUsd(plus);
+    await maybeSyncUsagePeriod(uid, subscription, allowance);
     await cancelOtherPersonalSubscriptions(customerId, subscription.id);
   }
 }
@@ -289,7 +335,17 @@ async function syncEnterpriseSubscriptionForWorkspace(
   });
   if (plan === "enterprise") {
     const { maybeSyncWorkspaceUsagePeriod } = await import("../ai/usage");
-    await maybeSyncWorkspaceUsagePeriod(workspaceId, subscription, seatCount || memberCount);
+    const { seatUsageAllowanceUsd } = await import("../ai/usagePricing");
+    const seats = seatCount || memberCount;
+    const newSeat =
+      subscriptionIntent(subscription) === "enterprise" &&
+      (subscription.items?.data ?? []).some((item) => isNewSeatPrice(item));
+    await maybeSyncWorkspaceUsagePeriod(
+      workspaceId,
+      subscription,
+      seats,
+      newSeat ? seatUsageAllowanceUsd(seats) : undefined,
+    );
   }
 }
 

@@ -7,11 +7,7 @@ import type { AccentColorPreference } from "./accentColor";
 import { normalizeAccentColorPreference } from "./accentColor";
 import { DEFAULT_HALL_DJ_GENRE, normalizeHallDjGenre } from "./hallDjGenres";
 import { AI_NOTES_CHEAP_MODEL_PREFERRED, normalizeAiNotesModel, type AiModel } from "./aiModels";
-import {
-  DEFAULT_APP_LOCALE,
-  normalizeLocalePreference,
-  type LocalePreference,
-} from "./appLocale";
+import { normalizeLocalePreference, type LocalePreference } from "./appLocale";
 
 export type { SubscriptionPlan } from "./subscriptionPlanConstants";
 
@@ -112,7 +108,7 @@ export function normalizeHallDjVolume(value: unknown): number {
 }
 
 const DEFAULTS: UserPreferences = {
-  locale: DEFAULT_APP_LOCALE,
+  locale: "system",
   colorTheme: "dark",
   accentColor: "blue",
   chatWorkMode: "agent",

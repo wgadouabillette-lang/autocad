@@ -6,6 +6,8 @@ import { copyTextToClipboard } from "../../lib/clipboard";
 import { buildWorkspaceJoinUrl } from "../../lib/workspaceInvite";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
+import { useInviteSeatPromptStore } from "../billing/InviteSeatPrompt";
+import { workspaceHasOpenInviteSeat } from "../../lib/workspaceInviteSeats";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import UserAvatar from "../UserAvatar";
 
@@ -78,6 +80,12 @@ export default function HeaderInviteButton() {
   }, [open]);
 
   const onCopyLink = useCallback(async () => {
+    const openSeat = await workspaceHasOpenInviteSeat(workspaceId);
+    if (openSeat === false) {
+      setOpen(false);
+      useInviteSeatPromptStore.getState().show();
+      return;
+    }
     const ok = await copyTextToClipboard(inviteLink);
     if (!ok) {
       setError("Impossible de copier le lien.");
@@ -86,7 +94,7 @@ export default function HeaderInviteButton() {
     setError(null);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
-  }, [inviteLink]);
+  }, [inviteLink, workspaceId]);
 
   const onInviteFriend = useCallback(
     async (friendId: string, handle: string) => {
@@ -97,6 +105,10 @@ export default function HeaderInviteButton() {
       try {
         const result = await inviteMemberByEmail(activeRoomId, handle);
         if (!result.ok) {
+          if (result.seatRequired) {
+            setOpen(false);
+            return;
+          }
           setError(result.error ?? "Impossible d'envoyer l'invitation.");
           return;
         }

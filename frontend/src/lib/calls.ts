@@ -34,7 +34,11 @@ export interface OpenVoiceChannel {
   inCall?: boolean;
   /** Brouillon en cours de nommage avant confirmation. */
   isDraft?: boolean;
-  /** Horodatage du passage en salon vide (suppression auto après 6 h). */
+  /** Salon nommé, encore jamais rejoint. On le garde le temps qu'on y entre. */
+  awaitingFirstJoin?: boolean;
+  /** Au moins une personne a déjà été vue dans ce salon. */
+  seenOccupied?: boolean;
+  /** Horodatage du passage à vide après qu'au moins une personne y était. */
   vacantSinceAt?: number;
 }
 
@@ -224,7 +228,7 @@ export function syncRoomCallsWithMembers(
 
   return {
     blocks: withoutLegacyMockBlocks(blocks),
-    openChannels: ensureDefaultOpenChannel(roomId, normalizedOpenChannels),
+    openChannels: mapOpenChannelsVacancy(normalizedOpenChannels),
     requests: existing.requests.filter(
       (request) =>
         validBlockIds.has(request.fromBlockId) && validBlockIds.has(request.toBlockId),
@@ -353,7 +357,7 @@ export function applyRemoteVoiceFromPresence(
 
   return {
     blocks: nextBlocks,
-    openChannels: ensureDefaultOpenChannel(roomId, mapOpenChannelsVacancy(nextOpenChannels)),
+    openChannels: mapOpenChannelsVacancy(nextOpenChannels),
   };
 }
 
@@ -556,14 +560,16 @@ export function isDefaultOpenChannel(roomId: string, channelId: string): boolean
   return channelId === defaultOpenChannelId(roomId);
 }
 
-export const OPEN_CHANNEL_IDLE_TTL_MS = 6 * 60 * 60 * 1000;
-
 export function syncOpenChannelVacancy(
   channel: OpenVoiceChannel,
   now = Date.now(),
 ): OpenVoiceChannel {
   if (channel.isDraft) return channel;
   if (channel.participants.length > 0) {
+    const { vacantSinceAt: _vacantSinceAt, awaitingFirstJoin: _awaiting, ...rest } = channel;
+    return { ...rest, seenOccupied: true };
+  }
+  if (channel.awaitingFirstJoin || !channel.seenOccupied) {
     const { vacantSinceAt: _vacantSinceAt, ...rest } = channel;
     return rest;
   }
@@ -573,23 +579,50 @@ export function syncOpenChannelVacancy(
   };
 }
 
+/** Salon vide après avoir eu du monde. Un salon qui attend sa première entrée reste. */
 export function isOpenChannelIdleExpired(
   channel: OpenVoiceChannel,
-  now = Date.now(),
+  _now = Date.now(),
 ): boolean {
-  if (channel.isDraft) return false;
-  if (isDefaultOpenChannel(channel.roomId, channel.id)) return false;
+  if (channel.isDraft || channel.awaitingFirstJoin) return false;
   if (channel.participants.length > 0) return false;
-  const vacantSince = channel.vacantSinceAt;
-  if (vacantSince == null) return false;
-  return now - vacantSince >= OPEN_CHANNEL_IDLE_TTL_MS;
+  return channel.vacantSinceAt != null;
 }
 
-/** Garantit la présence du salon vocal permanent (jamais auto-supprimé). */
+/**
+ * On ne crée un salon que lorsque chaque salon public a déjà au moins une personne.
+ * Un salon vide sert déjà : en ajouter un autre ne sert pas.
+ */
+export function canCreateOpenVoiceChannel(channels: OpenVoiceChannel[]): boolean {
+  const live = channels.filter((channel) => !channel.isDraft);
+  return live.length > 0 && live.every((channel) => channel.participants.length > 0);
+}
+
+/**
+ * Retire tout salon qui vient de se vider, et n'en garde un vide que s'il n'en reste aucun.
+ */
+export function collapseVacantOpenChannels(
+  roomId: string,
+  channels: OpenVoiceChannel[],
+  now = Date.now(),
+): OpenVoiceChannel[] {
+  const synced = mapOpenChannelsVacancy(channels, now);
+  const drafts = synced.filter((channel) => channel.isDraft);
+  const live = synced.filter((channel) => !channel.isDraft);
+  const kept = live.filter((channel) => !isOpenChannelIdleExpired(channel, now));
+  if (kept.length > 0) return [...kept, ...drafts];
+  const expired = live.filter((channel) => isOpenChannelIdleExpired(channel, now));
+  const keeper =
+    expired.find((channel) => isDefaultOpenChannel(roomId, channel.id)) ?? expired[0];
+  return ensureDefaultOpenChannel(roomId, keeper ? [keeper, ...drafts] : drafts);
+}
+
+/** Un salon vide de repli, seulement quand il n'en existe aucun. */
 export function ensureDefaultOpenChannel(
   roomId: string,
   channels: OpenVoiceChannel[],
 ): OpenVoiceChannel[] {
+  if (channels.some((channel) => !channel.isDraft)) return channels;
   const defaultId = defaultOpenChannelId(roomId);
   if (channels.some((channel) => channel.id === defaultId)) return channels;
   return [
@@ -644,9 +677,66 @@ function intoColumns(items: CallBlock[], columnCount: 1 | 2): CallBlock[][] {
   return columns;
 }
 
+/** Rangées latérales à hauteur du théâtre et des salons, avant de remplir aussi le dessous. */
+const SIDE_ROWS_BESIDE_CHANNELS = 4;
+
+type MemberColumnSlot = "L0" | "L1" | "C" | "R0" | "R1";
+
+function sideColumnSlots(columnCount: CallsGridColumnCount): MemberColumnSlot[] {
+  switch (columnCount) {
+    case 5:
+      return ["L0", "L1", "R0", "R1"];
+    case 4:
+      return ["L0", "R0", "R1"];
+    case 3:
+      return ["L0", "R0"];
+    case 2:
+      return ["L0"];
+    case 1:
+      return [];
+  }
+}
+
+/** Après 4 rangées sur les côtés (16 membres en grille pleine), une rangée inclut le centre. */
+function overflowColumnSlots(columnCount: CallsGridColumnCount): MemberColumnSlot[] {
+  switch (columnCount) {
+    case 5:
+      return ["L0", "L1", "C", "C", "R0", "R1"];
+    case 4:
+      return ["L0", "C", "C", "R0", "R1"];
+    case 3:
+      return ["L0", "C", "C", "R0"];
+    case 2:
+      return ["L0", "C", "C"];
+    case 1:
+      return ["C"];
+  }
+}
+
+function placeMemberBlock(slots: CallsMemberGridSlots, slot: MemberColumnSlot, block: CallBlock) {
+  switch (slot) {
+    case "L0":
+      slots.left[0].push(block);
+      break;
+    case "L1":
+      slots.left[1].push(block);
+      break;
+    case "R0":
+      slots.right[0].push(block);
+      break;
+    case "R1":
+      slots.right[1].push(block);
+      break;
+    case "C":
+      slots.center.push(block);
+      break;
+  }
+}
+
 /**
  * Répartit les blocs selon le nombre total de colonnes de la grille :
  * 5 → 2|2 autour du centre, 4 → 1|2, 3 → 1|1, 2 → 1 colonne latérale, 1 → tout au centre.
+ * Au-delà de 4 rangées latérales, les salons privés continuent aussi sous les salons vocaux.
  */
 export function distributeMemberBlocksForGrid(
   blocks: CallBlock[],
@@ -660,43 +750,48 @@ export function distributeMemberBlocksForGrid(
 
   if (blocks.length === 0) return empty;
 
-  // Salons privés (blocs membres) → colonnes latérales 1, 2, 4, 5.
-  // Le centre reste réservé au théâtre et aux salons vocaux publics (géré dans CallsVoiceGrid).
-  // En une seule colonne (mobile), tout est empilé au centre.
-  const [leftHalf, rightHalf] = splitHalf(blocks);
+  if (columnCount === 1) {
+    return { ...empty, center: blocks };
+  }
+
+  const sideSlots = sideColumnSlots(columnCount);
+  const sideCap = sideSlots.length * SIDE_ROWS_BESIDE_CHANNELS;
+  const head = blocks.slice(0, sideCap);
+  const overflow = blocks.slice(sideCap);
+  const [leftHalf, rightHalf] = splitHalf(head);
+  const slots: CallsMemberGridSlots = {
+    left: [[], []],
+    right: [[], []],
+    center: [],
+  };
 
   switch (columnCount) {
     case 5: {
-      const { left, right } = distributeMemberBlocks(blocks, 2);
-      return { left, right, center: [] };
+      const distributed = distributeMemberBlocks(head, 2);
+      slots.left = distributed.left;
+      slots.right = distributed.right;
+      break;
     }
     case 4: {
       const rightCols = intoColumns(rightHalf, 2);
-      return {
-        left: [leftHalf, []],
-        right: [rightCols[0], rightCols[1]],
-        center: [],
-      };
+      slots.left = [leftHalf, []];
+      slots.right = [rightCols[0], rightCols[1]];
+      break;
     }
     case 3:
-      return {
-        left: [leftHalf, []],
-        right: [rightHalf, []],
-        center: [],
-      };
+      slots.left = [leftHalf, []];
+      slots.right = [rightHalf, []];
+      break;
     case 2:
-      return {
-        left: [blocks, []],
-        right: [[], []],
-        center: [],
-      };
-    case 1:
-      return {
-        left: [[], []],
-        right: [[], []],
-        center: blocks,
-      };
+      slots.left = [head, []];
+      break;
   }
+
+  const pattern = overflowColumnSlots(columnCount);
+  overflow.forEach((block, index) => {
+    placeMemberBlock(slots, pattern[index % pattern.length], block);
+  });
+  return slots;
 }
 
 export function isBlockInCall(

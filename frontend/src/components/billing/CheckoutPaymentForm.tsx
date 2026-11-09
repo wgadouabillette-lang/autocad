@@ -9,7 +9,7 @@ import {
   type StripeExpressCheckoutElementConfirmEvent,
   type StripeExpressCheckoutElementReadyEvent,
 } from "@stripe/stripe-js";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 /** Sépare « $25 » et « / month » pour un affichage typographique différent. */
 export function splitPriceLabel(label: string): { amount: string; frequency: string } {
@@ -110,19 +110,25 @@ export function CheckoutPaymentForm({
   busy,
   onElementsReady,
   submitLabel = "S'abonner",
+  payingLabel = "Paiement…",
+  afterFields = null,
+  pinSubmit = false,
 }: {
   clientSecret: string;
   onPaid: () => void;
   busy: boolean;
   onElementsReady: () => void;
   submitLabel?: string;
+  payingLabel?: string;
+  afterFields?: ReactNode;
+  pinSubmit?: boolean;
 }) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expressVisible, setExpressVisible] = useState(false);
-  const [expressReady, setExpressReady] = useState(false);
+  const [expressReady, setExpressReady] = useState(pinSubmit);
   const [paymentReady, setPaymentReady] = useState(false);
 
   useEffect(() => {
@@ -205,8 +211,9 @@ export function CheckoutPaymentForm({
 
   const locked = submitting || busy;
 
-  return (
-    <form className="pro-checkout-overlay__form" onSubmit={onSubmit}>
+  const fields = (
+    <>
+      {pinSubmit ? null : (
       <div
         className={
           expressVisible
@@ -239,8 +246,9 @@ export function CheckoutPaymentForm({
           onConfirm={onExpressConfirm}
         />
       </div>
+      )}
 
-      {expressVisible ? (
+      {expressVisible && !pinSubmit ? (
         <div className="pro-checkout-overlay__divider" aria-hidden>
           <span>ou carte</span>
         </div>
@@ -262,20 +270,43 @@ export function CheckoutPaymentForm({
                 },
               },
             },
+            ...(afterFields ? { terms: { card: "never" as const } } : {}),
           }}
           onReady={() => setPaymentReady(true)}
         />
       </div>
+      {afterFields}
       {error ? <p className="pro-checkout-overlay__error">{error}</p> : null}
-      <div className="pro-checkout-overlay__actions">
-        <button
-          type="submit"
-          className="workspace-modal__cta workspace-modal__cta--primary pro-checkout-overlay__submit"
-          disabled={!stripe || !elements || locked || !expressReady || !paymentReady}
-        >
-          {submitting ? "Paiement…" : submitLabel}
-        </button>
-      </div>
+    </>
+  );
+
+  const submit = (
+    <button
+      type="submit"
+      className={
+        pinSubmit
+          ? "seat-gate__pay"
+          : "workspace-modal__cta workspace-modal__cta--primary pro-checkout-overlay__submit"
+      }
+      disabled={!stripe || !elements || locked || !expressReady || !paymentReady}
+    >
+      {submitting ? payingLabel : submitLabel}
+    </button>
+  );
+
+  if (pinSubmit) {
+    return (
+      <form className="seat-gate__checkout" onSubmit={onSubmit}>
+        <div className="seat-gate__fields">{fields}</div>
+        <div className="seat-gate__pay-anchor">{submit}</div>
+      </form>
+    );
+  }
+
+  return (
+    <form className="pro-checkout-overlay__form" onSubmit={onSubmit}>
+      {fields}
+      <div className="pro-checkout-overlay__actions">{submit}</div>
     </form>
   );
 }

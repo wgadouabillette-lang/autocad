@@ -19,7 +19,6 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import WorkspaceIcon from "../workspace/WorkspaceIcon";
-import WorkspaceEnterpriseUsageSection from "./WorkspaceEnterpriseUsageSection";
 
 const ACCEPTED_IMAGE_TYPES = "image/jpeg,image/png,image/webp";
 
@@ -412,8 +411,6 @@ export default function WorkspacesSettingsSection() {
 
   return (
     <div className="settings-workspaces">
-      <WorkspaceEnterpriseUsageSection />
-
       {incomingRequests.length > 0 && (
         <section className="settings-section settings-section--card">
           <h3 className="settings-section__label">Invitations reçues</h3>

@@ -1,7 +1,6 @@
 import clsx from "clsx";
 import {
   CreditCard,
-  Gauge,
   LayoutGrid,
   LogOut,
   Plug,
@@ -23,7 +22,6 @@ import GeneralSettingsSection from "./settings/GeneralSettingsSection";
 import PluginsSettingsSection from "./settings/PluginsSettingsSection";
 import SkillsSettingsSection from "./settings/SkillsSettingsSection";
 import AudioSettingsSection from "./settings/AudioSettingsSection";
-import UsageSettingsSection from "./settings/UsageSettingsSection";
 import BillingSettingsSection from "./settings/BillingSettingsSection";
 import { useAuthStore } from "../store/useAuthStore";
 import SettingsProfileHeader from "./settings/SettingsProfileHeader";
@@ -31,14 +29,13 @@ import WorkspacesSettingsSection from "./settings/WorkspacesSettingsSection";
 
 const NAV_GROUPS: { id: "personal" | "workspace"; tabs: SettingsTab[] }[] = [
   { id: "personal", tabs: ["general", "friends", "audio", "skills", "plugins"] },
-  { id: "workspace", tabs: ["workspaces", "usage", "billing"] },
+  { id: "workspace", tabs: ["workspaces", "billing"] },
 ];
 
 const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
   general: Settings,
   friends: Users,
   workspaces: LayoutGrid,
-  usage: Gauge,
   billing: CreditCard,
   audio: SlidersHorizontal,
   plugins: Plug,
@@ -49,7 +46,6 @@ const TAB_PANELS: Record<SettingsTab, () => JSX.Element> = {
   general: GeneralSettingsSection,
   friends: FriendsSettingsSection,
   workspaces: WorkspacesSettingsSection,
-  usage: UsageSettingsSection,
   billing: BillingSettingsSection,
   audio: AudioSettingsSection,
   plugins: PluginsSettingsSection,

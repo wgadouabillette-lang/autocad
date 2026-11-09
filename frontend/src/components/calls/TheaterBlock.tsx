@@ -23,6 +23,7 @@ export default function TheaterBlock({
         "call-block",
         "call-block--clickable",
         "call-block--theater",
+        connected > 0 && "call-block--local",
         layout === "center" && "call-block--center-slot",
       )}
       title="Théâtre"

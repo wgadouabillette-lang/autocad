@@ -66,6 +66,17 @@ export function personalUsageAllowanceUsd(plus = false): number {
   return plus ? proPlusUsageAllowanceUsd() : proUsageAllowanceUsd();
 }
 
+export function seatUsageAllowancePerSeatUsd(): number {
+  const raw = process.env.FORMA_SEAT_USAGE_ALLOWANCE_USD ?? "10";
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) ? Math.max(value, 0) : 10;
+}
+
+export function seatUsageAllowanceUsd(seatCount: number): number {
+  const seats = Math.max(Number(seatCount) || 0, 1);
+  return seatUsageAllowancePerSeatUsd() * seats;
+}
+
 export function enterpriseUsageAllowancePerSeatUsd(): number {
   const raw = process.env.FORMA_ENTERPRISE_USAGE_ALLOWANCE_USD_PER_SEAT ?? "25";
   const value = Number.parseFloat(raw);

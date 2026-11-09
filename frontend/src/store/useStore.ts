@@ -495,6 +495,8 @@ interface State {
   subscriptionPlan: SubscriptionPlan;
   onDemandUsageEnabled: boolean;
   billingManaged: boolean;
+  /** Couvert par le lien d'un siège payé par quelqu'un d'autre. */
+  seatCovered: boolean;
   /** "" | "pro" | "proPlus" — meaningful only when subscriptionPlan is pro + billingManaged. */
   subscriptionTier: "" | "pro" | "proPlus";
   workspaceEnterpriseActive: boolean;
@@ -822,6 +824,7 @@ export const useStore = create<State>((set, get) => ({
   subscriptionPlan: bootUserPreferences.subscriptionPlan ?? "free",
   onDemandUsageEnabled: bootUserPreferences.onDemandUsageEnabled ?? false,
   billingManaged: bootUserPreferences.billingManaged ?? false,
+  seatCovered: false,
   subscriptionTier: "",
   workspaceEnterpriseActive: false,
   chatPanelExpanded: false,

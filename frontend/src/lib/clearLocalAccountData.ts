@@ -12,6 +12,7 @@ const LOCAL_STORAGE_PREFIXES = [
   "forma-meeting-reminders-fired:",
   "forma-spotify-player-config",
   "forma-email-for-sign-in",
+  "forma-meetra-intro:",
   "forma-connector-oauth-result",
   "forma-notes-fullscreen-promo-dismissed-at",
 ];

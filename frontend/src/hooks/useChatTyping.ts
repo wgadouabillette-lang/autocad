@@ -86,27 +86,18 @@ export function useChatTyping(
   return useMemo(() => {
     const typers: ChatTyper[] = [];
 
-    if (isDrafting) {
-      typers.push({
-        userId: firebaseUid ?? "local",
-        name: localName,
-        photoURL: photoURL ?? null,
-        isLocal: true,
-      });
-    }
-
     for (const typer of remoteTypers) {
-      if (isDrafting && typer.userId === firebaseUid) continue;
+      if (typer.userId === firebaseUid) continue;
       typers.push({
         userId: typer.userId,
         name: typer.name,
         photoURL: typer.photoURL,
-        isLocal: typer.userId === firebaseUid,
+        isLocal: false,
       });
     }
 
     return typers;
-  }, [firebaseUid, isDrafting, localName, photoURL, remoteTypers]);
+  }, [firebaseUid, remoteTypers]);
 }
 
 export function clearChatTypingNow(scope: ChatTypingScope | null, uid: string | null) {

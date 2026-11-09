@@ -907,6 +907,44 @@ function getCenteredAppBounds() {
   };
 }
 
+function windowIntersectsVisibleDisplay(win) {
+  if (!win || win.isDestroyed()) return false;
+  const bounds = win.getBounds();
+  return screen.getAllDisplays().some((display) => {
+    const area = display.workArea;
+    const overlapX =
+      Math.min(bounds.x + bounds.width, area.x + area.width) - Math.max(bounds.x, area.x);
+    const overlapY =
+      Math.min(bounds.y + bounds.height, area.y + area.height) - Math.max(bounds.y, area.y);
+    return overlapX > 80 && overlapY > 80;
+  });
+}
+
+/** A window left on a disconnected display stays invisible after show(). */
+function ensureWindowOnVisibleDisplay(win) {
+  if (!win || win.isDestroyed() || windowIntersectsVisibleDisplay(win)) return;
+  const place = () => {
+    if (!win || win.isDestroyed()) return;
+    const work = screen.getPrimaryDisplay().workArea;
+    const current = win.getBounds();
+    const width = Math.min(Math.max(current.width, SPLASH_WINDOW_SIZE.width), work.width);
+    const height = Math.min(Math.max(current.height, SPLASH_WINDOW_SIZE.height), work.height);
+    win.setBounds({
+      x: Math.round(work.x + (work.width - width) / 2),
+      y: Math.round(work.y + (work.height - height) / 2),
+      width,
+      height,
+    });
+  };
+  if (win.isFullScreen()) {
+    win.once("leave-full-screen", place);
+    win.setFullScreen(false);
+    return;
+  }
+  if (win.isMaximized()) win.unmaximize();
+  place();
+}
+
 function splashWindowChrome(bounds = getCenteredSplashBounds()) {
   return {
     width: bounds.width,
@@ -986,17 +1024,20 @@ function requestMacMediaAccess() {
 function revealAppWindows() {
   if (mainWindowMode === "app" && mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore();
+    ensureWindowOnVisibleDisplay(mainWindow);
     mainWindow.show();
     mainWindow.focus();
     return;
   }
   if (splashWindow && !splashWindow.isDestroyed()) {
+    ensureWindowOnVisibleDisplay(splashWindow);
     splashWindow.show();
     splashWindow.focus();
     return;
   }
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore();
+    ensureWindowOnVisibleDisplay(mainWindow);
     mainWindow.show();
     mainWindow.focus();
     return;
@@ -1099,6 +1140,7 @@ async function showSplashMainWindow() {
       }
       if (!mainWindow || mainWindow.isDestroyed()) return;
       if (mainWindow.isMinimized()) mainWindow.restore();
+      ensureWindowOnVisibleDisplay(mainWindow);
       if (!mainWindow.isVisible()) {
         mainWindow.show();
       }
@@ -1219,6 +1261,7 @@ function showAppWindow() {
     if (!alreadyFullScreen) {
       mainWindow.setBounds(getCenteredAppBounds());
     }
+    ensureWindowOnVisibleDisplay(mainWindow);
     // Maximize while still hidden on Windows/Linux so the first paint is not 1440×900.
     // macOS native fullscreen is applied after show() — setFullScreen on a hidden
     // window is unreliable. If the splash was already fullscreen, keep that space
@@ -1654,6 +1697,21 @@ ipcMain.handle("forma:set-window-mode", async (_event, mode) => {
   if (mode !== "splash" && mode !== "app") return { ok: false };
   // Cancel the splash watchdog before any await. The renderer has the bridge.
   markRendererAckedWindowMode();
+  // Cold start: the standalone splash stays up until the renderer asks for the app.
+  // Showing splash chrome on the hidden main window would replace that screen.
+  // If that splash is already gone, fall through so the main window cannot stay hidden.
+  const splashVisible =
+    splashWindow && !splashWindow.isDestroyed() && splashWindow.isVisible();
+  if (
+    mode === "splash" &&
+    mainWindowMode === "splash" &&
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    !mainWindow.isVisible() &&
+    splashVisible
+  ) {
+    return { ok: true, mode: "splash" };
+  }
   await setMainWindowMode(mode);
   return { ok: true, mode: mainWindowMode };
 });

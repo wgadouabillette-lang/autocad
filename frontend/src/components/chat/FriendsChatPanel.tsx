@@ -14,6 +14,11 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
+import {
+  CHAT_FILE_MAX_COUNT,
+  chatFileContentType,
+  chatFileRejection,
+} from "../../lib/firebase/friendChatFiles";
 import type { ChatSkillDef } from "../../lib/chatSkills";
 import {
   buildGroupNameFromMembers,
@@ -110,7 +115,8 @@ interface ComposerAttachment {
 }
 
 function buildAttachment(file: File): ComposerAttachment {
-  const isImage = file.type.startsWith("image/");
+  const contentType = chatFileContentType(file) ?? file.type;
+  const isImage = contentType.startsWith("image/");
   return {
     id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 7)}`,
     file,
@@ -463,8 +469,26 @@ export default function FriendsChatPanel() {
 
   const addFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const next = Array.from(files).map(buildAttachment);
-    setAttachments((prev) => [...prev, ...next]);
+    const errors: string[] = [];
+    const accepted: ComposerAttachment[] = [];
+    for (const file of Array.from(files)) {
+      const reason = chatFileRejection(file);
+      if (reason) errors.push(reason);
+      else accepted.push(buildAttachment(file));
+    }
+    const room = CHAT_FILE_MAX_COUNT - attachments.length;
+    if (room <= 0) errors.push("8 fichiers maximum par message.");
+    else if (accepted.length > room) errors.push("8 fichiers maximum par message.");
+    if (room > 0 && accepted.length > 0) {
+      setAttachments((prev) => [...prev, ...accepted.slice(0, CHAT_FILE_MAX_COUNT - prev.length)]);
+    }
+    if (errors.length > 0) {
+      useNotificationsStore.getState().push({
+        kind: "message",
+        title: "Fichier non ajouté",
+        body: errors[0] ?? "Ce fichier ne peut pas être envoyé.",
+      });
+    }
   };
 
   const removeAttachment = (id: string) => {
@@ -624,7 +648,7 @@ export default function FriendsChatPanel() {
   }, [slashFilter]);
 
   useLayoutEffect(() => {
-    const el = splitLayout ? threadScrollRef.current : messagesScrollRef.current;
+    const el = threadScrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
     if (!splitLayout) {
@@ -753,8 +777,21 @@ export default function FriendsChatPanel() {
     if (!thread) return;
 
     const trimmed = draft.trim();
-    if (!trimmed && attachments.length === 0) return;
-    if (trimmed) sendMessage(thread.id, trimmed);
+    const files = attachments.map((attachment) => attachment.file);
+    if (!trimmed && files.length === 0) return;
+    const directMessage =
+      thread.section === "friends" || thread.section === "colleagues";
+    if (files.length > 0 && !directMessage) {
+      useNotificationsStore.getState().push({
+        kind: "message",
+        title: "Fichier non envoyé",
+        body: "Les fichiers et les images s'envoient dans une conversation directe.",
+      });
+      if (!trimmed) return;
+      sendMessage(thread.id, trimmed);
+    } else {
+      sendMessage(thread.id, trimmed, files);
+    }
     clearChatTypingNow(chatTypingScope, firebaseUid);
     setActiveSkillRun(null);
     setDraft("");
@@ -1102,10 +1139,8 @@ export default function FriendsChatPanel() {
         <div
           ref={threadScrollRef}
           className={clsx(
-            "chat-messages-scroll relative min-h-0 min-w-0 flex-1 overflow-x-hidden",
-            splitLayout
-              ? "people-chat-thread-scroll overflow-y-auto"
-              : "overflow-y-hidden",
+            "people-chat-scroll chat-messages-scroll relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto",
+            splitLayout && "people-chat-thread-scroll",
             splitLayout && threadScrolledFromTop && "people-chat-thread-scroll--scrolled",
           )}
         >
@@ -1115,7 +1150,6 @@ export default function FriendsChatPanel() {
             partnerPhotoURL={partnerPhotoURL}
             messages={messages}
             listRef={messagesScrollRef}
-            className="chat-messages-scroll min-h-0 flex-1"
             showAuthors={isMultiPartyChat}
             showAvatars={isMultiPartyChat}
             getAuthorPhotoURL={resolveAuthorPhotoURL}
@@ -1278,7 +1312,7 @@ export default function FriendsChatPanel() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,.pdf,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff"
+                accept="image/*,.pdf,.txt,.csv,.md,.json,.rtf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.gif,.webp,.heic"
                 multiple
                 className="hidden"
                 onChange={(e) => {
