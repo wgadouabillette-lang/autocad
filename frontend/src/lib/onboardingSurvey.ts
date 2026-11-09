@@ -1,5 +1,5 @@
 import { getAnalytics, isSupported, logEvent } from "firebase/analytics";
-import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
+import { doc, runTransaction, serverTimestamp, type DocumentSnapshot } from "firebase/firestore";
 import { firebaseConfig } from "./firebase/config";
 import { db, firebaseApp } from "./firebase/client";
 
@@ -107,7 +107,7 @@ export async function recordOnboardingAnswers(
   await runTransaction(db, async (transaction) => {
     const existing = await transaction.get(responseRef);
     if (existing.exists()) return;
-    const stats = [];
+    const stats: DocumentSnapshot[] = [];
     for (const item of statRefs) {
       stats.push(await transaction.get(item.ref));
     }

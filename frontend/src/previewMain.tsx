@@ -24,6 +24,15 @@ import { bootstrapDocumentAccentColor } from "./lib/accentColor";
 import { applyAppLocale } from "./lib/i18n";
 import "./index.css";
 
+function previewDesktopStubs(platform: "darwin" | "win32") {
+  return {
+    openExternal: async () => undefined,
+    getAppWindowSourceId: async () => null,
+    getScreenCaptureAccessStatus: async () => ({ status: "unknown" as const, platform }),
+    openScreenCaptureSettings: async () => false,
+  };
+}
+
 function applyMarketingPreviewDesktopChrome(): void {
   const params = new URLSearchParams(window.location.search);
   const chrome = params.get("chrome");
@@ -36,7 +45,8 @@ function applyMarketingPreviewDesktopChrome(): void {
     window.formaDesktop = {
       isDesktop: true,
       platform: "darwin",
-    } as NonNullable<Window["formaDesktop"]>;
+      ...previewDesktopStubs("darwin"),
+    };
     return;
   }
   if (chrome !== "windows") return;
@@ -47,12 +57,13 @@ function applyMarketingPreviewDesktopChrome(): void {
   window.formaDesktop = {
     isDesktop: true,
     platform: "win32",
+    ...previewDesktopStubs("win32"),
     getWindowState: async () => state,
     onWindowState: () => () => undefined,
     windowMinimize: async () => ({ ok: true, ...state }),
     windowToggleFullscreen: async () => ({ ok: true, ...state }),
     windowClose: async () => ({ ok: true }),
-  } as NonNullable<Window["formaDesktop"]>;
+  };
 }
 
 markMarketingPreview();
