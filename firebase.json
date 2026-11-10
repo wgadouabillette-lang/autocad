@@ -96,23 +96,33 @@
       { "source": "/compact", "destination": "/", "type": 301 },
       { "source": "/compact.html", "destination": "/", "type": 301 },
       {
+        "source": "/downloads/meetra.exe",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media",
+        "type": 302
+      },
+      {
         "source": "/downloads/Meetra.exe",
-        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media",
         "type": 302
       },
       {
         "source": "/downloads/Hall.exe",
-        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media",
         "type": 302
       },
       {
         "source": "/downloads/Hall-windows.exe",
-        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media",
+        "type": 302
+      },
+      {
+        "source": "/downloads/meetra.dmg",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.dmg?alt=media",
         "type": 302
       },
       {
         "source": "/downloads/Hall-mac.dmg",
-        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-mac.dmg?alt=media",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.dmg?alt=media",
         "type": 302
       },
       {

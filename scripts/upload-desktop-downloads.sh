@@ -6,9 +6,11 @@ cd "$(dirname "$0")/.."
 
 PROJECT_ID="${FIREBASE_PROJECT_ID:-forma-cad-dev}"
 BUCKET="${FIREBASE_STORAGE_BUCKET:-forma-cad-dev.firebasestorage.app}"
-MAC_SRC="${1:-landing/public/downloads/Hall-mac.dmg}"
+MAC_SRC="${1:-landing/public/downloads/meetra.dmg}"
 if [[ -n "${2:-}" ]]; then
   WIN_SRC="$2"
+elif [[ -f landing/public/downloads/meetra.exe ]]; then
+  WIN_SRC="landing/public/downloads/meetra.exe"
 elif [[ -f landing/public/downloads/Meetra.exe ]]; then
   WIN_SRC="landing/public/downloads/Meetra.exe"
 elif [[ -f landing/public/downloads/Hall.exe ]]; then
@@ -120,12 +122,14 @@ firebase deploy --only storage --project "$PROJECT_ID"
 
 echo ""
 uploaded=0
-if upload_one "$MAC_SRC" "Hall-mac.dmg"; then
+if upload_one "$MAC_SRC" "meetra.dmg" "meetra.dmg"; then
   uploaded=1
+  upload_one "$MAC_SRC" "Hall-mac.dmg" "meetra.dmg" || true
 fi
-if upload_one "$WIN_SRC" "Meetra.exe"; then
+if upload_one "$WIN_SRC" "meetra.exe" "meetra.exe"; then
   uploaded=1
-  upload_one "$WIN_SRC" "Hall.exe" "Meetra.exe" || true
+  upload_one "$WIN_SRC" "Meetra.exe" "meetra.exe" || true
+  upload_one "$WIN_SRC" "Hall.exe" "meetra.exe" || true
 fi
 if upload_one "$LINUX_SRC" "Meetra-linux.AppImage"; then
   uploaded=1
@@ -141,7 +145,7 @@ find_and_upload_feed "$LINUX_SRC"
 
 if [[ "$uploaded" -eq 0 ]]; then
   echo "Aucun installateur trouvé."
-  echo "Placez Hall-mac.dmg / Meetra.exe / Meetra-linux.AppImage dans landing/public/downloads/"
+  echo "Placez meetra.dmg / meetra.exe / Meetra-linux.AppImage dans landing/public/downloads/"
   echo "ou passez les chemins : $0 <mac.dmg> <win.exe> <linux.AppImage>"
   exit 1
 fi

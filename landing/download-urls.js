@@ -33,8 +33,8 @@
   }
 
   var urls = {
-    windows: storageDownloadUrl("Meetra.exe"),
-    mac: storageDownloadUrl("Hall-mac.dmg"),
+    windows: storageDownloadUrl("meetra.exe"),
+    mac: storageDownloadUrl("meetra.dmg"),
   };
 
   global.HallDownloadUrls = urls;

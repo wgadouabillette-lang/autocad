@@ -124,7 +124,7 @@
         typeof window.HallDownloadTarget === "function"
           ? window.HallDownloadTarget()
           : {
-              href: "/downloads/Hall-mac.dmg",
+              href: "/downloads/meetra.dmg",
               labelKey: "try.downloadMac",
             };
       downloadItem = link(download.href, download.labelKey);

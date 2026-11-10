@@ -5,8 +5,8 @@ cd "$(dirname "$0")/.."
 
 RELEASE_DIR="desktop/release"
 OUT_DIRS=("landing/downloads" "landing/public/downloads")
-MAC_NAME="Hall-mac.dmg"
-WIN_NAME="Meetra.exe"
+MAC_NAME="meetra.dmg"
+WIN_NAME="meetra.exe"
 LINUX_NAME="Meetra-linux.AppImage"
 
 if [[ ! -d "$RELEASE_DIR" ]]; then
@@ -20,8 +20,16 @@ fi
 
 mkdir -p "${OUT_DIRS[@]}"
 
-MAC_SRC="$(find "$RELEASE_DIR" -maxdepth 1 -name '*.dmg' -type f | head -1)"
-WIN_SRC="$(find "$RELEASE_DIR" -maxdepth 1 -name '*.exe' -type f | head -1)"
+if [[ -f "$RELEASE_DIR/meetra.dmg" ]]; then
+  MAC_SRC="$RELEASE_DIR/meetra.dmg"
+else
+  MAC_SRC="$(find "$RELEASE_DIR" -maxdepth 1 -name '*.dmg' -type f | head -1)"
+fi
+if [[ -f "$RELEASE_DIR/meetra.exe" ]]; then
+  WIN_SRC="$RELEASE_DIR/meetra.exe"
+else
+  WIN_SRC="$(find "$RELEASE_DIR" -maxdepth 1 -name '*.exe' -type f | head -1)"
+fi
 LINUX_SRC="$(find "$RELEASE_DIR" -maxdepth 1 \( -name 'Meetra-*-linux.AppImage' -o -name 'Hall-*-linux.AppImage' -o -name '*.AppImage' \) -type f | head -1)"
 
 if [[ -z "$MAC_SRC" && -z "$WIN_SRC" && -z "$LINUX_SRC" ]]; then
@@ -63,6 +71,6 @@ done
 echo ""
 echo "Déployez le dossier landing/ sur votre hébergeur (Netlify, Vercel, S3, nginx…)."
 echo "URL de téléchargement :"
-echo "  https://meetra.cc/downloads/Hall-mac.dmg"
-echo "  https://meetra.cc/downloads/Meetra.exe"
+echo "  https://meetra.cc/downloads/meetra.dmg"
+echo "  https://meetra.cc/downloads/meetra.exe"
 echo "  https://meetra.cc/downloads/Meetra-linux.AppImage"

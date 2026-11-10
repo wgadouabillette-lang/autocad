@@ -638,6 +638,26 @@ function defaultDeviceReadyTimeoutMs(): number {
   return hasFormaDesktop() ? 18_000 : 6_000;
 }
 
+const SPOTIFY_CONNECT_TIMEOUT_MS = 40_000;
+
+function connectSpotifyPlayer(target: SpotifyWebPlayer): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error("Le lecteur Spotify n'a pas répondu."));
+    }, SPOTIFY_CONNECT_TIMEOUT_MS);
+    target.connect().then(
+      (connected) => {
+        clearTimeout(timer);
+        resolve(connected);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 async function ensureDeviceReady(timeoutMs?: number): Promise<string | null> {
   if (deviceId) return deviceId;
   if (!player) return null;
@@ -646,7 +666,7 @@ async function ensureDeviceReady(timeoutMs?: number): Promise<string | null> {
     return await waitForDeviceId(budget);
   } catch {
     try {
-      const reconnected = await player.connect();
+      const reconnected = await connectSpotifyPlayer(player);
       if (!reconnected) return null;
       return await waitForDeviceId(Math.min(budget, hasFormaDesktop() ? 10_000 : 3_000));
     } catch {
@@ -722,7 +742,7 @@ export async function ensureSpotifyWebPlayer(options?: { premiumHint?: boolean |
         handlePlaybackError(message || "Playback error");
       });
 
-      const connected = await player.connect();
+      const connected = await connectSpotifyPlayer(player);
       if (!connected) {
         try {
           await player.disconnect();

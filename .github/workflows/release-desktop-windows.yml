@@ -135,9 +135,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path landing/downloads, landing/public/downloads | Out-Null
           $exe = Get-ChildItem desktop/release/*.exe | Select-Object -First 1
           if (-not $exe) { throw "No .exe found in desktop/release" }
-          Copy-Item $exe.FullName landing/public/downloads/Meetra.exe -Force
-          Copy-Item $exe.FullName landing/downloads/Meetra.exe -Force
-          Write-Host "Stable artifact: landing/public/downloads/Meetra.exe"
+          Copy-Item $exe.FullName landing/public/downloads/meetra.exe -Force
+          Copy-Item $exe.FullName landing/downloads/meetra.exe -Force
+          Write-Host "Stable artifact: landing/public/downloads/meetra.exe"
 
       - name: Upload installer to GitHub Release
         if: github.event_name == 'release'
@@ -147,7 +147,7 @@ jobs:
             desktop/release/*.exe
             desktop/release/*.yml
             desktop/release/*.blockmap
-            landing/public/downloads/Meetra.exe
+            landing/public/downloads/meetra.exe
           fail_on_unmatched_files: false
 
       - name: Upload workflow artifact
@@ -158,6 +158,6 @@ jobs:
             desktop/release/*.exe
             desktop/release/latest.yml
             desktop/release/*.blockmap
-            landing/public/downloads/Meetra.exe
+            landing/public/downloads/meetra.exe
           if-no-files-found: error
           retention-days: 30

@@ -71,7 +71,7 @@ console.log("→ Copie frontend…");
 copyDir(frontendDist, frontendOut);
 
 console.log("→ Copie backend (sans .venv)…");
-copyDir(backendSrc, backendOut, [".venv", "__pycache__", ".pytest_cache"]);
+copyDir(backendSrc, backendOut, [".venv", "__pycache__", ".pytest_cache", "connector_secrets.fernet"]);
 
 const firebaseSecretSrc = path.join(root, "desktop", "secrets", "firebase-adminsdk.json");
 const firebaseSecretOut = path.join(backendOut, "firebase-adminsdk.json");

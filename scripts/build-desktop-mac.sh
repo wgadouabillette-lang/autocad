@@ -70,6 +70,28 @@ esac
 if [[ "$USE_NOTARY" -eq 1 ]]; then
   echo "[4/5] Construction + Developer ID + notarize (${MAC_ARCH})…"
   (cd desktop && npx electron-builder "${DMG_ARGS[@]}" --publish never)
+  APP_DIR=""
+  for candidate in \
+    desktop/release/mac-universal \
+    desktop/release/mac-arm64 \
+    desktop/release/mac \
+    desktop/release/mac-x64
+  do
+    if [[ -d "$candidate/Meetra.app" ]]; then
+      APP_DIR="$candidate"
+      break
+    fi
+  done
+  if [[ -z "$APP_DIR" ]]; then
+    echo "Meetra.app introuvable après le build — signature Widevine non vérifiée."
+    exit 1
+  fi
+  EVS_PYTHON="python3"
+  if [[ -x .venv-evs/bin/python ]]; then
+    EVS_PYTHON=".venv-evs/bin/python"
+  fi
+  echo "→ Vérification VMP Widevine ($APP_DIR)…"
+  "$EVS_PYTHON" -m castlabs_evs.vmp verify-pkg "$APP_DIR"
 else
   echo "[4/5] Construction ad hoc (${MAC_ARCH})…"
   (cd desktop && npx electron-builder "${DIR_ARGS[@]}" --publish never)
@@ -84,16 +106,18 @@ chmod +x scripts/prepare-landing-downloads.sh
 
 echo ""
 echo "Terminé."
-echo "  DMG : desktop/release/Meetra-*.dmg"
-echo "  Lien site : landing/public/downloads/Hall-mac.dmg"
+echo "  DMG : desktop/release/meetra.dmg"
+echo "  Lien site : https://meetra.cc/downloads/meetra.dmg"
 if [[ "$USE_NOTARY" -eq 1 ]]; then
-  # Prefer the DMG matching package.json version (avoid stapling an older leftover).
+  # Prefer the stable download name (avoid stapling an older leftover).
   PKG_VER="$(node -p "require('./desktop/package.json').version" 2>/dev/null || true)"
   DMG=""
-  if [[ -n "$PKG_VER" && -f "desktop/release/Meetra-${PKG_VER}-mac.dmg" ]]; then
+  if [[ -f "desktop/release/meetra.dmg" ]]; then
+    DMG="desktop/release/meetra.dmg"
+  elif [[ -n "$PKG_VER" && -f "desktop/release/Meetra-${PKG_VER}-mac.dmg" ]]; then
     DMG="desktop/release/Meetra-${PKG_VER}-mac.dmg"
   else
-    DMG="$(ls -t desktop/release/Meetra-*-mac.dmg 2>/dev/null | head -1 || true)"
+    DMG="$(ls -t desktop/release/Meetra-*-mac.dmg desktop/release/meetra.dmg 2>/dev/null | head -1 || true)"
   fi
   if [[ -n "$DMG" ]]; then
     echo ""

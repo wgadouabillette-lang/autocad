@@ -1,6 +1,6 @@
 {
   "name": "forma-desktop",
-  "version": "2.0.1",
+  "version": "1.0.0",
   "private": true,
   "description": "Meetra",
   "main": "main.cjs",
@@ -137,11 +137,11 @@
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "shortcutName": "Meetra",
-      "artifactName": "Meetra.${ext}"
+      "artifactName": "meetra.${ext}"
     },
     "dmg": {
       "title": "Meetra",
-      "artifactName": "Meetra-${version}-mac.${ext}",
+      "artifactName": "meetra.${ext}",
       "contents": [
         {
           "x": 140,
