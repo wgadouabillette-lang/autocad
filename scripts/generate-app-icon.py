@@ -88,11 +88,7 @@ def _icon_svg(box: tuple[float, float, float, float], paths: list[str]) -> str:
 """
 
 
-def draw_icon(size: int, box: tuple[float, float, float, float], paths: list[str]) -> Image.Image:
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    draw.ellipse((0, 0, size - 1, size - 1), fill=FILL)
-
+def _draw_mark(draw: ImageDraw.ImageDraw, size: int, box: tuple[float, float, float, float], paths: list[str]) -> None:
     _x, _y, vw, vh = box
     scale = size / 100.0
     mark_scale = (MARK_WIDTH / vw) * scale
@@ -101,6 +97,21 @@ def draw_icon(size: int, box: tuple[float, float, float, float], paths: list[str
     for d in paths:
         polygon = [(ox + px * mark_scale, oy + py * mark_scale) for px, py in _sample_path(d)]
         draw.polygon(polygon, fill=MARK_FILL)
+
+
+def draw_icon(size: int, box: tuple[float, float, float, float], paths: list[str]) -> Image.Image:
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.ellipse((0, 0, size - 1, size - 1), fill=FILL)
+    _draw_mark(draw, size, box, paths)
+    return img
+
+
+def draw_mac_icon(size: int, box: tuple[float, float, float, float], paths: list[str]) -> Image.Image:
+    # macOS masks this to a squircle. A full-bleed tile keeps the circle's logo
+    # and stretches the same background out to the rounded-square edges.
+    img = Image.new("RGBA", (size, size), FILL)
+    _draw_mark(ImageDraw.Draw(img), size, box, paths)
     return img
 
 
@@ -145,6 +156,7 @@ def main() -> None:
 
     master = draw_icon(1024, box, paths)
     _save_png(master, OUT_DIR / "icon.png")
+    _save_png(draw_mac_icon(1024, box, paths), OUT_DIR / "icon-mac.png")
     _save_png(draw_icon(512, box, paths), OUT_DIR / "icon-512.png")
     icon_256 = draw_icon(256, box, paths)
     _save_png(icon_256, OUT_DIR / "icon-256.png")

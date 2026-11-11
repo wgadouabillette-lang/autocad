@@ -952,7 +952,7 @@ function refreshMacOsAppIcon() {
     const appPath = path.resolve(process.execPath, "..", "..", "..");
     const now = new Date();
     fs.utimesSync(appPath, now, now);
-    for (const name of ["meetra-circle.icns", "meetra.icns", "icon.icns"]) {
+    for (const name of ["meetra-mac.icns", "meetra-circle.icns", "meetra.icns", "icon.icns"]) {
       const icns = path.join(appPath, "Contents", "Resources", name);
       if (fs.existsSync(icns)) fs.utimesSync(icns, now, now);
     }

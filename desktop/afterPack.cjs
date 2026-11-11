@@ -152,17 +152,17 @@ exports.default = async function afterPack(context) {
       const resources = path.join(appOutDir, appDir, "Contents", "Resources");
       const infoPlist = path.join(appOutDir, appDir, "Contents", "Info.plist");
       const fromIcns = path.join(resources, "icon.icns");
-      const toIcns = path.join(resources, "meetra-circle.icns");
+      const toIcns = path.join(resources, "meetra-mac.icns");
       if (fs.existsSync(fromIcns) || fs.existsSync(path.join(resources, "meetra.icns"))) {
         const source = fs.existsSync(fromIcns) ? fromIcns : path.join(resources, "meetra.icns");
         if (fs.existsSync(toIcns)) fs.unlinkSync(toIcns);
         fs.renameSync(source, toIcns);
         execFileSync(
           "plutil",
-          ["-replace", "CFBundleIconFile", "-string", "meetra-circle", infoPlist],
+          ["-replace", "CFBundleIconFile", "-string", "meetra-mac", infoPlist],
           { stdio: "pipe" },
         );
-        console.log("[icon] macOS CFBundleIconFile → meetra-circle.icns");
+        console.log("[icon] macOS CFBundleIconFile → meetra-mac.icns");
       }
     }
   } catch (err) {

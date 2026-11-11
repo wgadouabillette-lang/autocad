@@ -4,6 +4,6 @@ export const APP_DISPLAY_NAME = "Meetra";
 export const APP_TAGLINE = "AI-powered collaborative workspace for teams";
 
 /** Keep in sync with `desktop/package.json` version for splash / about UI. */
-export const APP_VERSION = "1.2.7";
+export const APP_VERSION = "1.2.8";
 
 export const AGENT_PANEL_TITLE = `${APP_DISPLAY_NAME} Superagent`;
