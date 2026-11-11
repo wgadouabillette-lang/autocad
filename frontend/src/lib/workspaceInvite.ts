@@ -48,10 +48,7 @@ export function parseWorkspaceInviteInput(raw: string): string {
   return trimmed.toLowerCase();
 }
 
-/** Public join URL — never 127.0.0.1 from packaged Electron. */
+/** Code à coller dans Workspace → Rejoindre. Jamais une adresse web. */
 export function buildWorkspaceJoinUrl(workspaceId: string): string {
-  const id = workspaceId.trim().toLowerCase();
-  const configured = import.meta.env.VITE_FORMA_PUBLIC_ORIGIN?.trim().replace(/\/$/, "");
-  const origin = configured || PUBLIC_APP_JOIN_ORIGIN;
-  return `${origin}/app/?workspace=${encodeURIComponent(id)}`;
+  return workspaceId.trim().toLowerCase();
 }

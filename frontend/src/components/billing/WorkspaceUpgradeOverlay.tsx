@@ -131,7 +131,7 @@ export default function WorkspaceUpgradeOverlay() {
       const ownsWorkspace =
         membership?.role === "owner" ||
         (Boolean(uid) && workspace?.ownerId === uid) ||
-        (workspace?.ownerId === LOCAL_USER_ID && membership?.role === "owner");
+        workspace?.ownerId === LOCAL_USER_ID;
       if (uid && membership) {
         if (ownsWorkspace) {
           await workspaces.ensureWorkspaceCloudPublished(workspaceId);
