@@ -84,8 +84,13 @@ export function warmSpotifyWebPlayer(_premiumHint?: boolean | null): void {
 
 export async function ensureSpotifyWebPlayer(): Promise<unknown | null> {
   if (!(await ensureBridge())) return null;
-  await desktop()?.warmSpotifyWebView2?.();
-  return {};
+  try {
+    await desktop()?.warmSpotifyWebView2?.();
+    return {};
+  } catch (err) {
+    console.warn("[spotify-webview2] warm failed", err);
+    return null;
+  }
 }
 
 export function isSpotifyPremiumAvailable(): boolean {

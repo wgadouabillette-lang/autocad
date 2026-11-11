@@ -17,6 +17,14 @@
       void window.ewvjs.api.postMessage(msg);
       return true;
     }
+    if (typeof fetch === "function") {
+      void fetch("/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(msg),
+      }).catch(() => undefined);
+      return true;
+    }
     return false;
   }
 
@@ -39,10 +47,14 @@
   }
 
   async function fetchToken() {
-    if (!window.ewvjs?.api?.fetchToken) {
-      throw new Error("Token bridge indisponible.");
+    if (window.ewvjs?.api?.fetchToken) {
+      const token = await window.ewvjs.api.fetchToken();
+      if (!token) throw new Error("Token Spotify vide.");
+      return token;
     }
-    const token = await window.ewvjs.api.fetchToken();
+    const response = await fetch("/spotify-token");
+    if (!response.ok) throw new Error("Token Spotify indisponible.");
+    const token = (await response.text()).trim();
     if (!token) throw new Error("Token Spotify vide.");
     return token;
   }

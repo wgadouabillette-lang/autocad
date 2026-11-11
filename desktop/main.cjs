@@ -1455,9 +1455,6 @@ function createWindow() {
     if (pendingDesktopWorkspaceInvite) {
       mainWindow.webContents.send("forma:workspace-invite", pendingDesktopWorkspaceInvite);
     }
-    if (spotifyWebView2.isSupported()) {
-      void spotifyWebView2.startHost();
-    }
   });
   mainWindow.on("closed", () => {
     clearLaunchRevealTimers();
