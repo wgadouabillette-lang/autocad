@@ -1387,12 +1387,30 @@ html:not(.app-loading-splash) #root {
   .desktop-window-controls--expanded.desktop-window-controls--revealed .desktop-window-controls__bar {
     padding-right: 6px;
   }
-  /* Windows: the titlebar stays on screen, full width, with the Meetra mark on the left. */
+  /* Windows: no separate titlebar. Logo and caption buttons stay in the top row;
+     workspace, upgrade, invite and settings sit in that same row. */
+  html.is-desktop-windows {
+    --forma-top-toolbar-height: var(--desktop-autohide-titlebar-height);
+  }
   html.is-desktop-windows .app-shell {
-    padding-top: var(--desktop-autohide-titlebar-height);
+    padding-top: 0;
+  }
+  html.is-desktop-windows .app-layout {
+    border-top: none;
   }
   html.is-desktop-windows .app-chrome-row__brand {
     display: none;
+  }
+  html.is-desktop-windows .app-chrome-row,
+  html.is-desktop-windows .chat-panel-header {
+    -webkit-app-region: drag;
+  }
+  html.is-desktop-windows .app-chrome-row button,
+  html.is-desktop-windows .app-chrome-row a,
+  html.is-desktop-windows .app-chrome-row input,
+  html.is-desktop-windows .chat-panel-header button,
+  html.is-desktop-windows .chat-panel-header a {
+    -webkit-app-region: no-drag;
   }
   .desktop-window-controls--persistent {
     left: 0;
@@ -1409,6 +1427,20 @@ html:not(.app-loading-splash) #root {
     -webkit-backdrop-filter: none;
     background-color: var(--forma-content-bg);
     border-bottom-color: transparent;
+  }
+  html.is-desktop-windows .desktop-window-controls--persistent .desktop-window-controls__bar {
+    background-color: transparent;
+    border-bottom: none;
+    box-shadow: none;
+    pointer-events: none;
+  }
+  html.is-desktop-windows .desktop-window-controls__brand,
+  html.is-desktop-windows .desktop-window-controls__buttons {
+    pointer-events: auto;
+  }
+  html.is-desktop-windows .desktop-window-controls--persistent .desktop-window-controls__drag {
+    -webkit-app-region: no-drag;
+    pointer-events: none;
   }
   html.is-desktop-windows .app-chrome-row__main {
     display: flex;
@@ -6430,12 +6462,11 @@ html:not(.app-loading-splash) #root {
   }
   html.is-desktop-windows .chat-panel--dock-right .chat-panel-header,
   html.is-desktop-windows .chat-panel--expanded .chat-panel-header {
-    padding-right: 0;
+    padding-right: calc(3 * 2.25rem);
   }
   html.is-desktop-windows.is-desktop-windows-maximized .chat-panel--dock-right .chat-panel-header,
   html.is-desktop-windows.is-desktop-windows-maximized .chat-panel--expanded .chat-panel-header {
-    /* 6px matches the maximized titlebar inset, minus the layout border. */
-    padding-right: calc(6px - var(--forma-divider-width));
+    padding-right: calc(3 * 2.25rem + 6px);
   }
   .chat-panel-header__title {
     @apply inline-flex max-w-full items-center justify-center;
@@ -12076,6 +12107,16 @@ html.is-desktop-windows .app-chrome-row__main {
 }
 html.is-desktop-windows .app-chrome-row__actions {
   margin-left: auto;
+  padding-right: calc(3 * 2.25rem);
+}
+html.is-desktop-windows.is-desktop-windows-maximized .app-chrome-row__actions {
+  padding-right: calc(3 * 2.25rem + 6px);
+}
+html.is-desktop-windows .app-layout--panel-right.app-layout--chat-open .app-chrome-row__actions {
+  padding-right: 0.25rem;
+}
+html.is-desktop-windows .app-layout--settings {
+  padding-top: var(--desktop-autohide-titlebar-height);
 }
 html.is-desktop-windows .header-toolbar-actions {
   display: inline-flex;
