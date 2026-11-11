@@ -145,23 +145,24 @@ exports.default = async function afterPack(context) {
     return;
   }
 
-  // Bust macOS icon-services cache: rename icon.icns → meetra.icns and point Info.plist at it.
+  // New icns name so Dock/Finder drop the cached rounded-square icon.
   try {
     const appDir = fs.readdirSync(appOutDir).find((name) => name.endsWith(".app"));
     if (appDir) {
       const resources = path.join(appOutDir, appDir, "Contents", "Resources");
       const infoPlist = path.join(appOutDir, appDir, "Contents", "Info.plist");
       const fromIcns = path.join(resources, "icon.icns");
-      const toIcns = path.join(resources, "meetra.icns");
-      if (fs.existsSync(fromIcns)) {
+      const toIcns = path.join(resources, "meetra-circle.icns");
+      if (fs.existsSync(fromIcns) || fs.existsSync(path.join(resources, "meetra.icns"))) {
+        const source = fs.existsSync(fromIcns) ? fromIcns : path.join(resources, "meetra.icns");
         if (fs.existsSync(toIcns)) fs.unlinkSync(toIcns);
-        fs.renameSync(fromIcns, toIcns);
+        fs.renameSync(source, toIcns);
         execFileSync(
           "plutil",
-          ["-replace", "CFBundleIconFile", "-string", "meetra", infoPlist],
+          ["-replace", "CFBundleIconFile", "-string", "meetra-circle", infoPlist],
           { stdio: "pipe" },
         );
-        console.log("[icon] macOS CFBundleIconFile → meetra.icns");
+        console.log("[icon] macOS CFBundleIconFile → meetra-circle.icns");
       }
     }
   } catch (err) {

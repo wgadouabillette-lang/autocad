@@ -1,6 +1,6 @@
 {
   "name": "forma-desktop",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "private": true,
   "description": "Meetra",
   "main": "main.cjs",
@@ -90,7 +90,7 @@
       "notarize": true,
       "artifactName": "Meetra-${version}-mac.${ext}",
       "extendInfo": {
-        "CFBundleIconFile": "meetra",
+        "CFBundleIconFile": "meetra-circle",
         "NSScreenCaptureUsageDescription": "Meetra a besoin d'accéder à l'écran pour le partage d'écran et l'enregistrement.",
         "NSCameraUsageDescription": "Meetra utilise la caméra pour les appels vidéo.",
         "NSMicrophoneUsageDescription": "Meetra utilise le micro pour les appels vocaux."
@@ -106,7 +106,7 @@
       "extraFiles": [
         {
           "from": "build/icon.ico",
-          "to": "Meetra.ico"
+          "to": "Meetra-circle.ico"
         }
       ]
     },

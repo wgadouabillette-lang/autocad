@@ -387,6 +387,17 @@ function resourcesPath(...parts) {
   return path.join(repoRoot(), ...parts);
 }
 
+function venvSitePackages(venvDir) {
+  const candidates = [path.join(venvDir, "Lib", "site-packages")];
+  const libDir = path.join(venvDir, "lib");
+  if (fs.existsSync(libDir)) {
+    for (const name of fs.readdirSync(libDir)) {
+      if (name.startsWith("python")) candidates.push(path.join(libDir, name, "site-packages"));
+    }
+  }
+  return candidates.filter((candidate) => fs.existsSync(candidate));
+}
+
 function pythonExecutable() {
   if (app.isPackaged) {
     // Windows ships a full relocated CPython tree (python.exe at runtime root).
@@ -575,7 +586,12 @@ function spawnBackend() {
     PYTHONUNBUFFERED: "1",
     PYTHONNOUSERSITE: "1",
     PYTHONDONTWRITEBYTECODE: "1",
-    PYTHONPATH: cwd,
+    // pyvenv.cfg is removed so Developer ID can sign the Mac runtime. Without it,
+    // python never sees the bundled site-packages (uvicorn and the rest).
+    PYTHONPATH: [
+      cwd,
+      ...(app.isPackaged ? venvSitePackages(resourcesPath("backend-venv")) : []),
+    ].join(path.delimiter),
   };
   const packagedEnv = path.join(cwd, "forma-backend.env");
   const packagedDotenv = path.join(cwd, ".env");
@@ -826,19 +842,39 @@ function refreshWindowsShellShortcuts() {
   try {
     const exePath = process.execPath;
     const exeDir = path.dirname(exePath);
-    const icoBeside = path.join(exeDir, "Meetra.ico");
-    const iconPath = fs.existsSync(icoBeside) ? icoBeside : exePath;
+    const icoBeside = ["Meetra-circle.ico", "Meetra.ico"]
+      .map((name) => path.join(exeDir, name))
+      .find((candidate) => fs.existsSync(candidate));
+    const iconPath = icoBeside || exePath;
     const targets = [];
 
     const desktop = app.getPath("desktop");
-    targets.push(path.join(desktop, "Meetra.lnk"));
-    targets.push(path.join(desktop, "Hall.lnk"));
-
     const publicDesktop = process.env.PUBLIC
       ? path.join(process.env.PUBLIC, "Desktop")
       : "C:\\Users\\Public\\Desktop";
-    targets.push(path.join(publicDesktop, "Meetra.lnk"));
-    targets.push(path.join(publicDesktop, "Hall.lnk"));
+    const userDesktopLnk = path.join(desktop, "Meetra.lnk");
+    const publicDesktopLnk = path.join(publicDesktop, "Meetra.lnk");
+    // A per-machine install already puts one shortcut on the public desktop.
+    // Creating a second on the user desktop is what showed two Meetra icons.
+    if (fs.existsSync(publicDesktopLnk) && fs.existsSync(userDesktopLnk)) {
+      try {
+        fs.unlinkSync(userDesktopLnk);
+      } catch {
+        // keep going; the installer also removes this copy
+      }
+    }
+    for (const hall of [
+      path.join(desktop, "Hall.lnk"),
+      path.join(publicDesktop, "Hall.lnk"),
+    ]) {
+      try {
+        if (fs.existsSync(hall)) fs.unlinkSync(hall);
+      } catch {
+        // ignore
+      }
+    }
+    if (fs.existsSync(publicDesktopLnk)) targets.push(publicDesktopLnk);
+    else targets.push(userDesktopLnk);
 
     const programs = path.join(
       process.env.PROGRAMDATA || "C:\\ProgramData",
@@ -916,7 +952,7 @@ function refreshMacOsAppIcon() {
     const appPath = path.resolve(process.execPath, "..", "..", "..");
     const now = new Date();
     fs.utimesSync(appPath, now, now);
-    for (const name of ["meetra.icns", "icon.icns"]) {
+    for (const name of ["meetra-circle.icns", "meetra.icns", "icon.icns"]) {
       const icns = path.join(appPath, "Contents", "Resources", name);
       if (fs.existsSync(icns)) fs.utimesSync(icns, now, now);
     }
