@@ -11,6 +11,13 @@
   let cachedPositionMs = 0;
   let cachedPositionAt = 0;
   let cachedDurationMs = 0;
+  let endPosted = false;
+  let approachedTrackEnd = false;
+  let endWatchTimer = null;
+  let playedMs = 0;
+  let playingSince = 0;
+
+  const END_GRACE_MS = 8000;
 
   function post(msg) {
     if (window.ewvjs?.api?.postMessage) {
@@ -59,35 +66,92 @@
     return token;
   }
 
-  function isTrackFinished(state) {
-    if (!state) return false;
-    const duration = typeof state.duration === "number" ? state.duration : 0;
-    if (duration <= 0) return false;
-    return state.position >= Math.max(0, duration - 2_000);
+  function clearEndWatch() {
+    if (endWatchTimer) {
+      clearInterval(endWatchTimer);
+      endWatchTimer = null;
+    }
   }
 
-  function syncPosition(state) {
-    const wasPlaying = cachedPlaying;
+  function wallPlayedMs() {
+    let total = playedMs;
+    if (cachedPlaying && playingSince > 0) total += performance.now() - playingSince;
+    return total;
+  }
+
+  function markPlaying(playing) {
+    const now = performance.now();
+    if (playing && !cachedPlaying) playingSince = now;
+    if (!playing && cachedPlaying && playingSince > 0) {
+      playedMs += now - playingSince;
+      playingSince = 0;
+    }
+    cachedPlaying = playing;
+  }
+
+  function postEnded() {
+    if (endPosted) return;
+    if (performance.now() - playbackStartedAt < END_GRACE_MS) return;
+    endPosted = true;
+    approachedTrackEnd = false;
+    markPlaying(false);
+    clearEndWatch();
+    post({ event: "ended" });
+    post({ event: "playing", playing: false });
+  }
+
+  function noteProgress(position, duration) {
+    if (!(duration > 0) || !(position >= 0)) return;
+    if (position >= Math.max(0, duration - 5000)) approachedTrackEnd = true;
+    if (position >= Math.max(0, duration - 1200)) postEnded();
+  }
+
+  function considerNaturalEnd(state) {
+    if (endPosted) return;
     if (!state) {
-      if (wasPlaying && performance.now() - playbackStartedAt >= 5000) post({ event: "ended" });
-      cachedPlaying = false;
-      post({ event: "playing", playing: false });
+      if (cachedPlaying && wallPlayedMs() >= 8000 && cachedDurationMs > 0 && wallPlayedMs() >= cachedDurationMs - 800) {
+        postEnded();
+      }
       return;
     }
-    const playing = !state.paused;
-    cachedPositionMs = state.position;
+    const duration = typeof state.duration === "number" && state.duration > 0 ? state.duration : cachedDurationMs;
+    const position = typeof state.position === "number" ? state.position : 0;
+    if (duration > 0) cachedDurationMs = duration;
+    cachedPositionMs = position;
     cachedPositionAt = performance.now();
-    if (typeof state.duration === "number" && state.duration > 0) {
-      cachedDurationMs = state.duration;
-    }
-    const finished = isTrackFinished(state);
+    const playing = !state.paused;
     if (playing !== cachedPlaying) {
-      cachedPlaying = playing;
+      markPlaying(playing);
       post({ event: "playing", playing });
     }
-    if (!playing && wasPlaying && finished) {
-      post({ event: "ended" });
-    }
+    noteProgress(position, duration);
+    if (endPosted) return;
+    if (!playing && approachedTrackEnd && position < 2000) postEnded();
+    if (playing && duration > 0 && wallPlayedMs() >= duration - 600) postEnded();
+  }
+
+  function startEndWatch() {
+    if (endWatchTimer) return;
+    endWatchTimer = setInterval(() => {
+      if (endPosted || !player) return;
+      void player
+        .getCurrentState()
+        .then((state) => considerNaturalEnd(state))
+        .catch(() => undefined);
+    }, 1000);
+  }
+
+  function resetPlayClock() {
+    endPosted = false;
+    approachedTrackEnd = false;
+    playedMs = 0;
+    playingSince = performance.now();
+    cachedPlaying = true;
+    playbackStartedAt = playingSince;
+    cachedPositionMs = 0;
+    cachedPositionAt = playingSince;
+    cachedDurationMs = 0;
+    startEndWatch();
   }
 
   async function ensurePlayer() {
@@ -119,7 +183,7 @@
     });
     let lastVolumeTrackId = "";
     player.addListener("player_state_changed", (state) => {
-      syncPosition(state);
+      considerNaturalEnd(state);
       const trackId = state?.track_window?.current_track?.id || "";
       if (!trackId || trackId === lastVolumeTrackId || !player) return;
       lastVolumeTrackId = trackId;
@@ -202,10 +266,7 @@
       if (!response.ok && response.status !== 204) {
         throw new Error(`Spotify play HTTP ${response.status}`);
       }
-      playbackStartedAt = performance.now();
-      cachedPositionMs = 0;
-      cachedPositionAt = performance.now();
-      cachedDurationMs = 0;
+      resetPlayClock();
       const saved = window.__hallSpotifyVolume;
       if (typeof saved === "number" && Number.isFinite(saved)) {
         const next = Math.min(1, Math.max(0, saved));
@@ -219,7 +280,7 @@
         }, 700);
       }
       try {
-        syncPosition(await webPlayer.getCurrentState());
+        considerNaturalEnd(await webPlayer.getCurrentState());
       } catch {
         post({ event: "playing", playing: true });
       }
@@ -228,11 +289,14 @@
 
     async pause() {
       if (!player) return;
+      markPlaying(false);
       await player.pause();
     },
 
     async resume() {
       if (!player) return;
+      markPlaying(true);
+      startEndWatch();
       await player.resume();
     },
 
@@ -301,7 +365,10 @@
       }
       player = null;
       deviceId = null;
+      clearEndWatch();
+      endPosted = true;
       cachedPlaying = false;
+      playingSince = 0;
       cachedPositionMs = 0;
       cachedPositionAt = 0;
       cachedDurationMs = 0;

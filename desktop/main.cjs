@@ -513,13 +513,35 @@ async function startUiServer() {
 }
 
 function stopUiServer() {
-  if (!uiServer) return;
-  try {
-    uiServer.close();
-  } catch {
-    // ignore
-  }
+  const server = uiServer;
   uiServer = null;
+  if (!server) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    server.once("error", finish);
+    server.once("close", finish);
+    try {
+      server.close();
+    } catch {
+      finish();
+    }
+    setTimeout(finish, 1000);
+  });
+}
+
+/** The packaged UI is served on 47832. Recreate it if the window is coming back. */
+function ensurePackagedServices(forceRestartUi = false) {
+  if (DEV_URL) return Promise.resolve();
+  const pending =
+    !forceRestartUi && uiServer ? Promise.resolve() : stopUiServer().then(() => startUiServer());
+  return pending.then(() => {
+    if (!backendProc) spawnBackend();
+  });
 }
 
 function spawnBackend() {
@@ -658,6 +680,38 @@ function attachRendererDiagnostics(win) {
   contents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     if (!isMainFrame) return;
     if (errorCode === -3) return; // ERR_ABORTED (in-page navigation)
+    // -102 ERR_CONNECTION_REFUSED, -106 ERR_CONNECTION_RESET. The Mac app stays
+    // alive after the last window closes; bring the local UI server back once.
+    if (
+      !DEV_URL &&
+      (errorCode === -102 || errorCode === -106) &&
+      isDesktopAppUrl(validatedURL) &&
+      rendererRestarts < 1
+    ) {
+      rendererRestarts += 1;
+      appendBackendLog(
+        `[hall] did-fail-load retry code=${errorCode} url=${validatedURL}\n`,
+      );
+      void ensurePackagedServices(true)
+        .then(() => {
+          if (!win.isDestroyed()) return win.loadURL(START_URL);
+        })
+        .catch((err) => {
+          appendBackendLog(
+            `[hall] UI server restart failed: ${err instanceof Error ? err.message : err}\n`,
+          );
+          if (win.isDestroyed()) return;
+          win.loadURL(
+            loadErrorHtml(
+              "Meetra ne peut pas afficher l'interface",
+              `${errorDescription} (${errorCode}).`,
+              validatedURL ? `URL : ${validatedURL}` : "",
+            ),
+          );
+          ensureMainWindowShown();
+        });
+      return;
+    }
     appendBackendLog(
       `[hall] did-fail-load code=${errorCode} desc=${errorDescription} url=${validatedURL}\n`,
     );
@@ -946,7 +1000,7 @@ function ensureWindowOnVisibleDisplay(win) {
 }
 
 function splashWindowChrome(bounds = getCenteredSplashBounds()) {
-  return {
+  const chrome = {
     width: bounds.width,
     height: bounds.height,
     x: bounds.x,
@@ -964,6 +1018,14 @@ function splashWindowChrome(bounds = getCenteredSplashBounds()) {
     title: "Meetra",
     icon: resolveAppIconPath(),
   };
+  if (process.platform !== "win32") return chrome;
+  // A transparent layered window on Windows drops the boot-bar animation.
+  return {
+    ...chrome,
+    transparent: false,
+    backgroundColor: "#171717",
+    hasShadow: true,
+  };
 }
 
 /**
@@ -976,12 +1038,19 @@ function mainWindowChrome(bounds = getCenteredSplashBounds()) {
   if (process.platform === "win32") {
     // Opaque frameless window. A transparent layered window on Windows drops CSS
     // transform animations and clips 1px strokes along rounded edges.
+    // The style bits have to be set at creation. Turning them on later does not
+    // add WS_MINIMIZEBOX / WS_MAXIMIZEBOX, so the caption buttons do nothing.
     return {
       ...base,
       transparent: false,
       backgroundColor: "#0a0a0a",
       hasShadow: true,
       roundedCorners: true,
+      minimizable: true,
+      maximizable: true,
+      closable: true,
+      resizable: true,
+      fullscreenable: true,
     };
   }
   if (process.platform !== "darwin") return base;
@@ -1107,8 +1176,11 @@ function applySplashChromeNow() {
   }
   const bounds = getCenteredSplashBounds();
   mainWindow.setFullScreenable(false);
-  mainWindow.setMinimizable(false);
-  mainWindow.setMaximizable(false);
+  // On Windows these calls clear the caption style bits for good.
+  if (process.platform !== "win32") {
+    mainWindow.setMinimizable(false);
+    mainWindow.setMaximizable(false);
+  }
   mainWindow.setResizable(true);
   mainWindow.setMinimumSize(SPLASH_WINDOW_SIZE.width, SPLASH_WINDOW_SIZE.height);
   mainWindow.setMaximumSize(SPLASH_WINDOW_SIZE.width, SPLASH_WINDOW_SIZE.height);
@@ -1167,10 +1239,47 @@ async function showSplashMainWindow() {
   return splashShowPromise;
 }
 
+function workAreaForWindow(win) {
+  const bounds = win && !win.isDestroyed() ? win.getBounds() : null;
+  const display = bounds
+    ? (screen.getDisplayMatching(bounds) ?? screen.getPrimaryDisplay())
+    : screen.getPrimaryDisplay();
+  return display.workArea;
+}
+
+let fillingWindowsWorkArea = false;
+
+/**
+ * A real maximized frameless window on Windows is shifted off-screen by the
+ * thick frame, and the top-right caption buttons stop receiving clicks.
+ * Filling the work area keeps the same look without that dead zone.
+ */
+function fillWindowsWorkArea(win) {
+  if (!win || win.isDestroyed() || fillingWindowsWorkArea) return;
+  fillingWindowsWorkArea = true;
+  try {
+    if (win.isMaximized()) win.unmaximize();
+    applyAppWindowSizing(win);
+    const area = workAreaForWindow(win);
+    win.setBounds({
+      x: area.x,
+      y: area.y,
+      width: area.width,
+      height: area.height,
+    });
+  } finally {
+    fillingWindowsWorkArea = false;
+  }
+}
+
 function enterLaunchFullScreen(win) {
   if (!win || win.isDestroyed()) return;
   if (process.platform === "darwin") {
     win.setFullScreen(true);
+    return;
+  }
+  if (process.platform === "win32") {
+    fillWindowsWorkArea(win);
     return;
   }
   win.maximize();
@@ -1366,6 +1475,18 @@ function attachMainWindowStateListeners(win) {
   ]) {
     win.on(event, emit);
   }
+  if (process.platform === "win32") {
+    win.on("maximize", () => {
+      if (mainWindowMode !== "app") return;
+      setImmediate(() => {
+        if (fillingWindowsWorkArea || win.isDestroyed() || !win.isMaximized() || mainWindowMode !== "app") {
+          return;
+        }
+        fillWindowsWorkArea(win);
+        sendMainWindowState();
+      });
+    });
+  }
 }
 
 function windowFillsWorkArea(win) {
@@ -1400,6 +1521,7 @@ function toggleMainWindowFullscreen() {
     mainWindow.isMaximized() ||
     windowFillsWorkArea(mainWindow);
   if (expanded) restoreMainWindowFromExpanded();
+  else if (process.platform === "win32") fillWindowsWorkArea(mainWindow);
   else mainWindow.maximize();
   return getMainWindowState();
 }
@@ -1449,7 +1571,25 @@ function createWindow() {
   attachMainWindowStateListeners(mainWindow);
   armLaunchWatchdog(mainWindow);
 
-  mainWindow.loadURL(START_URL);
+  void ensurePackagedServices()
+    .then(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      return mainWindow.loadURL(START_URL);
+    })
+    .catch((err) => {
+      appendBackendLog(
+        `[hall] UI server unavailable: ${err instanceof Error ? err.message : err}\n`,
+      );
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.loadURL(
+        loadErrorHtml(
+          "Meetra ne peut pas afficher l'interface",
+          err instanceof Error ? err.message : "Le serveur local n'a pas démarré.",
+          START_URL,
+        ),
+      );
+      ensureMainWindowShown();
+    });
   spotifyWebView2.setMainWindow(mainWindow);
   mainWindow.webContents.once("did-finish-load", () => {
     if (pendingDesktopWorkspaceInvite) {
@@ -1781,6 +1921,7 @@ ipcMain.handle("forma:window-close", () => {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, ...getMainWindowState() };
   }
+  mainWindow.setClosable(true);
   mainWindow.close();
   return { ok: true, mode: mainWindowMode };
 });
@@ -2083,9 +2224,13 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   hideRecordingCameraOverlay();
+  // macOS keeps this process after the last window closes. Stopping the UI
+  // server here makes the next dock click load 127.0.0.1:47832 and fail with
+  // ERR_CONNECTION_REFUSED. Quit still tears the servers down in before-quit.
+  if (process.platform === "darwin") return;
   stopBackend();
   stopUiServer();
-  if (process.platform !== "darwin") app.quit();
+  app.quit();
 });
 
 app.on("activate", () => {

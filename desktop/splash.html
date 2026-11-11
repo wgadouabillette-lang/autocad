@@ -108,9 +108,10 @@
         var bar = document.querySelector(".progress");
         if (!fill) return;
         var start = performance.now();
-        var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        // Same curve as macOS. Windows often reports reduced motion, which
+        // made this bar race ahead and then sit still.
         var cap = 90;
-        var tau = reduce ? 900 : 2200;
+        var tau = 2200;
         function tick(now) {
           var pct = cap * (1 - Math.exp(-(now - start) / tau));
           fill.style.width = pct.toFixed(2) + "%";

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Génère l'icône Meetra (tuile sombre + marque blanche) pour macOS / Windows / Linux / favicon."""
+"""Génère l'icône Meetra (cercle sombre + marque grise) pour macOS / Windows / Linux / favicon."""
 from __future__ import annotations
 
 import re
@@ -12,8 +12,8 @@ OUT_DIR = ROOT / "desktop" / "build"
 MARK_SRC = ROOT / "brand" / "meetra-mark.svg"
 
 FILL = (0x23, 0x23, 0x23, 255)
-STROKE = (255, 255, 255, 255)
-MARK_FILL = (255, 255, 255, 255)
+MARK_FILL = (0xD4, 0xD4, 0xD4, 255)
+MARK_WIDTH = 54
 
 
 def _load_mark() -> tuple[tuple[float, float, float, float], list[str]]:
@@ -75,14 +75,13 @@ def _sample_path(d: str, steps: int = 14) -> list[tuple[float, float]]:
 
 def _icon_svg(box: tuple[float, float, float, float], paths: list[str]) -> str:
     _x, _y, vw, vh = box
-    scale = 68 / vw
+    scale = MARK_WIDTH / vw
     x = (100 - vw * scale) / 2
     y = (100 - vh * scale) / 2
     body = "\n    ".join(f'<path d="{d}"/>' for d in paths)
     return f"""<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="1.25" y="1.25" width="97.5" height="97.5" rx="23.75" fill="#232323"/>
-  <rect x="1.25" y="1.25" width="97.5" height="97.5" rx="23.75" stroke="white" stroke-width="2.5"/>
-  <g fill="#FFFFFF" transform="translate({x:.3f} {y:.3f}) scale({scale:.6f})">
+  <circle cx="50" cy="50" r="50" fill="#232323"/>
+  <g fill="#D4D4D4" transform="translate({x:.3f} {y:.3f}) scale({scale:.6f})">
     {body}
   </g>
 </svg>
@@ -92,21 +91,13 @@ def _icon_svg(box: tuple[float, float, float, float], paths: list[str]) -> str:
 def draw_icon(size: int, box: tuple[float, float, float, float], paths: list[str]) -> Image.Image:
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    scale = size / 100.0
-    x0 = 1.25 * scale
-    y0 = 1.25 * scale
-    x1 = (1.25 + 97.5) * scale
-    y1 = (1.25 + 97.5) * scale
-    radius = 23.75 * scale
-    stroke = max(1, round(2.5 * scale))
-    tile = [x0, y0, x1, y1]
-    draw.rounded_rectangle(tile, radius=radius, fill=FILL)
-    draw.rounded_rectangle(tile, radius=radius, outline=STROKE, width=stroke)
+    draw.ellipse((0, 0, size - 1, size - 1), fill=FILL)
 
     _x, _y, vw, vh = box
-    mark_scale = (68 / vw) * scale
-    ox = ((100 - vw * (68 / vw)) / 2) * scale
-    oy = ((100 - vh * (68 / vw)) / 2) * scale
+    scale = size / 100.0
+    mark_scale = (MARK_WIDTH / vw) * scale
+    ox = ((100 - MARK_WIDTH) / 2) * scale
+    oy = ((100 - vh * (MARK_WIDTH / vw)) / 2) * scale
     for d in paths:
         polygon = [(ox + px * mark_scale, oy + py * mark_scale) for px, py in _sample_path(d)]
         draw.polygon(polygon, fill=MARK_FILL)
@@ -161,7 +152,7 @@ def main() -> None:
         OUT_DIR / "icon.ico",
         format="ICO",
         sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
-        bitmap_format="bmp",
+        bitmap_format="png",
     )
 
     landing_128 = draw_icon(128, box, paths)

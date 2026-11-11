@@ -49,4 +49,12 @@ if (!handler.includes("markRendererAckedWindowMode")) {
   fail("forma:set-window-mode must cancel the launch watchdog");
 }
 
+const closedAt = main.indexOf('app.on("window-all-closed"');
+const closedHandler = closedAt < 0 ? "" : main.slice(closedAt, closedAt + 500);
+const darwinKeepAlive = closedHandler.indexOf('process.platform === "darwin"');
+const stopUiAt = closedHandler.indexOf("stopUiServer");
+if (darwinKeepAlive < 0 || stopUiAt < 0 || darwinKeepAlive > stopUiAt) {
+  fail("window-all-closed must keep the Mac UI server alive until quit");
+}
+
 console.log("desktop boot guard ok");

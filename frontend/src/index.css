@@ -552,6 +552,11 @@ html:not(.app-loading-splash) #root {
       width: 55%;
     }
   }
+  /* Windows reports reduced motion from the system flag. Keep the Mac bar. */
+  html.is-desktop-windows .app-loading-screen__progress--indeterminate .app-loading-screen__progress-fill {
+    width: 36%;
+    animation: app-loading-progress-slide 1.15s ease-in-out infinite;
+  }
   .app-loading-screen__error {
     @apply mt-2 flex max-w-[13rem] flex-col items-center gap-2 px-2 text-center;
   }
@@ -1390,6 +1395,12 @@ html:not(.app-loading-splash) #root {
   /* Windows: no separate titlebar. Logo and caption buttons stay in the top row;
      workspace, upgrade, invite and settings sit in that same row.
      The chat header stays on its own row; only its + button lifts into the top strip. */
+  html.is-desktop-windows {
+    --desktop-caption-reserve: calc(3 * 2.25rem + 4px);
+  }
+  html.is-desktop-windows.is-desktop-windows-maximized {
+    --desktop-caption-reserve: calc(3 * 2.25rem + 10px);
+  }
   html.is-desktop-windows .app-shell {
     padding-top: 0;
   }
@@ -1406,6 +1417,12 @@ html:not(.app-loading-splash) #root {
   }
   html.is-desktop-windows .app-chrome-row {
     -webkit-app-region: drag;
+    /* Keep this row's drag box off the caption buttons. width:100% plus a
+       margin would still paint the drag region underneath them. */
+    width: calc(100% - var(--desktop-caption-reserve));
+  }
+  html.is-desktop-windows .app-layout--panel-right.app-layout--chat-open .app-chrome-row {
+    width: 100%;
   }
   html.is-desktop-windows .app-chrome-row button,
   html.is-desktop-windows .app-chrome-row a,
@@ -1422,7 +1439,7 @@ html:not(.app-loading-splash) #root {
     top: 0;
     /* Leave the lifted + button outside the drag strip so its click is not swallowed. */
     left: calc(0.5rem + 2.25rem);
-    right: 0;
+    right: var(--desktop-caption-reserve);
     height: var(--desktop-autohide-titlebar-height);
     -webkit-app-region: drag;
   }
@@ -1431,11 +1448,11 @@ html:not(.app-loading-splash) #root {
      buttons are painted above it. */
   html.is-desktop-windows .app-layout--panel-right .chat-panel::before,
   html.is-desktop-windows .chat-panel--expanded::before {
-    right: calc(3 * 2.25rem);
+    right: var(--desktop-caption-reserve);
   }
   html.is-desktop-windows.is-desktop-windows-maximized .app-layout--panel-right .chat-panel::before,
   html.is-desktop-windows.is-desktop-windows-maximized .chat-panel--expanded::before {
-    right: calc(3 * 2.25rem + 6px);
+    right: var(--desktop-caption-reserve);
   }
   html.is-desktop-windows .app-chrome-row::after {
     content: "";
@@ -12190,10 +12207,7 @@ html.is-desktop-windows .app-chrome-row__main {
 }
 html.is-desktop-windows .app-chrome-row__actions {
   margin-left: auto;
-  padding-right: calc(3 * 2.25rem);
-}
-html.is-desktop-windows.is-desktop-windows-maximized .app-chrome-row__actions {
-  padding-right: calc(3 * 2.25rem + 6px);
+  padding-right: 0.25rem;
 }
 html.is-desktop-windows .app-layout--panel-right.app-layout--chat-open .app-chrome-row__actions {
   padding-right: 0.25rem;
@@ -12210,12 +12224,12 @@ html.is-desktop-windows .app-layout--settings .app-layout__main::before {
   z-index: 4;
   top: 0;
   left: 0;
-  right: calc(3 * 2.25rem);
+  right: var(--desktop-caption-reserve);
   height: var(--desktop-autohide-titlebar-height);
   -webkit-app-region: drag;
 }
 html.is-desktop-windows.is-desktop-windows-maximized .app-layout--settings:not(.app-layout--chat-open) .app-layout__main::before {
-  right: calc(3 * 2.25rem + 6px);
+  right: var(--desktop-caption-reserve);
 }
 html.is-desktop-windows .app-layout--settings.app-layout--chat-open .app-layout__main::before {
   right: 0;
