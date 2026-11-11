@@ -4,6 +4,7 @@ import AppChromeRow from "./components/AppChromeRow";
 import BottomHeader from "./components/BottomHeader";
 import DesktopWindowControls from "./components/chrome/DesktopWindowControls";
 import CallsView from "./components/calls/CallsView";
+import ScreenShareLiveBadge from "./components/calls/ScreenShareLiveBadge";
 import ChatPanelShell from "./components/ChatPanelShell";
 import { useAccentColor } from "./hooks/useAccentColor";
 import { useColorTheme } from "./hooks/useColorTheme";
@@ -77,6 +78,7 @@ export default function MarketingPreviewApp() {
         )}
         style={layoutStyle}
       >
+        <ScreenShareLiveBadge />
         <AppChromeRow />
         <main className="app-layout__main">
           <CallsView />

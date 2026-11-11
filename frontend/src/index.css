@@ -1420,7 +1420,8 @@ html:not(.app-loading-splash) #root {
     position: absolute;
     z-index: 4;
     top: 0;
-    left: 0;
+    /* Leave the lifted + button outside the drag strip so its click is not swallowed. */
+    left: calc(0.5rem + 2.25rem);
     right: 0;
     height: var(--desktop-autohide-titlebar-height);
     -webkit-app-region: drag;
@@ -1453,13 +1454,14 @@ html:not(.app-loading-splash) #root {
   html.is-desktop-windows .app-layout--panel-right.app-layout--chat-open .app-chrome-row::after {
     content: none;
   }
-  html.is-desktop-windows .chat-panel-header__lift {
+  html.is-desktop-windows .chat-panel-header__tools .toolbar-btn.chat-panel-header__lift {
     position: absolute;
     top: 0;
-    left: 0.2rem;
+    /* Same inset and width as the header button directly underneath. */
+    left: 0.5rem;
     z-index: 6;
     height: var(--desktop-autohide-titlebar-height);
-    width: 2rem;
+    width: 2.25rem;
     -webkit-app-region: no-drag;
   }
   .desktop-window-controls--persistent {
@@ -12118,6 +12120,32 @@ html:not(.app-loading-splash) #root {
 .recording-camera-preview__placeholder {
   @apply flex items-center justify-center;
   background-color: var(--forma-chat-composer-bg);
+}
+
+.screen-share-live {
+  position: fixed;
+  z-index: 210;
+  top: 0.7rem;
+  right: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  height: 1.55rem;
+  padding: 0 0.72rem;
+  border-radius: 999px;
+  background-color: #e11d2e;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.28);
+}
+html.is-desktop-windows .screen-share-live {
+  top: calc(var(--desktop-autohide-titlebar-height) + 0.45rem);
+}
+html.is-desktop-windows .app-layout--panel-right.app-layout--chat-open .screen-share-live {
+  top: calc(var(--desktop-autohide-titlebar-height) + var(--forma-top-toolbar-height) + 0.4rem);
 }
 
 .app-recording-frame {

@@ -1,8 +1,19 @@
 const { spawn } = require("child_process");
+const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
 
-const HOST_SCRIPT = path.join(__dirname, "spotify-webview2-host.cjs");
+function hostScriptPath() {
+  const bundled = path.join(__dirname, "spotify-webview2-host.cjs");
+  // The published app keeps this script outside app.asar. Edge cannot open
+  // player.html from inside the archive, so the child must run the unpacked copy.
+  const unpacked = bundled.replace(
+    `${path.sep}app.asar${path.sep}`,
+    `${path.sep}app.asar.unpacked${path.sep}`,
+  );
+  if (unpacked !== bundled && fs.existsSync(unpacked)) return unpacked;
+  return bundled;
+}
 
 /** @type {import("child_process").ChildProcess | null} */
 let hostProc = null;
@@ -129,7 +140,7 @@ function startHost() {
         "forma-desktop",
         "spotify-webview2",
       );
-      const child = spawn(process.execPath, [HOST_SCRIPT], {
+      const child = spawn(process.execPath, [hostScriptPath()], {
         env: {
           ...process.env,
           ELECTRON_RUN_AS_NODE: "1",
