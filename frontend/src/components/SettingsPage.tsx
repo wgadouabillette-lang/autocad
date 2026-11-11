@@ -10,7 +10,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import {
   normalizeSettingsTab,
@@ -92,6 +92,11 @@ export default function SettingsPage() {
     });
     return () => cancelAnimationFrame(frame);
   }, [settingsScrollTarget, resolvedTab, clearSettingsScrollTarget]);
+
+  useLayoutEffect(() => {
+    document.documentElement.classList.add("is-app-settings");
+    return () => document.documentElement.classList.remove("is-app-settings");
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

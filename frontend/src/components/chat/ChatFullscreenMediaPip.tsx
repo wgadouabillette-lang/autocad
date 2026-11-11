@@ -5,6 +5,7 @@ import { avatarColor, inCallParticipants, userInitials } from "../../lib/calls";
 import { buildRemoteMediaFeeds } from "../../lib/webrtc/workspaceVoiceRtc";
 import VoiceMuteBadge from "../calls/VoiceMuteBadge";
 import LocalScreenSharePreview from "../calls/LocalScreenSharePreview";
+import ScreenShareLiveBadge from "../calls/ScreenShareLiveBadge";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 
@@ -57,6 +58,7 @@ function PipMediaTile({
       )}
       <span className="chat-fullscreen-media-pip__label">{label}</span>
       {muted && <VoiceMuteBadge />}
+      {feed.kind === "screen" && feed.isLocal ? <ScreenShareLiveBadge /> : null}
     </div>
   );
 }

@@ -12123,10 +12123,10 @@ html:not(.app-loading-splash) #root {
 }
 
 .screen-share-live {
-  position: fixed;
-  z-index: 210;
-  top: 0.7rem;
-  right: 0.85rem;
+  position: absolute;
+  z-index: 3;
+  top: 0.65rem;
+  left: 0.65rem;
   display: inline-flex;
   align-items: center;
   height: 1.55rem;
@@ -12141,11 +12141,12 @@ html:not(.app-loading-splash) #root {
   pointer-events: none;
   box-shadow: 0 6px 16px rgb(0 0 0 / 0.28);
 }
-html.is-desktop-windows .screen-share-live {
-  top: calc(var(--desktop-autohide-titlebar-height) + 0.45rem);
-}
-html.is-desktop-windows .app-layout--panel-right.app-layout--chat-open .screen-share-live {
-  top: calc(var(--desktop-autohide-titlebar-height) + var(--forma-top-toolbar-height) + 0.4rem);
+.voice-participant-tile:has(.screen-share-live) .voice-mute-badge,
+.call-present-tile:has(.screen-share-live) .voice-mute-badge,
+.theater-speaker-card:has(.screen-share-live) .voice-mute-badge,
+.chat-fullscreen-media-pip__item:has(.screen-share-live) .voice-mute-badge {
+  left: auto;
+  right: 0.65rem;
 }
 
 .app-recording-frame {
@@ -12197,8 +12198,27 @@ html.is-desktop-windows.is-desktop-windows-maximized .app-chrome-row__actions {
 html.is-desktop-windows .app-layout--panel-right.app-layout--chat-open .app-chrome-row__actions {
   padding-right: 0.25rem;
 }
-html.is-desktop-windows .app-layout--settings {
-  padding-top: var(--desktop-autohide-titlebar-height);
+/* Settings uses the same top inset as macOS. The caption buttons stay;
+   the Meetra logo and the Upgrade / Workspace row do not. */
+html.is-desktop-windows.is-app-settings .desktop-window-controls__brand {
+  visibility: hidden;
+  pointer-events: none;
+}
+html.is-desktop-windows .app-layout--settings .app-layout__main::before {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  left: 0;
+  right: calc(3 * 2.25rem);
+  height: var(--desktop-autohide-titlebar-height);
+  -webkit-app-region: drag;
+}
+html.is-desktop-windows.is-desktop-windows-maximized .app-layout--settings:not(.app-layout--chat-open) .app-layout__main::before {
+  right: calc(3 * 2.25rem + 6px);
+}
+html.is-desktop-windows .app-layout--settings.app-layout--chat-open .app-layout__main::before {
+  right: 0;
 }
 html.is-desktop-windows .header-toolbar-actions {
   display: inline-flex;

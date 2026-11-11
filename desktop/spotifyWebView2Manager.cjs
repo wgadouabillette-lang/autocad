@@ -24,8 +24,10 @@ let mainWindowRef = null;
 /** @type {Map<string, (token: string) => void>} */
 const tokenWaiters = new Map();
 let hostReady = false;
+/** @type {{ resolve: () => void, reject: (err: Error) => void }[]} */
 let hostReadyWaiters = [];
 let startPromise = null;
+let lastHostError = "Lecteur WebView2 Spotify indisponible.";
 /** @type {Map<string, { resolve: (payload: Record<string, unknown>) => void, reject: (err: Error) => void, timer: NodeJS.Timeout }>} */
 const commandWaiters = new Map();
 
@@ -46,11 +48,21 @@ function writeHost(payload) {
 function waitForHostReady(timeoutMs = 25_000) {
   if (hostReady) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("WebView2 Spotify timeout.")), timeoutMs);
-    hostReadyWaiters.push(() => {
-      clearTimeout(timer);
-      resolve();
-    });
+    const waiter = {
+      resolve: () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      reject: (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    };
+    const timer = setTimeout(() => {
+      hostReadyWaiters = hostReadyWaiters.filter((item) => item !== waiter);
+      reject(new Error(lastHostError || "WebView2 Spotify timeout."));
+    }, timeoutMs);
+    hostReadyWaiters.push(waiter);
   });
 }
 
@@ -59,7 +71,7 @@ function handleHostEvent(payload) {
 
   if (payload.event === "host-ready") {
     hostReady = true;
-    for (const resolve of hostReadyWaiters.splice(0)) resolve();
+    for (const waiter of hostReadyWaiters.splice(0)) waiter.resolve();
     return;
   }
 
@@ -100,7 +112,8 @@ function handleHostEvent(payload) {
   }
 
   if (payload.event === "fatal") {
-    console.error("[spotify-webview2]", payload.message);
+    lastHostError = payload.message || lastHostError;
+    console.error("[spotify-webview2]", lastHostError);
     stopHost();
   }
 }
@@ -120,11 +133,17 @@ function attachHostProcess(proc) {
     if (text) console.warn("[spotify-webview2-host]", text);
   });
   proc.on("exit", () => {
+    const readyBeforeExit = hostReady;
+    const waiters = hostReadyWaiters.splice(0);
     hostProc = null;
     hostReader = null;
     hostReady = false;
     hostReadyWaiters = [];
     startPromise = null;
+    if (!readyBeforeExit) {
+      const err = new Error(lastHostError);
+      for (const waiter of waiters) waiter.reject(err);
+    }
   });
 }
 
@@ -134,6 +153,7 @@ function startHost() {
   if (startPromise) return startPromise;
 
   startPromise = new Promise((resolve) => {
+    lastHostError = "Lecteur WebView2 Spotify indisponible.";
     try {
       const dataDir = path.join(
         process.env.APPDATA || path.join(require("os").homedir(), "AppData", "Roaming"),
@@ -144,6 +164,8 @@ function startHost() {
         env: {
           ...process.env,
           ELECTRON_RUN_AS_NODE: "1",
+          // Native WebView2 DLLs live beside the unpacked module, not inside app.asar.
+          ELECTRON_NO_ASAR: "1",
           FORMA_SPOTIFY_WEBVIEW2_DATA: dataDir,
         },
         stdio: ["pipe", "pipe", "pipe"],
@@ -167,6 +189,11 @@ function startHost() {
 }
 
 function stopHost() {
+  const waiters = hostReadyWaiters.splice(0);
+  if (!hostReady) {
+    const err = new Error(lastHostError);
+    for (const waiter of waiters) waiter.reject(err);
+  }
   if (hostProc?.stdin?.writable) {
     writeHost({ cmd: "shutdown" });
   }
@@ -182,7 +209,7 @@ function stopHost() {
 
 async function sendCommand(cmd, extra = {}, options = {}) {
   const ok = await startHost();
-  if (!ok) throw new Error("Lecteur WebView2 Spotify indisponible.");
+  if (!ok) throw new Error(lastHostError);
   await waitForHostReady();
 
   const expectResult = options.expectResult === true;

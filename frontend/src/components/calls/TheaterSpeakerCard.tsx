@@ -9,6 +9,7 @@ import UserAvatar from "../UserAvatar";
 import ParticipantAvatarSignetHost from "./ParticipantAvatarSignetHost";
 import VoiceMuteBadge from "./VoiceMuteBadge";
 import LocalScreenSharePreview from "./LocalScreenSharePreview";
+import ScreenShareLiveBadge from "./ScreenShareLiveBadge";
 
 interface TheaterSpeakerCardProps {
   participant: TheaterParticipant;
@@ -119,6 +120,7 @@ export default function TheaterSpeakerCard({
       {(participant.isLocal ? localMuted : mutedByParticipant[participant.id]) ? (
         <VoiceMuteBadge />
       ) : null}
+      {showLocalScreen ? <ScreenShareLiveBadge /> : null}
     </article>
   );
 }

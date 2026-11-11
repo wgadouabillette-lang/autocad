@@ -4,7 +4,7 @@ import AppChromeRow from "./components/AppChromeRow";
 import BottomHeader from "./components/BottomHeader";
 import DesktopWindowControls from "./components/chrome/DesktopWindowControls";
 import CallsView from "./components/calls/CallsView";
-import ScreenShareLiveBadge from "./components/calls/ScreenShareLiveBadge";
+import SettingsPage from "./components/SettingsPage";
 import ChatPanelShell from "./components/ChatPanelShell";
 import { useAccentColor } from "./hooks/useAccentColor";
 import { useColorTheme } from "./hooks/useColorTheme";
@@ -40,6 +40,7 @@ export default function MarketingPreviewApp() {
     return () => cancelMarketingPreviewNotesTranscript();
   }, []);
 
+  const settingsOpen = useStore((s) => s.activePage === "settings");
   const chatPanelOpen = useStore((s) => s.chatPanelOpen);
   const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
   const chatPanelLeaveAnimating = useStore((s) => s.chatPanelLeaveAnimating);
@@ -75,15 +76,15 @@ export default function MarketingPreviewApp() {
           chatPanelOpen && "app-layout--chat-open",
           chatFullscreenOverlay && "app-layout--chat-fullscreen-overlay",
           panelOnLeft ? "app-layout--panel-left" : "app-layout--panel-right",
+          settingsOpen && "app-layout--settings",
         )}
         style={layoutStyle}
       >
-        <ScreenShareLiveBadge />
-        <AppChromeRow />
+        {!settingsOpen && <AppChromeRow />}
         <main className="app-layout__main">
-          <CallsView />
+          {settingsOpen ? <SettingsPage /> : <CallsView />}
         </main>
-        <BottomHeader />
+        {!settingsOpen && <BottomHeader />}
         {chatPanelOpen ? <ChatPanelShell key={sidePanelSide} /> : null}
       </div>
       {recording ? <div className="app-recording-frame" aria-hidden /> : null}

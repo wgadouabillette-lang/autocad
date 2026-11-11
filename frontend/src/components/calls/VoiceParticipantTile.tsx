@@ -7,6 +7,7 @@ import { useMiniChatStore } from "../../store/useMiniChatStore";
 import UserAvatar from "../UserAvatar";
 import VoiceMuteBadge from "./VoiceMuteBadge";
 import LocalScreenSharePreview from "./LocalScreenSharePreview";
+import ScreenShareLiveBadge from "./ScreenShareLiveBadge";
 
 interface VoiceParticipantTileProps {
   participant: CallUser;
@@ -95,6 +96,7 @@ export default function VoiceParticipantTile({
       )}
       <span className="voice-participant-tile__label">{participant.name}</span>
       {showMuteBadge && <VoiceMuteBadge />}
+      {showLocalScreen ? <ScreenShareLiveBadge /> : null}
       {handRaised && (
         <span className="voice-participant-tile__hand" title="Main levée" aria-hidden>
           ✋

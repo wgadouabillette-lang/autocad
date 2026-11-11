@@ -5,20 +5,30 @@
 const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
+const { pathToFileURL } = require("url");
 
 function writeLine(payload) {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
 }
 
-let ewvjs;
-try {
-  ewvjs = require("ewvjs");
-} catch (err) {
-  writeLine({ event: "fatal", message: `ewvjs indisponible: ${err instanceof Error ? err.message : err}` });
-  process.exit(1);
+function ewvjsEntryPoints() {
+  const roots = [__dirname];
+  const unpacked = __dirname.replace(
+    `${path.sep}app.asar${path.sep}`,
+    `${path.sep}app.asar.unpacked${path.sep}`,
+  );
+  if (unpacked !== __dirname) roots.push(unpacked);
+  return roots.map((root) => path.join(root, "node_modules", "ewvjs", "dist", "index.js"));
 }
 
-const { create_window, expose, start } = ewvjs;
+async function loadEwvjs() {
+  const entries = ewvjsEntryPoints();
+  const entry = entries.find((file) => fs.existsSync(file));
+  if (!entry) {
+    throw new Error(`ewvjs introuvable (${entries.join(", ")})`);
+  }
+  return import(pathToFileURL(entry).href);
+}
 
 const playerDir = path.join(__dirname, "spotify-webview2");
 const playerHtml = path.join(playerDir, "player.html");
@@ -44,23 +54,25 @@ function handlePlayerEvent(msg) {
   if (msg.event) writeLine(msg);
 }
 
-expose("fetchToken", () => {
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pendingTokens.delete(id);
-      reject(new Error("Token Spotify timeout."));
-    }, 12_000);
-    pendingTokens.set(id, { resolve, reject, timer });
-    writeLine({ event: "token-request", id });
+function exposePlayerApi(expose) {
+  expose("fetchToken", () => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        pendingTokens.delete(id);
+        reject(new Error("Token Spotify timeout."));
+      }, 12_000);
+      pendingTokens.set(id, { resolve, reject, timer });
+      writeLine({ event: "token-request", id });
+    });
   });
-});
 
-expose("postMessage", (msg) => {
-  handlePlayerEvent(msg);
-  if (msg?.event === "page-ready") pageReadyResolve?.();
-  return true;
-});
+  expose("postMessage", (msg) => {
+    handlePlayerEvent(msg);
+    if (msg?.event === "page-ready") pageReadyResolve?.();
+    return true;
+  });
+}
 
 function waitForPageReady() {
   return Promise.race([
@@ -194,31 +206,46 @@ process.stdin.on("close", () => {
   process.exit(0);
 });
 
-win = create_window("Meetra Spotify", playerHtml, {
-  width: 480,
-  height: 320,
-  hidden: true,
-  focus: false,
-  session: {
-    persist: true,
-    path: path.join(
-      process.env.FORMA_SPOTIFY_WEBVIEW2_DATA || path.join(__dirname, ".spotify-webview2-data"),
-    ),
-  },
-});
+async function openPlayer() {
+  const autoplay = "--autoplay-policy=no-user-gesture-required";
+  const existingArgs = process.env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS || "";
+  if (!existingArgs.includes("autoplay-policy")) {
+    process.env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = existingArgs
+      ? `${existingArgs} ${autoplay}`
+      : autoplay;
+  }
 
-win.on_close = () => {
-  writeLine({ event: "closed" });
-  process.exit(0);
-};
+  const ewvjs = await loadEwvjs();
+  exposePlayerApi(ewvjs.expose);
 
-win.run();
-
-void waitForPageReady()
-  .then(() => writeLine({ event: "host-ready" }))
-  .catch((err) => {
-    writeLine({ event: "fatal", message: err instanceof Error ? err.message : String(err) });
-    process.exit(1);
+  // create_window is async: it serves player.html on localhost, then returns the window.
+  // Calling run() on the promise itself never opens Edge, so the track stays silent.
+  win = await ewvjs.create_window("Meetra Spotify", playerHtml, {
+    width: 480,
+    height: 320,
+    hidden: true,
+    focus: false,
+    additional_args: autoplay,
+    session: {
+      persist: true,
+      path: path.join(
+        process.env.FORMA_SPOTIFY_WEBVIEW2_DATA || path.join(__dirname, ".spotify-webview2-data"),
+      ),
+    },
   });
 
-start();
+  win.on_close = () => {
+    writeLine({ event: "closed" });
+    process.exit(0);
+  };
+
+  win.run();
+  void ewvjs.start();
+  await waitForPageReady();
+  writeLine({ event: "host-ready" });
+}
+
+void openPlayer().catch((err) => {
+  writeLine({ event: "fatal", message: err instanceof Error ? err.message : String(err) });
+  process.exit(1);
+});

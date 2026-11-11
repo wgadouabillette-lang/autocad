@@ -15,7 +15,14 @@
   function post(msg) {
     if (window.ewvjs?.api?.postMessage) {
       void window.ewvjs.api.postMessage(msg);
+      return true;
     }
+    return false;
+  }
+
+  function postWhenReady(msg) {
+    if (post(msg)) return;
+    window.setTimeout(() => postWhenReady(msg), 50);
   }
 
   function loadSdk() {
@@ -289,5 +296,5 @@
     },
   };
 
-  post({ event: "page-ready" });
+  postWhenReady({ event: "page-ready" });
 })();

@@ -19,7 +19,7 @@ import {
   stopSpotifyWebPlayback,
   warmSpotifyWebPlayer,
 } from "../lib/spotifyWebPlayback";
-import { hasFormaDesktop } from "../lib/formaDesktop";
+import { hasFormaDesktop, hasSpotifyWebView2Desktop } from "../lib/formaDesktop";
 import { primeSpotifyPreviewAudio } from "../lib/spotifyAudioPulse";
 import { applyAudioOutputToElement } from "../lib/audioDevices";
 import { recordHallDjPlay } from "../lib/hallDjPlayHistory";
@@ -440,9 +440,11 @@ async function startPlayback(
 
     if (trackId && premium && streamingScope !== false) {
       useSpotifyPlayerStore.setState({
-        playerNotice: hasFormaDesktop()
-          ? "Lecture Spotify in-app bloquée (DRM Widevine). Lance ./scripts/sign-electron-widevine.sh puis relance Meetra."
-          : "Lecture complète indisponible. Déconnecte puis reconnecte Spotify dans Settings → Connectors.",
+        playerNotice: hasSpotifyWebView2Desktop()
+          ? "Lecture Spotify in-app indisponible sur Windows. Réessaie dans un instant."
+          : hasFormaDesktop()
+            ? "Lecture Spotify in-app bloquée (DRM Widevine). Lance ./scripts/sign-electron-widevine.sh puis relance Meetra."
+            : "Lecture complète indisponible. Déconnecte puis reconnecte Spotify dans Settings → Connectors.",
       });
     }
 

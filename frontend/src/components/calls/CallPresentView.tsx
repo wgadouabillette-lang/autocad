@@ -14,6 +14,7 @@ import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 import VoiceMuteBadge from "./VoiceMuteBadge";
 import LocalScreenSharePreview from "./LocalScreenSharePreview";
+import ScreenShareLiveBadge from "./ScreenShareLiveBadge";
 
 interface CallPresentViewProps {
   blocks: CallBlock[];
@@ -96,6 +97,7 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
         )}
         <span className="call-present-tile__label">{primaryLabel}</span>
         {muted && <VoiceMuteBadge />}
+        {showScreen ? <ScreenShareLiveBadge /> : null}
       </article>
 
       <article

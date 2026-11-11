@@ -10,7 +10,6 @@ import BottomHeader from "./components/BottomHeader";
 import CallsView from "./components/calls/CallsView";
 import SettingsPage from "./components/SettingsPage";
 import RecordingCameraPreview from "./components/calls/RecordingCameraPreview";
-import ScreenShareLiveBadge from "./components/calls/ScreenShareLiveBadge";
 import VoiceRemoteAudioSink from "./components/calls/VoiceRemoteAudioSink";
 import AuthPage from "./components/auth/AuthPage";
 import { useCallVoiceActivity } from "./hooks/useCallVoiceActivity";
@@ -506,7 +505,6 @@ export default function App() {
         )}
         style={layoutStyle}
       >
-        <ScreenShareLiveBadge />
         {!settingsOpen && <AppChromeRow immersive={inVoiceCall} />}
         <main className="app-layout__main">
           {!settingsOpen && inVoiceCall ? (
