@@ -50,6 +50,7 @@ import { normalizeSettingsTab } from "./lib/settingsSearchSuggestions";
 import { readUserPreferences } from "./lib/userPreferences";
 import { useAuthStore } from "./store/useAuthStore";
 import { useWorkspacesStore } from "./store/useWorkspacesStore";
+import { useWorkspaceOverlayStore } from "./store/useWorkspaceOverlayStore";
 import { useCallsStore } from "./store/useCallsStore";
 import { useStore } from "./store/useStore";
 import { useNotificationsStore } from "./store/useNotificationsStore";
@@ -166,7 +167,9 @@ export default function App() {
     pending: bootPending,
     externalProgress: updateProgress,
   });
-  const desktopSplashWindow = blockingUpdate || (hasFormaDesktop() && launchPending);
+  const showSignInWindow = authReady && !isAuthenticated && !blockingUpdate;
+  const desktopSplashWindow =
+    !showSignInWindow && (blockingUpdate || (hasFormaDesktop() && launchPending));
   useLayoutEffect(() => {
     const root = document.documentElement;
     if (desktopSplashWindow) {
@@ -178,7 +181,7 @@ export default function App() {
     const setWindowMode = window.formaDesktop?.setWindowMode;
     if (!setWindowMode) return;
     void setWindowMode(desktopSplashWindow ? "splash" : "app");
-  }, [desktopSplashWindow]);
+  }, [desktopSplashWindow, showSignInWindow]);
 
   useAppKeyboardShortcuts();
   useColorTheme();
@@ -308,19 +311,9 @@ export default function App() {
     const applyWorkspaceInvite = (raw: string) => {
       const workspaceInvite = parseWorkspaceInviteInput(raw);
       if (!workspaceInvite) return false;
-      useWorkspacesStore.getState().setPendingInviteWorkspaceId(workspaceInvite);
-      useStore.getState().openSettingsPage();
-      useStore.getState().openSettingsTab("workspaces");
+      useWorkspaceOverlayStore.getState().openJoinWithCode(workspaceInvite);
       return true;
     };
-
-    const params = new URLSearchParams(window.location.search);
-    if (applyWorkspaceInvite(params.get("workspace") ?? "")) {
-      params.delete("workspace");
-      const next = params.toString();
-      const url = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;
-      window.history.replaceState(null, "", url);
-    }
 
     if (!hasFormaDesktop() || !window.formaDesktop) return undefined;
     const desktop = window.formaDesktop;

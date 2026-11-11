@@ -8,15 +8,10 @@ import ChatPanelShell from "./components/ChatPanelShell";
 import { useAccentColor } from "./hooks/useAccentColor";
 import { useColorTheme } from "./hooks/useColorTheme";
 import {
-  isMarketingHandoffPreviewScene,
   isMarketingNotesPreviewScene,
   isMarketingSpotifyPreviewScene,
   readMarketingPreviewSceneParam,
 } from "./lib/marketingPreview";
-import {
-  cancelMarketingPreviewHandoffDemo,
-  startMarketingPreviewHandoffDemo,
-} from "./lib/marketingPreviewHandoffDemo";
 import {
   cancelMarketingPreviewNotesTranscript,
   startMarketingPreviewNotesTranscript,
@@ -36,12 +31,6 @@ export default function MarketingPreviewApp() {
     if (!isMarketingSpotifyPreviewScene()) return;
     startMarketingPreviewSpotifyDemo();
     return () => cancelMarketingPreviewSpotifyDemo();
-  }, []);
-
-  useEffect(() => {
-    if (!isMarketingHandoffPreviewScene()) return;
-    startMarketingPreviewHandoffDemo();
-    return () => cancelMarketingPreviewHandoffDemo();
   }, []);
 
   useEffect(() => {
@@ -72,7 +61,6 @@ export default function MarketingPreviewApp() {
         "app-shell marketing-preview-shell",
         homeScene && "marketing-preview-shell--home",
         (isMarketingNotesPreviewScene() ||
-          isMarketingHandoffPreviewScene() ||
           notesShowcase) &&
           "marketing-preview-shell--notes",
         recording && "marketing-preview-shell--recording",

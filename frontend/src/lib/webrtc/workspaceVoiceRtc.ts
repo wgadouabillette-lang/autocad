@@ -372,11 +372,22 @@ export class WorkspaceVoiceRtcSession {
     track: MediaStreamTrack | null,
   ): Promise<RTCRtpSender | null> {
     if (track) {
-      if (sender) {
-        await sender.replaceTrack(track);
-        return sender;
+      const next = sender ?? peer.pc.addTrack(track);
+      if (sender) await sender.replaceTrack(track);
+      if (track.contentHint === "detail") {
+        try {
+          const params = next.getParameters();
+          params.degradationPreference = "maintain-resolution";
+          const encoding = params.encodings?.[0] ?? {};
+          encoding.maxBitrate = 4_000_000;
+          encoding.scaleResolutionDownBy = 1;
+          params.encodings = [encoding];
+          await next.setParameters(params);
+        } catch {
+          // Some stacks reject parameters before the sender is negotiated.
+        }
       }
-      return peer.pc.addTrack(track);
+      return next;
     }
     if (sender) {
       await sender.replaceTrack(null);

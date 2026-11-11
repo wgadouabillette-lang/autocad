@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { chatPanelModeTabs } from "../lib/chatPanelModes";
 import {
-  isMarketingHandoffPreviewScene,
   isMarketingNotesPreviewScene,
   isMarketingPreview,
   isMarketingSpotifyPreviewScene,
@@ -52,7 +51,6 @@ export function useMarketingPreviewCycle() {
     if (!isMarketingPreview()) return;
     if (
       isMarketingNotesPreviewScene() ||
-      isMarketingHandoffPreviewScene() ||
       isMarketingSpotifyPreviewScene()
     ) {
       return;

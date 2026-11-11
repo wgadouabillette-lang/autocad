@@ -10,7 +10,6 @@ import {
   readMarketingPreviewSceneParam,
 } from "./lib/marketingPreview";
 import {
-  seedMarketingHandoffPreview,
   seedMarketingLandingHero,
   seedMarketingNotesPreview,
   seedMarketingPreview,
@@ -82,8 +81,6 @@ if (scene === "home") {
   seedMarketingTheaterPreview();
 } else if (scene === "notes") {
   seedMarketingNotesPreview();
-} else if (scene === "handoff") {
-  seedMarketingHandoffPreview();
 } else if (scene === "spotify") {
   seedMarketingSpotifyPreview();
 } else {

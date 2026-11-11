@@ -903,8 +903,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async (options) => {
     if (hasFormaDesktop()) {
       markDesktopAuthAccountChoiceRequired(get().authEmail);
-      document.documentElement.classList.add("app-loading-splash");
-      void window.formaDesktop?.setWindowMode?.("splash");
     }
     const signedOutUid = get().firebaseUid;
     if (signedOutUid) {
@@ -923,6 +921,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       workspaceEnterpriseActive: false,
     });
     set({
+      ready: true,
       isAuthenticated: false,
       authEmail: null,
       authProvider: null,
@@ -932,6 +931,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       desktopWebAuthConnected: false,
       meetraIntroCompleted: false,
     });
+    if (hasFormaDesktop()) {
+      document.documentElement.classList.remove("app-loading-splash");
+      void window.formaDesktop?.setWindowMode?.("app");
+    }
   },
 
   syncProfileToCloud: async () => {

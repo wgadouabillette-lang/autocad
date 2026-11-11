@@ -271,7 +271,7 @@ export default function WorkspaceQuickMenu() {
                     id="workspace-quick-join-id"
                     type="text"
                     className="workspace-overlay__create-input"
-                    placeholder="Lien ou identifiant…"
+                    placeholder="Code d'invitation"
                     value={joinId}
                     disabled={joinBusy}
                     onChange={(e) => {

@@ -12,7 +12,6 @@ import {
   subscribeNotesEditorDraft,
 } from "../../lib/notesFullscreenPromo";
 import { useRecapStore } from "../../store/useRecapStore";
-import { useHandoffStore } from "../../store/useHandoffStore";
 import { useStore } from "../../store/useStore";
 
 /**
@@ -26,7 +25,6 @@ export default function NotesFullscreenPromo() {
   const billingManaged = useStore((s) => s.billingManaged);
   const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
   const recapGenerating = useRecapStore((s) => s.generating);
-  const noteHandoffOpen = useHandoffStore((s) => s.noteHandoffOpen);
   const activeManualNoteId = useStore((s) => s.activeManualNoteId);
   const chatSessions = useStore((s) => s.chatSessions);
   const openSettingsTab = useStore((s) => s.openSettingsTab);
@@ -80,7 +78,7 @@ export default function NotesFullscreenPromo() {
     ),
   });
   if (noteHasContent || savedHasContent) return null;
-  if (recapGenerating || noteHandoffOpen) return null;
+  if (recapGenerating) return null;
   if (
     shouldHideNotesFullscreenPromoForBilling({
       subscriptionPlan,

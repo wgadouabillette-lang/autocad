@@ -1,11 +1,9 @@
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
-import { isFormaDesktopWindows } from "../../lib/formaDesktop";
 
 /**
  * Chromium blurs a <video> that shows the page's own screen capture.
- * Peers receive the sharp frames. Paint those frames on a canvas so the
- * sharer sees the same image. On Windows the local preview stays blurred.
+ * Paint the frames on a canvas so the sharer sees the same sharp image as peers.
  */
 export default function LocalScreenSharePreview({
   stream,
@@ -17,7 +15,7 @@ export default function LocalScreenSharePreview({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [fallback, setFallback] = useState(false);
-  const previewClass = clsx(className, isFormaDesktopWindows() && "local-screen-share-preview--blurred");
+  const previewClass = clsx(className);
 
   useEffect(() => {
     setFallback(false);
@@ -41,7 +39,7 @@ export default function LocalScreenSharePreview({
       return;
     }
 
-    const context = canvas.getContext("2d", { alpha: false });
+    const context = canvas.getContext("2d", { alpha: false, desynchronized: true });
     if (!context) {
       setFallback(true);
       return;
@@ -72,6 +70,7 @@ export default function LocalScreenSharePreview({
             canvas.height = height;
           }
           if (canvas.width > 0 && canvas.height > 0) {
+            context.imageSmoothingEnabled = false;
             context.drawImage(value, 0, 0, canvas.width, canvas.height);
           }
           value.close();

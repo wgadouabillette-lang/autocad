@@ -3,11 +3,9 @@ import clsx from "clsx";
 import type { PeopleMessage } from "../../lib/peopleChat";
 import { parseManageComposerText } from "../../lib/manageSchedulePrompt";
 import { parsePromptDisplaySegments } from "../../lib/promptMentions";
-import HandoffInboxCard from "./HandoffInboxCard";
 import ManageSchedulePromptLine from "./ManageSchedulePromptLine";
 import WorkspaceInviteInboxCard from "./WorkspaceInviteInboxCard";
 import UserAvatar from "../UserAvatar";
-import { useHandoffStore } from "../../store/useHandoffStore";
 import {
   buildPeopleChatTimeline,
   type PeopleChatRenderItem,
@@ -24,9 +22,6 @@ interface PeopleChatThreadMessagesProps {
   showAuthors?: boolean;
   showAvatars?: boolean;
   getAuthorPhotoURL?: (authorUid: string, authorName: string) => string | undefined;
-  handoffSelectionMode?: boolean;
-  handoffSelectedIndices?: Set<number>;
-  onToggleHandoffIndex?: (index: number) => void;
   tailContent?: ReactNode;
   mentionHighlightHandles?: string[];
 }
@@ -136,10 +131,6 @@ function PeopleChatBubble({
   showAuthors,
   showAvatars,
   getAuthorPhotoURL,
-  messageIndex,
-  handoffSelectionMode,
-  handoffSelected,
-  onToggleHandoffIndex,
   mentionHighlightHandles,
 }: {
   item: PeopleChatRenderItem;
@@ -148,42 +139,18 @@ function PeopleChatBubble({
   showAuthors?: boolean;
   showAvatars?: boolean;
   getAuthorPhotoURL?: (authorUid: string, authorName: string) => string | undefined;
-  messageIndex: number;
-  handoffSelectionMode?: boolean;
-  handoffSelected?: boolean;
-  onToggleHandoffIndex?: (index: number) => void;
   mentionHighlightHandles?: string[];
 }) {
   const { message, isFirstInGroup, isLastInGroup } = item;
-  const openHandoffPreview = useHandoffStore((s) => s.openPreview);
-
-  if (message.kind === "handoff" && message.handoffId) {
-    return (
-      <div
-        className={clsx(
-          "people-chat-bubble-wrap",
-          mine && "people-chat-bubble-wrap--mine",
-          isFirstInGroup && "people-chat-bubble-wrap--first",
-          isLastInGroup && "people-chat-bubble-wrap--last",
-        )}
-      >
-        <PeopleChatBubbleAvatar
-          showAvatars={showAvatars}
-          mine={mine}
-          isFirstInGroup={isFirstInGroup}
-          authorUid={message.authorUid}
-          authorName={message.author}
-          getAuthorPhotoURL={getAuthorPhotoURL}
-        />
-        <HandoffInboxCard
-          senderName={message.author}
-          title={message.handoffTitle}
-          preview={message.handoffPreview}
-          onOpen={() => void openHandoffPreview(message.handoffId!)}
-        />
-      </div>
-    );
-  }
+  const shownMessage =
+    message.kind === "handoff"
+      ? {
+          ...message,
+          text:
+            message.text?.trim() ||
+            [message.handoffTitle, message.handoffPreview].filter(Boolean).join("\n"),
+        }
+      : message;
 
   if (message.kind === "workspace_invite" && message.workspaceInviteId) {
     return (
@@ -288,39 +255,20 @@ function PeopleChatBubble({
             compact && "people-chat-bubble--compact",
           )}
         >
-          {message.text ? (
+          {shownMessage.text ? (
             <p className="people-chat-bubble__text">
-              {renderMessageText(message.text, mentionHighlightHandles)}
+              {renderMessageText(shownMessage.text, mentionHighlightHandles)}
             </p>
           ) : null}
-          {message.attachments?.length ? (
-            <PeopleChatAttachments attachments={message.attachments} />
+          {shownMessage.attachments?.length ? (
+            <PeopleChatAttachments attachments={shownMessage.attachments} />
           ) : null}
         </div>
       </div>
     </div>
   );
 
-  if (!handoffSelectionMode || !onToggleHandoffIndex) return bubble;
-
-  return (
-    <div
-      className={clsx(
-        "handoff-select-row",
-        "handoff-select-row--active",
-        handoffSelected && "handoff-select-row--selected",
-      )}
-    >
-      <button
-        type="button"
-        className={clsx("handoff-select-row__check", handoffSelected && "is-checked")}
-        aria-pressed={handoffSelected}
-        aria-label={handoffSelected ? "Deselect message" : "Select message"}
-        onClick={() => onToggleHandoffIndex(messageIndex)}
-      />
-      <div className="handoff-select-row__bubble">{bubble}</div>
-    </div>
-  );
+  return bubble;
 }
 
 export default function PeopleChatThreadMessages({
@@ -331,17 +279,10 @@ export default function PeopleChatThreadMessages({
   showAuthors = false,
   showAvatars = false,
   getAuthorPhotoURL,
-  handoffSelectionMode = false,
-  handoffSelectedIndices,
-  onToggleHandoffIndex,
   tailContent,
   mentionHighlightHandles,
 }: PeopleChatThreadMessagesProps) {
   const timeline = useMemo(() => buildPeopleChatTimeline(messages), [messages]);
-  const messageIndexById = useMemo(
-    () => new Map(messages.map((message, index) => [message.id, index])),
-    [messages],
-  );
 
   return (
     <ul ref={listRef} className={clsx("people-chat-thread", className)}>
@@ -357,9 +298,7 @@ export default function PeopleChatThreadMessages({
                 : "people-chat-thread__group--theirs",
             )}
           >
-            {entry.items.map((item) => {
-              const messageIndex = messageIndexById.get(item.message.id) ?? -1;
-              return (
+            {entry.items.map((item) => (
               <PeopleChatBubble
                 key={item.message.id}
                 item={item}
@@ -368,16 +307,9 @@ export default function PeopleChatThreadMessages({
                 showAuthors={showAuthors}
                 showAvatars={showAvatars}
                 getAuthorPhotoURL={getAuthorPhotoURL}
-                messageIndex={messageIndex}
-                handoffSelectionMode={handoffSelectionMode}
-                handoffSelected={
-                  messageIndex >= 0 && (handoffSelectedIndices?.has(messageIndex) ?? false)
-                }
-                onToggleHandoffIndex={onToggleHandoffIndex}
                 mentionHighlightHandles={mentionHighlightHandles}
               />
-              );
-            })}
+            ))}
           </li>
         );
       })}

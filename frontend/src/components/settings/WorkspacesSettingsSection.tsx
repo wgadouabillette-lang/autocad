@@ -128,13 +128,13 @@ function WorkspacePickerRow({
           onClick={() => onCopyLink(workspace.id)}
           title={
             copied
-              ? `Lien copié pour ${workspace.name}`
-              : `Copier le lien d'invitation pour ${workspace.name}`
+              ? `Code copié pour ${workspace.name}`
+              : `Copier le code d'invitation pour ${workspace.name}`
           }
           aria-label={
             copied
-              ? `Lien copié pour ${workspace.name}`
-              : `Copier le lien d'invitation pour ${workspace.name}`
+              ? `Code copié pour ${workspace.name}`
+              : `Copier le code d'invitation pour ${workspace.name}`
           }
         >
           {copied ? (
@@ -493,13 +493,13 @@ export default function WorkspacesSettingsSection() {
         <h3 className="settings-preferences__title">Rejoindre un workspace</h3>
         <div className="settings-section settings-section--card">
         <p className="settings-section__hint">
-          Collez le lien d&apos;invitation reçu d&apos;un collègue.
+          Collez le code reçu, ou ouvrez Workspace puis Rejoindre.
         </p>
         <form onSubmit={(event) => void onRequestJoin(event)} className="settings-section__inline-form mt-3">
           <input
             type="text"
             className="input min-w-0 flex-1"
-            placeholder="https://…?workspace=ws-…"
+            placeholder="Code d'invitation"
             value={joinId}
             disabled={joinBusy}
             onChange={(event) => {

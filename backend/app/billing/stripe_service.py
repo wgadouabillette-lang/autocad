@@ -22,7 +22,7 @@ from app.core.firebase import (
     count_workspace_members,
     find_uid_by_stripe_customer,
     find_workspace_by_stripe_customer,
-    is_workspace_member,
+    ensure_workspace_seat_payer,
     load_shared_workspace,
     load_user_billing,
     load_workspace_billing,
@@ -1466,7 +1466,7 @@ def create_workspace_seat_upgrade_intent(
         raise ValueError("Maximum 50 sièges.")
 
     wid = workspace_id.strip().lower()
-    if not is_workspace_member(uid, wid):
+    if not ensure_workspace_seat_payer(uid, wid, email):
         raise ValueError("Rejoignez ce workspace pour ajouter des sièges.")
     workspace = load_shared_workspace(wid)
     if not workspace:

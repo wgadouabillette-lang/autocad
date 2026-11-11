@@ -108,7 +108,6 @@ export type MarketingPreviewScene =
   | "recording"
   | "theater"
   | "notes"
-  | "handoff"
   | "spotify";
 
 export function readMarketingPreviewSceneParam(): MarketingPreviewScene {
@@ -118,7 +117,6 @@ export function readMarketingPreviewSceneParam(): MarketingPreviewScene {
   if (raw === "recording") return "recording";
   if (raw === "theater") return "theater";
   if (raw === "notes") return "notes";
-  if (raw === "handoff") return "handoff";
   if (raw === "spotify") return "spotify";
   return "dashboard";
 }
@@ -143,10 +141,6 @@ export function isMarketingTheaterPreviewScene(): boolean {
 
 export function isMarketingNotesPreviewScene(): boolean {
   return isMarketingPreview() && readMarketingPreviewSceneParam() === "notes";
-}
-
-export function isMarketingHandoffPreviewScene(): boolean {
-  return isMarketingPreview() && readMarketingPreviewSceneParam() === "handoff";
 }
 
 export function isMarketingSpotifyPreviewScene(): boolean {

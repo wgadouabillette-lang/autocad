@@ -854,9 +854,9 @@ def sync_enterprise_billing(
     _require_stripe()
     wid = body.workspaceId.strip().lower()
     try:
-        from app.core.firebase import is_workspace_member
+        from app.core.firebase import ensure_workspace_seat_payer
 
-        if not is_workspace_member(user.uid, wid):
+        if not ensure_workspace_seat_payer(user.uid, wid, user.email):
             raise ValueError("Rejoignez ce workspace pour mettre à jour ses sièges.")
         result = stripe_service.sync_workspace_subscription_from_stripe(wid)
     except ValueError as exc:

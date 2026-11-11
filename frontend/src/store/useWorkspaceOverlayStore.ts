@@ -20,6 +20,7 @@ interface WorkspaceOverlayState {
   quickMenuOpen: boolean;
   quickMenuAnchorEl: HTMLElement | null;
   quickMenuView: WorkspaceQuickMenuView;
+  pendingJoinCode: string | null;
   setAnchorEl: (el: HTMLElement | null) => void;
   setQuickMenuAnchorEl: (el: HTMLElement | null) => void;
   openPanel: () => void;
@@ -32,6 +33,9 @@ interface WorkspaceOverlayState {
   toggleQuickMenu: () => void;
   closeQuickMenu: () => void;
   setQuickMenuView: (view: WorkspaceQuickMenuView) => void;
+  /** Ouvre le panneau Workspace sur Rejoindre, avec le code déjà collé. */
+  openJoinWithCode: (code: string) => void;
+  consumePendingJoinCode: () => void;
 }
 
 export const useWorkspaceOverlayStore = create<WorkspaceOverlayState>((set, get) => ({
@@ -40,6 +44,7 @@ export const useWorkspaceOverlayStore = create<WorkspaceOverlayState>((set, get)
   quickMenuOpen: false,
   quickMenuAnchorEl: null,
   quickMenuView: "menu",
+  pendingJoinCode: null,
 
   setAnchorEl: (el) => set({ anchorEl: el }),
 
@@ -92,4 +97,19 @@ export const useWorkspaceOverlayStore = create<WorkspaceOverlayState>((set, get)
   closeQuickMenu: () => set({ quickMenuOpen: false, quickMenuView: "menu" }),
 
   setQuickMenuView: (view) => set({ quickMenuView: view }),
+
+  openJoinWithCode: (code) => {
+    const next = code.trim();
+    if (!next) return;
+    clearClosePanelTimer();
+    closePanelsOnSide("left", "workspace");
+    set({
+      panelOpen: true,
+      quickMenuOpen: false,
+      quickMenuView: "menu",
+      pendingJoinCode: next,
+    });
+  },
+
+  consumePendingJoinCode: () => set({ pendingJoinCode: null }),
 }));

@@ -5,12 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { billingApi, type SeatCheckoutIntent } from "../../lib/billingApi";
-import { ensureSharedWorkspacePublished } from "../../lib/firebase/workspaceRegistry";
+import { auth } from "../../lib/firebase/client";
+import { grantWorkspaceMember } from "../../lib/firebase/workspaceRegistry";
 import { isMarketingPreview } from "../../lib/marketingPreview";
 import { getStripePromise } from "../../lib/stripeClient";
 import { intlLocaleForAppLocale, isAppLocale } from "../../lib/appLocale";
 import i18n from "../../lib/i18n";
 import { SEAT_PRICE_USD } from "../../lib/subscriptionPlanConstants";
+import { LOCAL_USER_ID } from "../../lib/workspaces";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspaceUpgradeStore } from "../../store/useWorkspaceUpgradeStore";
@@ -121,9 +123,33 @@ export default function WorkspaceUpgradeOverlay() {
     setError(null);
     try {
       const uid = useAuthStore.getState().firebaseUid;
-      const workspace = useWorkspacesStore.getState().findWorkspace(workspaceId);
-      if (workspace && uid && workspace.ownerId === uid) {
-        await ensureSharedWorkspacePublished(workspace, uid);
+      const workspaces = useWorkspacesStore.getState();
+      const workspace = workspaces.findWorkspace(workspaceId);
+      const membership =
+        (uid ? workspaces.membershipIn(workspaceId, uid) : undefined) ??
+        workspaces.membershipIn(workspaceId);
+      const ownsWorkspace =
+        membership?.role === "owner" ||
+        (Boolean(uid) && workspace?.ownerId === uid) ||
+        (workspace?.ownerId === LOCAL_USER_ID && membership?.role === "owner");
+      if (uid && membership) {
+        if (ownsWorkspace) {
+          await workspaces.ensureWorkspaceCloudPublished(workspaceId);
+        }
+        await useAuthStore.getState().syncWorkspacesToCloud();
+        if (!ownsWorkspace) {
+          const displayName =
+            useStore.getState().userDisplayName.trim() ||
+            auth.currentUser?.displayName?.trim() ||
+            "Membre";
+          await grantWorkspaceMember(workspaceId, {
+            uid,
+            displayName,
+            email: auth.currentUser?.email?.trim().toLowerCase() || "",
+          }).catch(() => {
+            // Le serveur enregistre le membre à partir du profil s'il est déjà dans le workspace.
+          });
+        }
       }
       const next = await billingApi.checkoutSeats({
         mode: "enterprise",

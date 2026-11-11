@@ -59,7 +59,6 @@ import type { CalendarAddDraft } from "../lib/chatActionIntents";
 import StructuredAssistantMessage, {
   AssistantPendingBubble,
 } from "./chat/StructuredAssistantMessage";
-import { sanitizeNoteHtml } from "../lib/sanitizeHtml";
 import ChatPollComposer from "./chat/ChatPollComposer";
 import ChatPollVotePanel from "./chat/ChatPollVotePanel";
 import { useActiveVoicePoll } from "../hooks/useActiveVoicePoll";
@@ -73,7 +72,6 @@ import {
   MEETING_SKILL_TEMPLATE,
   MAIL_SKILL_TEMPLATE,
   RECAP_SKILL_TEMPLATE,
-  HANDOFF_SKILL_TEMPLATE,
 } from "../lib/chatSkills";
 import {
   buildManageSkillPayload,
@@ -104,9 +102,6 @@ import { hasRecapSkillAccess } from "../lib/subscriptionPlans";
 import { isRecapDraftReady } from "../lib/recapSkill";
 import RecapComposerLine from "./chat/RecapComposerLine";
 import { useRecapStore } from "../store/useRecapStore";
-import HandoffComposerBar from "./chat/HandoffComposerBar";
-import HandoffPreviewBanner from "./chat/HandoffPreviewBanner";
-import { useHandoffStore } from "../store/useHandoffStore";
 import { useHallDjStore } from "../store/useHallDjStore";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import HallDjTrackFeedbackBar, {
@@ -128,7 +123,6 @@ import SkillTimeline, {
 import PlayBrowsingStatus, { pickPlayBrowsingMs } from "./chat/PlayBrowsingStatus";
 import {
   GROUP_TIMELINE_STEPS,
-  HANDOFF_TIMELINE_STEPS,
   MANAGE_TIMELINE_STEPS,
   MEETING_TIMELINE_STEPS,
   MAIL_TIMELINE_STEPS,
@@ -746,22 +740,9 @@ export default function ChatPanel() {
     startedAt: number;
     browsingMs?: number;
   } | null>(null);
-  const handoffRunPendingRef = useRef(false);
   const recapDraft = useRecapStore((s) => s.composerDraft);
   const setRecapDraft = useRecapStore((s) => s.setComposerDraft);
   const submitRecap = useRecapStore((s) => s.submitRecap);
-  const handoffSelectionMode = useHandoffStore((s) => s.selectionMode);
-  const handoffSelectedIndices = useHandoffStore((s) => s.selectedIndices);
-  const handoffTarget = useHandoffStore((s) => s.target);
-  const handoffSubmitting = useHandoffStore((s) => s.submitting);
-  const handoffError = useHandoffStore((s) => s.error);
-  const handoffPreview = useHandoffStore((s) => s.preview);
-  const enterHandoffSelection = useHandoffStore((s) => s.enterSelectionMode);
-  const exitHandoffSelection = useHandoffStore((s) => s.exitSelectionMode);
-  const toggleHandoffIndex = useHandoffStore((s) => s.toggleMessageIndex);
-  const setHandoffTarget = useHandoffStore((s) => s.setTarget);
-  const submitSegmentHandoff = useHandoffStore((s) => s.submitSegmentHandoff);
-  const closeHandoffPreview = useHandoffStore((s) => s.closePreview);
   const mentionRef = useRef<HTMLDivElement>(null);
   const mentionMenuRef = useRef<HTMLDivElement>(null);
   const skillsRef = useRef<HTMLDivElement>(null);
@@ -805,8 +786,6 @@ export default function ChatPanel() {
     hallDjFeedbackResolvedTrackId === spotifyCurrentTrack.id.trim();
   const showComposerNowPlaying = Boolean(
     !pollMorphActive &&
-      !handoffPreview &&
-      !handoffSelectionMode &&
       spotifyNowPlaying &&
       !feedbackResolvedForCurrent,
   );
@@ -1269,37 +1248,12 @@ export default function ChatPanel() {
   }, [aiRun?.status, aiRun?.summary, activeSkillRun]);
 
   useEffect(() => {
-    if (!activeSkillRun || activeSkillRun.skillId !== "handoff") return;
-    if (!handoffRunPendingRef.current) return;
-    if (handoffSubmitting) return;
-    handoffRunPendingRef.current = false;
-    if (handoffError) {
-      setActiveSkillRun((prev) =>
-        prev && prev.skillId === "handoff"
-          ? { ...prev, apiError: handoffError }
-          : prev,
-      );
-      return;
-    }
-    setActiveSkillRun((prev) =>
-      prev && prev.skillId === "handoff"
-        ? {
-            ...prev,
-            apiDone: true,
-            success: { label: SKILL_SUCCESS_LABELS.handoff },
-          }
-        : prev,
-    );
-  }, [handoffSubmitting, handoffError, activeSkillRun]);
-
-  useEffect(() => {
     if (revealIdx !== null && revealIdx >= chat.length) {
       setRevealIdx(null);
     }
   }, [chat.length, revealIdx]);
 
   const chatIsEmpty = !chat.some((m) => m.role === "user" || m.role === "assistant");
-  const displayChat = handoffPreview?.messages ?? chat;
   const agentGenerating = busy && aiRun?.status === "running";
   const lastMessage = chat[chat.length - 1];
   const showPendingAssistant = agentGenerating && lastMessage?.role === "user";
@@ -1417,13 +1371,6 @@ export default function ChatPanel() {
     if (skill.id === "recap") {
       setActiveComposerSkill("recap");
       setRecapDraft(null);
-      setText("");
-      setSlashOpen(false);
-      return;
-    }
-    if (skill.id === "handoff") {
-      enterHandoffSelection();
-      setActiveComposerSkill(null);
       setText("");
       setSlashOpen(false);
       return;
@@ -1780,7 +1727,6 @@ export default function ChatPanel() {
   };
 
   const dictateIntoPrompt =
-    !handoffSelectionMode &&
     activeComposerSkill !== "recap" &&
     activeComposerSkill !== "manage" &&
     activeComposerSkill !== "meeting" &&
@@ -1911,26 +1857,6 @@ export default function ChatPanel() {
   const submit = () => {
     if (dictatingRef.current || dictationStopping) endDictation(true);
     const text = textRef.current;
-    if (handoffSelectionMode) {
-      if (
-        handoffSubmitting ||
-        handoffSelectedIndices.size === 0 ||
-        !handoffTarget
-      ) {
-        return;
-      }
-      handoffRunPendingRef.current = true;
-      setActiveSkillRun(buildSkillRun("handoff", HANDOFF_TIMELINE_STEPS));
-      void submitSegmentHandoff(chat, activeChatTabId);
-      return;
-    }
-    if (text.trim() === HANDOFF_SKILL_TEMPLATE) {
-      enterHandoffSelection();
-      setActiveComposerSkill(null);
-      setText("");
-      setSlashOpen(false);
-      return;
-    }
     if (activeComposerSkill === "recap") {
       if (!isRecapDraftReady(recapDraft)) return;
       setActiveComposerSkill(null);
@@ -2056,9 +1982,7 @@ export default function ChatPanel() {
     setText(prompt);
   };
 
-  const canSubmit = handoffSelectionMode
-    ? handoffSelectedIndices.size > 0 && !!handoffTarget && !handoffSubmitting
-    : activeComposerSkill === "recap"
+  const canSubmit = activeComposerSkill === "recap"
       ? isRecapDraftReady(recapDraft)
       : activeComposerSkill === "group"
       ? isCreateGroupComposerReady(text, eligibleGroupMembers)
@@ -2091,7 +2015,7 @@ export default function ChatPanel() {
 
   const placeholder = t("chat.typeSkills");
 
-  const composerBlock = handoffPreview ? null : (
+  const composerBlock = (
     <div className="pointer-events-auto relative">
       <div
         className={clsx(
@@ -2216,15 +2140,7 @@ export default function ChatPanel() {
                 })}
             </MentionFloatingMenu>
 
-            {handoffSelectionMode ? (
-              <HandoffComposerBar
-                selectedCount={handoffSelectedIndices.size}
-                target={handoffTarget}
-                error={handoffError}
-                onTargetChange={setHandoffTarget}
-                onCancel={exitHandoffSelection}
-              />
-            ) : activeComposerSkill === "recap" ? (
+            {activeComposerSkill === "recap" ? (
               <RecapComposerLine
                 draft={recapDraft}
                 onChange={setRecapDraft}
@@ -2338,13 +2254,6 @@ export default function ChatPanel() {
                   }
                   setActiveComposerSkill("recap");
                   setRecapDraft(null);
-                  setText("");
-                  setSlashOpen(false);
-                  return;
-                }
-                if (trimmed === HANDOFF_SKILL_TEMPLATE) {
-                  enterHandoffSelection();
-                  setActiveComposerSkill(null);
                   setText("");
                   setSlashOpen(false);
                   return;
@@ -2510,8 +2419,8 @@ export default function ChatPanel() {
                 onClick={submit}
                 disabled={!canSubmitResolved}
                 data-action="send"
-                title={handoffSelectionMode ? t("chat.sendHandoff") : t("chat.send")}
-                aria-label={handoffSelectionMode ? t("chat.sendHandoff") : t("chat.send")}
+                title={t("chat.send")}
+                aria-label={t("chat.send")}
                 className={clsx(
                   "inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full border border-ink-600 bg-ink-750 text-muted-200 transition-colors hover:bg-ink-700 disabled:opacity-30",
                 )}
@@ -2540,44 +2449,7 @@ export default function ChatPanel() {
         ref={messagesScrollRef}
         className="chat-messages-scroll relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-0"
       >
-        {handoffPreview ? (
-          <div className="flex flex-col gap-3 pt-3">
-            <HandoffPreviewBanner
-              title={handoffPreview.title}
-              senderName={handoffPreview.senderName}
-              onBack={closeHandoffPreview}
-            />
-            {handoffPreview.kind === "manual-note" && handoffPreview.noteBodyHtml ? (
-              <div className="handoff-preview-note">
-                {handoffPreview.noteTitle ? (
-                  <h2 className="handoff-preview-note__title">{handoffPreview.noteTitle}</h2>
-                ) : null}
-                <div
-                  className="handoff-preview-note__body manual-notes-panel__editor"
-                  dangerouslySetInnerHTML={{
-                    __html: sanitizeNoteHtml(handoffPreview.noteBodyHtml),
-                  }}
-                />
-              </div>
-            ) : (
-              displayChat.map((message, i) => {
-                if (message.role === "system") return null;
-                const spacing = chatMessageSpacingClass(displayChat, i);
-                return (
-                  <div key={`preview-${message.role}-${i}`} className={spacing}>
-                    <ChatBubble message={message} chatIndex={i} />
-                  </div>
-                );
-              })
-            )}
-            <div
-              ref={messagesEndRef}
-              className="shrink-0"
-              style={{ height: scrollPadBottom }}
-              aria-hidden
-            />
-          </div>
-        ) : !chatIsEmpty ? (
+        {!chatIsEmpty ? (
         <div className="flex flex-col pt-3">
           {chat.map((message, i) => {
             if (message.role === "system") return null;
@@ -2592,7 +2464,6 @@ export default function ChatPanel() {
             }
             const spacing = chatMessageSpacingClass(chat, i);
             const isRising = i === risingMessageIndex;
-            const selected = handoffSelectedIndices.has(i);
             const bubble = (
               <ChatBubble
                 message={message}
@@ -2600,27 +2471,6 @@ export default function ChatPanel() {
                 reveal={message.role === "assistant" && i === revealIdx}
                 onRevealComplete={() => setRevealIdx(null)}
               />
-            );
-
-            const row = (
-              <div
-                className={clsx(
-                  "handoff-select-row",
-                  handoffSelectionMode && "handoff-select-row--active",
-                  selected && "handoff-select-row--selected",
-                )}
-              >
-                {handoffSelectionMode ? (
-                  <button
-                    type="button"
-                    className={clsx("handoff-select-row__check", selected && "is-checked")}
-                    aria-pressed={selected}
-                    aria-label={selected ? "Deselect message" : "Select message"}
-                    onClick={() => toggleHandoffIndex(i)}
-                  />
-                ) : null}
-                <div className="handoff-select-row__bubble">{bubble}</div>
-              </div>
             );
 
             if (message.role === "user") {
@@ -2637,7 +2487,7 @@ export default function ChatPanel() {
                       isRising && "chat-panel-rise-in",
                     )}
                   >
-                    {row}
+                    {bubble}
                   </div>
                 </div>
               );
@@ -2648,7 +2498,7 @@ export default function ChatPanel() {
                 key={`${message.role}-${i}`}
                 className={clsx(spacing, isRising && "chat-panel-rise-in")}
               >
-                {row}
+                {bubble}
               </div>
             );
           })}
@@ -2671,7 +2521,7 @@ export default function ChatPanel() {
                 }}
               />
             </div>
-          ) : showPendingAssistant && !handoffSelectionMode ? (
+          ) : showPendingAssistant ? (
             <div className="chat-assistant-bubble chat-panel-rise-in mt-3">
               <AssistantPendingBubble
                 label={activeStepLabel(aiRun) || undefined}

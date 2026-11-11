@@ -1,4 +1,4 @@
-import { ArrowRightLeft, CalendarDays, FileText, UsersRound, Video, type LucideIcon } from "lucide-react";
+import { CalendarDays, FileText, UsersRound, Video, type LucideIcon } from "lucide-react";
 import { CHAT_APP_LOGOS, type ChatAppLogoComponent } from "../components/chat/chatAppLogos";
 import { CREATE_GROUP_COMPOSER_TEXT } from "./createGroupSkill";
 import { MANAGE_COMPOSER_TEMPLATE, type ManageSchedulePromptDraft, isNaturalLanguageManageRequest } from "./manageSchedulePrompt";
@@ -21,7 +21,6 @@ export const MANAGE_SKILL_TEMPLATE = `/manage`;
 export const CREATE_GROUP_SKILL_TEMPLATE = `/group`;
 export const GROUP_SKILL_TEMPLATE = CREATE_GROUP_SKILL_TEMPLATE;
 export const RECAP_SKILL_TEMPLATE = `/recap`;
-export const HANDOFF_SKILL_TEMPLATE = `/handoff`;
 
 export { MANAGE_COMPOSER_TEMPLATE, CREATE_GROUP_COMPOSER_TEXT, PLAY_SKILL_TEMPLATE, MEETING_SKILL_TEMPLATE, MAIL_SKILL_TEMPLATE };
 
@@ -42,14 +41,6 @@ export const CHAT_SKILLS: ChatSkillDef[] = [
     description: "Create a group chat with friends or workspace members",
     icon: UsersRound,
     template: CREATE_GROUP_SKILL_TEMPLATE,
-  },
-  {
-    id: "handoff",
-    slash: "handoff",
-    label: "/handoff",
-    description: "Share selected chat messages with a teammate",
-    icon: ArrowRightLeft,
-    template: HANDOFF_SKILL_TEMPLATE,
   },
   {
     id: "meeting",

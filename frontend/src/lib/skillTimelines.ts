@@ -1,6 +1,6 @@
 import type { SkillTimelineStep } from "../components/chat/SkillTimeline";
 
-export type SkillTimelineId = "manage" | "group" | "handoff" | "recap" | "play" | "add-queue" | "meeting" | "mail";
+export type SkillTimelineId = "manage" | "group" | "recap" | "play" | "add-queue" | "meeting" | "mail";
 
 const PROCESSING_STEP: SkillTimelineStep = {
   id: "processing",
@@ -37,15 +37,6 @@ export const RECAP_TIMELINE_STEPS: SkillTimelineStep[] = [
 export const GROUP_TIMELINE_STEPS: SkillTimelineStep[] = [
   PROCESSING_STEP,
   FINALIZING_STEP,
-];
-
-export const HANDOFF_TIMELINE_STEPS: SkillTimelineStep[] = [
-  {
-    id: "sending",
-    label: "Sending chat",
-    minMs: 2000,
-    maxMs: 2000,
-  },
 ];
 
 export const MEETING_TIMELINE_STEPS: SkillTimelineStep[] = [
@@ -95,7 +86,6 @@ export const SKILL_SUCCESS_LABELS: Record<SkillTimelineId, string> = {
   manage: "Tasks scheduled",
   recap: "Recap saved",
   group: "Group created",
-  handoff: "Handoff sent",
   play: "Now playing",
   "add-queue": "Added to queue",
   meeting: "Meeting scheduled",

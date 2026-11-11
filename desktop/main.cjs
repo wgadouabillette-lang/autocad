@@ -1074,6 +1074,16 @@ function createSplashWindow() {
 let splashChromePromise = null;
 /** @type {Promise<void> | null} */
 let splashShowPromise = null;
+/** Bumps on every mode change so a late splash resize cannot shrink the sign-in window. */
+let windowModeGeneration = 0;
+
+function windowIsSplashSized(win) {
+  if (!win || win.isDestroyed()) return false;
+  const [width, height] = win.getSize();
+  return (
+    width <= SPLASH_WINDOW_SIZE.width + 16 && height <= SPLASH_WINDOW_SIZE.height + 16
+  );
+}
 
 function waitForLeaveFullScreen(win) {
   if (!win || win.isDestroyed() || !win.isFullScreen()) return Promise.resolve();
@@ -1091,7 +1101,7 @@ function waitForLeaveFullScreen(win) {
 }
 
 function applySplashChromeNow() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindowMode !== "splash") return;
   if (mainWindow.isMaximized()) {
     mainWindow.unmaximize();
   }
@@ -1124,9 +1134,12 @@ function applySplashChromeToMainWindow() {
 
 async function showSplashMainWindow() {
   if (splashShowPromise) return splashShowPromise;
+  const generation = ++windowModeGeneration;
   splashShowPromise = (async () => {
     const leavingApp = mainWindowMode === "app";
     mainWindowMode = "splash";
+    const splashStillCurrent = () =>
+      generation === windowModeGeneration && mainWindowMode === "splash";
     if (mainWindow && !mainWindow.isDestroyed()) {
       // Hide first when leaving the full app so logout does not paint AuthPage
       // over leftover workspace chrome in a still-maximized/fullscreen window.
@@ -1134,11 +1147,11 @@ async function showSplashMainWindow() {
         mainWindow.hide();
       }
       await applySplashChromeToMainWindow();
-      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (!splashStillCurrent() || !mainWindow || mainWindow.isDestroyed()) return;
       if (leavingApp) {
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
-      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (!splashStillCurrent() || !mainWindow || mainWindow.isDestroyed()) return;
       if (mainWindow.isMinimized()) mainWindow.restore();
       ensureWindowOnVisibleDisplay(mainWindow);
       if (!mainWindow.isVisible()) {
@@ -1146,6 +1159,7 @@ async function showSplashMainWindow() {
       }
       mainWindow.focus();
     }
+    if (!splashStillCurrent()) return;
     closeSplashWindow();
   })().finally(() => {
     splashShowPromise = null;
@@ -1250,8 +1264,19 @@ function armLaunchWatchdog(win) {
 }
 
 function showAppWindow() {
-  if (mainWindowMode === "app") return;
+  windowModeGeneration += 1;
+  const alreadyApp = mainWindowMode === "app";
   mainWindowMode = "app";
+  if (
+    alreadyApp &&
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    mainWindow.isVisible() &&
+    !windowIsSplashSized(mainWindow)
+  ) {
+    closeSplashWindow();
+    return;
+  }
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     applyAppWindowSizing(mainWindow);

@@ -32,7 +32,6 @@ import {
 } from "../../lib/manageSchedulePrompt";
 import {
   PEOPLE_GROUP_SKILL_TEMPLATE,
-  PEOPLE_HANDOFF_SKILL_TEMPLATE,
   PEOPLE_MANAGE_SKILL_TEMPLATE,
 } from "../../lib/peopleChatSkills";
 import type {
@@ -64,7 +63,6 @@ import {
 import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
-import { useHandoffStore } from "../../store/useHandoffStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useNotificationsStore } from "../../store/useNotificationsStore";
 import { useStore } from "../../store/useStore";
@@ -77,7 +75,6 @@ import UserAvatar from "../UserAvatar";
 import ChatSkillsList from "./ChatSkillsList";
 import CreateGroupPromptLine from "./CreateGroupPromptLine";
 import ManageSchedulePromptLine from "./ManageSchedulePromptLine";
-import HandoffComposerBar from "./HandoffComposerBar";
 import HighlightedPromptInput from "./HighlightedPromptInput";
 import MentionFloatingMenu from "./MentionFloatingMenu";
 import MentionMenuOption from "./MentionMenuOption";
@@ -91,7 +88,6 @@ import SkillTimeline, {
 } from "./SkillTimeline";
 import {
   GROUP_TIMELINE_STEPS,
-  HANDOFF_TIMELINE_STEPS,
   MANAGE_TIMELINE_STEPS,
   SKILL_ACTION_LABELS,
   SKILL_SUCCESS_LABELS,
@@ -305,18 +301,6 @@ export default function FriendsChatPanel() {
     (s) => s.channelsByWorkspace[activeRoomId] ?? EMPTY_WORKSPACE_TEXT_CHANNELS,
   );
   const dismissedThreadIds = usePeopleStore((s) => s.dismissedThreadIds);
-  const handoffSelectionMode = useHandoffStore(
-    (s) => s.selectionMode && s.selectionSource === "people",
-  );
-  const handoffSelectedIndices = useHandoffStore((s) => s.selectedIndices);
-  const handoffTarget = useHandoffStore((s) => s.target);
-  const handoffSubmitting = useHandoffStore((s) => s.submitting);
-  const handoffError = useHandoffStore((s) => s.error);
-  const exitHandoffSelection = useHandoffStore((s) => s.exitSelectionMode);
-  const toggleHandoffIndex = useHandoffStore((s) => s.toggleMessageIndex);
-  const setHandoffTarget = useHandoffStore((s) => s.setTarget);
-  const submitPeopleSegmentHandoff = useHandoffStore((s) => s.submitPeopleSegmentHandoff);
-  const enterPeopleHandoffSelection = useHandoffStore((s) => s.enterPeopleSelectionMode);
   const selectedThreadId = usePeopleStore((s) => s.activeFriendThreadId);
   const thread = usePeopleStore((s) =>
     selectedThreadId ? s.threadById(selectedThreadId) : undefined,
@@ -369,7 +353,6 @@ export default function FriendsChatPanel() {
     apiError: string | null;
     success: SkillTimelineSuccess | null;
   } | null>(null);
-  const handoffRunIdRef = useRef<string | null>(null);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState("");
   const [slashIndex, setSlashIndex] = useState(0);
@@ -397,7 +380,7 @@ export default function FriendsChatPanel() {
     [thread?.id, firebaseUid],
   );
   const typingIndicatorEnabled =
-    !!thread && !handoffSelectionMode && !skillComposerOpen && !emojiPickerOpen;
+    !!thread && !skillComposerOpen && !emojiPickerOpen;
   const typingUsers = useChatTyping(chatTypingScope, draft, typingIndicatorEnabled);
   const workspaceChannelComposer = thread?.section === "workspace-channels";
   const workspaceMentionMembers = useMemo(
@@ -422,12 +405,11 @@ export default function FriendsChatPanel() {
     [workspaceChannelComposer, workspaceMentionMembers],
   );
   const showSlashMenu =
-    slashOpen && slashOptions.length > 0 && !handoffSelectionMode && !skillComposerOpen;
+    slashOpen && slashOptions.length > 0 && !skillComposerOpen;
   const showMentionMenu =
     workspaceChannelComposer &&
     mentionOpen &&
     mentionOptions.length > 0 &&
-    !handoffSelectionMode &&
     !skillComposerOpen;
 
   const seedMembers = useMemo(
@@ -633,7 +615,6 @@ export default function FriendsChatPanel() {
       setMemberPromptDraft(createDefaultCreateGroupDraft());
       setManageSubmitting(false);
       setActiveSkillRun(null);
-      exitHandoffSelection();
       setAttachments((prev) => {
         prev.forEach((att) => {
           if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
@@ -641,7 +622,7 @@ export default function FriendsChatPanel() {
         return [];
       });
     }
-  }, [selectedThreadId, markThreadRead, exitHandoffSelection]);
+  }, [selectedThreadId, markThreadRead]);
 
   useEffect(() => {
     setSlashIndex(0);
@@ -750,17 +731,6 @@ export default function FriendsChatPanel() {
   }, []);
 
   const submit = () => {
-    if (handoffSelectionMode) {
-      if (
-        handoffSubmitting ||
-        handoffSelectedIndices.size === 0 ||
-        !handoffTarget
-      ) {
-        return;
-      }
-      submitPeopleHandoffSkill();
-      return;
-    }
     if (activeComposerSkill === "group") {
       if (!memberPromptReady) return;
       void submitPeopleGroupSkill();
@@ -995,46 +965,6 @@ export default function FriendsChatPanel() {
     ],
   );
 
-  const submitPeopleHandoffSkill = useCallback(() => {
-    if (!thread) return;
-    const sourceThreadId = thread.id;
-    const runId = `handoff-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    handoffRunIdRef.current = runId;
-    setActiveSkillRun({
-      runId,
-      threadId: sourceThreadId,
-      skillId: "handoff",
-      steps: HANDOFF_TIMELINE_STEPS,
-      apiDone: false,
-      apiError: null,
-      success: null,
-    });
-    void submitPeopleSegmentHandoff(messages, sourceThreadId);
-  }, [thread, messages, submitPeopleSegmentHandoff]);
-
-  useEffect(() => {
-    if (!activeSkillRun || activeSkillRun.skillId !== "handoff") return;
-    if (handoffSubmitting) return;
-    if (activeSkillRun.apiDone || activeSkillRun.apiError) return;
-    if (handoffError) {
-      setActiveSkillRun((prev) =>
-        prev && prev.skillId === "handoff"
-          ? { ...prev, apiError: handoffError }
-          : prev,
-      );
-      return;
-    }
-    setActiveSkillRun((prev) =>
-      prev && prev.skillId === "handoff"
-        ? {
-            ...prev,
-            apiDone: true,
-            success: { label: SKILL_SUCCESS_LABELS.handoff },
-          }
-        : prev,
-    );
-  }, [handoffSubmitting, handoffError, activeSkillRun]);
-
   const insertSkillTemplate = useCallback(
     (skill: ChatSkillDef) => {
       if (!thread) return;
@@ -1048,14 +978,6 @@ export default function FriendsChatPanel() {
 
       if (skill.id === "manage") {
         insertManageComposer();
-        return;
-      }
-
-      if (skill.id === "handoff") {
-        setSlashOpen(false);
-        setSlashFilter("");
-        setDraft("");
-        enterPeopleHandoffSelection(thread.id);
         return;
       }
 
@@ -1091,7 +1013,6 @@ export default function FriendsChatPanel() {
       draft,
       syncComposerMenu,
       insertManageComposer,
-      enterPeopleHandoffSelection,
       seedMembers,
       manageSkillAvailable,
       openSettingsTab,
@@ -1109,9 +1030,7 @@ export default function FriendsChatPanel() {
   const resolveAuthorPhotoURL = (authorUid: string, authorName: string) =>
     resolvePersonPhotoURL(authorUid, membersByWorkspace, photoLookup);
   const canSubmit =
-    handoffSelectionMode
-      ? handoffSelectedIndices.size > 0 && !!handoffTarget && !handoffSubmitting
-      : activeComposerSkill === "group"
+    activeComposerSkill === "group"
         ? memberPromptReady
         : activeComposerSkill === "manage"
           ? isManageDraftReady(manageDraft) && !manageSubmitting
@@ -1156,9 +1075,6 @@ export default function FriendsChatPanel() {
             mentionHighlightHandles={
               thread.section === "workspace-channels" ? mentionHighlightHandles : undefined
             }
-            handoffSelectionMode={handoffSelectionMode}
-            handoffSelectedIndices={handoffSelectedIndices}
-            onToggleHandoffIndex={toggleHandoffIndex}
             tailContent={
               activeSkillRun && activeSkillRun.threadId === thread.id ? (
                 <SkillTimeline
@@ -1215,14 +1131,6 @@ export default function FriendsChatPanel() {
                 <PeopleChatEmojiPicker
                   onSelect={handleEmojiSelect}
                   onClose={() => setEmojiPickerOpen(false)}
-                />
-              ) : handoffSelectionMode ? (
-                <HandoffComposerBar
-                  selectedCount={handoffSelectedIndices.size}
-                  target={handoffTarget}
-                  error={handoffError}
-                  onTargetChange={setHandoffTarget}
-                  onCancel={exitHandoffSelection}
                 />
               ) : activeComposerSkill === "group" ? (
                 <CreateGroupPromptLine
@@ -1349,13 +1257,6 @@ export default function FriendsChatPanel() {
                     insertManageComposer();
                     return;
                   }
-                  if (trimmed === PEOPLE_HANDOFF_SKILL_TEMPLATE && thread) {
-                    setSlashOpen(false);
-                    setSlashFilter("");
-                    setDraft("");
-                    enterPeopleHandoffSelection(thread.id);
-                    return;
-                  }
                   if (trimmed === PEOPLE_GROUP_SKILL_TEMPLATE) {
                     setSlashOpen(false);
                     setSlashFilter("");
@@ -1426,7 +1327,7 @@ export default function FriendsChatPanel() {
                     }
                   }
 
-                  if (e.key === "Enter" && !e.shiftKey && !handoffSelectionMode && !skillComposerOpen) {
+                  if (e.key === "Enter" && !e.shiftKey && !skillComposerOpen) {
                     e.preventDefault();
                     submit();
                   }
@@ -1446,8 +1347,8 @@ export default function FriendsChatPanel() {
                   <button
                     type="submit"
                     disabled={!canSubmit}
-                    title={handoffSelectionMode ? "Send handoff" : "Send"}
-                    aria-label={handoffSelectionMode ? "Send handoff" : "Send"}
+                    title="Send"
+                    aria-label="Send"
                     className={clsx(
                       "inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full border border-ink-600 bg-ink-750 text-muted-200 transition-colors hover:bg-ink-700 disabled:opacity-30",
                     )}

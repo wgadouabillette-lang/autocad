@@ -20,7 +20,6 @@ from fastapi.staticfiles import StaticFiles
 from app.api.account import router as account_router
 from app.api.affiliate import router as affiliate_router
 from app.api.billing import router as billing_router
-from app.api.handoffs import router as handoffs_router
 from app.api.calendar_sync import router as calendar_sync_router
 from app.api.outlook_calendar_sync import router as outlook_calendar_sync_router
 from app.api.connector_resources import router as connector_resources_router
@@ -74,7 +73,6 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(account_router)
 app.include_router(affiliate_router)
-app.include_router(handoffs_router)
 app.include_router(billing_router)
 app.include_router(connector_resources_router)
 app.include_router(connectors_router)

@@ -1,5 +1,4 @@
 const INVITE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
-const PUBLIC_APP_JOIN_ORIGIN = "https://meetra.cc";
 
 /** Identifiant unique partageable pour rejoindre un workspace (ex. ws-k7m2p9xq). */
 export function generateWorkspaceInviteId(): string {

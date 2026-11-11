@@ -580,6 +580,98 @@ def is_workspace_member(uid: str, workspace_id: str) -> bool:
         return False
 
 
+def _recorded_workspace_membership(uid: str, workspace_id: str) -> Optional[Dict[str, object]]:
+    """Membership stored on the user profile. Any role counts, not only owner."""
+    wid = workspace_id.strip().lower()
+    _ensure_db()
+    if _db is None or not uid or not wid:
+        return None
+    try:
+        for doc in _db.collection("users").document(uid).collection("memberships").stream():
+            data = doc.to_dict() or {}
+            recorded = str(data.get("workspaceId") or "").strip().lower()
+            if recorded == wid:
+                return data
+    except Exception as exc:
+        logger.warning("Failed to read workspace memberships for %s: %s", uid, exc)
+    try:
+        snap = _db.collection("users").document(uid).collection("workspaces").document(wid).get()
+        if not snap.exists:
+            return None
+        data = snap.to_dict() or {}
+        data["workspaceId"] = wid
+        if not str(data.get("role") or "").strip():
+            owner_id = str(data.get("ownerId") or "").strip()
+            data["role"] = "owner" if owner_id == uid else "member"
+        return data
+    except Exception as exc:
+        logger.warning("Failed to read workspace record for %s in %s: %s", uid, wid, exc)
+        return None
+
+
+def _write_workspace_member(workspace_id: str, uid: str, email: Optional[str], name: str) -> None:
+    _ensure_db()
+    if _db is None or not uid:
+        return
+    from firebase_admin import firestore
+
+    wid = workspace_id.strip().lower()
+    (
+        _db.collection("workspacesShared")
+        .document(wid)
+        .collection("members")
+        .document(uid)
+        .set(
+            {
+                "uid": uid,
+                "displayName": name.strip() or "Membre",
+                "email": (email or "").strip().lower(),
+                "joinedAt": firestore.SERVER_TIMESTAMP,
+            },
+            merge=True,
+        )
+    )
+
+
+def ensure_workspace_seat_payer(uid: str, workspace_id: str, email: Optional[str] = None) -> bool:
+    """A member already in the workspace can pay. Ownership is not required."""
+    wid = workspace_id.strip().lower()
+    if is_workspace_member(uid, wid):
+        return True
+    recorded = _recorded_workspace_membership(uid, wid)
+    if not recorded:
+        return False
+    role = str(recorded.get("role") or "").strip()
+    owner_id = str(recorded.get("ownerId") or "").strip()
+    workspace = load_shared_workspace(wid)
+    if not workspace:
+        if role != "owner" and owner_id != uid:
+            return False
+        _ensure_db()
+        if _db is None:
+            return False
+        name = str(recorded.get("name") or "Meetra").strip() or "Meetra"
+        owner_name = str(recorded.get("ownerName") or "Membre").strip() or "Membre"
+        created_at = recorded.get("createdAt")
+        try:
+            created_at_ms = int(created_at) if created_at is not None else int(time.time() * 1000)
+        except (TypeError, ValueError):
+            created_at_ms = int(time.time() * 1000)
+        _db.collection("workspacesShared").document(wid).set(
+            {
+                "id": wid,
+                "name": name,
+                "accent": str(recorded.get("accent") or "#5865f2"),
+                "ownerId": uid,
+                "ownerName": owner_name,
+                "createdAt": created_at_ms,
+            },
+            merge=True,
+        )
+    _write_workspace_member(wid, uid, email, "Membre")
+    return is_workspace_member(uid, wid)
+
+
 def load_workspace_usage(workspace_id: str) -> Dict[str, object]:
     ref = _workspace_usage_ref(workspace_id)
     if ref is None:

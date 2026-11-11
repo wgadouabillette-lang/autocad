@@ -30,14 +30,34 @@ export async function ensureDesktopScreenCaptureAllowed(): Promise<void> {
   }
 }
 
+function screenCaptureConstraints(): MediaTrackConstraints {
+  const scale = window.devicePixelRatio || 1;
+  const width = Math.round(window.screen.width * scale);
+  const height = Math.round(window.screen.height * scale);
+  return {
+    width: { ideal: width, max: width },
+    height: { ideal: height, max: height },
+    frameRate: { ideal: 30, max: 30 },
+  };
+}
+
+function sharpenScreenTrack(stream: MediaStream) {
+  const track = stream.getVideoTracks().find((item) => item.readyState === "live");
+  if (!track) return;
+  track.contentHint = "detail";
+  const constraints = screenCaptureConstraints();
+  void track.applyConstraints(constraints).catch(() => undefined);
+}
+
 export async function startScreenShare(): Promise<MediaStream> {
   requireMediaDevices();
   stopScreenShare();
   await ensureDesktopScreenCaptureAllowed();
+  const video = screenCaptureConstraints();
 
   try {
     screenShareStream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
+      video,
       // System / tab audio when the OS / picker allows it (Electron loopback, Chrome checkbox).
       audio: true,
     });
@@ -57,7 +77,7 @@ export async function startScreenShare(): Promise<MediaStream> {
       (error.name === "NotSupportedError" || error.name === "TypeError")
     ) {
       screenShareStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
+        video,
         audio: false,
       });
     } else {
@@ -65,6 +85,7 @@ export async function startScreenShare(): Promise<MediaStream> {
     }
   }
 
+  sharpenScreenTrack(screenShareStream);
   return screenShareStream;
 }
 

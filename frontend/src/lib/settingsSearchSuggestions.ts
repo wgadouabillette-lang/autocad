@@ -71,7 +71,7 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     label: "Skills",
     hint: "Commandes / utilisables dans le chat",
     keywords:
-      "skills skill slash manage group handoff meeting mail play calendar gmail outlook onedrive dropbox recap",
+      "skills skill slash manage group meeting mail play calendar gmail outlook onedrive dropbox recap",
   },
   {
     id: "accent-color",
@@ -119,8 +119,8 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     id: "friends",
     tab: "friends",
     label: "Amis",
-    hint: "Ajouter et gérer vos amis",
-    keywords: "amis friends ajouter email liste messages",
+    hint: "Vos amis",
+    keywords: "amis friends liste messages",
   },
   {
     id: "workspaces",

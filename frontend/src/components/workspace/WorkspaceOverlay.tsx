@@ -90,6 +90,7 @@ function WorkspaceRow({
 
 export default function WorkspaceOverlay() {
   const panelOpen = useWorkspaceOverlayStore((s) => s.panelOpen);
+  const pendingJoinCode = useWorkspaceOverlayStore((s) => s.pendingJoinCode);
   const closePanel = useWorkspaceOverlayStore((s) => s.closePanel);
   const anchorEl = useWorkspaceOverlayStore((s) => s.anchorEl);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -123,6 +124,15 @@ export default function WorkspaceOverlay() {
   const [joinSent, setJoinSent] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [respondBusyUid, setRespondBusyUid] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!panelOpen || !pendingJoinCode) return;
+    setView("join");
+    setJoinId(pendingJoinCode);
+    setJoinError(null);
+    setJoinSent(false);
+    useWorkspaceOverlayStore.getState().consumePendingJoinCode();
+  }, [panelOpen, pendingJoinCode]);
 
   const ownerUserId = firebaseUid ?? LOCAL_USER_ID;
 
@@ -453,7 +463,7 @@ export default function WorkspaceOverlay() {
                   <input
                     type="text"
                     className="workspace-edge-overlay__input"
-                    placeholder="Lien ou identifiant du workspace…"
+                    placeholder="Code d'invitation"
                     value={joinId}
                     disabled={joinBusy}
                     autoFocus

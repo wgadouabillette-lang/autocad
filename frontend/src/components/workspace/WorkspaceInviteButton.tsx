@@ -43,7 +43,11 @@ export default function WorkspaceInviteButton() {
         copied && "is-active",
       )}
       onClick={() => void handleCopy()}
-      aria-label={copied ? "Lien d'invitation copié" : `Copier le lien d'invitation pour ${workspaceName}`}
+      aria-label={
+        copied
+          ? "Code d'invitation copié"
+          : `Copier le code d'invitation pour ${workspaceName}`
+      }
     >
       <ChromeSignetLabel label="Partager le workspace" placement="below" />
       {copied ? (

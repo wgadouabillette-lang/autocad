@@ -179,12 +179,15 @@ export default function HeaderInviteButton() {
                 </ul>
               ) : (
                 <p className="header-invite-menu__hint">
-                  Aucun ami pour l&apos;instant. Copiez le lien ci-dessous.
+                  Aucun ami pour l&apos;instant. Copiez le code ci-dessous.
                 </p>
               )}
+              <p className="header-invite-menu__hint">
+                Collez-le dans Workspace, puis Rejoindre. Il ne s&apos;ouvre pas dans le navigateur.
+              </p>
               <button type="button" className="header-invite-menu__copy" onClick={() => void onCopyLink()}>
                 {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-                {copied ? "Lien copié" : "Copier le lien d'invitation"}
+                {copied ? "Code copié" : "Copier le code d'invitation"}
               </button>
               {error ? <p className="header-invite-menu__error">{error}</p> : null}
             </div>
