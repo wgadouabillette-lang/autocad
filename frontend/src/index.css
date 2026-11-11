@@ -1456,11 +1456,11 @@ html:not(.app-loading-splash) #root {
   }
   html.is-desktop-windows .chat-panel-header__tools .toolbar-btn.chat-panel-header__lift {
     position: absolute;
-    top: 0;
-    /* Same inset and width as the header button directly underneath. */
+    /* Same box as the toolbar button directly underneath: 2.25rem wide, h-6 tall. */
+    top: calc((var(--desktop-autohide-titlebar-height) - 1.5rem) / 2);
     left: 0.5rem;
     z-index: 6;
-    height: var(--desktop-autohide-titlebar-height);
+    height: 1.5rem;
     width: 2.25rem;
     -webkit-app-region: no-drag;
   }
