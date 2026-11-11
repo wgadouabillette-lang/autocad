@@ -1388,12 +1388,15 @@ html:not(.app-loading-splash) #root {
     padding-right: 6px;
   }
   /* Windows: no separate titlebar. Logo and caption buttons stay in the top row;
-     workspace, upgrade, invite and settings sit in that same row. */
-  html.is-desktop-windows {
-    --forma-top-toolbar-height: var(--desktop-autohide-titlebar-height);
-  }
+     workspace, upgrade, invite and settings sit in that same row.
+     The chat header stays on its own row; only its + button lifts into the top strip. */
   html.is-desktop-windows .app-shell {
     padding-top: 0;
+  }
+  html.is-desktop-windows .app-chrome-row {
+    height: var(--desktop-autohide-titlebar-height);
+    min-height: var(--desktop-autohide-titlebar-height);
+    max-height: var(--desktop-autohide-titlebar-height);
   }
   html.is-desktop-windows .app-layout {
     border-top: none;
@@ -1401,15 +1404,62 @@ html:not(.app-loading-splash) #root {
   html.is-desktop-windows .app-chrome-row__brand {
     display: none;
   }
-  html.is-desktop-windows .app-chrome-row,
-  html.is-desktop-windows .chat-panel-header {
+  html.is-desktop-windows .app-chrome-row {
     -webkit-app-region: drag;
   }
   html.is-desktop-windows .app-chrome-row button,
   html.is-desktop-windows .app-chrome-row a,
-  html.is-desktop-windows .app-chrome-row input,
-  html.is-desktop-windows .chat-panel-header button,
-  html.is-desktop-windows .chat-panel-header a {
+  html.is-desktop-windows .app-chrome-row input {
+    -webkit-app-region: no-drag;
+  }
+  html.is-desktop-windows .chat-panel {
+    padding-top: var(--desktop-autohide-titlebar-height);
+  }
+  html.is-desktop-windows .chat-panel::before {
+    content: "";
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--desktop-autohide-titlebar-height);
+    -webkit-app-region: drag;
+  }
+  /* The caption buttons sit on this strip when the chat is on the right.
+     A drag region there swallows minimize / restore / close even though the
+     buttons are painted above it. */
+  html.is-desktop-windows .app-layout--panel-right .chat-panel::before,
+  html.is-desktop-windows .chat-panel--expanded::before {
+    right: calc(3 * 2.25rem);
+  }
+  html.is-desktop-windows.is-desktop-windows-maximized .app-layout--panel-right .chat-panel::before,
+  html.is-desktop-windows.is-desktop-windows-maximized .chat-panel--expanded::before {
+    right: calc(3 * 2.25rem + 6px);
+  }
+  html.is-desktop-windows .app-chrome-row::after {
+    content: "";
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    right: 0;
+    width: calc(3 * 2.25rem);
+    height: 100%;
+    pointer-events: none;
+    -webkit-app-region: no-drag;
+  }
+  html.is-desktop-windows.is-desktop-windows-maximized .app-chrome-row::after {
+    width: calc(3 * 2.25rem + 6px);
+  }
+  html.is-desktop-windows .app-layout--panel-right.app-layout--chat-open .app-chrome-row::after {
+    content: none;
+  }
+  html.is-desktop-windows .chat-panel-header__lift {
+    position: absolute;
+    top: 0;
+    left: 0.2rem;
+    z-index: 6;
+    height: var(--desktop-autohide-titlebar-height);
+    width: 2rem;
     -webkit-app-region: no-drag;
   }
   .desktop-window-controls--persistent {
@@ -1436,7 +1486,10 @@ html:not(.app-loading-splash) #root {
   }
   html.is-desktop-windows .desktop-window-controls__brand,
   html.is-desktop-windows .desktop-window-controls__buttons {
+    position: relative;
+    z-index: 5;
     pointer-events: auto;
+    -webkit-app-region: no-drag;
   }
   html.is-desktop-windows .desktop-window-controls--persistent .desktop-window-controls__drag {
     -webkit-app-region: no-drag;
@@ -6462,11 +6515,12 @@ html:not(.app-loading-splash) #root {
   }
   html.is-desktop-windows .chat-panel--dock-right .chat-panel-header,
   html.is-desktop-windows .chat-panel--expanded .chat-panel-header {
-    padding-right: calc(3 * 2.25rem);
+    padding-right: 0;
   }
   html.is-desktop-windows.is-desktop-windows-maximized .chat-panel--dock-right .chat-panel-header,
   html.is-desktop-windows.is-desktop-windows-maximized .chat-panel--expanded .chat-panel-header {
-    padding-right: calc(3 * 2.25rem + 6px);
+    /* 6px matches the maximized titlebar inset, minus the layout border. */
+    padding-right: calc(6px - var(--forma-divider-width));
   }
   .chat-panel-header__title {
     @apply inline-flex max-w-full items-center justify-center;

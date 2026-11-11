@@ -102,7 +102,7 @@ export default function ChatPanelHeader() {
         {calendarMode ? (
           <button
             type="button"
-            className="toolbar-btn"
+            className="toolbar-btn chat-panel-header__lift"
             onClick={() => openCalendarComposer()}
             title={t("chat.newEvent")}
             aria-label={t("chat.newEvent")}
@@ -114,7 +114,7 @@ export default function ChatPanelHeader() {
           <>
             <button
               type="button"
-              className="toolbar-btn"
+              className="toolbar-btn chat-panel-header__lift"
               onClick={() => startNewChat()}
               title={t("chat.newConversation")}
               aria-label={t("chat.newConversation")}
@@ -137,7 +137,7 @@ export default function ChatPanelHeader() {
           <>
             <button
               type="button"
-              className="toolbar-btn"
+              className="toolbar-btn chat-panel-header__lift"
               onClick={() => startNewManualNote()}
               title={t("chat.newNote")}
               aria-label={t("chat.newNote")}

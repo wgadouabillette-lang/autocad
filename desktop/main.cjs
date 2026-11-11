@@ -1188,13 +1188,10 @@ function applyAppWindowSizing(win) {
   win.setMaximizable(true);
   win.setMinimizable(true);
   win.setMinimumSize(APP_WINDOW_MIN_SIZE.width, APP_WINDOW_MIN_SIZE.height);
-  if (process.platform === "darwin") {
-    // 0 unsets the constraint — required for the green FS button to stay enabled.
-    win.setMaximumSize(0, 0);
-    return;
-  }
-  const display = screen.getDisplayMatching(win.getBounds()) ?? screen.getPrimaryDisplay();
-  win.setMaximumSize(display.bounds.width, display.bounds.height);
+  // 0 unsets the constraint. On macOS that keeps the green button enabled.
+  // On Windows a maximum equal to the display makes unmaximize a no-op, so
+  // the restore caption button leaves the window filling the screen.
+  win.setMaximumSize(0, 0);
 }
 
 const LAUNCH_ACK_AFTER_LOAD_MS = 6000;
@@ -1322,7 +1319,9 @@ function getMainWindowState() {
   }
   return {
     mode: mainWindowMode,
-    maximized: mainWindow.isMaximized(),
+    maximized:
+      mainWindow.isMaximized() ||
+      (!mainWindow.isMinimized() && windowFillsWorkArea(mainWindow)),
     fullScreen: mainWindow.isFullScreen(),
   };
 }
@@ -1369,6 +1368,25 @@ function attachMainWindowStateListeners(win) {
   }
 }
 
+function windowFillsWorkArea(win) {
+  if (!win || win.isDestroyed()) return false;
+  const bounds = win.getBounds();
+  const area = (screen.getDisplayMatching(bounds) ?? screen.getPrimaryDisplay()).workArea;
+  return bounds.width >= area.width - 16 && bounds.height >= area.height - 16;
+}
+
+function restoreMainWindowFromExpanded() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
+  if (mainWindow.isMaximized()) mainWindow.unmaximize();
+  applyAppWindowSizing(mainWindow);
+  // maximize() while the window is still hidden often never latches the
+  // maximized flag, so unmaximize() then does nothing.
+  if (mainWindow.isMaximized() || windowFillsWorkArea(mainWindow)) {
+    mainWindow.setBounds(getCenteredAppBounds());
+  }
+}
+
 function toggleMainWindowFullscreen() {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindowMode !== "app") {
     return getMainWindowState();
@@ -1377,13 +1395,12 @@ function toggleMainWindowFullscreen() {
     mainWindow.setFullScreen(!mainWindow.isFullScreen());
     return getMainWindowState();
   }
-  if (mainWindow.isFullScreen()) {
-    mainWindow.setFullScreen(false);
-  } else if (mainWindow.isMaximized()) {
-    mainWindow.unmaximize();
-  } else {
-    mainWindow.maximize();
-  }
+  const expanded =
+    mainWindow.isFullScreen() ||
+    mainWindow.isMaximized() ||
+    windowFillsWorkArea(mainWindow);
+  if (expanded) restoreMainWindowFromExpanded();
+  else mainWindow.maximize();
   return getMainWindowState();
 }
 
@@ -1747,7 +1764,9 @@ ipcMain.handle("forma:window-minimize", () => {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindowMode !== "app") {
     return { ok: false, ...getMainWindowState() };
   }
+  mainWindow.setMinimizable(true);
   mainWindow.minimize();
+  sendMainWindowState();
   return { ok: true, ...getMainWindowState() };
 });
 
@@ -1755,7 +1774,10 @@ ipcMain.handle("forma:window-toggle-fullscreen", () => {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindowMode !== "app") {
     return { ok: false, ...getMainWindowState() };
   }
-  return { ok: true, ...toggleMainWindowFullscreen() };
+  const state = toggleMainWindowFullscreen();
+  sendMainWindowState();
+  setTimeout(() => sendMainWindowState(), 50);
+  return { ok: true, ...state };
 });
 
 ipcMain.handle("forma:window-close", () => {

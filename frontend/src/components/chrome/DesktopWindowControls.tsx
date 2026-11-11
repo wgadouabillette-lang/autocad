@@ -150,7 +150,11 @@ export default function DesktopWindowControls() {
           <button
             type="button"
             className="desktop-window-controls__btn"
-            onClick={() => void desktop?.windowMinimize?.()}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void desktop?.windowMinimize?.();
+            }}
             aria-label="Réduire"
             title="Réduire"
             tabIndex={shown ? 0 : -1}
@@ -160,7 +164,11 @@ export default function DesktopWindowControls() {
           <button
             type="button"
             className="desktop-window-controls__btn"
-            onClick={() => void desktop?.windowToggleFullscreen?.()}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void desktop?.windowToggleFullscreen?.();
+            }}
             aria-label={expanded ? "Restaurer" : "Plein écran"}
             title={expanded ? "Restaurer" : "Plein écran"}
             tabIndex={shown ? 0 : -1}
@@ -174,7 +182,11 @@ export default function DesktopWindowControls() {
           <button
             type="button"
             className="desktop-window-controls__btn desktop-window-controls__btn--close"
-            onClick={() => void desktop?.windowClose?.()}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void desktop?.windowClose?.();
+            }}
             aria-label="Fermer"
             title="Fermer"
             tabIndex={shown ? 0 : -1}
