@@ -72,7 +72,7 @@ export type FirebaseAuthProvider = "google";
 
 const EMAIL_LINK_STORAGE_KEY = "forma-email-for-sign-in";
 
-const OAUTH_POPUP_HOSTS = ["accounts.google.com", "firebaseapp.com"];
+const OAUTH_POPUP_HOSTS = ["accounts.google.com", "firebaseapp.com", "meetra.cc"];
 
 function isOAuthPopupUrl(url: string): boolean {
   try {

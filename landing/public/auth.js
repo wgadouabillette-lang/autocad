@@ -12,7 +12,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEgeoE7cOh8OA1l2rQSF0VTJ0pY1GYgx4",
-  authDomain: "forma-cad-dev.firebaseapp.com",
+  authDomain: "meetra.cc",
   projectId: "forma-cad-dev",
   storageBucket: "forma-cad-dev.firebasestorage.app",
   messagingSenderId: "341690938979",

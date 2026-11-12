@@ -1,15 +1,10 @@
-const DEFAULT_AUTH_DOMAIN = "forma-cad-dev.firebaseapp.com";
+const SIGN_IN_AUTH_DOMAIN = "meetra.cc";
 
 /**
- * Use the Firebase project auth domain (not the page hostname).
- *
- * meetra.cc is on Vercel. Treating it as authDomain made Google request
- * `https://meetra.cc/__/auth/handler`. If that URI is missing on Firebase's
- * default Web client, Google shows "La demande de cette appli n'est pas valide".
- * localhost already used *.firebaseapp.com; keep production on the same path.
- * meetra.cc remains an authorized domain so the opener origin is allowed.
+ * Google's account picker shows this host ("accéder à l'application …").
+ * meetra.cc proxies /__/auth/* to Firebase Hosting, and the OAuth client
+ * allows https://meetra.cc/__/auth/handler.
  */
 export function resolveAuthDomain(): string {
-  const fromEnv = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN?.trim();
-  return fromEnv || DEFAULT_AUTH_DOMAIN;
+  return SIGN_IN_AUTH_DOMAIN;
 }
