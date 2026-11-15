@@ -1,5 +1,6 @@
 import { UserPlus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
@@ -12,6 +13,7 @@ interface MenuPosition {
 }
 
 export default function InviteTeammatesButton() {
+  const { t } = useTranslation();
   const activeRoomId = useStore((s) => s.activeRoomId);
   const inviteMemberByEmail = useWorkspacesStore((s) => s.inviteMemberByEmail);
   const canManageInvites = useWorkspacesStore((s) => s.canManageWorkspaceInvites(activeRoomId));
@@ -75,7 +77,7 @@ export default function InviteTeammatesButton() {
           setOpen(false);
           return;
         }
-        setError(result.error ?? "Impossible d'envoyer l'invitation.");
+        setError(result.error ?? t("calls.inviteFailed"));
         return;
       }
       setHandle("");
@@ -92,7 +94,7 @@ export default function InviteTeammatesButton() {
             <button
               type="button"
               className="invite-teammates__backdrop"
-              aria-label="Fermer"
+              aria-label={t("common.close")}
               onClick={() => setOpen(false)}
             />
             <div
@@ -104,19 +106,16 @@ export default function InviteTeammatesButton() {
                 transform: "translateY(-100%)",
               }}
               role="dialog"
-              aria-label="Inviter au workspace"
+              aria-label={t("calls.inviteWorkspace")}
             >
-              <p className="invite-teammates__menu-title">Inviter au workspace</p>
-              <p className="invite-teammates__menu-hint">
-                Entrez l&apos;adresse email d&apos;un compte Meetra. La personne recevra une
-                invitation à accepter pour rejoindre ce workspace.
-              </p>
+              <p className="invite-teammates__menu-title">{t("calls.inviteWorkspace")}</p>
+              <p className="invite-teammates__menu-hint">{t("workspaceUi.inviteHint")}</p>
               <form className="invite-teammates__form" onSubmit={onSubmit}>
                 <input
                   ref={inputRef}
                   type="text"
                   className="invite-teammates__input"
-                  placeholder="Adresse email"
+                  placeholder={t("common.email")}
                   value={handle}
                   disabled={sending}
                   onChange={(event) => {
@@ -130,12 +129,12 @@ export default function InviteTeammatesButton() {
                   className="invite-teammates__submit"
                   disabled={!handle.trim() || sending}
                 >
-                  {sending ? "Invitation…" : "Inviter"}
+                  {sending ? t("common.inviting") : t("common.invite")}
                 </button>
               </form>
               {error && <p className="invite-teammates__feedback invite-teammates__feedback--error">{error}</p>}
               {sent && (
-                <p className="invite-teammates__feedback">Invitation envoyée.</p>
+                <p className="invite-teammates__feedback">{t("common.inviteSent")}</p>
               )}
             </div>
           </>,
@@ -149,8 +148,8 @@ export default function InviteTeammatesButton() {
         ref={buttonRef}
         type="button"
         className="invite-teammates-btn"
-        aria-label="Inviter au workspace"
-        title="Inviter au workspace"
+        aria-label={t("calls.inviteWorkspace")}
+        title={t("calls.inviteWorkspace")}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >

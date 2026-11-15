@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { UserMinus } from "lucide-react";
 import { blockHeaderTitle } from "../../lib/calls";
 import { useCallsStore } from "../../store/useCallsStore";
@@ -7,6 +8,7 @@ import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import SettingsComingSoon from "./SettingsComingSoon";
 
 export default function WorkspaceSettingsSection() {
+  const { t } = useTranslation();
   const activeRoomId = useStore((s) => s.activeRoomId);
   const isOwner = useWorkspacesStore((s) => s.isWorkspaceOwner(activeRoomId));
   const findWorkspace = useWorkspacesStore((s) => s.findWorkspace);
@@ -35,14 +37,14 @@ export default function WorkspaceSettingsSection() {
 
   if (!isOwner) {
     return (
-      <SettingsComingSoon detail="Seul le propriétaire du workspace peut modifier ces paramètres." />
+      <SettingsComingSoon detail={t("settingsUi.ownerOnly")} />
     );
   }
 
   return (
     <>
       <section className="settings-section">
-        <h3 className="settings-section__label">Nom du workspace</h3>
+        <h3 className="settings-section__label">{t("workspaceUi.workspaceName")}</h3>
         <p className="settings-section__hint">
           {isCustomWorkspace
             ? "Visible pour tous les membres du serveur."
@@ -61,7 +63,7 @@ export default function WorkspaceSettingsSection() {
               className="input min-w-0 flex-1"
               value={draftName}
               onChange={(event) => setDraftName(event.target.value)}
-              placeholder="Nom du workspace"
+              placeholder={t("workspaceUi.workspaceName")}
             />
             <button type="submit" className="btn shrink-0" disabled={!draftName.trim()}>
               Enregistrer
@@ -73,7 +75,7 @@ export default function WorkspaceSettingsSection() {
       </section>
 
       <section className="settings-section">
-        <h3 className="settings-section__label">Membres</h3>
+        <h3 className="settings-section__label">{t("common.members")}</h3>
         <p className="settings-section__hint">
           Expulsez un membre du workspace. Cette action le retire de la grille vocale.
         </p>

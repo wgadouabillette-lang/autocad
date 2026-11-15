@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowUpRight } from "lucide-react";
 import { resolvePersonPhotoURL } from "../../lib/peopleChat";
 import { usePeopleStore } from "../../store/usePeopleStore";
@@ -7,6 +8,7 @@ import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore
 import UserAvatar from "../UserAvatar";
 
 export default function FriendsSettingsSection() {
+  const { t } = useTranslation();
   const friends = usePeopleStore((s) => s.friends);
   const personPhotoByUserId = usePeopleStore((s) => s.personPhotoByUserId);
   const hydratePersonPhotos = usePeopleStore((s) => s.hydratePersonPhotos);
@@ -26,10 +28,10 @@ export default function FriendsSettingsSection() {
 
   return (
     <section className="settings-section settings-section--card">
-      <h3 className="settings-section__label">Amis</h3>
+      <h3 className="settings-section__label">{t("settingsUi.friends")}</h3>
 
       {friends.length === 0 ? (
-        <p className="settings-section__meta mt-4">Aucun ami pour le moment.</p>
+        <p className="settings-section__meta mt-4">{t("settingsUi.noFriends")}</p>
       ) : (
         <ul className="settings-friends-list mt-4 border-t border-ink-700 pt-4">
           {friends.map((friend) => (

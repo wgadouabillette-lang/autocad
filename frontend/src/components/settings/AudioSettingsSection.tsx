@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   audioDeviceLabelsHidden,
   ensureAudioDevicePermission,
@@ -24,6 +25,7 @@ import SettingsFieldToggle from "./SettingsFieldToggle";
 import SettingsPicker from "./SettingsControls";
 
 function InviteMembersPreference() {
+  const { t } = useTranslation();
   const activeRoomId = useStore((s) => s.activeRoomId);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const memberships = useWorkspacesStore((s) => s.memberships);
@@ -45,7 +47,7 @@ function InviteMembersPreference() {
 
   return (
     <section className="settings-preferences__group">
-      <h3 className="settings-preferences__title">Invitations</h3>
+      <h3 className="settings-preferences__title">{t("settingsUi.invitations")}</h3>
       <div className="settings-field-list">
         <SettingsFieldToggle
           id="invite-members"
@@ -63,6 +65,7 @@ function InviteMembersPreference() {
 }
 
 export default function AudioSettingsSection() {
+  const { t } = useTranslation();
   const audioInputDeviceId = useStore((s) => s.audioInputDeviceId);
   const audioOutputDeviceId = useStore((s) => s.audioOutputDeviceId);
   const videoInputDeviceId = useStore((s) => s.videoInputDeviceId);
@@ -165,7 +168,7 @@ export default function AudioSettingsSection() {
     </section>
 
     <section className="settings-preferences__group">
-    <h3 className="settings-preferences__title">Audio et vidéo</h3>
+    <h3 className="settings-preferences__title">{t("settingsUi.audioVideo")}</h3>
     <div className="settings-field-list">
       <SettingsFieldRow
         label="Microphone"
@@ -296,7 +299,7 @@ export default function AudioSettingsSection() {
     </section>
 
     <section className="settings-preferences__group">
-    <h3 className="settings-preferences__title">Enregistrement</h3>
+    <h3 className="settings-preferences__title">{t("settingsUi.recording")}</h3>
     <div className="settings-field-list">
       <RecordingSettingsSection />
     </div>

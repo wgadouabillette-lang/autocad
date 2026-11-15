@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
+import { Trans, useTranslation } from "react-i18next";
 import { useStore } from "../../store/useStore";
 import { useCallsStore } from "../../store/useCallsStore";
 import {
@@ -9,9 +10,10 @@ import {
   type CallBlock,
   type JoinRequest,
 } from "../../lib/calls";
+import { usePersonLabel } from "../../lib/participantLabel";
 
 function blockPrimaryName(blocks: CallBlock[], blockId: string): string {
-  return blocks.find((b) => b.id === blockId)?.participants[0]?.name ?? "Quelqu'un";
+  return blocks.find((b) => b.id === blockId)?.participants[0]?.name ?? "";
 }
 
 function resolveKnock(
@@ -101,6 +103,7 @@ function KnockPointIcon() {
 }
 
 function JoinKnockPreview() {
+  const { t } = useTranslation();
   return createPortal(
     <>
       <div className="join-knock__backdrop" aria-hidden />
@@ -108,22 +111,23 @@ function JoinKnockPreview() {
         className="join-knock"
         role="dialog"
         aria-live="polite"
-        aria-label={`${PREVIEW_KNOCK.knockerName} demande à rejoindre`}
+        aria-label={t("calls.knockIncomingAria", { name: PREVIEW_KNOCK.knockerName })}
       >
         <KnockPointIcon />
         <p className="join-knock__title">
-          <span className="join-knock__name">{PREVIEW_KNOCK.knockerName}</span> frappe à votre
-          porte…
+          <Trans
+            i18nKey="calls.knockIncoming"
+            values={{ name: PREVIEW_KNOCK.knockerName }}
+            components={{ name: <span className="join-knock__name" /> }}
+          />
         </p>
-        <p className="join-knock__hint">
-          Accepter pour rejoindre le salon vocal ensemble.
-        </p>
+        <p className="join-knock__hint">{t("calls.knockHint")}</p>
         <div className="join-knock__actions join-knock__actions--split">
           <button type="button" className="join-knock__btn">
-            Refuser
+            {t("calls.decline")}
           </button>
           <button type="button" className="join-knock__btn">
-            Accepter
+            {t("calls.accept")}
           </button>
         </div>
       </div>
@@ -133,6 +137,8 @@ function JoinKnockPreview() {
 }
 
 export default function JoinKnockOverlay() {
+  const { t } = useTranslation();
+  const labelOf = usePersonLabel();
   const activeRoomId = useStore((s) => s.activeRoomId);
   const roomCalls = useCallsStore((s) => s.callsByRoom[activeRoomId]);
   const acceptJoin = useCallsStore((s) => s.acceptJoin);
@@ -152,6 +158,9 @@ export default function JoinKnockOverlay() {
   );
   if (!knock) return null;
 
+  const rawName = knock.mode === "incoming" ? knock.knockerName : knock.targetName;
+  const personName = labelOf(rawName, false) || t("common.someone");
+
   return createPortal(
     <>
       <div className="join-knock__backdrop" aria-hidden />
@@ -161,30 +170,22 @@ export default function JoinKnockOverlay() {
         aria-live="polite"
         aria-label={
           knock.mode === "incoming"
-            ? `${knock.knockerName} demande à rejoindre`
-            : `Demande envoyée à ${knock.targetName}`
+            ? t("calls.knockIncomingAria", { name: personName })
+            : t("calls.knockOutgoingAria", { name: personName })
         }
       >
         <KnockPointIcon />
 
         <p className="join-knock__title">
-          {knock.mode === "incoming" ? (
-            <>
-              <span className="join-knock__name">{knock.knockerName}</span> frappe à votre
-              porte…
-            </>
-          ) : (
-            <>
-              Frappe à la porte de{" "}
-              <span className="join-knock__name">{knock.targetName}</span>…
-            </>
-          )}
+          <Trans
+            i18nKey={knock.mode === "incoming" ? "calls.knockIncoming" : "calls.knockOutgoing"}
+            values={{ name: personName }}
+            components={{ name: <span className="join-knock__name" /> }}
+          />
         </p>
 
         {knock.mode === "incoming" && (
-          <p className="join-knock__hint">
-            Accepter pour rejoindre le salon vocal ensemble.
-          </p>
+          <p className="join-knock__hint">{t("calls.knockHint")}</p>
         )}
 
         {knock.mode === "incoming" ? (
@@ -194,14 +195,14 @@ export default function JoinKnockOverlay() {
               className="join-knock__btn"
               onClick={() => declineJoin(activeRoomId, knock.request.id)}
             >
-              Refuser
+              {t("calls.decline")}
             </button>
             <button
               type="button"
               className="join-knock__btn"
               onClick={() => acceptJoin(activeRoomId, knock.request.id)}
             >
-              Accepter
+              {t("calls.accept")}
             </button>
           </div>
         ) : (
@@ -211,7 +212,7 @@ export default function JoinKnockOverlay() {
               className="join-knock__btn w-full"
               onClick={() => cancelJoin(activeRoomId, knock.request.id)}
             >
-              Annuler
+              {t("common.cancel")}
             </button>
           </div>
         )}

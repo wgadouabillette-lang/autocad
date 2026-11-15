@@ -1,10 +1,12 @@
 import { Plus, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useStore } from "../../store/useStore";
 import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 
 export default function InviteMemberBlock() {
+  const { t } = useTranslation();
   const activeRoomId = useStore((s) => s.activeRoomId);
   const inviteMemberByEmail = useWorkspacesStore((s) => s.inviteMemberByEmail);
   const canManageInvites = useWorkspacesStore((s) => s.canManageWorkspaceInvites(activeRoomId));
@@ -50,7 +52,7 @@ export default function InviteMemberBlock() {
           setOpen(false);
           return;
         }
-        setError(result.error ?? "Impossible d'envoyer l'invitation.");
+        setError(result.error ?? t("calls.inviteFailed"));
         return;
       }
       setHandle("");
@@ -66,37 +68,36 @@ export default function InviteMemberBlock() {
           <button
             type="button"
             className="invite-member-overlay__backdrop"
-            aria-label="Fermer"
+            aria-label={t("common.close")}
             onClick={close}
           />
           <div
             className="invite-member-overlay__panel"
             role="dialog"
             aria-modal="true"
-            aria-label="Inviter au workspace"
+            aria-label={t("calls.inviteWorkspace")}
           >
             <div className="invite-member-overlay__header">
-              <p className="invite-member-overlay__title">Inviter au workspace</p>
+              <p className="invite-member-overlay__title">{t("calls.inviteWorkspace")}</p>
               <button
                 type="button"
                 className="invite-member-overlay__close"
                 onClick={close}
-                aria-label="Fermer"
+                aria-label={t("common.close")}
               >
                 <X size={14} strokeWidth={2.25} aria-hidden />
               </button>
             </div>
             <div className="invite-member-overlay__body">
               <p className="invite-member-overlay__hint">
-                Entrez l&apos;adresse email d&apos;un compte Meetra. La personne recevra une
-                invitation à accepter pour rejoindre ce workspace.
+                {t("workspaceUi.inviteHint")}
               </p>
               <form className="invite-member-overlay__form" onSubmit={onSubmit}>
                 <input
                   ref={inputRef}
                   type="text"
                   className="invite-member-overlay__input"
-                  placeholder="Adresse email"
+                  placeholder={t("common.email")}
                   value={handle}
                   disabled={sending}
                   onChange={(event) => {
@@ -110,7 +111,7 @@ export default function InviteMemberBlock() {
                   className="invite-member-overlay__submit"
                   disabled={!handle.trim() || sending}
                 >
-                  {sending ? "Invitation…" : "Inviter"}
+                  {sending ? t("common.inviting") : t("common.invite")}
                 </button>
               </form>
               {error && (
@@ -119,7 +120,7 @@ export default function InviteMemberBlock() {
                 </p>
               )}
               {sent && (
-                <p className="invite-member-overlay__feedback">Invitation envoyée.</p>
+                <p className="invite-member-overlay__feedback">{t("common.inviteSent")}</p>
               )}
             </div>
           </div>
@@ -138,10 +139,10 @@ export default function InviteMemberBlock() {
             type="button"
             className="call-block__main call-block__main--invite"
             onClick={() => setOpen(true)}
-            aria-label="Inviter au workspace"
+            aria-label={t("calls.inviteWorkspace")}
             aria-haspopup="dialog"
             aria-expanded={open}
-            title="Inviter au workspace"
+            title={t("calls.inviteWorkspace")}
           >
             <span className="call-block-invite__icon-wrap" aria-hidden>
               <UserRound size={28} strokeWidth={1.75} className="call-block-invite__icon" />

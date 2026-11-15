@@ -1,11 +1,13 @@
 import clsx from "clsx";
 import { useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { buildCallMediaFeeds, selectPipFeeds, type CallMediaFeed } from "../../lib/callMediaFeeds";
 import { avatarColor, inCallParticipants, userInitials } from "../../lib/calls";
 import { buildRemoteMediaFeeds } from "../../lib/webrtc/workspaceVoiceRtc";
 import VoiceMuteBadge from "../calls/VoiceMuteBadge";
 import LocalScreenSharePreview from "../calls/LocalScreenSharePreview";
 import ScreenShareLiveBadge from "../calls/ScreenShareLiveBadge";
+import { usePersonLabel } from "../../lib/participantLabel";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 
@@ -18,6 +20,8 @@ function PipMediaTile({
   speaking: boolean;
   muted: boolean;
 }) {
+  const { t } = useTranslation();
+  const labelOf = usePersonLabel();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -26,14 +30,15 @@ function PipMediaTile({
     video.srcObject = feed.stream;
   }, [feed.stream]);
 
+  const person = labelOf(feed.participantName, feed.isLocal);
   const label =
     feed.kind === "screen"
       ? feed.isLocal
-        ? "Partage d'écran"
-        : `${feed.participantName} · écran`
+        ? t("calls.screenShareTile")
+        : t("calls.remoteScreen", { name: person })
       : feed.isLocal
-        ? "Votre caméra"
-        : feed.participantName;
+        ? t("calls.yourCamera")
+        : person;
 
   return (
     <div
@@ -70,6 +75,7 @@ type ChatFullscreenMediaPipProps = {
 export default function ChatFullscreenMediaPip({
   placement = "chat-panel",
 }: ChatFullscreenMediaPipProps) {
+  const { t } = useTranslation();
   const settingsOpen = useStore((s) => s.activePage === "settings");
   const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
   const activeRoomId = useStore((s) => s.activeRoomId);
@@ -147,7 +153,7 @@ export default function ChatFullscreenMediaPip({
         "chat-fullscreen-media-pip-stack",
         placement === "settings" && "chat-fullscreen-media-pip-stack--settings",
       )}
-      aria-label="Aperçus média de l'appel"
+      aria-label={t("chatUi.mediaPip")}
     >
       {feeds.map((feed) => (
         <PipMediaTile

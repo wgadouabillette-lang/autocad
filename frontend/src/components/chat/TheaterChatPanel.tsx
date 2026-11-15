@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import { ArrowUp, FileImage, Plus, X } from "lucide-react";
 import {
@@ -185,6 +186,7 @@ function TheaterChatBubble({
 }
 
 export default function TheaterChatPanel() {
+  const { t } = useTranslation();
   const activeRoomId = useStore((s) => s.activeRoomId);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const messages = useTheaterChatStore((s) => s.messagesByWorkspace[activeRoomId] ?? EMPTY_MESSAGES);
@@ -311,9 +313,9 @@ export default function TheaterChatPanel() {
       >
         {isEmpty ? (
           <div className="theater-chat-empty">
-            <p className="theater-chat-empty__title">Bienvenue dans le chat live</p>
+            <p className="theater-chat-empty__title">{t("chatUi.welcomeLive")}</p>
             <p className="theater-chat-empty__subtitle">
-              Tout le monde a accès à ce chat en direct
+              {t("chatUi.liveChatEveryone")}
             </p>
           </div>
         ) : (
@@ -434,7 +436,7 @@ export default function TheaterChatPanel() {
                       type="button"
                       onClick={() => removeAttachment(attachment.id)}
                       className="absolute inset-0 flex items-center justify-center bg-ink-900/55 text-muted-100 opacity-0 transition-opacity group-hover:opacity-100"
-                      aria-label="Retirer la pièce jointe"
+                      aria-label={t("chatUi.removeAttachment")}
                     >
                       <X size={12} strokeWidth={2.5} />
                     </button>
@@ -459,7 +461,7 @@ export default function TheaterChatPanel() {
               <HighlightedPromptInput
                 ref={textareaRef}
                 value={draft}
-                placeholder="Écrire dans le chat du théâtre…"
+                placeholder={t("chatUi.writeTheater")}
                 peopleHandles={[]}
                 onChange={setDraft}
                 onKeyDown={(event) => {
@@ -476,8 +478,8 @@ export default function TheaterChatPanel() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  title="Joindre un fichier"
-                  aria-label="Joindre un fichier"
+                  title={t("chatUi.attach")}
+                  aria-label={t("chatUi.attach")}
                   className="inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-transparent text-muted-400 transition-colors hover:text-muted-200"
                 >
                   <Plus size={15} strokeWidth={2.5} aria-hidden />
@@ -486,8 +488,8 @@ export default function TheaterChatPanel() {
                   type="button"
                   onClick={submit}
                   disabled={!canSubmit}
-                  title="Envoyer"
-                  aria-label="Envoyer"
+                  title={t("common.send")}
+                  aria-label={t("common.send")}
                   className="inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full border border-ink-600 bg-ink-750 text-muted-200 transition-colors hover:bg-ink-700 disabled:opacity-30"
                 >
                   <ArrowUp size={14} strokeWidth={2.5} className="shrink-0" aria-hidden />

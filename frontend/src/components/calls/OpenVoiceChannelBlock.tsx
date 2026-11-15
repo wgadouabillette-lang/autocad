@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { Check, Users, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocalAiStroke, useRemoteAiStroke } from "../../hooks/useAiBlockStroke";
 import { isDraftOpenChannel, type OpenVoiceChannel } from "../../lib/calls";
 import { useCallsStore } from "../../store/useCallsStore";
@@ -12,6 +13,7 @@ interface OpenVoiceChannelBlockProps {
 }
 
 export default function OpenVoiceChannelBlock({ channel }: OpenVoiceChannelBlockProps) {
+  const { t } = useTranslation();
   const activeRoomId = useStore((s) => s.activeRoomId);
   const inCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
   const localChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
@@ -27,7 +29,7 @@ export default function OpenVoiceChannelBlock({ channel }: OpenVoiceChannelBlock
   const remoteParticipant = channel.participants.find((p) => !p.isLocal);
   const hasRemoteParticipants = !!remoteParticipant;
   const canJoin = !isHere && !isDraft;
-  const statusLabel = isHere ? "En appel" : hasRemoteParticipants ? "Rejoindre" : "Vide";
+  const statusLabel = isHere ? t("calls.inCall") : hasRemoteParticipants ? t("calls.join") : t("calls.empty");
 
   const localAiStroke = useLocalAiStroke();
   const remoteAiStroke = useRemoteAiStroke(
@@ -75,9 +77,9 @@ export default function OpenVoiceChannelBlock({ channel }: OpenVoiceChannelBlock
               className="open-channel-draft-form__input"
               value={draftName}
               onChange={(event) => setDraftName(event.target.value)}
-              placeholder="Nom du salon vocal"
+              placeholder={t("calls.voiceChannelName")}
               maxLength={48}
-              aria-label="Nom du salon vocal"
+              aria-label={t("calls.voiceChannelName")}
               onKeyDown={(event) => {
                 if (event.key !== "Escape") return;
                 cancelDraft();
@@ -97,8 +99,8 @@ export default function OpenVoiceChannelBlock({ channel }: OpenVoiceChannelBlock
               className="open-channel-draft-form__confirm"
               disabled={!canConfirmDraft}
               onClick={submitDraft}
-              aria-label="Confirmer le nom"
-              title="Confirmer"
+              aria-label={t("calls.confirmName")}
+              title={t("common.confirm")}
             >
               <Check size={12} strokeWidth={2.5} aria-hidden />
             </button>
@@ -106,15 +108,15 @@ export default function OpenVoiceChannelBlock({ channel }: OpenVoiceChannelBlock
               type="button"
               className="open-channel-draft-form__cancel"
               onClick={cancelDraft}
-              aria-label="Annuler"
-              title="Annuler"
+              aria-label={t("common.cancel")}
+              title={t("common.cancel")}
             >
               <X size={12} strokeWidth={2.5} aria-hidden />
             </button>
           </div>
         }
         mainDisabled
-        mainAriaLabel="Nouveau salon vocal"
+        mainAriaLabel={t("calls.newVoiceChannel")}
       />
     );
   }

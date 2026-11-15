@@ -19,7 +19,8 @@ app.whenReady().then(() => {
     transparent: true,
     backgroundColor: "#00000000",
     hasShadow: false,
-    roundedCorners: true,
+    thickFrame: process.platform !== "win32",
+    roundedCorners: process.platform !== "win32",
     resizable: false,
     maximizable: false,
     minimizable: false,
@@ -33,7 +34,10 @@ app.whenReady().then(() => {
   });
 
   win.loadFile(path.join(__dirname, "splash.html"), {
-    query: { v: require("./package.json").version },
+    query: {
+      v: require("./package.json").version,
+      ...(process.platform === "win32" ? { platform: "win32" } : {}),
+    },
   });
   win.once("ready-to-show", () => {
     win.show();

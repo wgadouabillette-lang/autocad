@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useBillingSummary } from "../../hooks/useBillingSummary";
 import { billingApi } from "../../lib/billingApi";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -17,6 +18,7 @@ function formatBillingDate(iso: string | null | undefined): string {
 }
 
 export default function BillingSettingsSection() {
+  const { t } = useTranslation();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const setSubscriptionPlan = useStore((s) => s.setSubscriptionPlan);
   const { summary, loading, error, reload } = useBillingSummary();
@@ -69,7 +71,7 @@ export default function BillingSettingsSection() {
     return (
       <section className="settings-section settings-section--card">
         <p className="settings-section__hint">
-          Connectez-vous pour consulter votre forfait et la date de prochain prélèvement.
+          {t("settingsUi.signInForPlan")}
         </p>
       </section>
     );
@@ -79,8 +81,8 @@ export default function BillingSettingsSection() {
     <>
     <BillingSeatsPanel />
     <section className="settings-section settings-section--card">
-      <h3 className="settings-section__label">Forfait actuel</h3>
-      {loading && !summary ? <p className="settings-section__hint">Chargement…</p> : null}
+      <h3 className="settings-section__label">{t("settingsUi.currentPlan")}</h3>
+      {loading && !summary ? <p className="settings-section__hint">{t("common.loading")}</p> : null}
       {(error || actionError) && (
         <p className="settings-section__hint text-red-400">{actionError ?? error}</p>
       )}
@@ -88,23 +90,23 @@ export default function BillingSettingsSection() {
         <>
           <dl className="settings-kv">
             <div className="settings-kv__row">
-              <dt>Forfait</dt>
+              <dt>{t("settingsUi.plan")}</dt>
               <dd>{summary.planLabel}</dd>
             </div>
             {summary.workspaceName ? (
               <div className="settings-kv__row">
-                <dt>Workspace</dt>
+                <dt>{t("common.workspace")}</dt>
                 <dd>{summary.workspaceName}</dd>
               </div>
             ) : null}
             <div className="settings-kv__row">
-              <dt>Prochain prélèvement</dt>
+              <dt>{t("settingsUi.nextCharge")}</dt>
               <dd>{formatBillingDate(summary.nextBillingDate)}</dd>
             </div>
             {summary.cancelAtPeriodEnd || cancelRequested ? (
               <div className="settings-kv__row">
-                <dt>Statut</dt>
-                <dd className="text-amber-300">Annulation prévue en fin de période</dd>
+                <dt>{t("settingsUi.status")}</dt>
+                <dd className="text-amber-300">{t("settingsUi.cancelScheduled")}</dd>
               </div>
             ) : null}
           </dl>
@@ -116,7 +118,7 @@ export default function BillingSettingsSection() {
                 disabled={cancelBusy}
                 onClick={() => void handleCancel()}
               >
-                <span className="settings-option__title">Annuler l&apos;abonnement</span>
+                <span className="settings-option__title">{t("settingsUi.cancelSubscription")}</span>
                 <span className="settings-option__subtitle">
                   L&apos;accès reste actif jusqu&apos;à la fin de la période en cours.
                 </span>

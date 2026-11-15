@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Video } from "lucide-react";
 import { hasFormaDesktop } from "../../lib/formaDesktop";
 import { startRecordingCamera, stopRecordingCamera } from "../../lib/recordingMedia";
@@ -7,6 +8,7 @@ import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 
 export default function RecordingCameraPreview() {
+  const { t } = useTranslation();
   const recording = useCallsStore((s) => s.recording);
   const recordingCameraPreview = useStore((s) => s.recordingCameraPreview);
   const recordingCameraMirrorPreview = useStore((s) => s.recordingCameraMirrorPreview);
@@ -87,7 +89,7 @@ export default function RecordingCameraPreview() {
   const showVideo = stream && !loading;
 
   return (
-    <div className="recording-camera-preview" aria-label="Aperçu caméra enregistrement">
+    <div className="recording-camera-preview" aria-label={t("calls.recordingPreview")}>
       {showVideo ? (
         <video
           ref={videoRef}

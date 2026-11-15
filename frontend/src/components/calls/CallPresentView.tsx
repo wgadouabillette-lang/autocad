@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { MonitorUp, User, UserMinus, Video } from "lucide-react";
 import {
   activeCallPartner,
@@ -9,6 +10,7 @@ import {
   userInitials,
   type CallBlock,
 } from "../../lib/calls";
+import { usePersonLabel } from "../../lib/participantLabel";
 import { participantVideoStream } from "../../lib/webrtc/workspaceVoiceRtc";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
@@ -21,6 +23,8 @@ interface CallPresentViewProps {
 }
 
 export default function CallPresentView({ blocks }: CallPresentViewProps) {
+  const { t } = useTranslation();
+  const labelOf = usePersonLabel();
   const activeRoomId = useStore((s) => s.activeRoomId);
   const disconnectRemoteFromPrivateCall = useCallsStore((s) => s.disconnectRemoteFromPrivateCall);
   const screenSharing = useCallsStore((s) => s.screenSharing);
@@ -62,7 +66,8 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
     video.srcObject = showPartnerVideo ? partnerVideoStream : null;
   }, [showPartnerVideo, partnerVideoStream]);
 
-  const primaryLabel = showScreen ? "Partage d'écran" : "Votre caméra";
+  const primaryLabel = showScreen ? t("calls.screenShareTile") : t("calls.yourCamera");
+  const partnerName = partner ? labelOf(partner.name, partner.isLocal) : "";
 
   return (
     <div className="calls-view__present">
@@ -121,18 +126,18 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
                 className="call-present-tile__avatar"
                 style={{ backgroundColor: avatarColor(partner.id) }}
               >
-                {userInitials(partner.name)}
+                {userInitials(partnerName)}
               </div>
             )}
-            <span className="call-present-tile__label">{partner.name}</span>
+            <span className="call-present-tile__label">{partnerName}</span>
             {partner && mutedByParticipant[partner.id] ? <VoiceMuteBadge /> : null}
             {canDisconnectPartner ? (
               <button
                 type="button"
                 className="call-present-tile__disconnect"
                 onClick={() => disconnectRemoteFromPrivateCall(activeRoomId, partner.id)}
-                aria-label={`Déconnecter ${partner.name}`}
-                title={`Déconnecter ${partner.name}`}
+                aria-label={t("calls.disconnect", { name: partnerName })}
+                title={t("calls.disconnect", { name: partnerName })}
               >
                 <UserMinus size={14} strokeWidth={2.25} aria-hidden />
               </button>
@@ -143,7 +148,7 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
             <div className="call-present-tile__placeholder">
               <User size={32} className="text-muted-500" aria-hidden />
             </div>
-            <span className="call-present-tile__label">Participant</span>
+            <span className="call-present-tile__label">{t("calls.participant")}</span>
           </>
         )}
       </article>

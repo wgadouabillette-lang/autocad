@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useVoiceChannelSounds } from "../../hooks/useVoiceChannelSounds";
 import { useTheaterChatSync } from "../../hooks/useTheaterChatSync";
 import { useCallsStore } from "../../store/useCallsStore";
@@ -21,6 +22,7 @@ import CallsViewHexDecor from "./CallsViewHexDecor";
 let callsViewRenderCount = 0;
 
 export default function CallsView() {
+  const { t } = useTranslation();
   callsViewRenderCount += 1;
   // #region agent log
   if (callsViewRenderCount <= 40 || callsViewRenderCount % 20 === 0) {
@@ -121,7 +123,7 @@ export default function CallsView() {
     >
       {workspaceSwitching ? (
         <p className="text-sm text-muted-400" role="status">
-          Chargement du workspace…
+          {t("calls.loadingWorkspace")}
         </p>
       ) : null}
       {!workspaceSwitching ? (

@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { useEffect, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { aiStrokeClasses, type AiStrokeVariant } from "../../lib/aiModelStroke";
 import {
   participantHasHandRaised,
@@ -9,6 +10,7 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
+import { usePersonLabel } from "../../lib/participantLabel";
 import UserAvatar from "../UserAvatar";
 import PresenceActivityButton, { CallBlockMediaStatusIcons } from "./PresenceActivityButton";
 import VoiceParticipantTile from "./VoiceParticipantTile";
@@ -28,6 +30,7 @@ function OpenChannelMoreAvatar({
   hiddenCount: number;
   hiddenNames: string[];
 }) {
+  const { t } = useTranslation();
   const [animating, setAnimating] = useState(false);
 
   useEffect(() => {
@@ -45,7 +48,7 @@ function OpenChannelMoreAvatar({
     };
   }, []);
 
-  const label = hiddenCount > 1 ? `${hiddenCount} autres membres` : "1 autre membre";
+  const label = t("calls.otherMembers", { count: hiddenCount });
 
   return (
     <span
@@ -120,6 +123,8 @@ export default function CallBlockCard({
   const handRaises = useCallsStore((s) => s.callsByRoom[activeRoomId]?.handRaises ?? []);
   const raiseHand = useCallsStore((s) => s.raiseHand);
   const openMemberConversation = usePeopleStore((s) => s.openWorkspaceMemberConversation);
+  const { t } = useTranslation();
+  const labelOf = usePersonLabel();
 
   const canMessageParticipant = (user: CallUser) => {
     if (user.isLocal || user.id === "local") return false;
@@ -136,11 +141,13 @@ export default function CallBlockCard({
   const audiencePreview = audienceParticipants.slice(0, CALL_BLOCK_AVATAR_SLOTS);
   const blockClassName = clsx("forma-capsule", className, ...aiStrokeClasses(aiStroke));
 
-  const renderAvatar = (user: CallUser) => (
+  const renderAvatar = (user: CallUser) => {
+    const name = labelOf(user.name, user.isLocal);
+    return (
     <UserAvatar
       key={user.id}
       userId={user.id}
-      name={user.name}
+      name={name}
       photoURL={user.photoURL}
       isLocal={user.isLocal}
       className={clsx(
@@ -152,7 +159,7 @@ export default function CallBlockCard({
         ? {
             role: "button" as const,
             tabIndex: 0,
-            title: `Message à ${user.name}`,
+            title: t("calls.messageTo", { name }),
             onClick: (event: React.MouseEvent) => {
               event.stopPropagation();
               openMemberConversation(activeRoomId, user.id, user.name);
@@ -164,9 +171,10 @@ export default function CallBlockCard({
               openMemberConversation(activeRoomId, user.id, user.name);
             },
           }
-        : { title: user.name })}
+        : { title: name })}
     />
-  );
+    );
+  };
 
   const renderPreviewTile = (user: CallUser) => (
     <VoiceParticipantTile
@@ -198,7 +206,7 @@ export default function CallBlockCard({
           <OpenChannelMoreAvatar
             key="open-channel-more"
             hiddenCount={hidden.length}
-            hiddenNames={hidden.map((user) => user.name)}
+            hiddenNames={hidden.map((user) => labelOf(user.name, user.isLocal))}
           />
         );
       }
@@ -216,16 +224,16 @@ export default function CallBlockCard({
 
   const participantSection =
     participantLayout === "theater" ? (
-      <div className="call-block__row call-block__row--theater" aria-label="Participants">
+      <div className="call-block__row call-block__row--theater" aria-label={t("calls.participants")}>
         {previewTiles.length > 0 && (
           <div
             className="call-block__row call-block__row--participant-tiles"
-            aria-label="Intervenants"
+            aria-label={t("calls.speakersAria")}
           >
             {previewTiles.map(renderPreviewTile)}
           </div>
         )}
-        <div className="call-block__row call-block__row--avatars" aria-label="Spectateurs">
+        <div className="call-block__row call-block__row--avatars" aria-label={t("calls.audienceAria")}>
           {audiencePreview.map((user) => renderAvatar(user))}
         </div>
       </div>
@@ -240,7 +248,7 @@ export default function CallBlockCard({
                 avatarSlotCount > 0 && "call-block__row--avatars-fixed",
               ),
         )}
-        aria-label="Participants"
+        aria-label={t("calls.participants")}
       >
         {participantLayout === "tiles"
           ? previewTiles.map(renderPreviewTile)
@@ -292,7 +300,11 @@ export default function CallBlockCard({
         >
           <div className="call-block__surface">
             <div className="call-block__row call-block__row--header">
-              {titleContent ?? <p className="call-block__title">{title}</p>}
+              {titleContent ?? (
+            <p className="call-block__title">
+              {labelOf(title, title === "Vous" || title === "You")}
+            </p>
+          )}
               {trailing || (showActivity && !standby && activityIsLocal) ? (
                 <div className="call-block__header-trailing" data-call-block-action="">
                   {showActivity && !standby && activityIsLocal && (

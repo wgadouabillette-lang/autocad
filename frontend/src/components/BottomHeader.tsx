@@ -38,7 +38,8 @@ import { useConnectors } from "../hooks/useConnectors";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../lib/connectorIcons";
 import { PLAY_SKILL_TEMPLATE } from "../lib/playSkill";
 import { useHallDjStore } from "../store/useHallDjStore";
-import { isMarketingPreview, landingLabel } from "../lib/marketingPreview";
+import { useTranslation } from "react-i18next";
+import { isMarketingPreview } from "../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { warmSpotifyWebPlayer, activateSpotifyPlaybackFromUserGesture } from "../lib/spotifyWebPlayback";
 import { BottomBarButton, BottomBarCapsule } from "./bottomBar/BottomBarControls";
@@ -46,6 +47,7 @@ import HallDjDiscoIcon from "./bottomBar/HallDjDiscoIcon";
 const ICON_SIZE = 19;
 
 export default function BottomHeader() {
+  const { t } = useTranslation();
   const notificationsAnchorRef = useRef<HTMLDivElement>(null);
   const isMobileLayout = useMobileLayout();
   const activeRoomId = useStore((s) => s.activeRoomId);
@@ -200,23 +202,23 @@ export default function BottomHeader() {
   const micLabel =
     mediaError ??
     (viewMode === "theater" && !canSpeak && inCall
-      ? landingLabel("Mic muted (audience)", "Micro coupé (spectateur)")
+      ? t("bar.micMutedAudience")
       : muted
-        ? landingLabel("Unmute", "Réactiver le micro")
-        : landingLabel("Mute", "Couper le micro"));
+        ? t("bar.unmute")
+        : t("bar.mute"));
   const theaterListenerLocked = viewMode === "theater" && inCall && !canSpeak;
   const handLabel = raiseHand
-    ? landingLabel("Lower hand", "Baisser la main")
-    : landingLabel("Raise hand", "Lever la main");
+    ? t("bar.lowerHand")
+    : t("bar.raiseHand");
   const cameraLabel = theaterListenerLocked
-    ? landingLabel("Camera unavailable (listener)", "Caméra indisponible (listener)")
+    ? t("bar.cameraUnavailable")
     : cameraOn
-      ? landingLabel("Turn camera off", "Couper la caméra")
-      : landingLabel("Turn camera on", "Activer la caméra");
+      ? t("bar.cameraOff")
+      : t("bar.cameraOn");
 
   const notificationButton = (
     <BottomBarButton
-      label={landingLabel("Inbox", "Réception")}
+      label={t("bar.inbox")}
       onClick={toggleNotifications}
       active={notificationsOpen}
       badge={notificationBadge}
@@ -233,13 +235,13 @@ export default function BottomHeader() {
 
   const spotifyLabel = spotifyPlaybackActive
     ? spotifyPlaying && spotifyCurrentTrack
-      ? `${landingLabel("Stop", "Arrêter")} · ${spotifyCurrentTrack.name}`
-      : landingLabel("Stop music", "Arrêter la musique")
+      ? `${t("bar.stopTrack")} · ${spotifyCurrentTrack.name}`
+      : t("bar.stopMusic")
     : spotifyConnected
       ? "Spotify"
       : spotifyConfigured
-        ? landingLabel("Connect Spotify", "Connecter Spotify")
-        : "Spotify (non configuré)";
+        ? t("bar.connectSpotify")
+        : t("bar.spotifyUnconfigured");
 
   const spotifyButton = (
     <BottomBarButton
@@ -285,11 +287,11 @@ export default function BottomHeader() {
   const showHallDjLoading = hallDjLoading;
   const showHallDjSkip = hallDjActive && !hallDjLoading;
   const hallDjPremiumLabel =
-    "Votre compte Spotify connecté doit être Premium pour utiliser le Meetra DJ";
+    t("bar.spotifyPremiumRequired");
   const hallDjIdleLabel =
     hallDjError?.trim() ||
     (spotifyPlayerNotice?.includes("Meetra DJ") ? spotifyPlayerNotice : null) ||
-    landingLabel("Start Meetra DJ", "Démarrer le Meetra DJ");
+    t("bar.startDj");
 
   const spotifyDjButton = spotifyConnected ? (
     <BottomBarButton
@@ -299,7 +301,7 @@ export default function BottomHeader() {
           : showHallDjLoading
             ? "Meetra DJ…"
             : showHallDjSkip
-              ? landingLabel("Next track", "Chanson suivante")
+              ? t("bar.nextTrack")
               : hallDjIdleLabel
       }
       onPointerEnter={primeSpotifyOnIntent}
@@ -374,14 +376,14 @@ export default function BottomHeader() {
         <BottomBarButton
           label={
             pollExperienceOpen
-              ? "Fermer le sondage"
+              ? t("bar.closePoll")
               : activePoll
-                ? "Voir le sondage"
+                ? t("chatUi.viewPoll")
                 : !canCreatePoll
-                  ? "Les sondages nécessitent Pro ou un workspace boosté"
+                  ? t("bar.pollNeedsPro")
                   : isTheaterSpeaker
-                    ? "Sondage théâtre (30s)"
-                    : "Sondage"
+                    ? t("bar.theaterPoll30")
+                    : t("bar.poll")
           }
           onClick={() => togglePollExperience(activeRoomId, pollKind)}
           active={pollExperienceOpen}
@@ -399,9 +401,9 @@ export default function BottomHeader() {
         <BottomBarButton
           label={
             aiNotesBusy
-              ? "Préparation AI Notes…"
+              ? t("bar.preparingNotes")
               : aiNotesActive
-                ? "Ouvrir AI Notes"
+                ? t("bar.openNotes")
                 : "AI Notes"
           }
           onClick={() => {
@@ -439,8 +441,8 @@ export default function BottomHeader() {
       <BottomBarButton
         label={
           theaterListenerLocked
-            ? landingLabel("Screen share unavailable (listener)", "Partage écran indisponible (listener)")
-            : landingLabel("Share screen", "Partage d'écran")
+            ? t("bar.screenShareUnavailable")
+            : t("bar.shareScreen")
         }
         onClick={() => void toggleScreenShare()}
         active={screenSharing}
@@ -455,8 +457,8 @@ export default function BottomHeader() {
         ) && (
           <label
             className="bottom-bar-screen-volume"
-            title="Volume du partage d'écran"
-            aria-label="Volume du partage d'écran des autres"
+            title={t("bar.screenShareVolume")}
+            aria-label={t("bar.screenShareVolumeOthers")}
           >
             <Volume2 size={14} aria-hidden />
             <input
@@ -476,8 +478,8 @@ export default function BottomHeader() {
         <BottomBarButton
           label={
             viewMode === "theater" && inTheaterCall
-              ? landingLabel("Leave theater", "Quitter le théâtre")
-              : landingLabel("Leave", "Quitter")
+              ? t("bar.leaveTheater")
+              : t("bar.leave")
           }
           onClick={() => leaveCall(activeRoomId)}
           danger
@@ -491,7 +493,7 @@ export default function BottomHeader() {
   const utilityControls = (
     <>
       <BottomBarButton
-        label={landingLabel("Calendar", "Calendrier")}
+        label={t("bar.calendar")}
         onClick={toggleCalendar}
         active={calendarOpen}
       >
@@ -501,8 +503,8 @@ export default function BottomHeader() {
       <BottomBarButton
         label={
           chatOpen
-            ? landingLabel("Close agent", "Fermer l'agent")
-            : landingLabel("Open agent", "Ouvrir l'agent")
+            ? t("bar.closeAgent")
+            : t("bar.openAgent")
         }
         onClick={toggleChatPanel}
         active={chatOpen}

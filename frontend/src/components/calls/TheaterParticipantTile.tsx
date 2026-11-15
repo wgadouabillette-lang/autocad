@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { Mic, MicOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { usePersonLabel } from "../../lib/participantLabel";
 import { type TheaterParticipant } from "../../lib/theater";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
@@ -31,6 +32,8 @@ export default function TheaterParticipantTile({
   canAcceptHandRaise = true,
 }: TheaterParticipantTileProps) {
   const { t } = useTranslation();
+  const labelOf = usePersonLabel();
+  const name = labelOf(participant.name, participant.isLocal);
   const speakingByParticipant = useCallsStore((s) => s.speakingByParticipant);
   const openColleagueChat = useMiniChatStore((s) => s.openForColleague);
   const canMessage = !participant.isLocal;
@@ -54,13 +57,13 @@ export default function TheaterParticipantTile({
       ? t("calls.goOnStageTitle")
       : t("calls.question")
     : canMessage
-      ? t("calls.message", { name: participant.name })
-      : participant.name;
+      ? t("calls.message", { name })
+      : name;
 
   const avatar = (
     <UserAvatar
       userId={participant.id}
-      name={participant.name}
+      name={name}
       photoURL={participant.photoURL}
       isLocal={participant.isLocal}
       role={useAvatarAsButton ? "button" : undefined}
@@ -89,7 +92,7 @@ export default function TheaterParticipantTile({
   );
 
   const avatarExtras = handRaised ? (
-    <span className="theater-tile__hand" title="Main levée" aria-hidden>
+    <span className="theater-tile__hand" title={t("calls.handRaised")} aria-hidden>
       ✋
     </span>
   ) : null;
@@ -110,7 +113,7 @@ export default function TheaterParticipantTile({
     >
       {showSignet ? (
         <ParticipantAvatarSignetHost
-          name={participant.name}
+          name={name}
           className="theater-tile__avatar-wrap"
           placement={seat ? "above" : "below-avatar"}
         >
@@ -124,7 +127,7 @@ export default function TheaterParticipantTile({
         </span>
       )}
       <div className="theater-tile__meta">
-        <p className="theater-tile__name">{participant.name}</p>
+        <p className="theater-tile__name">{name}</p>
         <p className="theater-tile__role">
           {participant.role === "speaker" && (
             <>

@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 import {
   blockHeaderTitle,
   blockActivityUser,
@@ -9,6 +10,7 @@ import {
   type CallBlock as CallBlockType,
   type JoinRequest,
 } from "../../lib/calls";
+import { personLabel } from "../../lib/participantLabel";
 import { UserMinus } from "lucide-react";
 import { useUserAiStroke } from "../../hooks/useAiBlockStroke";
 import { useCallsStore } from "../../store/useCallsStore";
@@ -31,6 +33,8 @@ export default function CallBlock({
   onRequestJoin,
   layout = "default",
 }: CallBlockProps) {
+  const { t } = useTranslation();
+  const userDisplayName = useStore((s) => s.userDisplayName);
   const activeRoomId = useStore((s) => s.activeRoomId);
   const inCall = useCallsStore((s) => s.isLocalInCall(activeRoomId));
   const localOpenChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
@@ -83,6 +87,13 @@ export default function CallBlock({
         (r.fromBlockId === localBlock?.id || r.toBlockId === localBlock?.id),
     );
   const isActionable = canRequestJoin;
+  const rawTitle = blockHeaderTitle(block);
+  const title = personLabel(
+    rawTitle,
+    block.participants.some((participant) => participant.isLocal && participant.name === rawTitle),
+    userDisplayName,
+    t,
+  );
   const { userId: activityUserId, isLocal: activityIsLocal } = blockActivityUser(block);
   const aiStrokeRaw = useUserAiStroke(activeRoomId, activityUserId, activityIsLocal);
   const aiStroke = isLocal && inOpenChannelOnly ? null : isOffline ? null : aiStrokeRaw;
@@ -102,7 +113,7 @@ export default function CallBlock({
         isActionable && !isOffline && "call-block--clickable",
         (incoming || outgoing) && "call-block--pending",
       )}
-      title={blockHeaderTitle(block)}
+      title={title}
       participants={block.participants}
       participantLayout="avatars"
       fixedAvatarSlots={CALL_BLOCK_PRIVATE_AVATAR_SLOTS}
@@ -123,8 +134,12 @@ export default function CallBlock({
                   event.stopPropagation();
                   disconnectRemoteFromPrivateCall(activeRoomId, participant.id);
                 }}
-                aria-label={`Déconnecter ${participant.name}`}
-                title={`Déconnecter ${participant.name}`}
+                aria-label={t("calls.disconnect", {
+                  name: personLabel(participant.name, participant.isLocal, userDisplayName, t),
+                })}
+                title={t("calls.disconnect", {
+                  name: personLabel(participant.name, participant.isLocal, userDisplayName, t),
+                })}
               >
                 <UserMinus size={12} strokeWidth={2.25} aria-hidden />
               </button>
@@ -136,10 +151,10 @@ export default function CallBlock({
       onMainClick={canRequestJoin ? () => onRequestJoin(block.id) : undefined}
       mainAriaLabel={
         isOffline
-          ? `${blockHeaderTitle(block)} — hors ligne`
+          ? t("calls.offline", { name: title })
           : canRequestJoin
-            ? `Demander à rejoindre ${blockHeaderTitle(block)}`
-            : blockHeaderTitle(block)
+            ? t("calls.askToJoin", { name: title })
+            : title
       }
     />
   );

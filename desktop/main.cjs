@@ -26,7 +26,12 @@ const {
 } = require("./updater.cjs");
 const spotifyWebView2 = require("./spotifyWebView2Manager.cjs");
 
-app.setName("Meetra");
+if (process.env.FORMA_DEV_URL) {
+  app.setName("Meetra Dev");
+  app.setPath("userData", path.join(app.getPath("appData"), "Meetra Dev"));
+} else {
+  app.setName("Meetra");
+}
 
 function workspaceIdFromOpenUrl(raw) {
   if (typeof raw !== "string" || !raw.trim()) return "";
@@ -1012,7 +1017,7 @@ function windowIntersectsVisibleDisplay(win) {
 
 /** A window left on a disconnected display stays invisible after show(). */
 function ensureWindowOnVisibleDisplay(win) {
-  if (!win || win.isDestroyed() || windowIntersectsVisibleDisplay(win)) return;
+  if (!win || win.isDestroyed() || win.isFullScreen() || windowIntersectsVisibleDisplay(win)) return;
   const place = () => {
     if (!win || win.isDestroyed()) return;
     const work = screen.getPrimaryDisplay().workArea;
@@ -1055,7 +1060,8 @@ function splashWindowChrome(bounds = getCenteredSplashBounds()) {
     icon: resolveAppIconPath(),
   };
   if (process.platform !== "win32") return chrome;
-  // A transparent layered window on Windows drops the boot-bar animation.
+  // Opaque base for the app window. The standalone splash overrides this:
+  // a layered window is required there so the 22px radius is the real shape.
   return {
     ...chrome,
     transparent: false,
@@ -1092,6 +1098,10 @@ function mainWindowChrome(bounds = getCenteredSplashBounds()) {
   if (process.platform !== "darwin") return base;
   return {
     ...base,
+    // Content size locks the web view to the windowed size. After an app
+    // switch, macOS keeps the fullscreen window and paints that small view in
+    // the top-left, leaving the rest of the Space black.
+    useContentSize: false,
     frame: true,
     transparent: false,
     backgroundColor: "#121212",
@@ -1126,25 +1136,31 @@ function requestMacMediaAccess() {
   })();
 }
 
+function focusExistingWindow(win) {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  // show() on an already-visible macOS fullscreen window resets its frame to
+  // the top-left of the Space and leaves the rest of the Space black.
+  if (process.platform === "darwin" && win.isFullScreen()) {
+    win.focus();
+    return;
+  }
+  ensureWindowOnVisibleDisplay(win);
+  if (!win.isVisible()) win.show();
+  win.focus();
+}
+
 function revealAppWindows() {
   if (mainWindowMode === "app" && mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    ensureWindowOnVisibleDisplay(mainWindow);
-    mainWindow.show();
-    mainWindow.focus();
+    focusExistingWindow(mainWindow);
     return;
   }
   if (splashWindow && !splashWindow.isDestroyed()) {
-    ensureWindowOnVisibleDisplay(splashWindow);
-    splashWindow.show();
-    splashWindow.focus();
+    focusExistingWindow(splashWindow);
     return;
   }
   if (mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    ensureWindowOnVisibleDisplay(mainWindow);
-    mainWindow.show();
-    mainWindow.focus();
+    focusExistingWindow(mainWindow);
     return;
   }
   createWindow();
@@ -1155,6 +1171,19 @@ function createSplashWindow() {
   const bounds = getCenteredSplashBounds();
   splashWindow = new BrowserWindow({
     ...splashWindowChrome(bounds),
+    // The shared Windows chrome is an opaque app window. The splash has to be
+    // its own layered window: an opaque HWND stays square, and DWM's
+    // roundedCorners leaves the top-left corner square so it sticks out of the
+    // 22px curve. thickFrame adds that same unclipped corner.
+    ...(process.platform === "win32"
+      ? {
+          transparent: true,
+          backgroundColor: "#00000000",
+          hasShadow: false,
+          thickFrame: false,
+          roundedCorners: false,
+        }
+      : {}),
     fullscreenable: false,
     webPreferences: {
       nodeIntegration: false,
@@ -1162,7 +1191,10 @@ function createSplashWindow() {
     },
   });
   splashWindow.loadFile(path.join(__dirname, "splash.html"), {
-    query: { v: require("./package.json").version },
+    query: {
+      v: require("./package.json").version,
+      ...(process.platform === "win32" ? { platform: "win32" } : {}),
+    },
   });
   splashWindow.once("ready-to-show", () => {
     if (!splashWindow || splashWindow.isDestroyed() || mainWindowMode === "app") return;
@@ -1200,6 +1232,7 @@ function waitForLeaveFullScreen(win) {
       resolve();
     };
     win.once("leave-full-screen", done);
+    macKeepFullScreen = false;
     win.setFullScreen(false);
     setTimeout(done, 1600);
   });
@@ -1328,6 +1361,9 @@ function enterLaunchFullScreen(win) {
  */
 function applyAppWindowSizing(win) {
   if (!win || win.isDestroyed()) return;
+  // Changing min/max size while macOS native fullscreen is active pins the
+  // window to the top-left of the Space. The rest stays the window background.
+  if (process.platform === "darwin" && win.isFullScreen()) return;
   win.setFullScreenable(true);
   win.setResizable(true);
   win.setMaximizable(true);
@@ -1478,6 +1514,7 @@ function sendMainWindowState() {
 
 function setNativeWindowButtonsVisible(visible) {
   if (process.platform !== "darwin" || !mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isFullScreen()) return;
   try {
     mainWindow.setWindowButtonVisibility(visible);
   } catch {
@@ -1492,14 +1529,42 @@ function setNativeWindowButtonsVisible(visible) {
   }
 }
 
+/** User asked for macOS fullscreen. App switching must not drop that Space. */
+let macKeepFullScreen = false;
+let repairingMacFullScreen = false;
+
+function macDisplayBounds(win) {
+  return (screen.getDisplayMatching(win.getBounds()) ?? screen.getPrimaryDisplay()).bounds;
+}
+
+function macFullScreenFrameShrunken(win) {
+  const area = macDisplayBounds(win);
+  const [width, height] = win.getContentSize();
+  return width < area.width - 80 || height < area.height - 80;
+}
+
+function repairMacFullScreenFrame(win) {
+  if (process.platform !== "darwin" || repairingMacFullScreen) return;
+  if (!win || win.isDestroyed() || !macKeepFullScreen) return;
+  repairingMacFullScreen = true;
+  try {
+    if (!win.isFullScreen()) {
+      win.setFullScreen(true);
+      return;
+    }
+    if (!macFullScreenFrameShrunken(win)) return;
+    const area = macDisplayBounds(win);
+    win.setContentSize(area.width, area.height);
+  } finally {
+    setTimeout(() => {
+      repairingMacFullScreen = false;
+    }, 500);
+  }
+}
+
 function attachMainWindowStateListeners(win) {
   const emit = () => {
     sendMainWindowState();
-    // Native FS enter/leave can hide or disable traffic lights on hidden-titlebar windows.
-    if (process.platform === "darwin" && mainWindowMode === "app") {
-      applyAppWindowSizing(win);
-      setNativeWindowButtonsVisible(true);
-    }
   };
   for (const event of [
     "maximize",
@@ -1510,6 +1575,33 @@ function attachMainWindowStateListeners(win) {
     "restore",
   ]) {
     win.on(event, emit);
+  }
+  if (process.platform === "darwin") {
+    win.on("enter-full-screen", () => {
+      macKeepFullScreen = true;
+      setTimeout(() => repairMacFullScreenFrame(win), 400);
+    });
+    win.on("leave-full-screen", () => {
+      // A focused leave is the green button or our own control. A leave while
+      // Meetra is in the background is macOS dropping the Space on app switch.
+      if (macKeepFullScreen && !win.isFocused()) {
+        setTimeout(() => repairMacFullScreenFrame(win), 50);
+        return;
+      }
+      macKeepFullScreen = false;
+      setTimeout(() => {
+        if (win.isDestroyed() || win.isFullScreen() || mainWindowMode !== "app") return;
+        applyAppWindowSizing(win);
+        setNativeWindowButtonsVisible(true);
+      }, 300);
+    });
+    win.on("focus", () => {
+      setTimeout(() => repairMacFullScreenFrame(win), 50);
+    });
+    win.on("resize", () => {
+      if (!macKeepFullScreen || !win.isFullScreen() || !macFullScreenFrameShrunken(win)) return;
+      repairMacFullScreenFrame(win);
+    });
   }
   if (process.platform === "win32") {
     win.on("maximize", () => {
@@ -1534,7 +1626,10 @@ function windowFillsWorkArea(win) {
 
 function restoreMainWindowFromExpanded() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
+  if (mainWindow.isFullScreen()) {
+    macKeepFullScreen = false;
+    mainWindow.setFullScreen(false);
+  }
   if (mainWindow.isMaximized()) mainWindow.unmaximize();
   applyAppWindowSizing(mainWindow);
   // maximize() while the window is still hidden often never latches the
@@ -1549,6 +1644,7 @@ function toggleMainWindowFullscreen() {
     return getMainWindowState();
   }
   if (process.platform === "darwin") {
+    if (mainWindow.isFullScreen()) macKeepFullScreen = false;
     mainWindow.setFullScreen(!mainWindow.isFullScreen());
     return getMainWindowState();
   }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import { X } from "lucide-react";
 import { avatarColor, userInitials } from "../../lib/calls";
@@ -53,6 +54,7 @@ function defaultEndTime(initialHour: number | null): string {
 }
 
 export default function CalendarEventComposer() {
+  const { t } = useTranslation();
   const composerInitialHour = useCalendarOverlayStore((s) => s.composerInitialHour);
   const composerInitialDate = useCalendarOverlayStore((s) => s.composerInitialDate);
   const closeComposer = useCalendarOverlayStore((s) => s.closeComposer);
@@ -92,17 +94,17 @@ export default function CalendarEventComposer() {
   const handleCreate = () => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      setError("Donnez un titre à l'événement.");
+      setError(t("calendarUi.needTitle"));
       return;
     }
     const startMinutes = minutesFromTimeString(startTime);
     const endMinutes = minutesFromTimeString(endTime);
     if (startMinutes === null || endMinutes === null) {
-      setError("Heures invalides.");
+      setError(t("calendarUi.invalidTimes"));
       return;
     }
     if (endMinutes <= startMinutes) {
-      setError("L'heure de fin doit être après l'heure de début.");
+      setError(t("calendarUi.endAfterStart"));
       return;
     }
 
@@ -168,13 +170,13 @@ export default function CalendarEventComposer() {
 
         if (googleStatus.configured && googleStatus.connected && !googleSynced) {
           setError(
-            "Événement enregistré dans l'app, mais la synchronisation Google a échoué. Reconnectez Google Calendar.",
+            t("calendarUi.savedGoogleFailed"),
           );
           return;
         }
         if (googleStatus.configured && !googleStatus.connected && !googleSynced) {
           setError(
-            "Événement enregistré dans l'app. Connectez Google Calendar pour synchroniser.",
+            t("calendarUi.savedConnectGoogle"),
           );
           return;
         }
@@ -193,17 +195,17 @@ export default function CalendarEventComposer() {
         closeComposer();
       })
       .catch(() => {
-        setError("Impossible d'enregistrer l'événement.");
+        setError(t("calendarUi.saveFailed"));
       });
   };
 
   return (
-    <div className="calendar-event-composer chat-poll-composer" aria-label="Créer un événement">
+    <div className="calendar-event-composer chat-poll-composer" aria-label={t("calendarUi.create")}>
       <button
         type="button"
         className="chat-poll-composer__close"
         onClick={closeComposer}
-        aria-label="Fermer"
+        aria-label={t("common.close")}
       >
         <X size={18} aria-hidden />
       </button>
@@ -216,18 +218,18 @@ export default function CalendarEventComposer() {
             setTitle(event.target.value);
             if (error) setError(null);
           }}
-          placeholder="Titre de l'événement"
+          placeholder={t("calendarUi.title")}
           autoFocus
         />
         <input
           className="chat-poll-composer__field chat-poll-composer__field--subtitle"
           value={detail}
           onChange={(event) => setDetail(event.target.value)}
-          placeholder="Lieu ou notes (optionnel)"
+          placeholder={t("calendarUi.notes")}
         />
 
         <label className="calendar-event-composer__date-field">
-          <span className="calendar-event-composer__time-label">Journée</span>
+          <span className="calendar-event-composer__time-label">{t("calendarUi.allDay")}</span>
           <input
             type="date"
             className="calendar-event-composer__time-input"
@@ -241,7 +243,7 @@ export default function CalendarEventComposer() {
 
         <div className="calendar-event-composer__times">
           <label className="calendar-event-composer__time-field">
-            <span className="calendar-event-composer__time-label">Début</span>
+            <span className="calendar-event-composer__time-label">{t("calendarUi.start")}</span>
             <input
               type="time"
               className="calendar-event-composer__time-input"
@@ -257,7 +259,7 @@ export default function CalendarEventComposer() {
             →
           </span>
           <label className="calendar-event-composer__time-field">
-            <span className="calendar-event-composer__time-label">Fin</span>
+            <span className="calendar-event-composer__time-label">{t("calendarUi.end")}</span>
             <input
               type="time"
               className="calendar-event-composer__time-input"
@@ -326,7 +328,7 @@ export default function CalendarEventComposer() {
           className="chat-poll-composer__publish"
           onClick={handleCreate}
         >
-          Créer
+          {t("calendarUi.createAction")}
         </button>
       </footer>
     </div>

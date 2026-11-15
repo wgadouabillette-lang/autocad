@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { Copy, Minus, Square, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { hasFormaDesktop, isFormaDesktopWindows, type DesktopWindowState } from "../../lib/formaDesktop";
 
 /** macOS-fullscreen-style hit target at the very top of the window. */
@@ -17,6 +18,7 @@ function canShowDesktopWindowControls(): boolean {
 }
 
 export default function DesktopWindowControls() {
+  const { t } = useTranslation();
   const [enabled] = useState(canShowDesktopWindowControls);
   const [windows] = useState(() => enabled && isFormaDesktopWindows());
   const [revealed, setRevealed] = useState(windows);
@@ -127,7 +129,7 @@ export default function DesktopWindowControls() {
         expanded && "desktop-window-controls--expanded",
       )}
       role="toolbar"
-      aria-label="Fenêtre"
+      aria-label={t("chatUi.window")}
       aria-hidden={windows ? undefined : !shown}
     >
       <div
@@ -155,8 +157,8 @@ export default function DesktopWindowControls() {
               event.stopPropagation();
               void desktop?.windowMinimize?.();
             }}
-            aria-label="Réduire"
-            title="Réduire"
+            aria-label={t("chatUi.minimize")}
+            title={t("chatUi.minimize")}
             tabIndex={shown ? 0 : -1}
           >
             <Minus size={12} strokeWidth={2.4} aria-hidden />
@@ -169,8 +171,8 @@ export default function DesktopWindowControls() {
               event.stopPropagation();
               void desktop?.windowToggleFullscreen?.();
             }}
-            aria-label={expanded ? "Restaurer" : "Plein écran"}
-            title={expanded ? "Restaurer" : "Plein écran"}
+            aria-label={expanded ? t("chatUi.restore") : t("chatUi.fullscreen")}
+            title={expanded ? t("chatUi.restore") : t("chatUi.fullscreen")}
             tabIndex={shown ? 0 : -1}
           >
             {expanded ? (
@@ -187,8 +189,8 @@ export default function DesktopWindowControls() {
               event.stopPropagation();
               void desktop?.windowClose?.();
             }}
-            aria-label="Fermer"
-            title="Fermer"
+            aria-label={t("chatUi.close")}
+            title={t("chatUi.close")}
             tabIndex={shown ? 0 : -1}
           >
             <X size={13} strokeWidth={2.4} aria-hidden />

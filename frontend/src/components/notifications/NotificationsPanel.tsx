@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { ArrowUpRight, X } from "lucide-react";
 import { useCallback, useEffect, useState, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import {
   useNotificationsStore,
@@ -28,20 +29,6 @@ const PANEL_WIDTH = 268; // 16.75rem
 const PANEL_HEIGHT = 288; // 18rem
 const PANEL_GAP_PX = 18; // 0.5rem - overlay offset + 15px raise
 
-const DEFAULT_CATEGORY: Record<NotificationKind, string> = {
-  new_feature: "Update available",
-  app_update: "Mise à jour",
-  friend_request: "Team",
-  workspace_invite: "Workspace",
-  message: "Messages",
-  subscription: "Billing",
-  renewal: "Renewal",
-  poll: "Group poll",
-  workspace: "Workspace",
-  recording: "Recordings",
-  meeting: "Calendar",
-};
-
 const VISUAL_BY_TITLE: Record<string, string> = {
   "Connect your Calendar": "notifications-panel__visual--calendar",
   "Invite your colleague": "notifications-panel__visual--invite",
@@ -68,10 +55,6 @@ const VISUAL_BY_KIND: Record<NotificationKind, string> = {
 interface PanelPosition {
   left: number;
   bottom: number;
-}
-
-function notificationCategory(item: AppNotification): string {
-  return item.category?.trim() || DEFAULT_CATEGORY[item.kind];
 }
 
 function notificationVisualClass(item: AppNotification): string {
@@ -103,6 +86,7 @@ export default function NotificationsPanel({
   anchorRef,
   underChatPanel = false,
 }: NotificationsPanelProps) {
+  const { t } = useTranslation();
   const items = useNotificationsStore((s) => s.items);
   const panelOpen = useNotificationsStore((s) => s.panelOpen);
   const onboardingSilence = useNotificationsStore((s) => s.onboardingSilence);
@@ -279,7 +263,7 @@ export default function NotificationsPanel({
           "bottom-overlay__backdrop bottom-overlay__backdrop--left",
           underChatPanel && "notifications-panel__backdrop--under-chat",
         )}
-        aria-label="Fermer la réception"
+        aria-label={t("chatUi.closeInbox")}
         onClick={closePanel}
       />
       <div
@@ -289,7 +273,7 @@ export default function NotificationsPanel({
           underChatPanel && "notifications-panel--under-chat",
         )}
         role="dialog"
-        aria-label="Réception"
+        aria-label={t("chatUi.inbox")}
         style={{
           left: panelPos.left,
           bottom: panelPos.bottom,
@@ -300,14 +284,14 @@ export default function NotificationsPanel({
         <button
           type="button"
           className="notifications-panel__close"
-          aria-label="Fermer toute la réception"
+          aria-label={t("chatUi.clearInbox")}
           onClick={handleDismissAll}
         >
           <X size={13} strokeWidth={2.25} aria-hidden />
         </button>
 
         {items.length === 0 || !item ? (
-          <p className="notifications-panel__empty-state">Rien à la réception pour le moment.</p>
+          <p className="notifications-panel__empty-state">{t("chatUi.nothingInInbox")}</p>
         ) : (
           <article
             className={clsx(
@@ -335,7 +319,9 @@ export default function NotificationsPanel({
 
             <div className="notifications-panel__content">
               <div className="notifications-panel__copy">
-                <p className="notifications-panel__category">{notificationCategory(item)}</p>
+                <p className="notifications-panel__category">
+                  {item.category?.trim() || t(`chatUi.category.${item.kind}`)}
+                </p>
                 <h3 className="notifications-panel__title">{item.title}</h3>
                 {item.body?.trim() ? (
                   <p className="notifications-panel__description">{item.body}</p>
@@ -359,7 +345,7 @@ export default function NotificationsPanel({
                       disabled={updateBusy}
                       onClick={() => void handleScheduleUpdateTonight()}
                     >
-                      Cette nuit
+                      {t("chatUi.tonight")}
                     </button>
                     <button
                       type="button"
@@ -367,7 +353,7 @@ export default function NotificationsPanel({
                       disabled={updateBusy}
                       onClick={() => void handleInstallUpdateNow()}
                     >
-                      Maintenant
+                      {t("chatUi.now")}
                       <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
                     </button>
                   </>
@@ -379,7 +365,7 @@ export default function NotificationsPanel({
                       disabled={friendActionBusy}
                       onClick={() => void handleFriendRequestDecline()}
                     >
-                      Decline
+                      {t("calls.decline")}
                     </button>
                     <button
                       type="button"
@@ -387,7 +373,7 @@ export default function NotificationsPanel({
                       disabled={friendActionBusy}
                       onClick={() => void handleFriendRequestAccept()}
                     >
-                      Accept
+                      {t("calls.accept")}
                       <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
                     </button>
                   </>
@@ -399,7 +385,7 @@ export default function NotificationsPanel({
                       disabled={workspaceInviteBusy}
                       onClick={() => void handleWorkspaceInviteDecline()}
                     >
-                      Decline
+                      {t("calls.decline")}
                     </button>
                     <button
                       type="button"
@@ -407,7 +393,7 @@ export default function NotificationsPanel({
                       disabled={workspaceInviteBusy}
                       onClick={() => void handleWorkspaceInviteAccept()}
                     >
-                      Accept
+                      {t("calls.accept")}
                       <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
                     </button>
                   </>
@@ -418,7 +404,7 @@ export default function NotificationsPanel({
                       className="chat-connectors-row__connect"
                       onClick={handleGoToChatHistory}
                     >
-                      Go
+                      {t("chatUi.go")}
                       <ArrowUpRight
                         size={11}
                         strokeWidth={2.25}
@@ -431,7 +417,7 @@ export default function NotificationsPanel({
                       className="chat-connectors-row__connect"
                       onClick={handleNext}
                     >
-                      Next
+                      {t("chatUi.next")}
                       <ArrowUpRight
                         size={11}
                         strokeWidth={2.25}
@@ -446,7 +432,7 @@ export default function NotificationsPanel({
                     className="chat-connectors-row__connect"
                     onClick={handleNext}
                   >
-                    {item.kind === "poll" ? "Voir le sondage" : "Next"}
+                    {item.kind === "poll" ? t("chatUi.viewPoll") : t("chatUi.next")}
                     <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
                   </button>
                 )}

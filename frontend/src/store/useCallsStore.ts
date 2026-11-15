@@ -125,6 +125,8 @@ export type CallsViewMode = "blocks" | "theater";
 interface CallsState extends CallControls {
   callsByRoom: Record<string, RoomCallsState>;
   localInCallByRoom: Record<string, boolean>;
+  /** Hôte qui a accepté la frappe, par espace. Sert à ignorer une expulsion forgée. */
+  privateCallHostByRoom: Record<string, string>;
   localOpenChannelByRoom: Record<string, string | null>;
   theaterByWorkspace: Record<string, TheaterState>;
   callsViewModeByWorkspace: Record<string, CallsViewMode>;
@@ -187,6 +189,7 @@ interface CallsState extends CallControls {
   cancelJoin: (roomId: string, requestId: string) => void;
   joinCall: (roomId: string, options?: { markLocalBlockInCall?: boolean }) => Promise<void>;
   leaveCall: (workspaceId: string) => void;
+  honorVoiceEject: (workspaceId: string, fromUid: string) => void;
   disconnectRemoteFromPrivateCall: (roomId: string, remoteUserId: string) => void;
   leaveGroupCall: (roomId: string) => void;
   isLocalInCall: (workspaceId: string) => boolean;
@@ -354,6 +357,7 @@ function allowHandToggle(): boolean {
 export const useCallsStore = create<CallsState>((set, get) => ({
   callsByRoom: {},
   localInCallByRoom: {},
+  privateCallHostByRoom: {},
   localOpenChannelByRoom: {},
   theaterByWorkspace: {},
   callsViewModeByWorkspace: {},
@@ -709,17 +713,20 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     set((state) => {
       const callsByRoom = { ...state.callsByRoom };
       const localInCallByRoom = { ...state.localInCallByRoom };
+      const privateCallHostByRoom = { ...state.privateCallHostByRoom };
       const localOpenChannelByRoom = { ...state.localOpenChannelByRoom };
       const theaterByWorkspace = { ...state.theaterByWorkspace };
       const callsViewModeByWorkspace = { ...state.callsViewModeByWorkspace };
       delete callsByRoom[normalized];
       delete localInCallByRoom[normalized];
+      delete privateCallHostByRoom[normalized];
       delete localOpenChannelByRoom[normalized];
       delete theaterByWorkspace[normalized];
       delete callsViewModeByWorkspace[normalized];
       return {
         callsByRoom,
         localInCallByRoom,
+        privateCallHostByRoom,
         localOpenChannelByRoom,
         theaterByWorkspace,
         callsViewModeByWorkspace,
@@ -818,6 +825,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         },
       },
       localInCallByRoom: { ...s.localInCallByRoom, [workspaceId]: true },
+      privateCallHostByRoom: { ...s.privateCallHostByRoom, [workspaceId]: partnerUid },
     }));
     pushVoicePresence(get, workspaceId);
     playVoiceJoinSound();
@@ -1716,7 +1724,23 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     get().clearJoinRequest(roomId, requestId);
   },
 
+  honorVoiceEject: (workspaceId, fromUid) => {
+    if (!fromUid || get().privateCallHostByRoom[workspaceId] !== fromUid) return;
+    if (!get().localInCallByRoom[workspaceId]) return;
+    const state = get().callsByRoom[workspaceId];
+    const localBlock = state ? findLocalBlock(state.blocks) : undefined;
+    if (!localBlock || localBlock.participants.length <= 1) return;
+    if (!localBlock.participants.some((participant) => participant.id === fromUid)) return;
+    get().leaveCall(workspaceId);
+  },
+
   leaveCall: (workspaceId) => {
+    set((s) => {
+      if (!(workspaceId in s.privateCallHostByRoom)) return s;
+      const privateCallHostByRoom = { ...s.privateCallHostByRoom };
+      delete privateCallHostByRoom[workspaceId];
+      return { privateCallHostByRoom };
+    });
     if (useAiNotesStore.getState().active) {
       void useAiNotesStore.getState().stop();
     }
@@ -1772,6 +1796,9 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         [workspaceId]: { ...state, blocks, openChannels, handRaises },
       },
       localInCallByRoom: { ...get().localInCallByRoom, [workspaceId]: false },
+      privateCallHostByRoom: Object.fromEntries(
+        Object.entries(get().privateCallHostByRoom).filter(([roomId]) => roomId !== workspaceId),
+      ),
       localOpenChannelByRoom: { ...get().localOpenChannelByRoom, [workspaceId]: null },
       muted: false,
       cameraOn: false,
@@ -1832,6 +1859,9 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const blocks = splitLocalFromBlock(state.blocks, localBlock.id);
     set({
       callsByRoom: { ...get().callsByRoom, [roomId]: { ...state, blocks } },
+      privateCallHostByRoom: Object.fromEntries(
+        Object.entries(get().privateCallHostByRoom).filter(([id]) => id !== roomId),
+      ),
       raiseHand: false,
       pushToTalk: false,
     });

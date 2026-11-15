@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { ArrowLeft, ArrowUpRight, Check, Crown, Plus, UsersRound, X } from "lucide-react";
 import {
   LOCAL_USER_ID,
-  serverRoleLabel,
   type ServerRole,
   type Workspace,
 } from "../../lib/workspaces";
@@ -59,6 +59,7 @@ function WorkspaceRow({
   active: boolean;
   onSelect: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <li>
       <button
@@ -76,12 +77,14 @@ function WorkspaceRow({
         />
         <span className="min-w-0 flex-1 text-left">
           <span className="workspace-overlay__row-name">{workspace.name}</span>
-          <span className="workspace-overlay__row-address">{serverRoleLabel(role)}</span>
+          <span className="workspace-overlay__row-address">
+            {t(role === "owner" ? "calls.owner" : "calls.member")}
+          </span>
         </span>
         {role === "owner" ? (
           <Crown size={12} className="shrink-0 text-amber-300/90" aria-hidden />
         ) : active ? (
-          <span className="workspace-overlay__row-badge">Actif</span>
+          <span className="workspace-overlay__row-badge">{t("workspaceUi.active")}</span>
         ) : null}
       </button>
     </li>
@@ -89,6 +92,7 @@ function WorkspaceRow({
 }
 
 export default function WorkspaceOverlay() {
+  const { t } = useTranslation();
   const panelOpen = useWorkspaceOverlayStore((s) => s.panelOpen);
   const pendingJoinCode = useWorkspaceOverlayStore((s) => s.pendingJoinCode);
   const closePanel = useWorkspaceOverlayStore((s) => s.closePanel);
@@ -293,7 +297,7 @@ export default function WorkspaceOverlay() {
           type="button"
           className="workspace-edge-overlay__close"
           onClick={closePanel}
-          aria-label="Fermer"
+          aria-label={t("common.close")}
         >
           <X size={16} aria-hidden />
         </button>
@@ -301,7 +305,7 @@ export default function WorkspaceOverlay() {
         {view === "list" ? (
           <>
             <header className="workspace-edge-overlay__header">
-              <h2 className="workspace-edge-overlay__title">Workspaces</h2>
+              <h2 className="workspace-edge-overlay__title">{t("workspaceUi.title")}</h2>
             </header>
 
             <div className="workspace-edge-overlay__scroll">
@@ -323,7 +327,7 @@ export default function WorkspaceOverlay() {
                 </ul>
               ) : (
                 <p className="workspace-edge-overlay__empty">
-                  Vous n'avez encore rejoint aucun workspace.
+                  {t("workspaceUi.none")}
                 </p>
               )}
 
@@ -380,19 +384,19 @@ export default function WorkspaceOverlay() {
                 type="button"
                 className="workspace-edge-overlay__cta workspace-edge-overlay__cta--secondary"
                 onClick={() => setView("join")}
-                aria-label="Rejoindre un workspace"
+                aria-label={t("workspaceUi.join")}
               >
                 <UsersRound size={16} aria-hidden />
-                Rejoindre
+                {t("calls.join")}
               </button>
               <button
                 type="button"
                 className="workspace-edge-overlay__cta workspace-edge-overlay__cta--primary"
                 onClick={() => setView("create")}
-                aria-label="Créer un workspace"
+                aria-label={t("workspaceUi.create")}
               >
                 <Plus size={16} aria-hidden />
-                Créer
+                {t("workspaceUi.createShort")}
               </button>
             </div>
           </>
@@ -405,10 +409,10 @@ export default function WorkspaceOverlay() {
                 onClick={() => setView("list")}
               >
                 <ArrowLeft size={16} aria-hidden />
-                Retour
+                {t("common.back")}
               </button>
               <h2 className="workspace-edge-overlay__title">
-                {view === "create" ? "Créer un workspace" : "Rejoindre un workspace"}
+                {view === "create" ? t("workspaceUi.create") : t("workspaceUi.join")}
               </h2>
             </header>
 
@@ -419,7 +423,7 @@ export default function WorkspaceOverlay() {
                     id="workspace-create-name"
                     type="text"
                     className="workspace-edge-overlay__input"
-                    placeholder="Nom du workspace…"
+                    placeholder={t("workspaceUi.namePlaceholder")}
                     value={draftName}
                     disabled={!canCreate}
                     autoFocus
@@ -442,7 +446,7 @@ export default function WorkspaceOverlay() {
                       }}
                       title={workspaceLimitHint}
                     >
-                      Passer à Pro
+                      {t("workspaceUi.upgradePro")}
                       <ArrowUpRight size={14} aria-hidden />
                     </button>
                   ) : null}
@@ -452,7 +456,7 @@ export default function WorkspaceOverlay() {
                     disabled={!canCreate || !draftName.trim()}
                   >
                     <Plus size={16} aria-hidden />
-                    Créer le workspace
+                    {t("workspaceUi.createSubmit")}
                   </button>
                 </form>
               ) : (
@@ -463,7 +467,7 @@ export default function WorkspaceOverlay() {
                   <input
                     type="text"
                     className="workspace-edge-overlay__input"
-                    placeholder="Code d'invitation"
+                    placeholder={t("workspaceUi.inviteCode")}
                     value={joinId}
                     disabled={joinBusy}
                     autoFocus
@@ -477,7 +481,7 @@ export default function WorkspaceOverlay() {
                     <p className="workspace-edge-overlay__error">{joinError}</p>
                   ) : null}
                   {joinSent ? (
-                    <p className="workspace-edge-overlay__success">Demande envoyée.</p>
+                    <p className="workspace-edge-overlay__success">{t("workspaceUi.sent")}</p>
                   ) : null}
                   <button
                     type="submit"
@@ -485,7 +489,7 @@ export default function WorkspaceOverlay() {
                     disabled={joinBusy || !joinId.trim()}
                   >
                     <UsersRound size={16} aria-hidden />
-                    Envoyer la demande
+                    {t("workspaceUi.sendRequest")}
                   </button>
                 </form>
               )}

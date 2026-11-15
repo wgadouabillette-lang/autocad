@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { Search } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 export interface SearchSuggestionItem {
   id: string;
@@ -19,6 +20,7 @@ export default function ExpandableSearchDropdown<T extends SearchSuggestionItem>
   filterSuggestions: (query: string) => T[];
   onSelect: (item: T) => void;
 }) {
+  const { t } = useTranslation();
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,7 +74,7 @@ export default function ExpandableSearchDropdown<T extends SearchSuggestionItem>
 
   const panelContent =
     suggestions.length === 0 ? (
-      <p className="expandable-search__empty">Aucun résultat</p>
+      <p className="expandable-search__empty">{t("chatUi.noResults")}</p>
     ) : (
       <ul className="expandable-search__list" role="listbox">
         {suggestions.map((item, index) => (

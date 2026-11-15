@@ -1,7 +1,9 @@
 import clsx from "clsx";
 import { Maximize2 } from "lucide-react";
 import { useEffect, useRef, type CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import { avatarTileTint, type CallUser } from "../../lib/calls";
+import { usePersonLabel } from "../../lib/participantLabel";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import UserAvatar from "../UserAvatar";
@@ -56,6 +58,9 @@ export default function VoiceParticipantTile({
   const screenShareStream = useCallsStore((s) => s.screenShareStream);
   const localMuted = useCallsStore((s) => s.muted);
   const openColleagueChat = useMiniChatStore((s) => s.openForColleague);
+  const { t } = useTranslation();
+  const labelOf = usePersonLabel();
+  const name = labelOf(participant.name, participant.isLocal);
   const canMessage = !participant.isLocal && !onActivate;
   const showVideo = allowVideo && !!videoStream;
   const showMuteBadge = muted ?? (participant.isLocal && localMuted);
@@ -86,7 +91,7 @@ export default function VoiceParticipantTile({
         <div className="voice-participant-tile__avatar-stage" aria-hidden>
           <UserAvatar
             userId={participant.id}
-            name={participant.name}
+            name={name}
             photoURL={participant.photoURL}
             isLocal={participant.isLocal}
             shape="circle"
@@ -94,11 +99,11 @@ export default function VoiceParticipantTile({
           />
         </div>
       )}
-      <span className="voice-participant-tile__label">{participant.name}</span>
+      <span className="voice-participant-tile__label">{name}</span>
       {showMuteBadge && <VoiceMuteBadge />}
       {showLocalScreen ? <ScreenShareLiveBadge /> : null}
       {handRaised && (
-        <span className="voice-participant-tile__hand" title="Main levée" aria-hidden>
+        <span className="voice-participant-tile__hand" title={t("calls.handRaised")} aria-hidden>
           ✋
         </span>
       )}
@@ -154,11 +159,11 @@ export default function VoiceParticipantTile({
       style={tileStyle}
       title={
         activateTitle ??
-        (onActivate ? undefined : `Message à ${participant.name}`)
+        (onActivate ? undefined : t("calls.messageTo", { name }))
       }
       aria-label={
         activateTitle ??
-        (onActivate ? undefined : `Message à ${participant.name}`)
+        (onActivate ? undefined : t("calls.messageTo", { name }))
       }
       onClick={(event) => {
         if (event.currentTarget !== event.target) {

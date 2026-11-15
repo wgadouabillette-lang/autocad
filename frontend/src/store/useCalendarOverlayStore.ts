@@ -16,6 +16,8 @@ interface CalendarOverlayState {
   clearFocusEvent: () => void;
   goToToday: () => void;
   openComposer: (initialHour?: number) => void;
+  /** Opens the calendar, then the same event popup as clicking an hour. */
+  openEventComposer: () => void;
   closeComposer: () => void;
 }
 
@@ -54,6 +56,14 @@ export const useCalendarOverlayStore = create<CalendarOverlayState>((set, get) =
       composerInitialDate:
         initialHour !== undefined ? selectedDate : toDateKey(new Date()),
     });
+  },
+
+  openEventComposer: () => {
+    const { chatPanelOpen, chatPanelMode } = useStore.getState();
+    if (!(chatPanelOpen && chatPanelMode === "calendar")) {
+      get().togglePanel();
+    }
+    get().openComposer();
   },
 
   closeComposer: () =>

@@ -98,8 +98,8 @@ function loadAutoUpdater() {
   autoUpdater.allowDowngrade = false;
   autoUpdater.disableDifferentialDownload = true;
   autoUpdater.logger = console;
-  if ("verifyUpdateCodeSignature" in autoUpdater) {
-    autoUpdater.verifyUpdateCodeSignature = false;
+  if (process.platform === "win32" && "verifyUpdateCodeSignature" in autoUpdater) {
+    autoUpdater.verifyUpdateCodeSignature = true;
   }
 
   try {

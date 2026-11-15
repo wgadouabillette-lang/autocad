@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import { ChevronDown, Plus, X } from "lucide-react";
 import {
@@ -28,6 +29,7 @@ function formatHourLabel(hour: number): string {
 }
 
 export default function DaySchedulePanel() {
+  const { t } = useTranslation();
   const selectedDate = useCalendarOverlayStore((s) => s.selectedDate);
   const setSelectedDate = useCalendarOverlayStore((s) => s.setSelectedDate);
   const goToToday = useCalendarOverlayStore((s) => s.goToToday);
@@ -140,7 +142,7 @@ export default function DaySchedulePanel() {
                       if (e.target.value) setSelectedDate(e.target.value);
                     }}
                     onClick={handleDateInputClick}
-                    aria-label="Choisir une date"
+                    aria-label={t("calendarUi.pickDate")}
                   />
                 </div>
               </div>
@@ -151,7 +153,7 @@ export default function DaySchedulePanel() {
                 className="calendar-panel__today-reset"
                 onClick={goToToday}
               >
-                Revenir à aujourd'hui
+                {t("calendarUi.backToToday")}
               </button>
             )}
           </div>
@@ -187,7 +189,7 @@ export default function DaySchedulePanel() {
               className="calendar-panel__hour-row"
               style={{ height: HOUR_HEIGHT }}
               onClick={() => handleSlotClick(hour)}
-              aria-label={`Ajouter un événement à ${formatHourLabel(hour)}`}
+              aria-label={t("calendarUi.addAt", { hour: formatHourLabel(hour) })}
             >
               <span className="calendar-panel__hour-label">
                 {formatHourLabel(hour)}
@@ -229,8 +231,8 @@ export default function DaySchedulePanel() {
                     e.stopPropagation();
                     handleDeleteEvent(event.id);
                   }}
-                  aria-label={`Supprimer ${event.title}`}
-                  title="Supprimer"
+                  aria-label={t("calendarUi.deleteEvent", { title: event.title })}
+                  title={t("common.delete")}
                 >
                   <X size={11} strokeWidth={2.25} aria-hidden />
                 </button>
@@ -243,7 +245,7 @@ export default function DaySchedulePanel() {
                   <div className="calendar-panel__event-detail">{event.detail}</div>
                 )}
                 {status === "now" && (
-                  <span className="calendar-panel__event-live">En cours</span>
+                  <span className="calendar-panel__event-live">{t("calendarUi.inProgress")}</span>
                 )}
               </div>
             );

@@ -111,7 +111,7 @@ export function useWorkspaceVoiceKnocks() {
         (knock) => {
           if (handledEjects.has(knock.id)) return;
           handledEjects.add(knock.id);
-          useCallsStore.getState().leaveCall(workspaceId);
+          useCallsStore.getState().honorVoiceEject(workspaceId, knock.fromUid);
         },
         () => {},
       ),

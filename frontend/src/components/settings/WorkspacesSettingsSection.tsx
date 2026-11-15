@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { Check, Copy, LogOut, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import {
   fetchSharedWorkspace,
   watchPendingJoinRequests,
@@ -11,7 +12,6 @@ import { copyTextToClipboard } from "../../lib/clipboard";
 import { buildWorkspaceJoinUrl } from "../../lib/workspaceInvite";
 import {
   LOCAL_USER_ID,
-  serverRoleLabel,
   type ServerRole,
   type Workspace,
 } from "../../lib/workspaces";
@@ -55,6 +55,7 @@ function WorkspacePickerRow({
   removeBusy: boolean;
   canCopyInvite: boolean;
 }) {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isOwner = role === "owner";
 
@@ -109,9 +110,9 @@ function WorkspacePickerRow({
         <span className="settings-workspaces-list__main">
           <span className="settings-workspaces-list__name">{workspace.name}</span>
           <span className="settings-workspaces-list__meta">
-            {serverRoleLabel(role)}
-            {active ? " · Actif" : ""}
-            {iconBusy ? " · Enregistrement…" : ""}
+            {t(role === "owner" ? "calls.owner" : "calls.member")}
+            {active ? ` · ${t("workspaceUi.active")}` : ""}
+            {iconBusy ? ` · ${t("settingsUi.saving")}` : ""}
           </span>
           {iconError ? (
             <span className="settings-workspaces-list__meta text-red-300">{iconError}</span>

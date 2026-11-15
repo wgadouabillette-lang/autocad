@@ -651,6 +651,22 @@ html:not(.app-loading-splash) #root {
   .auth-page__waiting-copy {
     @apply m-0 text-[0.95rem] leading-none text-muted-300;
   }
+  .auth-page__waiting-code {
+    @apply m-0 mt-4 text-center text-[1.35rem] font-semibold tracking-[0.22em] text-white;
+  }
+  .auth-page__code-form {
+    @apply mt-4 flex w-full flex-col items-stretch gap-2;
+  }
+  .auth-page__code-input {
+    @apply h-11 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-center text-[1.15rem] font-semibold tracking-[0.18em] text-white outline-none;
+    text-transform: uppercase;
+  }
+  .auth-page__code-input:focus {
+    border-color: rgb(var(--forma-brand-border));
+  }
+  .auth-page__code-form .seat-gate__pay {
+    @apply mt-1;
+  }
   .auth-page__waiting-actions {
     @apply mt-5 flex items-center justify-center gap-2;
   }

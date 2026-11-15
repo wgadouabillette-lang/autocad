@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { Settings } from "lucide-react";
-import { landingLabel } from "../../lib/marketingPreview";
+import { useTranslation } from "react-i18next";
 import { isFormaDesktopMac, isFormaDesktopWindows } from "../../lib/formaDesktop";
 import { useStore } from "../../store/useStore";
 import HeaderUpgradeButton from "./HeaderUpgradeButton";
@@ -9,6 +9,7 @@ import WorkspaceSwitcherButton from "../workspace/WorkspaceSwitcherButton";
 
 /** Switcher workspace + paramètres du header principal. */
 export default function PanelToolbarButtons() {
+  const { t } = useTranslation();
   const openSettingsPage = useStore((s) => s.openSettingsPage);
   const activePage = useStore((s) => s.activePage);
   const settingsOpen = activePage === "settings";
@@ -23,9 +24,9 @@ export default function PanelToolbarButtons() {
         type="button"
         className={clsx("toolbar-btn", settingsOpen && "is-active")}
         onClick={() => openSettingsPage()}
-        aria-label={landingLabel("Settings", "Paramètres")}
+        aria-label={t("bar.settings")}
         aria-pressed={settingsOpen}
-        title={landingLabel("Settings", "Paramètres")}
+        title={t("bar.settings")}
       >
         <Settings size={14} strokeWidth={2.25} aria-hidden />
       </button>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import DeletePeopleChatOverlay from "../chat/DeletePeopleChatOverlay";
 import { deleteAccount } from "../../lib/accountApi";
 import { clearLocalAccountData } from "../../lib/clearLocalAccountData";
@@ -7,6 +8,7 @@ import { useWorkspacesStore } from "../../store/useWorkspacesStore";
 import SettingsFieldRow from "./SettingsFieldRow";
 
 export default function DeleteAccountSettingsSection() {
+  const { t } = useTranslation();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const signOut = useAuthStore((s) => s.signOut);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -33,7 +35,7 @@ export default function DeleteAccountSettingsSection() {
   return (
     <>
       <section className="settings-preferences__group">
-        <h3 className="settings-preferences__title">Compte</h3>
+        <h3 className="settings-preferences__title">{t("settingsUi.account")}</h3>
         <div className="settings-field-list">
           <SettingsFieldRow
             label="Supprimer mon compte"

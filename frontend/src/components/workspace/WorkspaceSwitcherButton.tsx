@@ -1,12 +1,13 @@
 import clsx from "clsx";
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useWorkspaceOverlayStore } from "../../store/useWorkspaceOverlayStore";
 import { workspaceLabel, useWorkspacesStore } from "../../store/useWorkspacesStore";
 import { useStore } from "../../store/useStore";
-import { landingLabel } from "../../lib/marketingPreview";
 
 /** Capsule switcher workspace — à gauche du badge Pro. */
 export default function WorkspaceSwitcherButton() {
+  const { t } = useTranslation();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const activeRoomId = useStore((s) => s.activeRoomId);
   const panelOpen = useWorkspaceOverlayStore((s) => s.panelOpen);
@@ -31,7 +32,7 @@ export default function WorkspaceSwitcherButton() {
         togglePanel();
       }}
       title={workspaceName}
-      aria-label={landingLabel(`Switch workspace — ${workspaceName}`, `Changer de workspace — ${workspaceName}`)}
+      aria-label={t("bar.switchWorkspace", { name: workspaceName })}
       aria-expanded={panelOpen}
       aria-haspopup="dialog"
     >

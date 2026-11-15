@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import ExpandableSearchDropdown from "../ExpandableSearchDropdown";
 import {
   filterSettingsSuggestions,
@@ -10,10 +11,11 @@ export default function SettingsSearch({
 }: {
   onSelectTab: (tab: SettingsTab) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <ExpandableSearchDropdown
-      placeholder="Rechercher dans les paramètres…"
-      ariaLabel="Rechercher dans les paramètres"
+      placeholder={t("settingsUi.search")}
+      ariaLabel={t("settingsUi.search")}
       filterSuggestions={filterSettingsSuggestions}
       onSelect={(item: SettingsSearchSuggestion) => onSelectTab(item.tab)}
     />

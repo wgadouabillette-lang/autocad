@@ -1,6 +1,6 @@
 {
   "name": "forma-desktop",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "private": true,
   "description": "Meetra",
   "main": "main.cjs",
@@ -102,7 +102,7 @@
       ],
       "icon": "build/icon.ico",
       "signAndEditExecutable": true,
-      "verifyUpdateCodeSignature": false,
+      "verifyUpdateCodeSignature": true,
       "extraFiles": [
         {
           "from": "build/icon.ico",

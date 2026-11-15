@@ -6,7 +6,7 @@ import { useHallDjStore } from "../store/useHallDjStore";
 import { useSpotifyPlayerStore } from "../store/useSpotifyPlayerStore";
 import { useTranslation } from "react-i18next";
 import { useMobileLayout } from "../hooks/useMobileLayout";
-import { isMarketingPreview, landingLabel } from "../lib/marketingPreview";
+import { isMarketingPreview } from "../lib/marketingPreview";
 import { isRecordingSession } from "../lib/chatSessionKinds";
 import { isNotesEditorPromoSurface } from "../lib/notesFullscreenPromo";
 import { useStore } from "../store/useStore";
@@ -55,6 +55,7 @@ function ChatPanelResizeHandle({
   side: "left" | "right";
   panelRef: RefObject<HTMLElement | null>;
 }) {
+  const { t } = useTranslation();
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -98,7 +99,7 @@ function ChatPanelResizeHandle({
     <button
       type="button"
       className="chat-panel-resize"
-      aria-label={landingLabel("Resize panel", "Redimensionner le panneau")}
+      aria-label={t("bar.resizePanel")}
       onPointerDown={onPointerDown}
     />
   );

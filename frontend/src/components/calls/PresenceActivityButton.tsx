@@ -201,6 +201,7 @@ export default function PresenceActivityButton({
   isLocal = false,
   layout = "inline",
 }: PresenceActivityButtonProps) {
+  const { t } = useTranslation();
   const storedActivity = usePresenceActivityStore((s) => s.getActivity(roomId, userId, isLocal));
   const remoteSpotifyNowPlaying = usePresenceActivityStore((s) =>
     isLocal ? null : s.getSpotifyNowPlaying(roomId, userId),
@@ -265,8 +266,8 @@ export default function PresenceActivityButton({
 
   const pickerLabel =
     pickerActivity === "unset"
-      ? "Choisir une activité"
-      : getPresenceActivityOption(pickerActivity).label;
+      ? t("calls.chooseActivity")
+      : t(`calls.activity.${pickerActivity}`);
 
   const displayedActivity = isLocal ? pickerActivity : storedActivity;
   const spotifyNowPlaying: SpotifyNowPlayingSnapshot | null =
@@ -279,7 +280,7 @@ export default function PresenceActivityButton({
       : null;
 
   if (!isLocal) {
-    const label = getPresenceActivityOption(storedActivity).label;
+    const label = t(`calls.activity.${storedActivity}`);
     return (
       <ActivityNowPlayingTooltip nowPlaying={spotifyNowPlaying}>
         <span
@@ -300,13 +301,13 @@ export default function PresenceActivityButton({
             <button
               type="button"
               className="call-block__activity-backdrop"
-              aria-label="Fermer le menu d'activité"
+              aria-label={t("calls.closeActivity")}
               onClick={() => setOpen(false)}
             />
             <div
               className="call-block__activity-menu call-block__activity-menu--floating"
               role="menu"
-              aria-label="Choisir une activité"
+              aria-label={t("calls.chooseActivity")}
               style={{
                 top: menuPos.top,
                 left: menuPos.left,
@@ -351,7 +352,7 @@ export default function PresenceActivityButton({
                       <option.icon size={14} strokeWidth={2} />
                     ) : null}
                   </span>
-                  <span>{option.label}</span>
+                  <span>{t(`calls.activity.${option.id}`)}</span>
                 </button>
               ))}
             </div>

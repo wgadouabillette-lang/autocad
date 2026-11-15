@@ -1,11 +1,11 @@
 import clsx from "clsx";
 import { ExternalLink, Pause, Play, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { SpotifyTrackCard } from "../../lib/connectorsApi";
 import { connectorIconPath, CONNECTOR_ICON_FILES } from "../../lib/connectorIcons";
 import { primeSpotifyPreviewAudio } from "../../lib/spotifyAudioPulse";
 import { primeSpotifyWebAudioUnlock } from "../../lib/spotifyWebPlayback";
-import { landingLabel } from "../../lib/marketingPreview";
 import { useSpotifyPlayerStore } from "../../store/useSpotifyPlayerStore";
 import { useStore } from "../../store/useStore";
 
@@ -26,6 +26,7 @@ export default function SpotifyTrackPicker({
   pageOffset?: number;
   verdict?: "accepted" | "rejected";
 }) {
+  const { t } = useTranslation();
   const choices = tracks.slice(pageOffset, pageOffset + PICKER_LIMIT);
   const currentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
   const playing = useSpotifyPlayerStore((s) => s.playing);
@@ -105,8 +106,8 @@ export default function SpotifyTrackPicker({
                     className="spotify-track-picker__play"
                     onClick={() => start(track)}
                     disabled={verdict === "rejected"}
-                    aria-label={isPlaying ? "Pause" : landingLabel("Play", "Lire")}
-                    title={isPlaying ? "Pause" : landingLabel("Play", "Lire")}
+                    aria-label={isPlaying ? t("bar.pause") : t("bar.play")}
+                    title={isPlaying ? t("bar.pause") : t("bar.play")}
                   >
                     {isPlaying ? (
                       <Pause size={13} fill="currentColor" aria-hidden />
@@ -120,7 +121,7 @@ export default function SpotifyTrackPicker({
                     target="_blank"
                     rel="noopener noreferrer"
                     className="spotify-track-picker__play"
-                    aria-label={landingLabel("Open in Spotify", "Ouvrir dans Spotify")}
+                    aria-label={t("bar.openInSpotify")}
                   >
                     <ExternalLink size={13} aria-hidden />
                   </a>
@@ -136,8 +137,8 @@ export default function SpotifyTrackPicker({
           className={clsx("spotify-track-picker__action", reloading && "spotify-track-picker__action--busy")}
           disabled={!canAct || reloading}
           onClick={() => void reload()}
-          aria-label={landingLabel("Show more matches", "Montrer plus de correspondances")}
-          title={landingLabel("Show more matches", "Montrer plus de correspondances")}
+          aria-label={t("bar.showMore")}
+          title={t("bar.showMore")}
         >
           <RefreshCw size={14} strokeWidth={2.25} aria-hidden />
         </button>
@@ -149,9 +150,9 @@ export default function SpotifyTrackPicker({
           )}
           disabled={!canAct}
           onClick={() => canAct && setSpotifyPickerVerdict(chatIndex, "accepted")}
-          aria-label={landingLabel("Accept this answer", "Valider la réponse")}
+          aria-label={t("bar.acceptAnswer")}
           aria-pressed={verdict === "accepted"}
-          title={landingLabel("Accept this answer", "Valider la réponse")}
+          title={t("bar.acceptAnswer")}
         >
           <ThumbsUp size={14} strokeWidth={2.25} aria-hidden />
         </button>
@@ -164,9 +165,9 @@ export default function SpotifyTrackPicker({
           )}
           disabled={!canAct}
           onClick={() => canAct && setSpotifyPickerVerdict(chatIndex, "rejected")}
-          aria-label={landingLabel("Reject this answer", "Ne pas valider la réponse")}
+          aria-label={t("bar.rejectAnswer")}
           aria-pressed={verdict === "rejected"}
-          title={landingLabel("Reject this answer", "Ne pas valider la réponse")}
+          title={t("bar.rejectAnswer")}
         >
           <ThumbsDown size={14} strokeWidth={2.25} aria-hidden />
         </button>

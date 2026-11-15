@@ -147,7 +147,7 @@ export default function SettingsProfileCard() {
   return (
     <>
       <section className="settings-preferences__group">
-        <h3 className="settings-preferences__title">Profil</h3>
+        <h3 className="settings-preferences__title">{t("settingsUi.profile")}</h3>
         <div className="settings-field-list">
           <SettingsFieldRow
             label="Photo"
@@ -204,7 +204,7 @@ export default function SettingsProfileCard() {
       </section>
 
       <section className="settings-preferences__group">
-        <h3 className="settings-preferences__title">Apparence</h3>
+        <h3 className="settings-preferences__title">{t("settingsUi.appearance")}</h3>
         <div className="settings-field-list">
           <SettingsFieldRow
             id="accent-color"

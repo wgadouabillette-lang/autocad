@@ -1,6 +1,8 @@
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { participantHasHandRaised, type CallUser } from "../../lib/calls";
+import { usePersonLabel } from "../../lib/participantLabel";
 import {
   resolveCallParticipantVideoDisplay,
   type CallParticipantVideoDisplay,
@@ -113,10 +115,13 @@ function ParticipantTile({
 export default function VoiceParticipantsInCallGrid({
   workspaceId,
   participants,
-  ariaLabel = "Participants de l'appel vocal",
+  ariaLabel,
   showHandRaise = true,
   enableSpotlight = false,
 }: VoiceParticipantsInCallGridProps) {
+  const { t } = useTranslation();
+  const labelOf = usePersonLabel();
+  const resolvedAriaLabel = ariaLabel ?? t("calls.voiceCallParticipants");
   const [spotlightParticipantId, setSpotlightParticipantId] = useState<string | null>(null);
 
   const speakingByParticipant = useCallsStore((s) => s.speakingByParticipant);
@@ -185,7 +190,7 @@ export default function VoiceParticipantsInCallGrid({
             {stripParticipants.length > 0 ? (
               <div
                 className="open-voice-spotlight__strip"
-                aria-label="Autres participants"
+                aria-label={t("calls.otherParticipants")}
               >
                 {stripParticipants.map((participant) => (
                   <ParticipantTile
@@ -196,7 +201,9 @@ export default function VoiceParticipantsInCallGrid({
                     {...tilePropsFor(participant)}
                     strip
                     onActivate={() => setSpotlightParticipantId(participant.id)}
-                    activateTitle={`Voir ${participant.name}`}
+                    activateTitle={t("calls.seePerson", {
+                      name: labelOf(participant.name, participant.isLocal),
+                    })}
                   />
                 ))}
               </div>
@@ -209,7 +216,7 @@ export default function VoiceParticipantsInCallGrid({
                 {...tilePropsFor(spotlightParticipant)}
                 stage
                 onActivate={() => setSpotlightParticipantId(null)}
-                activateTitle="Réduire"
+                activateTitle={t("calls.collapse")}
               />
             </div>
           </div>
@@ -236,7 +243,7 @@ export default function VoiceParticipantsInCallGrid({
             ? undefined
             : { gridTemplateRows: `repeat(${layout.rowCount}, minmax(0, 1fr))` }
         }
-        aria-label={ariaLabel}
+        aria-label={resolvedAriaLabel}
       >
         {participants.map((participant, index) => {
           const hasVideo = participantHasActiveVideo(participant, media);
@@ -255,7 +262,11 @@ export default function VoiceParticipantsInCallGrid({
               onActivate={
                 canSpotlight ? () => setSpotlightParticipantId(participant.id) : undefined
               }
-              activateTitle={canSpotlight ? `Agrandir ${participant.name}` : undefined}
+              activateTitle={
+                canSpotlight
+                  ? t("calls.expandPerson", { name: labelOf(participant.name, participant.isLocal) })
+                  : undefined
+              }
               showExpandHint={canSpotlight}
             />
           );

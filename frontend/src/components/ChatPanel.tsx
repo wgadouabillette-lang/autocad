@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -755,7 +756,7 @@ export default function ChatPanel() {
   const mailRecipientsRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
-  const [scrollPadBottom] = useState(12);
+  const [scrollPadBottom, setScrollPadBottom] = useState(12);
   const [revealIdx, setRevealIdx] = useState<number | null>(null);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
   const [connectorsAnimKey, setConnectorsAnimKey] = useState(0);
@@ -1257,6 +1258,49 @@ export default function ChatPanel() {
   const agentGenerating = busy && aiRun?.status === "running";
   const lastMessage = chat[chat.length - 1];
   const showPendingAssistant = agentGenerating && lastMessage?.role === "user";
+  const agentTailMessageIndex = (() => {
+    if (activeSkillRun || showPendingAssistant) return null;
+    for (let i = chat.length - 1; i >= 0; i--) {
+      const message = chat[i];
+      if (message.role === "system") continue;
+      if (
+        playBrowsing &&
+        i === chat.length - 1 &&
+        message.role === "assistant" &&
+        message.source === "play-skill" &&
+        !!message.spotifySearch?.length
+      ) {
+        continue;
+      }
+      return message.role === "assistant" ? i : null;
+    }
+    return null;
+  })();
+
+  useLayoutEffect(() => {
+    const scrollEl = messagesScrollRef.current;
+    if (!scrollEl || chatIsEmpty) return;
+
+    const measureTailMargin = () => {
+      const viewH = scrollEl.clientHeight;
+      if (viewH <= 0) return;
+      const topBand = (viewH * 5) / 8;
+      const reserve = viewH - topBand;
+      const tail = scrollEl.querySelector<HTMLElement>("[data-agent-tail]");
+      const tailH = tail?.offsetHeight ?? 0;
+      const pad =
+        tailH > topBand ? Math.max(0, reserve - (tailH - topBand)) : reserve;
+      const next = Math.round(pad);
+      setScrollPadBottom((prev) => (prev === next ? prev : next));
+    };
+
+    measureTailMargin();
+    const ro = new ResizeObserver(measureTailMargin);
+    ro.observe(scrollEl);
+    const tail = scrollEl.querySelector("[data-agent-tail]");
+    if (tail) ro.observe(tail);
+    return () => ro.disconnect();
+  }, [chat, chatIsEmpty, showPendingAssistant, activeSkillRun, playBrowsing]);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -1395,10 +1439,10 @@ export default function ChatPanel() {
       return;
     }
     if (skill.id === "meeting") {
-      setActiveComposerSkill("meeting");
-      setMeetingDraft(createDefaultMeetingDraft());
+      setActiveComposerSkill(null);
       setText("");
       setSlashOpen(false);
+      useCalendarOverlayStore.getState().openEventComposer();
       return;
     }
     if (skill.id === "mail") {
@@ -2496,6 +2540,7 @@ export default function ChatPanel() {
             return (
               <div
                 key={`${message.role}-${i}`}
+                data-agent-tail={i === agentTailMessageIndex ? "" : undefined}
                 className={clsx(spacing, isRising && "chat-panel-rise-in")}
               >
                 {bubble}
@@ -2504,11 +2549,11 @@ export default function ChatPanel() {
           })}
 
           {activeSkillRun?.skillId === "play" ? (
-            <div className="chat-assistant-bubble chat-panel-rise-in mt-3">
+            <div data-agent-tail="" className="chat-assistant-bubble chat-panel-rise-in mt-3">
               <PlayBrowsingStatus startedAt={activeSkillRun.startedAt} />
             </div>
           ) : activeSkillRun ? (
-            <div className="chat-assistant-bubble chat-panel-rise-in mt-3">
+            <div data-agent-tail="" className="chat-assistant-bubble chat-panel-rise-in mt-3">
               <SkillTimeline
                 key={activeSkillRun.runId}
                 steps={activeSkillRun.steps}
@@ -2522,7 +2567,7 @@ export default function ChatPanel() {
               />
             </div>
           ) : showPendingAssistant ? (
-            <div className="chat-assistant-bubble chat-panel-rise-in mt-3">
+            <div data-agent-tail="" className="chat-assistant-bubble chat-panel-rise-in mt-3">
               <AssistantPendingBubble
                 label={activeStepLabel(aiRun) || undefined}
                 onStop={handleStop}

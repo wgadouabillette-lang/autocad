@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Send, X } from "lucide-react";
 import type { PeopleMessage } from "../../lib/peopleChat";
 import { resolvePersonPhotoURL } from "../../lib/peopleChat";
@@ -9,6 +10,7 @@ import { useStore } from "../../store/useStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
 import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
+import { usePersonLabel } from "../../lib/participantLabel";
 import UserAvatar from "../UserAvatar";
 import PeopleChatThreadMessages from "../chat/PeopleChatThreadMessages";
 import ChatTypingIndicator from "../chat/ChatTypingIndicator";
@@ -16,6 +18,8 @@ import ChatTypingIndicator from "../chat/ChatTypingIndicator";
 const EMPTY_MESSAGES: PeopleMessage[] = [];
 
 export default function MiniChatPopover() {
+  const { t } = useTranslation();
+  const labelOf = usePersonLabel();
   const open = useMiniChatStore((s) => s.open);
   const threadId = useMiniChatStore((s) => s.threadId);
   const personName = useMiniChatStore((s) => s.personName);
@@ -45,6 +49,7 @@ export default function MiniChatPopover() {
   const typingUsers = useChatTyping(chatTypingScope, draft, open && !!threadId);
 
   if (!open || !threadId || !thread) return null;
+  const name = labelOf(personName, false);
 
   const partnerPhotoURL = resolvePersonPhotoURL(thread.personId, membersByWorkspace, {
     preferredWorkspaceId: activeRoomId,
@@ -56,10 +61,10 @@ export default function MiniChatPopover() {
       <button
         type="button"
         className="mini-chat__backdrop"
-        aria-label="Fermer le mini chat"
+        aria-label={t("chatUi.closeMini")}
         onClick={close}
       />
-      <div className="mini-chat" role="dialog" aria-label={`Message à ${personName}`}>
+      <div className="mini-chat" role="dialog" aria-label={t("calls.messageTo", { name })}>
         <div className="mini-chat__header">
           <UserAvatar
             userId={thread.personId}
@@ -72,14 +77,14 @@ export default function MiniChatPopover() {
             type="button"
             className="mini-chat__close"
             onClick={close}
-            aria-label="Fermer"
+            aria-label={t("common.close")}
           >
             <X size={14} aria-hidden />
           </button>
         </div>
 
         {messages.length === 0 ? (
-          <p className="mini-chat__empty">Dites bonjour à {personName}.</p>
+          <p className="mini-chat__empty">{t("chatUi.sayHello", { name })}</p>
         ) : (
           <PeopleChatThreadMessages
             partnerName={personName}
@@ -106,7 +111,7 @@ export default function MiniChatPopover() {
           <input
             type="text"
             className="mini-chat__input"
-            placeholder="Écrire un message…"
+            placeholder={t("chatUi.writeMessage")}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             autoFocus
@@ -115,7 +120,7 @@ export default function MiniChatPopover() {
             type="submit"
             className="mini-chat__send"
             disabled={!draft.trim()}
-            aria-label="Envoyer"
+            aria-label={t("common.send")}
           >
             <Send size={14} aria-hidden />
           </button>

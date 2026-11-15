@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
+import { Trans, useTranslation } from "react-i18next";
+import { usePersonLabel } from "../../lib/participantLabel";
 import { incomingHandRaise, type TheaterState } from "../../lib/theater";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
@@ -25,6 +27,7 @@ export function useHandRaiseDesignPreview(): void {
 }
 
 function HandRaisePreview() {
+  const { t } = useTranslation();
   return createPortal(
     <>
       <div className="join-knock__backdrop" aria-hidden />
@@ -32,27 +35,28 @@ function HandRaisePreview() {
         className="join-knock"
         role="dialog"
         aria-live="polite"
-        aria-label={`${PREVIEW_HAND_RAISE_NAME} lève la main`}
+        aria-label={t("calls.handRaiseAria", { name: PREVIEW_HAND_RAISE_NAME })}
       >
         <div className="join-knock__icon" aria-hidden>
           <span className="join-knock__hand" />
         </div>
 
         <p className="join-knock__title">
-          <span className="join-knock__name">{PREVIEW_HAND_RAISE_NAME}</span> lève la main pour
-          poser une question
+          <Trans
+            i18nKey="calls.handRaiseQuestion"
+            values={{ name: PREVIEW_HAND_RAISE_NAME }}
+            components={{ name: <span className="join-knock__name" /> }}
+          />
         </p>
 
-        <p className="join-knock__hint">
-          Accepter pour l&apos;emmener sur scène le temps de sa question.
-        </p>
+        <p className="join-knock__hint">{t("calls.handRaiseHint")}</p>
 
         <div className="join-knock__actions join-knock__actions--split">
           <button type="button" className="join-knock__btn">
-            Refuser
+            {t("calls.decline")}
           </button>
           <button type="button" className="join-knock__btn">
-            Appeler
+            {t("calls.bringOnStage")}
           </button>
         </div>
       </div>
@@ -67,12 +71,15 @@ interface HandRaiseOverlayProps {
 
 /** Modal pour les intervenants qui reçoivent une main levée. */
 export default function HandRaiseOverlay({ theater }: HandRaiseOverlayProps) {
+  const { t } = useTranslation();
+  const labelOf = usePersonLabel();
   const workspaceId = useStore((s) => s.activeRoomId);
   const acceptHandRaise = useCallsStore((s) => s.acceptHandRaise);
   const declineHandRaise = useCallsStore((s) => s.declineHandRaise);
 
   const incoming = incomingHandRaise(theater);
   if (PREVIEW_HAND_RAISE || !incoming) return null;
+  const raiserName = labelOf(incoming.userName, false);
 
   return createPortal(
     <>
@@ -81,20 +88,21 @@ export default function HandRaiseOverlay({ theater }: HandRaiseOverlayProps) {
         className="join-knock"
         role="dialog"
         aria-live="polite"
-        aria-label={`${incoming.userName} lève la main`}
+        aria-label={t("calls.handRaiseAria", { name: raiserName })}
       >
         <div className="join-knock__icon" aria-hidden>
           <span className="join-knock__hand" />
         </div>
 
         <p className="join-knock__title">
-          <span className="join-knock__name">{incoming.userName}</span> lève la main pour poser
-          une question
+          <Trans
+            i18nKey="calls.handRaiseQuestion"
+            values={{ name: raiserName }}
+            components={{ name: <span className="join-knock__name" /> }}
+          />
         </p>
 
-        <p className="join-knock__hint">
-          Accepter pour l&apos;emmener sur scène le temps de sa question.
-        </p>
+        <p className="join-knock__hint">{t("calls.handRaiseHint")}</p>
 
         <div className="join-knock__actions join-knock__actions--split">
           <button
@@ -102,7 +110,7 @@ export default function HandRaiseOverlay({ theater }: HandRaiseOverlayProps) {
             className="join-knock__btn"
             onClick={() => declineHandRaise(workspaceId, incoming.id)}
           >
-            Refuser
+            {t("calls.decline")}
           </button>
           <button
             type="button"
@@ -110,7 +118,7 @@ export default function HandRaiseOverlay({ theater }: HandRaiseOverlayProps) {
             onClick={() => acceptHandRaise(workspaceId, incoming.id)}
             disabled={!!theater.question}
           >
-            Appeler
+            {t("calls.bringOnStage")}
           </button>
         </div>
       </div>

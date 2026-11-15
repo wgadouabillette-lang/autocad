@@ -2,10 +2,10 @@
 import clsx from "clsx";
 import { Crown, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import {
   LOCAL_USER_ID,
-  serverRoleLabel,
   type ServerRole,
   type Workspace,
 } from "../../lib/workspaces";
@@ -25,7 +25,8 @@ function WorkspaceTab({
   active: boolean;
   onSelect: (id: string) => void;
 }) {
-  const title = `${workspace.name} — ${serverRoleLabel(role)}`;
+  const { t } = useTranslation();
+  const title = `${workspace.name} — ${t(role === "owner" ? "calls.owner" : "calls.member")}`;
 
   return (
     <button

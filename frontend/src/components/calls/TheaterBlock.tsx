@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { Users } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { countTheaterParticipants, type TheaterState } from "../../lib/theater";
 import CallBlockCard from "./CallBlockCard";
 import TheaterBlockPreview from "./TheaterBlockPreview";
@@ -15,6 +16,7 @@ export default function TheaterBlock({
   onOpen,
   layout = "default",
 }: TheaterBlockProps) {
+  const { t } = useTranslation();
   const connected = countTheaterParticipants(theater);
 
   return (
@@ -26,7 +28,7 @@ export default function TheaterBlock({
         connected > 0 && "call-block--local",
         layout === "center" && "call-block--center-slot",
       )}
-      title="Théâtre"
+      title={t("calls.theater")}
       participants={[]}
       showActivity={false}
       trailing={
@@ -39,8 +41,8 @@ export default function TheaterBlock({
       onMainClick={onOpen}
       mainAriaLabel={
         connected > 0
-          ? `Ouvrir le théâtre vocal — ${connected} personne${connected > 1 ? "s" : ""}`
-          : "Ouvrir le théâtre vocal"
+          ? t("calls.openTheaterCount", { count: connected })
+          : t("calls.openTheater")
       }
     />
   );
