@@ -1282,10 +1282,19 @@ async function showSplashMainWindow() {
     const splashStillCurrent = () =>
       generation === windowModeGeneration && mainWindowMode === "splash";
     if (mainWindow && !mainWindow.isDestroyed()) {
-      // Hide first when leaving the full app so logout does not paint AuthPage
-      // over leftover workspace chrome in a still-maximized/fullscreen window.
+      // An update (or any return to splash while the workspace is on screen)
+      // must show the boot card, not the live app squeezed into 250×300.
       if (leavingApp && (mainWindow.isVisible() || mainWindow.isFullScreen())) {
+        await waitForLeaveFullScreen(mainWindow);
+        if (!splashStillCurrent() || !mainWindow || mainWindow.isDestroyed()) return;
         mainWindow.hide();
+        if (splashWindow && !splashWindow.isDestroyed()) {
+          splashWindow.show();
+          splashWindow.focus();
+        } else {
+          createSplashWindow();
+        }
+        return;
       }
       await applySplashChromeToMainWindow();
       if (!splashStillCurrent() || !mainWindow || mainWindow.isDestroyed()) return;

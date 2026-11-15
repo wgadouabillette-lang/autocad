@@ -454,6 +454,16 @@ export default function App() {
     return null;
   }
 
+  if (hasFormaDesktop() && blockingUpdate) {
+    return (
+      <AppLoadingScreen
+        connectionError={false}
+        label="Updating…"
+        progress={splashProgress}
+      />
+    );
+  }
+
   if (showEntryGate) {
     return (
       <>
