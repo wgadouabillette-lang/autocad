@@ -40,6 +40,12 @@
       .panel--choose p {
         margin-bottom: 0.35rem;
       }
+      .choose-logo {
+        display: none;
+        height: calc(32px * 4 / 9);
+        width: auto;
+        margin: 0 0 0.85rem;
+      }
       .choose-title {
         display: none;
         margin: 0 0 0.4rem;
@@ -50,10 +56,11 @@
         line-height: 1.2;
       }
       html.is-choose.has-account .panel--choose {
-        max-width: calc(34rem - 80px);
+        max-width: calc(34rem - 60px);
         text-align: left;
         transform: translateY(40px);
       }
+      html.is-choose.has-account .choose-logo,
       html.is-choose.has-account .choose-title {
         display: block;
       }
@@ -63,6 +70,26 @@
         font-size: 0.875rem;
         line-height: 1.4;
         white-space: nowrap;
+      }
+      .account-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+      }
+      .account-list[hidden] {
+        display: none;
+      }
+      .issued-code {
+        display: none;
+        margin: 0.9rem 0 0;
+        color: #fff;
+        font-size: 1.55rem;
+        font-weight: 650;
+        letter-spacing: 0.18em;
+        user-select: all;
+      }
+      html.is-done .issued-code {
+        display: block;
       }
       .panel__actions {
         display: flex;
@@ -175,21 +202,17 @@
       <p>Signing in…</p>
     </div>
     <div class="panel panel--choose">
+      <img class="choose-logo" src="meetra-mark.svg" alt="Meetra" />
       <h1 id="choose-title" class="choose-title" hidden>Sign in to Meetra Desktop</h1>
       <p id="choose-lead">Sign in with Google to continue.</p>
       <div class="panel__actions">
-        <button type="button" id="continue-same" class="account-card" hidden>
-          <span class="account-card__avatar" id="account-avatar" aria-hidden="true"></span>
-          <span class="account-card__meta">
-            <span class="account-card__name" id="account-name"></span>
-            <span class="account-card__email" id="account-email"></span>
-          </span>
-        </button>
+        <div id="account-list" class="account-list" hidden></div>
         <button type="button" id="use-another" class="btn-secondary">Use another account</button>
       </div>
     </div>
     <div class="panel panel--done">
-      <p id="done-lead">You can reopen the app. Your account is synced.</p>
+      <p id="done-lead">Enter this code in the Meetra app.</p>
+      <p id="issued-code" class="issued-code"></p>
     </div>
     <div class="panel panel--error">
       <p id="error-lead">Sign-in failed.</p>

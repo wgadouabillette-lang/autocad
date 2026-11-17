@@ -9,6 +9,7 @@ from typing import Any
 
 from app.core import firebase
 from app.core.config import _data_dir
+from app.core.data_cipher import open_token_fields, seal_token_fields, token_fields_need_seal
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,34 @@ _ITEMS_CACHE: dict[str, tuple[dict[str, Any], float]] = {}
 _ITEMS_CACHE_TTL_SEC = 30.0
 # An empty read must not hide a connection that lands a few seconds later.
 _EMPTY_ITEMS_CACHE_TTL_SEC = 2.0
+
+
+def _open_items(items: dict[str, Any]) -> dict[str, Any]:
+    opened: dict[str, Any] = {}
+    for connector_id, entry in items.items():
+        opened[connector_id] = open_token_fields(entry) if isinstance(entry, dict) else entry
+    return opened
+
+
+def _stored_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return seal_token_fields(entry)
+    except RuntimeError:
+        logger.error("Refusing to store connector tokens without MEETRA_DATA_KEY.")
+        raise
+
+
+def _reseal_plaintext(uid: str, raw_items: dict[str, Any]) -> None:
+    for connector_id, entry in raw_items.items():
+        if not isinstance(entry, dict) or not token_fields_need_seal(entry):
+            continue
+        opened = open_token_fields(entry)
+        if not opened.get("access_token"):
+            continue
+        try:
+            _set_firestore_connector(uid, connector_id, _stored_entry(opened))
+        except Exception:
+            logger.warning("Could not encrypt stored connector %s for %s.", connector_id, uid)
 
 
 def _invalidate_items_cache(uid: str) -> None:
@@ -171,7 +200,7 @@ def _migrate_local_items_to_firestore(uid: str, items: dict[str, Any]) -> bool:
     ok = True
     for connector_id, entry in items.items():
         if isinstance(entry, dict):
-            ok = _set_firestore_connector(uid, connector_id, entry) and ok
+            ok = _set_firestore_connector(uid, connector_id, _stored_entry(entry)) and ok
     return ok
 
 
@@ -182,17 +211,17 @@ def _load_doc(uid: str) -> dict[str, Any]:
         return dict(cached[0])
 
     if _using_local_store():
-        items = _load_local_doc(uid)
+        items = _open_items(_load_local_doc(uid))
         return _remember_items(uid, items, now)
 
     items = _load_firestore_items(uid)
     if items is None:
-        # Read failed — fall back to local without caching empty as authoritative.
-        local_items = _load_local_doc(uid)
+        local_items = _open_items(_load_local_doc(uid))
         return dict(local_items)
 
     if items:
-        return _remember_items(uid, items, now)
+        _reseal_plaintext(uid, items)
+        return _remember_items(uid, _open_items(items), now)
 
     local_items = _load_local_doc(uid)
     if local_items and _migrate_local_items_to_firestore(uid, local_items):
@@ -204,7 +233,7 @@ def _load_doc(uid: str) -> dict[str, Any]:
     else:
         items = local_items or {}
 
-    return _remember_items(uid, items, now)
+    return _remember_items(uid, _open_items(items), now)
 
 
 def load_all_connections(uid: str) -> dict[str, Any]:
@@ -232,12 +261,12 @@ def set_connection(uid: str, connector_id: str, provider: str, tokens: dict[str,
     if isinstance(expires_in, (int, float)) and expires_in > 0:
         expires_at = time.time() + float(expires_in)
 
-    entry = {
+    entry = _stored_entry({
         "provider": provider,
         "connected_at": time.time(),
         "expires_at": expires_at,
         **tokens,
-    }
+    })
 
     _invalidate_items_cache(uid)
     if _using_local_store():

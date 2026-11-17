@@ -28,6 +28,10 @@ export default function AuthPage({
   const cancelDesktopWebAuth = useAuthStore((s) => s.cancelDesktopWebAuth);
   const desktopWebAuthPending = useAuthStore((s) => s.desktopWebAuthPending);
   const desktopWebAuthConnected = useAuthStore((s) => s.desktopWebAuthConnected);
+  const submitDesktopAuthCode = useAuthStore((s) => s.submitDesktopAuthCode);
+  const desktopWebAuthCodeError = useAuthStore((s) => s.desktopWebAuthCodeError);
+  const desktopWebAuthCodeBusy = useAuthStore((s) => s.desktopWebAuthCodeBusy);
+  const [desktopCode, setDesktopCode] = useState("");
   const authError = useAuthStore((s) => s.authError);
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
@@ -99,9 +103,35 @@ export default function AuthPage({
                         <div className="app-loading-screen__spinner auth-page__waiting-spinner" aria-hidden />
                       )}
                       <span className="auth-page__waiting-copy">
-                        {desktopConnected ? "You're connected" : "Continue in your browser"}
+                        {desktopConnected ? "You're connected" : "Enter the code shown in the browser"}
                       </span>
                     </div>
+                    {!desktopConnected ? (
+                      <form
+                        className="auth-page__code-form"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          submitDesktopAuthCode(desktopCode);
+                        }}
+                      >
+                        <input
+                          className="auth-page__code-input"
+                          value={desktopCode}
+                          onChange={(event) => setDesktopCode(event.target.value)}
+                          autoComplete="one-time-code"
+                          spellCheck={false}
+                          maxLength={9}
+                          aria-label="Code shown in the browser"
+                          disabled={desktopWebAuthCodeBusy}
+                        />
+                        {desktopWebAuthCodeError ? (
+                          <p className="seat-gate__error">{desktopWebAuthCodeError}</p>
+                        ) : null}
+                        <button type="submit" className="seat-gate__pay" disabled={desktopWebAuthCodeBusy}>
+                          {desktopWebAuthCodeBusy ? "Checking…" : "Continue"}
+                        </button>
+                      </form>
+                    ) : null}
                     {!desktopConnected && (
                       <div className="auth-page__waiting-actions">
                         <button

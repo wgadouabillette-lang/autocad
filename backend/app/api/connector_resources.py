@@ -681,6 +681,24 @@ async def spotify_player_token(user: FirebaseUser = Depends(require_firebase_use
     return {"accessToken": token}
 
 
+def _spotify_album_image(images: list[Any]) -> str | None:
+    """Spotify lists the same cover at several sizes. Keep the largest."""
+    best_url: str | None = None
+    best_width = -1
+    for image in images:
+        if not isinstance(image, dict):
+            continue
+        url = image.get("url")
+        if not isinstance(url, str) or not url.strip():
+            continue
+        width = image.get("width")
+        size = int(width) if isinstance(width, (int, float)) else 0
+        if best_url is None or size > best_width:
+            best_url = url.strip()
+            best_width = size
+    return best_url
+
+
 def _spotify_track_card(track: dict[str, Any]) -> dict[str, Any]:
     artists = track.get("artists") or []
     artist_names = ", ".join(
@@ -690,9 +708,7 @@ def _spotify_track_card(track: dict[str, Any]) -> dict[str, Any]:
     )
     album = track.get("album") if isinstance(track.get("album"), dict) else {}
     images = album.get("images") if isinstance(album.get("images"), list) else []
-    image_url = None
-    if images:
-        image_url = images[min(1, len(images) - 1)].get("url") if isinstance(images[0], dict) else None
+    image_url = _spotify_album_image(images)
     external = track.get("external_urls") if isinstance(track.get("external_urls"), dict) else {}
     duration_ms = track.get("duration_ms")
     return {
@@ -791,6 +807,31 @@ async def _fetch_spotify_track(token: str, track_id: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise HTTPException(404, "Piste introuvable.")
     return data
+
+
+@router.get("/spotify/tracks/{track_id}")
+async def spotify_track(
+    track_id: str,
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    token = await _require_token(user.uid, "spotify")
+    safe_id = track_id.strip()
+    if not safe_id:
+        raise HTTPException(400, "Identifiant de piste manquant.")
+    async with httpx.AsyncClient(timeout=25) as client:
+        r = await client.get(
+            f"https://api.spotify.com/v1/tracks/{safe_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if r.status_code != 200:
+        raise HTTPException(
+            r.status_code,
+            _spotify_api_error_message(r.status_code, r.text),
+        )
+    data = r.json()
+    if not isinstance(data, dict):
+        raise HTTPException(404, "Piste introuvable.")
+    return _spotify_track_card(data)
 
 
 @router.get("/spotify/tracks/{track_id}/beat-grid")

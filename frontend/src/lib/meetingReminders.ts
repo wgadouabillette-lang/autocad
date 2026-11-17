@@ -1,4 +1,6 @@
-import { formatScheduleTime, isValidDate, parseDateKey } from "./daySchedule";
+import i18n from "./i18n";
+import { formatScheduleTime } from "./daySchedule";
+import { directCallStartMs } from "./directCallCalendar";
 import type { CalendarEvent } from "../store/useCalendarStore";
 import { useNotificationsStore } from "../store/useNotificationsStore";
 
@@ -39,9 +41,7 @@ function markFired(email: string | null, key: string): void {
 }
 
 function eventStartMs(event: CalendarEvent): number | null {
-  const date = parseDateKey(event.dateKey);
-  if (!isValidDate(date)) return null;
-  return date.getTime() + event.startMinutes * 60 * 1000;
+  return directCallStartMs(event.dateKey, event.startMinutes);
 }
 
 function reminderBody(offset: MeetingReminderOffset, event: CalendarEvent): string {
@@ -60,6 +60,27 @@ export function checkMeetingReminders(email: string | null, events: CalendarEven
   for (const event of events) {
     const startMs = eventStartMs(event);
     if (startMs === null || startMs <= now) continue;
+
+    if (event.callId) {
+      const firedKey = `${event.id}:5m`;
+      const targetMs = startMs - 5 * 60 * 1000;
+      if (!fired.has(firedKey) && now >= targetMs && now < startMs) {
+        push(
+          {
+            id: `meeting-reminder-${event.id}-5m`,
+            kind: "meeting",
+            category: "Calendar",
+            title: i18n.t("directCall.meetingSoon"),
+            body: event.title,
+            callId: event.callId,
+          },
+          { openPanel: true },
+        );
+        markFired(email, firedKey);
+        fired.add(firedKey);
+      }
+      continue;
+    }
 
     for (const { offset, minutes } of REMINDER_OFFSETS) {
       const firedKey = `${event.id}:${offset}`;

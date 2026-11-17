@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import {
+  isMarketingHomePreviewScene,
   isMarketingPreview,
   isMarketingRecordingPreviewScene,
+  MARKETING_HOME_DJ_DURATION_SEC,
+  MARKETING_HOME_DJ_ELAPSED_SEC,
   MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC,
   MARKETING_RECORDING_DJ_DURATION_SEC,
   MARKETING_RECORDING_DJ_ELAPSED_SEC,
@@ -30,6 +33,12 @@ export interface SpotifyTrackProgress {
 const MARKETING_PREVIEW_DURATION_SEC = 210;
 
 function marketingPreviewClock(): { elapsed: number; duration: number } {
+  if (isMarketingHomePreviewScene()) {
+    return {
+      elapsed: MARKETING_HOME_DJ_ELAPSED_SEC,
+      duration: MARKETING_HOME_DJ_DURATION_SEC,
+    };
+  }
   if (isMarketingRecordingPreviewScene()) {
     return {
       elapsed: MARKETING_RECORDING_DJ_ELAPSED_SEC,

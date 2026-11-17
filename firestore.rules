@@ -475,9 +475,8 @@ service cloud.firestore {
     }
 
     match /userDirectory/{uid} {
-      // Single-document reads only. Listing the directory would expose every email.
-      // Email search goes through the rate-limited API, not a collection query.
-      allow get: if isSignedIn();
+      // Other profiles go through the rate-limited API, which checks the relationship.
+      allow get: if isOwner(uid);
       allow list: if false;
       allow create, update: if isOwner(uid) && isValidDirectoryProfile(uid);
       allow delete: if false;
@@ -552,7 +551,24 @@ service cloud.firestore {
           && data.manageDisplayText.size() <= 500
           && data.manageEvents is list
           && data.manageEvents.size() > 0
-          && data.manageEvents.size() <= 30))
+          && data.manageEvents.size() <= 30)
+        || (data.kind == 'meeting'
+          && data.meetingTitle is string
+          && data.meetingTitle.size() <= 200
+          && data.meetingDateKey is string
+          && data.meetingDateKey.size() <= 32
+          && data.meetingStartTime is string
+          && data.meetingStartTime.size() <= 16
+          && data.meetingEndTime is string
+          && data.meetingEndTime.size() <= 16
+          && data.meetingOrganizerName is string
+          && data.meetingOrganizerName.size() <= 120)
+        || (data.kind == 'workspace_invite'
+          && data.workspaceInviteId is string
+          && data.workspaceInviteId.size() > 0
+          && data.workspaceInviteId.size() <= 128
+          && data.workspaceInviteName is string
+          && data.workspaceInviteName.size() <= 120))
         && (!('handoffTitle' in data) || data.handoffTitle is string)
         && (!('handoffPreview' in data) || data.handoffPreview is string)
         && (!('manageSummary' in data) || data.manageSummary is string);
@@ -599,9 +615,8 @@ service cloud.firestore {
         allow create: if isSignedIn()
           && isFriendChatMember(chatId)
           && request.resource.data.authorUid == request.auth.uid
-          && request.resource.data.participants is list
-          && request.resource.data.participants.size() == 2
-          && request.auth.uid in request.resource.data.participants
+          && request.resource.data.participants
+            == get(/databases/$(database)/documents/friendChats/$(chatId)).data.participants
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 4000
           && (
@@ -639,27 +654,15 @@ service cloud.firestore {
       allow read: if isSignedIn()
         && resource.data.participants is list
         && request.auth.uid in resource.data.participants;
-      allow create: if isSignedIn()
-        && request.resource.data.participants is list
-        && request.resource.data.participants.size() >= 2
-        && request.resource.data.participants.size() <= 32
-        && request.auth.uid in request.resource.data.participants
-        && request.resource.data.creatorUid == request.auth.uid
+      allow create: if false;
+      // Members may rename. Participant changes go through createGroupChat.
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.participants
+        && request.resource.data.participants == resource.data.participants
+        && request.resource.data.creatorUid == resource.data.creatorUid
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
         && request.resource.data.name.size() <= 80;
-      // Members may rename; only creator may change participants.
-      allow update: if isSignedIn()
-        && request.auth.uid in resource.data.participants
-        && request.resource.data.participants is list
-        && request.resource.data.participants.size() >= 2
-        && request.resource.data.participants.size() <= 32
-        && request.auth.uid in request.resource.data.participants
-        && request.resource.data.creatorUid == resource.data.creatorUid
-        && (
-          request.resource.data.participants == resource.data.participants
-          || resource.data.creatorUid == request.auth.uid
-        );
       allow delete: if isSignedIn()
         && resource.data.participants is list
         && request.auth.uid in resource.data.participants
@@ -673,8 +676,8 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants is list
           && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants
           && request.resource.data.authorUid == request.auth.uid
-          && request.resource.data.participants is list
-          && request.auth.uid in request.resource.data.participants
+          && request.resource.data.participants
+            == get(/databases/$(database)/documents/groupChats/$(groupId)).data.participants
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 4000
@@ -697,23 +700,8 @@ service cloud.firestore {
     }
 
     match /desktopAuthSessions/{sessionId} {
-      // 0.1.18 creates the doc from the browser when the API fallback is used.
-      allow create: if request.auth != null
-        && request.resource.data.keys().hasAll(["provider", "idToken", "createdAt"])
-        && request.resource.data.provider in ["google", "microsoft", "facebook"]
-        && request.resource.data.idToken is string
-        && request.resource.data.idToken.size() > 100;
-      // 0.1.19+ : the backend already stored a claim-secret hash. The browser may
-      // attach its Google token, but cannot read, replace the hash, or set a custom token.
-      allow update: if request.auth != null
-        && resource.data.claimSecretHash is string
-        && request.resource.data.claimSecretHash == resource.data.claimSecretHash
-        && request.resource.data.provider == "google"
-        && request.resource.data.idToken is string
-        && request.resource.data.idToken.size() > 100
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(["provider", "idToken", "accessToken", "createdAt"]);
-      allow read, delete: if false;
+      // Written only by the backend and Cloud Functions (Admin SDK).
+      allow read, write: if false;
     }
 
     match /workspacesShared/{workspaceId} {

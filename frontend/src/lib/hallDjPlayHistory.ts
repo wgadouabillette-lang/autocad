@@ -37,6 +37,32 @@ function pruneEvents(events: PlayEvent[]): PlayEvent[] {
   return events.filter((entry) => entry.playedAt >= cutoff);
 }
 
+function albumArtScore(track: SpotifyTrackCard): number {
+  const url = track.imageUrl?.trim() ?? "";
+  if (!url) return 0;
+  if (/scdn\.co|spotifycdn\.com/i.test(url)) return 2;
+  return 1;
+}
+
+export function rememberHallDjTrackArt(track: SpotifyTrackCard) {
+  const trackId = track.id?.trim();
+  const imageUrl = track.imageUrl?.trim();
+  if (!trackId || !imageUrl) return;
+  const events = readEvents();
+  let changed = false;
+  for (const entry of events) {
+    if (entry.trackId !== trackId) continue;
+    if (albumArtScore(track) <= albumArtScore(entry.track)) continue;
+    entry.track = {
+      ...entry.track,
+      imageUrl,
+      album: track.album || entry.track.album,
+    };
+    changed = true;
+  }
+  if (changed) writeEvents(events);
+}
+
 export function recordHallDjPlay(track: SpotifyTrackCard) {
   const trackId = track.id?.trim();
   if (!trackId) return;
@@ -58,6 +84,9 @@ export function hallDjPopularTracksLast7Days(limit = 12): HallDjPopularTrack[] {
     if (existing) {
       existing.playCount += 1;
       existing.lastPlayedAt = Math.max(existing.lastPlayedAt, entry.playedAt);
+      if (albumArtScore(entry.track) > albumArtScore(existing.track)) {
+        existing.track = entry.track;
+      }
       continue;
     }
     byId.set(entry.trackId, {
@@ -90,7 +119,9 @@ export function mergeSpotifyRecentPlays(
     if (existing) {
       existing.playCount += 1;
       existing.lastPlayedAt = Math.max(existing.lastPlayedAt, playedAt);
-      existing.track = track;
+      if (albumArtScore(track) >= albumArtScore(existing.track)) {
+        existing.track = track;
+      }
       continue;
     }
     byId.set(trackId, { track, playCount: 1, lastPlayedAt: playedAt });

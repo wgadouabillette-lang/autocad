@@ -31,13 +31,15 @@ def use_local_env_only() -> bool:
 
 
 def use_secret_manager() -> bool:
-    """GSM at runtime needs GCP ADC — not available on Vercel serverless."""
+    """GSM at runtime needs GCP ADC — not available on Vercel serverless.
+
+    A partial backend/.env (Dropbox, Stripe, …) must not hide Gmail, Calendar,
+    or Spotify credentials stored in forma-backend-env. That file is applied
+    afterwards and only overrides keys it actually sets.
+    """
     if use_local_env_only():
         return False
     if os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("VERCEL_URL"):
-        return False
-    # Local backend/.env exists → skip GSM (évite ~60s de timeout ADC en dev).
-    if _backend_env_file().exists():
         return False
     return True
 

@@ -69,6 +69,7 @@ import {
   markDesktopAuthAccountChoiceRequired,
   reopenDesktopWebAuth as reopenDesktopWebAuthUrl,
   signInViaDesktopWebAuth,
+  submitDesktopWebAuthCode,
 } from "../lib/firebase/desktopAuth";
 
 export type AuthProvider = FirebaseAuthProvider;
@@ -126,6 +127,9 @@ interface AuthState {
   emailLinkSent: boolean;
   desktopWebAuthPending: boolean;
   desktopWebAuthConnected: boolean;
+  desktopWebAuthCodeError: string | null;
+  desktopWebAuthCodeBusy: boolean;
+  submitDesktopAuthCode: (code: string) => void;
   meetraIntroCompleted: boolean;
   acknowledgeDesktopAuthConnected: () => boolean;
   hydrate: () => () => void;
@@ -537,6 +541,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   emailLinkSent: false,
   desktopWebAuthPending: false,
   desktopWebAuthConnected: false,
+  desktopWebAuthCodeError: null,
+  desktopWebAuthCodeBusy: false,
   meetraIntroCompleted: false,
 
   hydrate: () => {
@@ -808,16 +814,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const desktopAuthGen = hasFormaDesktop() ? ++desktopWebAuthGeneration : desktopWebAuthGeneration;
     try {
       if (hasFormaDesktop()) {
-        set({ desktopWebAuthPending: true, desktopWebAuthConnected: false });
+        set({
+          desktopWebAuthPending: true,
+          desktopWebAuthConnected: false,
+          desktopWebAuthCodeError: null,
+          desktopWebAuthCodeBusy: false,
+        });
         try {
-          await signInViaDesktopWebAuth(() => {
-            if (desktopAuthGen === desktopWebAuthGeneration) {
-              set({ desktopWebAuthConnected: true });
-            }
-          });
+          await signInViaDesktopWebAuth(
+            () => {
+              if (desktopAuthGen === desktopWebAuthGeneration) {
+                set({ desktopWebAuthConnected: true, desktopWebAuthCodeBusy: false });
+              }
+            },
+            () => {
+              if (desktopAuthGen === desktopWebAuthGeneration) {
+                set({
+                  desktopWebAuthCodeBusy: false,
+                  desktopWebAuthCodeError: "That code doesn't match the browser.",
+                });
+              }
+            },
+          );
         } finally {
           if (desktopAuthGen === desktopWebAuthGeneration) {
-            set({ desktopWebAuthPending: false });
+            set({ desktopWebAuthPending: false, desktopWebAuthCodeBusy: false });
           }
         }
         // #region agent log
@@ -843,7 +864,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error) {
       if (isDesktopWebAuthCancelled(error)) {
         if (desktopAuthGen === desktopWebAuthGeneration) {
-          set({ desktopWebAuthPending: false, desktopWebAuthConnected: false });
+          set({
+            desktopWebAuthPending: false,
+            desktopWebAuthConnected: false,
+            desktopWebAuthCodeError: null,
+            desktopWebAuthCodeBusy: false,
+          });
         }
         return;
       }
@@ -875,6 +901,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         ready: true,
         desktopWebAuthPending: false,
         desktopWebAuthConnected: false,
+        desktopWebAuthCodeError: null,
+  desktopWebAuthCodeBusy: false,
       });
     }
   },
@@ -894,10 +922,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  submitDesktopAuthCode: (code) => {
+    const compact = code.trim().toUpperCase().replace(/[\s-]/g, "");
+    if (!/^[A-Z2-9]{8}$/.test(compact)) {
+      set({ desktopWebAuthCodeError: "Enter the 8-character code from the browser." });
+      return;
+    }
+    set({ desktopWebAuthCodeError: null, desktopWebAuthCodeBusy: true });
+    submitDesktopWebAuthCode(compact);
+  },
+
   cancelDesktopWebAuth: () => {
     desktopWebAuthGeneration += 1;
     abortDesktopWebAuthWait();
-    set({ desktopWebAuthPending: false, desktopWebAuthConnected: false, authError: null });
+    set({
+      desktopWebAuthPending: false,
+      desktopWebAuthConnected: false,
+      desktopWebAuthCodeError: null,
+      desktopWebAuthCodeBusy: false,
+      authError: null,
+    });
   },
 
   signOut: async (options) => {
@@ -929,6 +973,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       emailLinkSent: false,
       desktopWebAuthPending: false,
       desktopWebAuthConnected: false,
+      desktopWebAuthCodeError: null,
+  desktopWebAuthCodeBusy: false,
       meetraIntroCompleted: false,
     });
     if (hasFormaDesktop()) {

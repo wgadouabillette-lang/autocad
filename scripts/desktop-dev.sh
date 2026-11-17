@@ -40,9 +40,6 @@ VITE_PORT="$(find_vite_port)"
 echo "Backend  → http://127.0.0.1:8000/docs"
 export FORMA_SECRETS_PROJECT="${FORMA_SECRETS_PROJECT:-${FIREBASE_PROJECT_ID:-forma-cad-dev}}"
 export FORMA_BILLING_TIMING=1
-if [[ -f backend/.env ]]; then
-  export FORMA_USE_LOCAL_ENV=1
-fi
 if port_in_use 8000; then
   echo "         (port 8000 occupé — redémarrage du backend pour recharger les secrets)"
   pkill -f "uvicorn app.main:app.*--port 8000" 2>/dev/null || true

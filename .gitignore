@@ -4,6 +4,7 @@ backend/.venv/
 __pycache__/
 *.pyc
 backend/.env
+backend/.data/
 backend/connector_tokens/
 
 # Node

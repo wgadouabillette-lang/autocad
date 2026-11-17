@@ -309,6 +309,12 @@ export async function fetchSpotifyPreview(): Promise<SpotifyPreviewResult> {
   return (await r.json()) as SpotifyPreviewResult;
 }
 
+export async function fetchSpotifyTrack(trackId: string): Promise<SpotifyTrackCard> {
+  const r = await fetchWithAuth(`/spotify/tracks/${encodeURIComponent(trackId)}`);
+  if (!r.ok) throw new Error(await readError(r));
+  return (await r.json()) as SpotifyTrackCard;
+}
+
 export async function searchSpotifyTracks(
   query: string,
   limit = 8,

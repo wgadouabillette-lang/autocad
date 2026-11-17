@@ -690,5 +690,28 @@
     },
     "sayHello": "Say hello to {{name}}.",
     "liveChatEveryone": "Everyone can use this live chat"
+  },
+  "directCall": {
+    "title": "Call anyone outside this workspace",
+    "subtitle": "Choose the option that matches what you want to do next. You can join a call, start a new one right away, or schedule it for later, then continue from there.",
+    "join": "Join a call",
+    "joinNote": "Use a code or a link.",
+    "start": "New call",
+    "startNote": "Start one right now.",
+    "schedule": "Schedule",
+    "scheduleNote": "Pick a time for later.",
+    "joinPlaceholder": "Paste the call link",
+    "pasteTitle": "Paste your ID",
+    "pasteSubtitle": "Paste the ID shown at the bottom of the call you want to join.",
+    "scheduleTitle": "Schedule a call",
+    "scheduleSubtitle": "Add the time and the details, then generate an ID others can use to join.",
+    "scheduleIdLater": "You can copy the ID later, so there's no need to worry about losing it before then.",
+    "generateId": "Generate ID",
+    "generateIdHint": "Generate an ID for this call",
+    "joinNow": "Join Now",
+    "copyId": "Copy call ID {{id}}",
+    "copied": "Copied",
+    "meetingSoon": "You have a meeting in 5 minutes",
+    "leave": "Leave"
   }
 }

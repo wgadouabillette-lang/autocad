@@ -24,7 +24,6 @@ import {
   useWorkspaceListenTargetIds,
   workspaceListenTargetsKey,
 } from "./useWorkspaceListenTargetIds";
-
 function syncCallsFromPresenceStore(workspaceId: string, localFirebaseUid: string) {
   const members = useWorkspacePresenceStore.getState().membersByWorkspace[workspaceId] ?? {};
   const memberRows = Object.entries(members).map(([id, entry]) => ({

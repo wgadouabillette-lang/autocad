@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "crypto";
+import { createHash, randomInt, timingSafeEqual } from "crypto";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -7,6 +7,7 @@ import { setGlobalOptions } from "firebase-functions/v2";
 import { runAiChat, assertAuthenticated } from "./ai/chat";
 import { runAiTranscribe } from "./ai/transcribe";
 import { platformKeyStatus, userApiKeyDocPath, userApiKeysCollectionPath } from "./ai/keys";
+import { sealSecret } from "./ai/secretBox";
 import { syncDevSubscriptionPlan as applyDevSubscriptionPlan } from "./billing/syncDevSubscription";
 import { ensureFunctionsSecretsLoaded } from "./loadSecrets";
 import "./loadSecrets";
@@ -27,6 +28,9 @@ export { ensureFriendship, onFriendRequestAccepted } from "./friendship";
 
 /** ACL RTDB typing groupes. */
 export { ensureGroupAcl, onGroupChatAclWrite } from "./groupAcl";
+
+/** Création de groupe : amis ou collègues seulement. */
+export { createGroupChat } from "./groupChatCreate";
 
 initializeApp();
 
@@ -72,9 +76,15 @@ export const setUserApiKey = onCall({ cors: true }, async (request) => {
   const apiKey = assertApiKey(request.data?.apiKey);
   const uid = request.auth.uid;
 
+  let storedKey: string;
+  try {
+    storedKey = sealSecret(apiKey);
+  } catch {
+    throw new HttpsError("failed-precondition", "Token encryption is not configured.");
+  }
   await apiKeyRef(uid, provider).set({
     provider,
-    apiKey,
+    apiKey: storedKey,
     keyPreview: keyPreview(apiKey),
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -194,22 +204,73 @@ function assertClaimSecret(secret: unknown): string {
   return secret;
 }
 
+function assertUserCode(code: unknown): string {
+  if (typeof code !== "string") {
+    throw new HttpsError("permission-denied", "Desktop auth code was refused.");
+  }
+  const compact = code.trim().toUpperCase().replace(/[\s-]/g, "");
+  if (!/^[A-Z2-9]{8}$/.test(compact)) {
+    throw new HttpsError("permission-denied", "Desktop auth code was refused.");
+  }
+  return compact;
+}
+
+const USER_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function newUserCode(): string {
+  let code = "";
+  for (let i = 0; i < 8; i += 1) {
+    code += USER_CODE_ALPHABET[randomInt(USER_CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
+function formatUserCode(code: string): string {
+  return `${code.slice(0, 4)}-${code.slice(4)}`;
+}
+
 export const completeDesktopAuthSession = onCall({ cors: true }, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError("unauthenticated", "Authentication required.");
   }
   const sessionId = assertDesktopAuthSessionId(request.data?.sessionId);
   const ref = desktopAuthSessionRef(sessionId);
-  const customToken = await getAuth().createCustomToken(request.auth.uid);
-  await ref.set(
-    {
-      token: customToken,
-      uid: request.auth.uid,
-      createdAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true },
-  );
-  return { ok: true };
+  const existing = await ref.get();
+  const claimHash = existing.data()?.claimSecretHash;
+  if (typeof claimHash !== "string" || claimHash.length !== 64) {
+    throw new HttpsError("permission-denied", "Desktop auth code was refused.");
+  }
+  const uid = request.auth.uid;
+  const customToken = await getAuth().createCustomToken(uid);
+  const issued = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.data() ?? {};
+    const current = data.userCode;
+    const owner = data.uid;
+    if (typeof current === "string" && owner === uid) {
+      if (typeof data.token !== "string" || !data.token) {
+        tx.set(ref, { token: customToken, uid }, { merge: true });
+      }
+      return current;
+    }
+    if (typeof current === "string" && typeof owner === "string" && owner !== uid) {
+      throw new HttpsError("permission-denied", "Desktop auth code was refused.");
+    }
+    const code = newUserCode();
+    tx.set(
+      ref,
+      {
+        userCode: code,
+        userCodeHash: claimSecretDigest(code),
+        token: customToken,
+        uid,
+        createdAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    return code;
+  });
+  return { ok: true, userCode: formatUserCode(issued) };
 });
 
 export const claimDesktopAuthSession = onCall({ cors: true }, async (request) => {
@@ -224,13 +285,20 @@ export const claimDesktopAuthSession = onCall({ cors: true }, async (request) =>
   const data = snap.data();
   const storedHash = data?.claimSecretHash;
   const hasClaimHash = typeof storedHash === "string" && storedHash.length === 64;
-  if (hasClaimHash) {
-    const claimSecret = assertClaimSecret(rawSecret);
-    if (!claimSecretMatches(storedHash, claimSecret)) {
-      throw new HttpsError("permission-denied", "Desktop auth claim was refused.");
-    }
-  } else if (typeof rawSecret === "string" && rawSecret.length > 0) {
+  if (!hasClaimHash) {
+    throw new HttpsError("permission-denied", "Desktop auth claim was refused.");
+  }
+  const claimSecret = assertClaimSecret(rawSecret);
+  if (!claimSecretMatches(storedHash, claimSecret)) {
+    throw new HttpsError("permission-denied", "Desktop auth claim was refused.");
+  }
+  const userCode = assertUserCode(request.data?.userCode);
+  const storedCodeHash = data?.userCodeHash;
+  if (typeof storedCodeHash !== "string" || storedCodeHash.length !== 64) {
     return { status: "pending" as const };
+  }
+  if (!claimSecretMatches(storedCodeHash, userCode)) {
+    throw new HttpsError("permission-denied", "Desktop auth code was refused.");
   }
   const createdAt = data?.createdAt?.toDate?.()?.getTime?.() ?? 0;
   if (createdAt && Date.now() - createdAt > DESKTOP_AUTH_SESSION_TTL_MS) {

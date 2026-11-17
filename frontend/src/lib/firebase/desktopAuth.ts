@@ -5,18 +5,13 @@ import {
   type AuthCredential,
   type UserCredential,
 } from "firebase/auth";
-import {
-  doc,
-  serverTimestamp,
-  setDoc,
-} from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { apiUrl } from "../apiBase";
 import { getAuthIdToken, waitForAuthIdToken } from "./authToken";
 import { hasFormaDesktop } from "../formaDesktop";
 import { clearBillingAuthCache } from "../billingApi";
 import { clearConnectorAuthCache } from "../connectorsApi";
-import { auth, db, functions, type FirebaseAuthProvider } from "./client";
+import { auth, functions, type FirebaseAuthProvider } from "./client";
 
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
@@ -77,6 +72,13 @@ export class DesktopWebAuthCancelledError extends Error {
   constructor() {
     super("Desktop web auth cancelled");
     this.name = "DesktopWebAuthCancelledError";
+  }
+}
+
+export class DesktopAuthCodeRejectedError extends Error {
+  constructor() {
+    super("That code doesn't match the browser.");
+    this.name = "DesktopAuthCodeRejectedError";
   }
 }
 
@@ -200,9 +202,9 @@ async function openExternalAuthUrl(url: string): Promise<void> {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-async function completeDesktopAuthSessionViaBackend(sessionId: string): Promise<boolean> {
+async function completeDesktopAuthSessionViaBackend(sessionId: string): Promise<string | null> {
   const idToken = await getAuthIdToken(true);
-  if (!idToken) return false;
+  if (!idToken) return null;
   const response = await fetch(apiUrl("/api/auth/desktop/complete"), {
     method: "POST",
     headers: {
@@ -211,51 +213,26 @@ async function completeDesktopAuthSessionViaBackend(sessionId: string): Promise<
     },
     body: JSON.stringify({ sessionId }),
   });
-  if (!response.ok) return false;
+  if (!response.ok) return null;
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.includes("application/json")) return false;
-  const data = (await response.json()) as { ok?: unknown };
-  return data.ok === true;
+  if (!contentType.includes("application/json")) return null;
+  const data = (await response.json()) as { ok?: unknown; userCode?: unknown };
+  return data.ok === true && typeof data.userCode === "string" ? data.userCode : null;
 }
 
-async function completeDesktopAuthSessionViaFirestore(
-  sessionId: string,
-  payload: DesktopAuthOAuthPayload,
-): Promise<void> {
-  await setDoc(
-    doc(db, "desktopAuthSessions", sessionId),
-    {
-      provider: payload.provider,
-      idToken: payload.idToken,
-      accessToken: payload.accessToken ?? null,
-      createdAt: serverTimestamp(),
-    },
-    { merge: true },
-  );
-}
-
-async function completeDesktopAuthSessionViaFunctions(sessionId: string): Promise<void> {
+async function completeDesktopAuthSessionViaFunctions(sessionId: string): Promise<string | null> {
   const callable = httpsCallable(functions, "completeDesktopAuthSession");
-  await callable({ sessionId });
+  const result = await callable({ sessionId });
+  const data = result.data as { ok?: unknown; userCode?: unknown };
+  return data.ok === true && typeof data.userCode === "string" ? data.userCode : null;
 }
 
-export async function completeDesktopWebAuthSession(
-  sessionId: string,
-  provider: FirebaseAuthProvider,
-  result: UserCredential,
-): Promise<void> {
+export async function completeDesktopWebAuthSession(sessionId: string): Promise<string> {
   const viaBackend = await completeDesktopAuthSessionViaBackend(sessionId);
-  if (viaBackend) return;
-
-  const payload = oauthPayloadFromResult(provider, result);
-  try {
-    await completeDesktopAuthSessionViaFirestore(sessionId, payload);
-    return;
-  } catch {
-    // Firestore indisponible — tenter Cloud Functions si déployées.
-  }
-
-  await completeDesktopAuthSessionViaFunctions(sessionId);
+  if (viaBackend) return viaBackend;
+  const viaFunction = await completeDesktopAuthSessionViaFunctions(sessionId);
+  if (viaFunction) return viaFunction;
+  throw new Error("Could not reach the desktop app. Try signing in again.");
 }
 
 type DesktopAuthSessionFields = {
@@ -313,17 +290,27 @@ function fatalClaimStatus(status: number): boolean {
   return status === 403 || status === 410;
 }
 
+function isWrongDesktopCode(detail: string): boolean {
+  return detail.toLowerCase().includes("code was refused");
+}
+
 async function claimDesktopAuthSessionViaBackend(
   sessionId: string,
   claimSecret: string,
+  userCode: string,
   signal?: AbortSignal,
 ): Promise<DesktopAuthCompletion | null> {
   const response = await fetch(apiUrl("/api/auth/desktop/claim"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     signal,
-    body: JSON.stringify({ sessionId, claimSecret }),
+    body: JSON.stringify({ sessionId, claimSecret, userCode }),
   });
+  if (response.status === 403) {
+    const detail = await response.text();
+    if (isWrongDesktopCode(detail)) throw new DesktopAuthCodeRejectedError();
+    throw new Error("Connexion bureau refusée.");
+  }
   if (fatalClaimStatus(response.status)) {
     throw new Error("Connexion bureau refusée.");
   }
@@ -336,9 +323,10 @@ async function claimDesktopAuthSessionViaBackend(
 async function claimDesktopAuthSessionViaFunctions(
   sessionId: string,
   claimSecret: string,
+  userCode: string,
 ): Promise<DesktopAuthCompletion | null> {
   const callable = httpsCallable(functions, "claimDesktopAuthSession");
-  const result = await callable({ sessionId, claimSecret });
+  const result = await callable({ sessionId, claimSecret, userCode });
   const data = result.data as DesktopAuthSessionFields & { status?: string };
   if (data.status !== "ready") return null;
   return completionFromSessionFields(data);
@@ -359,6 +347,7 @@ function isFatalClaimError(error: unknown): boolean {
 async function pollDesktopAuthSession(
   sessionId: string,
   claimSecret: string,
+  userCode: string,
   signal: AbortSignal,
 ): Promise<DesktopAuthCompletion> {
   const started = Date.now();
@@ -366,26 +355,34 @@ async function pollDesktopAuthSession(
   while (Date.now() - started < POLL_TIMEOUT_MS) {
     throwIfAborted(signal);
 
-    const backendResult = await claimDesktopAuthSessionViaBackend(sessionId, claimSecret, signal).catch(
-      (error) => {
-        if (isFatalClaimError(error)) throw error;
-        logClaimFailure("backend", error);
-        return null;
-      },
-    );
+    const backendResult = await claimDesktopAuthSessionViaBackend(
+      sessionId,
+      claimSecret,
+      userCode,
+      signal,
+    ).catch((error) => {
+      if (error instanceof DesktopAuthCodeRejectedError || isFatalClaimError(error)) throw error;
+      logClaimFailure("backend", error);
+      return null;
+    });
     if (backendResult) {
       console.info("[desktop-auth] claimed session via backend");
       return backendResult;
     }
 
     throwIfAborted(signal);
-    const functionsResult = await claimDesktopAuthSessionViaFunctions(sessionId, claimSecret).catch(
-      (error) => {
-        if (isFatalClaimError(error)) throw error;
-        logClaimFailure("function", error);
-        return null;
-      },
-    );
+    const functionsResult = await claimDesktopAuthSessionViaFunctions(
+      sessionId,
+      claimSecret,
+      userCode,
+    ).catch((error) => {
+      if (isWrongDesktopCode(error instanceof Error ? error.message : String(error))) {
+        throw new DesktopAuthCodeRejectedError();
+      }
+      if (isFatalClaimError(error)) throw error;
+      logClaimFailure("function", error);
+      return null;
+    });
     if (functionsResult) {
       console.info("[desktop-auth] claimed session via function");
       return functionsResult;
@@ -423,12 +420,62 @@ export async function reopenDesktopWebAuth(): Promise<void> {
   await openExternalAuthUrl(url);
 }
 
+type CodeWaiter = {
+  resolve: (code: string) => void;
+};
+
+let pendingCodeWaiter: CodeWaiter | null = null;
+let queuedDesktopCode: string | null = null;
+
+export function submitDesktopWebAuthCode(code: string): void {
+  const compact = code.trim().toUpperCase().replace(/[\s-]/g, "");
+  if (pendingCodeWaiter) {
+    const waiter = pendingCodeWaiter;
+    pendingCodeWaiter = null;
+    waiter.resolve(compact);
+    return;
+  }
+  queuedDesktopCode = compact;
+}
+
+function waitForSubmittedCode(signal: AbortSignal): Promise<string> {
+  if (queuedDesktopCode) {
+    const code = queuedDesktopCode;
+    queuedDesktopCode = null;
+    return Promise.resolve(code);
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      pendingCodeWaiter = null;
+      reject(new DesktopWebAuthCancelledError());
+    };
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    pendingCodeWaiter = {
+      resolve: (code) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(code);
+      },
+    };
+  });
+}
+
 export function cancelDesktopWebAuth(): void {
+  queuedDesktopCode = null;
+  pendingCodeWaiter = null;
   activeDesktopWebAuth?.controller.abort();
 }
 
-export async function signInViaDesktopWebAuth(onSessionReady?: () => void): Promise<void> {
+export async function signInViaDesktopWebAuth(
+  onSessionReady?: () => void,
+  onCodeRejected?: () => void,
+): Promise<void> {
   activeDesktopWebAuth?.controller.abort();
+  queuedDesktopCode = null;
+  pendingCodeWaiter = null;
   const sessionId = crypto.randomUUID();
   const claimSecret = createClaimSecret();
   await startDesktopAuthSession(sessionId, claimSecret);
@@ -438,13 +485,32 @@ export async function signInViaDesktopWebAuth(onSessionReady?: () => void): Prom
   try {
     console.info("[desktop-auth] waiting for session", sessionId);
     await openExternalAuthUrl(url);
-    throwIfAborted(controller.signal);
-    const completion = await pollDesktopAuthSession(sessionId, claimSecret, controller.signal);
-    onSessionReady?.();
-    await applyDesktopAuthCompletion(completion);
-    clearDesktopAuthAccountChoiceRequired();
-    rememberDesktopAuthEmail(auth.currentUser?.email ?? null);
+    while (true) {
+      throwIfAborted(controller.signal);
+      const userCode = await waitForSubmittedCode(controller.signal);
+      try {
+        const completion = await pollDesktopAuthSession(
+          sessionId,
+          claimSecret,
+          userCode,
+          controller.signal,
+        );
+        onSessionReady?.();
+        await applyDesktopAuthCompletion(completion);
+        clearDesktopAuthAccountChoiceRequired();
+        rememberDesktopAuthEmail(auth.currentUser?.email ?? null);
+        return;
+      } catch (error) {
+        if (error instanceof DesktopAuthCodeRejectedError) {
+          onCodeRejected?.();
+          continue;
+        }
+        throw error;
+      }
+    }
   } finally {
+    queuedDesktopCode = null;
+    pendingCodeWaiter = null;
     controller.abort();
     if (activeDesktopWebAuth?.url === url) {
       activeDesktopWebAuth = null;

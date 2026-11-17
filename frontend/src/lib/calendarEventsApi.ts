@@ -1,6 +1,7 @@
 import { apiUrl } from "./apiBase";
 import { getAuthIdToken } from "./firebase/authToken";
 import type { CalendarSyncEvent } from "./calendarSync";
+import { readDirectCallId } from "./directCallCalendar";
 import type { CalendarEvent } from "../store/useCalendarStore";
 
 const BASE = "/api/calendar/user-events";
@@ -31,16 +32,18 @@ export interface PersistedCalendarEventPayload {
 }
 
 function toCalendarEvent(event: PersistedCalendarEventPayload): CalendarEvent {
+  const parsed = readDirectCallId(event.detail);
   return {
     id: event.id,
     title: event.title,
-    detail: event.detail ?? undefined,
+    detail: parsed.detail,
     dateKey: event.dateKey,
     startMinutes: event.startMinutes,
     endMinutes: event.endMinutes,
     source: (event.source as CalendarEvent["source"]) ?? "user",
     googleEventId: event.googleEventId ?? undefined,
     outlookEventId: event.outlookEventId ?? undefined,
+    callId: parsed.callId,
   };
 }
 
@@ -71,15 +74,19 @@ export async function createUserCalendarEvents(
   const { isMarketingPreview } = await import("./marketingPreview");
   if (isMarketingPreview()) {
     const { useCalendarStore } = await import("../store/useCalendarStore");
-    const created = events.map((event, index) => ({
-      id: `preview-cal-created-${Date.now()}-${index}`,
-      title: event.title,
-      detail: event.detail,
-      dateKey: event.dateKey,
-      startMinutes: event.startMinutes,
-      endMinutes: event.endMinutes,
-      source,
-    }));
+    const created = events.map((event, index) => {
+      const parsed = readDirectCallId(event.detail);
+      return {
+        id: `preview-cal-created-${Date.now()}-${index}`,
+        title: event.title,
+        detail: parsed.detail,
+        dateKey: event.dateKey,
+        startMinutes: event.startMinutes,
+        endMinutes: event.endMinutes,
+        source,
+        callId: parsed.callId,
+      };
+    });
     useCalendarStore.getState().addEvents(created);
     return { events: created, googleConnected: false, googleSynced: 0, googleError: null };
   }

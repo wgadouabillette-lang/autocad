@@ -13,7 +13,8 @@ import {
   type QueryDocumentSnapshot,
   type Unsubscribe,
 } from "firebase/firestore";
-import { db } from "./client";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "./client";
 import type { CloudFriendMessage } from "./friendChats";
 import type { PeopleManageScheduleEvent } from "../peopleChat";
 import { cloudMessageSortKey } from "../firestoreTime";
@@ -49,13 +50,15 @@ export async function createGroupChatDoc(opts: {
   memberNames: Record<string, string>;
 }): Promise<string> {
   const participants = [...new Set(opts.participants)].sort();
-  await setDoc(groupRef(opts.groupId), {
+  if (!participants.includes(opts.creatorUid)) {
+    throw new Error("Missing group creator.");
+  }
+  const callable = httpsCallable(functions, "createGroupChat");
+  await callable({
+    groupId: opts.groupId,
     name: opts.name.trim() || "Groupe",
     participants,
-    creatorUid: opts.creatorUid,
     memberNames: opts.memberNames,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
   });
   return opts.groupId;
 }

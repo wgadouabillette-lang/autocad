@@ -12,6 +12,9 @@ import {
 import { fetchGoogleCalendarStatus } from "../../lib/calendarSync";
 import { notifyCalendarEventsChanged } from "../../hooks/usePersistedCalendarEvents";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
+import { useStore } from "../../store/useStore";
+import { directCallDetailLine } from "../../lib/directCallCalendar";
+import { createDirectCallId } from "../../store/useDirectCallStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
 import { isMarketingPreview } from "../../lib/marketingPreview";
 import { usePeopleStore } from "../../store/usePeopleStore";
@@ -53,11 +56,26 @@ function defaultEndTime(initialHour: number | null): string {
   return buildTimeString(Math.min(23, now.getHours() + 1), 0);
 }
 
-export default function CalendarEventComposer() {
+export default function CalendarEventComposer({
+  onDismiss,
+  plain = false,
+}: {
+  onDismiss?: () => void;
+  plain?: boolean;
+}) {
   const { t } = useTranslation();
   const composerInitialHour = useCalendarOverlayStore((s) => s.composerInitialHour);
   const composerInitialDate = useCalendarOverlayStore((s) => s.composerInitialDate);
   const closeComposer = useCalendarOverlayStore((s) => s.closeComposer);
+  const dismiss = () => {
+    if (onDismiss) onDismiss();
+    else closeComposer();
+  };
+  const showCreatedCall = (dateKey: string, eventId: string | undefined) => {
+    if (!plain || !eventId) return;
+    useCalendarOverlayStore.getState().revealAddedEvent(dateKey, eventId);
+    useStore.getState().openCalendarPanel();
+  };
   const friends = usePeopleStore((s) => s.friends);
   const sendMessage = usePeopleStore((s) => s.sendMessage);
 
@@ -74,6 +92,7 @@ export default function CalendarEventComposer() {
   const [startTime, setStartTime] = useState(() => defaultStartTime(composerInitialHour));
   const [endTime, setEndTime] = useState(() => defaultEndTime(composerInitialHour));
   const [invitedIds, setInvitedIds] = useState<Set<string>>(() => new Set());
+  const [generatedId, setGeneratedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -108,7 +127,12 @@ export default function CalendarEventComposer() {
       return;
     }
 
-    const detailTrimmed = detail.trim();
+    const detailTrimmed = [
+      detail.trim(),
+      plain && generatedId ? directCallDetailLine(generatedId) : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     if (isMarketingPreview()) {
       const invitedNames = sortedFriends
@@ -127,8 +151,9 @@ export default function CalendarEventComposer() {
           },
         ],
         "user",
-      ).then(() => {
-        closeComposer();
+      ).then((created) => {
+        showCreatedCall(eventDate, created.events[0]?.id);
+        dismiss();
       });
       return;
     }
@@ -146,6 +171,7 @@ export default function CalendarEventComposer() {
       "user",
     )
       .then(async (created) => {
+        const createdEventId = created.events[0]?.id;
         let events = created.events;
         let googleSynced =
           created.googleSynced > 0 ||
@@ -174,12 +200,6 @@ export default function CalendarEventComposer() {
           );
           return;
         }
-        if (googleStatus.configured && !googleStatus.connected && !googleSynced) {
-          setError(
-            t("calendarUi.savedConnectGoogle"),
-          );
-          return;
-        }
 
         if (invitedIds.size > 0) {
           const dayLabel = formatDayLabel(eventDate);
@@ -192,7 +212,8 @@ export default function CalendarEventComposer() {
           }
         }
 
-        closeComposer();
+        showCreatedCall(eventDate, createdEventId);
+        dismiss();
       })
       .catch(() => {
         setError(t("calendarUi.saveFailed"));
@@ -200,15 +221,24 @@ export default function CalendarEventComposer() {
   };
 
   return (
-    <div className="calendar-event-composer chat-poll-composer" aria-label={t("calendarUi.create")}>
-      <button
-        type="button"
-        className="chat-poll-composer__close"
-        onClick={closeComposer}
-        aria-label={t("common.close")}
-      >
-        <X size={18} aria-hidden />
-      </button>
+    <div
+      className={
+        plain
+          ? "calendar-event-composer calendar-event-composer--plain chat-poll-composer"
+          : "calendar-event-composer chat-poll-composer"
+      }
+      aria-label={t("calendarUi.create")}
+    >
+      {plain ? null : (
+        <button
+          type="button"
+          className="chat-poll-composer__close"
+          onClick={dismiss}
+          aria-label={t("common.close")}
+        >
+          <X size={18} aria-hidden />
+        </button>
+      )}
 
       <div className="chat-poll-composer__body">
         <input
@@ -273,6 +303,20 @@ export default function CalendarEventComposer() {
           </label>
         </div>
 
+        {plain ? (
+          <div className="calendar-event-composer__date-field">
+            <span className="calendar-event-composer__time-label">{t("directCall.generateId")}</span>
+            <button
+              type="button"
+              className="calendar-event-composer__time-input direct-call__generate"
+              onClick={() => setGeneratedId(createDirectCallId())}
+            >
+              {generatedId ?? t("directCall.generateIdHint")}
+            </button>
+          </div>
+        ) : null}
+
+        {plain ? null : (
         <div className="calendar-event-composer__participants">
           <p className="calendar-event-composer__section-title">
             Participants
@@ -318,6 +362,7 @@ export default function CalendarEventComposer() {
             </ul>
           )}
         </div>
+        )}
 
         {error && <p className="chat-poll-composer__error">{error}</p>}
       </div>

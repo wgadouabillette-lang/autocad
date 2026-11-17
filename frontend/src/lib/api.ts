@@ -135,6 +135,10 @@ export const api = {
     return jsonGet<UserLookupResponse>(`/users/lookup?email=${encodeURIComponent(email)}`);
   },
 
+  lookupUserProfile(uid: string) {
+    return jsonGet<UserLookupResponse>(`/users/profile?uid=${encodeURIComponent(uid)}`);
+  },
+
   rebuild(document: CadDocument, material: string) {
     return jsonPost<RebuildResult>("/rebuild", { document, material });
   },

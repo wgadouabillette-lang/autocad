@@ -1,4 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
+import { openSecret } from "./secretBox";
 
 export type LlmProvider = "xai" | "openai" | "anthropic";
 
@@ -54,7 +55,7 @@ export async function loadLlmKeys(uid: string): Promise<LlmKeySet> {
     for (const doc of snap.docs) {
       const provider = doc.id as LlmProvider;
       if (!LLM_PROVIDERS.includes(provider)) continue;
-      const apiKey = trimKey(doc.data()?.apiKey);
+      const apiKey = openSecret(trimKey(doc.data()?.apiKey));
       if (apiKey) merged[provider] = apiKey;
     }
   } catch (error) {

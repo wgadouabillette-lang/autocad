@@ -19,6 +19,8 @@ import MiniChatPopover from "../messages/MiniChatPopover";
 import OpenVoiceInCallView from "./OpenVoiceInCallView";
 import TheaterView from "./TheaterView";
 import CallsViewHexDecor from "./CallsViewHexDecor";
+import DirectCallStage from "./DirectCallStage";
+import { useDirectCallStore } from "../../store/useDirectCallStore";
 let callsViewRenderCount = 0;
 
 export default function CallsView() {
@@ -55,6 +57,7 @@ export default function CallsView() {
   const inCall = viewMode === "theater" ? inTheaterCall : inBlockCall;
   const inOpenChannel = inBlockCall && !!localOpenChannelId;
   const stageRef = useRef<HTMLDivElement>(null);
+  const directCallId = useDirectCallStore((s) => s.callId);
 
   useLayoutEffect(() => {
     // #region agent log
@@ -172,6 +175,7 @@ export default function CallsView() {
           )}
 
           <MiniChatPopover />
+          {directCallId ? <DirectCallStage /> : null}
         </>
       ) : null}
     </div>

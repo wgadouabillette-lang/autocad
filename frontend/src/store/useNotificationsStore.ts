@@ -43,6 +43,8 @@ export interface AppNotification {
   updateVersion?: string;
   updateReleaseNotes?: string;
   recordingSessionId?: string;
+  /** Appel 1:1 à rejoindre depuis « Join Now ». */
+  callId?: string;
 }
 
 export interface FriendRequestNotificationInput {

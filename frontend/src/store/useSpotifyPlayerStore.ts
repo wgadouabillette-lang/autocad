@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   fetchSpotifyPlayerConfig,
+  fetchSpotifyTrack,
   searchSpotifyTracks,
   type SpotifyTrackCard,
 } from "../lib/connectorsApi";
@@ -22,7 +23,7 @@ import {
 import { hasFormaDesktop, hasSpotifyWebView2Desktop } from "../lib/formaDesktop";
 import { primeSpotifyPreviewAudio } from "../lib/spotifyAudioPulse";
 import { applyAudioOutputToElement } from "../lib/audioDevices";
-import { recordHallDjPlay } from "../lib/hallDjPlayHistory";
+import { recordHallDjPlay, rememberHallDjTrackArt } from "../lib/hallDjPlayHistory";
 import { readUserPreferences } from "../lib/userPreferences";
 import { useHallDjStore } from "./useHallDjStore";
 
@@ -236,6 +237,47 @@ setSpotifyWebPlaybackErrorListener(() => {
   })();
 });
 
+function hasOfficialAlbumArt(url: string | null | undefined): boolean {
+  const value = url?.trim() ?? "";
+  return /scdn\.co|spotifycdn\.com/i.test(value);
+}
+
+let albumArtInflight: string | null = null;
+
+function enrichOfficialAlbumArt(track: SpotifyTrackCard) {
+  const trackId = track.id?.trim();
+  if (!trackId || hasOfficialAlbumArt(track.imageUrl)) return;
+  if (albumArtInflight === trackId) return;
+  albumArtInflight = trackId;
+  void (async () => {
+    try {
+      const fresh = await fetchSpotifyTrack(trackId);
+      const imageUrl = fresh.imageUrl?.trim();
+      if (!imageUrl) return;
+      const state = useSpotifyPlayerStore.getState();
+      if (state.currentTrack?.id !== trackId) return;
+      const next = {
+        ...state.currentTrack,
+        imageUrl,
+        album: fresh.album || state.currentTrack.album,
+        artists: fresh.artists || state.currentTrack.artists,
+      };
+      useSpotifyPlayerStore.setState({
+        currentTrack: next,
+        lastPlayedTrack:
+          state.lastPlayedTrack?.id === trackId
+            ? { ...state.lastPlayedTrack, imageUrl, album: next.album }
+            : state.lastPlayedTrack,
+      });
+      rememberHallDjTrackArt(next);
+    } catch {
+      // The Spotify mark stays until a later play can load the cover.
+    } finally {
+      if (albumArtInflight === trackId) albumArtInflight = null;
+    }
+  })();
+}
+
 function pausePreviewAudio() {
   sharedAudio?.pause();
 }
@@ -254,11 +296,20 @@ async function playPreview(track: SpotifyTrackCard, restart = false): Promise<bo
   }
   try {
     await audio.play();
+    const current = useSpotifyPlayerStore.getState().currentTrack;
+    const imageUrl =
+      hasOfficialAlbumArt(track.imageUrl)
+        ? track.imageUrl
+        : current?.id === track.id && hasOfficialAlbumArt(current.imageUrl)
+          ? current.imageUrl
+          : track.imageUrl;
+    const next = { ...track, imageUrl };
     useSpotifyPlayerStore.setState({
-      currentTrack: track,
+      currentTrack: next,
       playing: true,
       playbackMode: "preview",
     });
+    enrichOfficialAlbumArt(next);
     return true;
   } catch {
     return false;
@@ -343,6 +394,7 @@ async function startPlayback(
     playbackMode: null,
     playerNotice: null,
   });
+  enrichOfficialAlbumArt(track);
 
   try {
     if (stopEpoch !== playbackStopEpoch) {

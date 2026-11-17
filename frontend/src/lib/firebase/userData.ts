@@ -194,9 +194,19 @@ export async function saveUserDirectoryProfile(
 export async function loadUserDirectoryByUid(uid: string): Promise<UserDirectoryDoc | null> {
   const trimmed = uid.trim();
   if (!trimmed) return null;
-  const snap = await getDoc(userDirectoryRef(trimmed));
-  if (!snap.exists()) return null;
-  return snap.data() as UserDirectoryDoc;
+  try {
+    const found = await api.lookupUserProfile(trimmed);
+    return {
+      uid: found.uid,
+      email: found.email,
+      displayName: found.displayName,
+      photoURL: found.photoURL ?? undefined,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : "";
+    if (message.includes("not found") || message.includes("404")) return null;
+    throw error;
+  }
 }
 
 export async function findUserDirectoryByEmail(

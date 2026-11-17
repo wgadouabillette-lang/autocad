@@ -9,7 +9,13 @@ from fastapi.responses import Response
 from app.ai import agent, analysis, chat, recap as recap_ai, text_to_cad
 from app.core.auth_deps import require_firebase_user, run_with_user_llm_keys
 from app.core.config import settings
-from app.core.firebase import FirebaseUser, find_user_by_email, upsert_user_directory
+from app.core.firebase import (
+    FirebaseUser,
+    find_user_by_email,
+    load_directory_profile,
+    upsert_user_directory,
+    users_are_connected,
+)
 from app.core.rate_limit import rate_limit_request
 from app.engine import exporter, mesh_import
 from app.engine.kernel import rebuild
@@ -63,6 +69,22 @@ def lookup_user_by_email(
         "displayName": found.display_name,
         "photoURL": found.photo_url,
     }
+
+
+@router.get("/users/profile")
+def lookup_user_profile(
+    request: Request,
+    uid: str = Query(..., min_length=1, max_length=128),
+    user: FirebaseUser = Depends(require_firebase_user),
+):
+    rate_limit_request(request, "users_profile", limit=60, window_sec=60, uid=user.uid)
+    target = uid.strip()
+    if not target or "/" in target or not users_are_connected(user.uid, target):
+        raise HTTPException(404, "User not found.")
+    profile = load_directory_profile(target)
+    if profile is None:
+        raise HTTPException(404, "User not found.")
+    return profile
 
 
 @router.post("/rebuild", response_model=RebuildResult)

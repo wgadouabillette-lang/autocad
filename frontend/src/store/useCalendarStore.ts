@@ -8,6 +8,8 @@ export interface CalendarEvent extends DayScheduleEvent {
   source?: "follow-up" | "user" | "manage-skill" | "meeting-skill" | "google" | "outlook";
   googleEventId?: string;
   outlookEventId?: string;
+  /** Présent quand l’événement a été créé depuis Planifier un appel. */
+  callId?: string;
 }
 
 interface CalendarState {

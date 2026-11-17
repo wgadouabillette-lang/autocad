@@ -4,6 +4,8 @@ import {
   MARKETING_PREVIEW_BEAUTIFUL_THINGS_COVER_URL,
   MARKETING_PREVIEW_NOTE_ID,
   MARKETING_PREVIEW_STARBOY_COVER_URL,
+  MARKETING_PREVIEW_TRY_COVER_URL,
+  MARKETING_HOME_DJ_DURATION_SEC,
   MARKETING_RECORDING_DJ_DURATION_SEC,
   MARKETING_RECORDING_DJ_TRACK_ID,
   MARKETING_PREVIEW_USER_ID,
@@ -874,37 +876,126 @@ export function seedMarketingPreview(): void {
   seedPeopleThreads();
 }
 
-/** Accueil au repos : grille des salons, sans lecture ni théâtre. */
+/** Accueil au repos : neuf personnes, le chat de la capture, Try de P!nk sur le DJ. */
 export function seedMarketingHome(): void {
   seedMarketingPreview();
   usePresenceActivityStore.setState({ byKey: {} });
+
+  const people = [
+    { id: "local", name: "William Gadoua" },
+    { id: "malik", name: "Malik" },
+    { id: "noah", name: "Noah" },
+    { id: "hero-ines", name: "Inès" },
+    { id: "lea", name: "Léa" },
+    { id: "hero-hugo", name: "Hugo" },
+    { id: "chloe", name: "Chloé" },
+    { id: "sam", name: "Sam" },
+    { id: "amina", name: "Amina" },
+  ] as const;
+
+  const blocks: CallBlock[] = people.map((person) => ({
+    id: memberBlockId(MARKETING_PREVIEW_WORKSPACE_ID, person.id),
+    roomId: MARKETING_PREVIEW_WORKSPACE_ID,
+    participants:
+      person.id === "local"
+        ? [{ id: "local", name: person.name, isLocal: true }]
+        : [{ id: person.id, name: person.name }],
+    inCall: false,
+  }));
+
+  useCallsStore.setState((state) => {
+    const room = state.callsByRoom[MARKETING_PREVIEW_WORKSPACE_ID];
+    return {
+      recording: false,
+      screenSharing: false,
+      localInCallByRoom: {
+        ...state.localInCallByRoom,
+        [MARKETING_PREVIEW_WORKSPACE_ID]: false,
+      },
+      callsViewModeByWorkspace: {
+        ...state.callsViewModeByWorkspace,
+        [MARKETING_PREVIEW_WORKSPACE_ID]: "blocks",
+      },
+      callsByRoom: {
+        ...state.callsByRoom,
+        [MARKETING_PREVIEW_WORKSPACE_ID]: room
+          ? {
+              ...room,
+              blocks,
+              openChannels: room.openChannels.map((channel) => ({
+                ...channel,
+                participants: [],
+                inCall: false,
+              })),
+            }
+          : { blocks, openChannels: [], requests: [], handRaises: [] },
+      },
+    };
+  });
+
+  const calendarDraft = {
+    title: "Partnership discussion with a client",
+    dateKey: "2026-11-17",
+    startMinutes: 10 * 60,
+    endMinutes: 11 * 60,
+  };
+  const heroChat: ChatMessage[] = [
+    {
+      role: "user",
+      text: "can you add a meeting in two days a 10am with a client to discuss about a potential partnership",
+    },
+    {
+      role: "assistant",
+      text: "Add “Partnership discussion with a client” on Tuesday, November 17 · 10:00–11:00?",
+      source: "calendar-add",
+      calendarAdd: calendarDraft,
+    },
+  ];
+
+  useStore.setState((state) => ({
+    userDisplayName: "William Gadoua",
+    chatPanelOpen: true,
+    chatPanelMode: "agent",
+    chatPanelExpanded: false,
+    chat: heroChat,
+    openChatTabs: state.openChatTabs.map((tab) =>
+      tab.id === state.activeChatTabId
+        ? { ...tab, title: "Partnership", messages: heroChat }
+        : tab,
+    ),
+  }));
+
+  useHallDjStore.setState({
+    active: true,
+    loading: false,
+    error: null,
+    feedbackResolvedTrackId: null,
+    feedbackBusy: false,
+  });
   useSpotifyPlayerStore.setState({
     panelOpen: false,
-    currentTrack: null,
+    searchQuery: "",
+    results: [],
+    searching: false,
+    searchError: null,
+    currentTrack: {
+      id: "preview-try-pink",
+      name: "Try",
+      artists: "P!nk",
+      album: "The Truth About Love",
+      imageUrl: MARKETING_PREVIEW_TRY_COVER_URL,
+      url: "https://music.apple.com/song/try-pink",
+      durationMs: MARKETING_HOME_DJ_DURATION_SEC * 1000,
+    },
     lastPlayedTrack: null,
     queue: [],
     history: [],
-    playing: false,
-    playbackMode: null,
+    playing: true,
+    playbackMode: "full",
     playerNotice: null,
+    premiumAvailable: true,
+    streamingScopeAvailable: true,
   });
-  useHallDjStore.setState({
-    active: false,
-    loading: false,
-    error: null,
-  });
-  useCallsStore.setState((state) => ({
-    recording: false,
-    screenSharing: false,
-    localInCallByRoom: {
-      ...state.localInCallByRoom,
-      [MARKETING_PREVIEW_WORKSPACE_ID]: false,
-    },
-    callsViewModeByWorkspace: {
-      ...state.callsViewModeByWorkspace,
-      [MARKETING_PREVIEW_WORKSPACE_ID]: "blocks",
-    },
-  }));
 }
 
 /** Local user plus seven teammates on the landing hero workspace grid. */

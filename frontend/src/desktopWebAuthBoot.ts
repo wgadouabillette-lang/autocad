@@ -5,7 +5,6 @@ import {
   signInWithPopup,
   type UserCredential,
 } from "firebase/auth";
-import { doc, getFirestore, serverTimestamp, setDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { firebaseConfig, functionsRegion } from "./lib/firebase/config";
 import { resolveAuthDomain } from "./lib/firebase/resolveAuthDomain";
@@ -17,6 +16,7 @@ const GOOGLE_AUTO_KEY = "meetraDesktopAuthGoogle";
 const LAST_EMAIL_KEY = "meetraDesktopAuthLastEmail";
 const LAST_ACCOUNT_KEY = "meetraDesktopAuthLastAccount";
 const REQUIRE_CHOICE_KEY = "meetraDesktopAuthRequireChoice";
+const MAX_KNOWN_ACCOUNTS = 8;
 
 type LastAccount = {
   email: string;
@@ -93,7 +93,6 @@ const app = initializeApp({
   authDomain: resolveAuthDomain(),
 });
 const auth = getAuth(app);
-const db = getFirestore(app);
 const functions = getFunctions(app, functionsRegion);
 
 function resolvedSessionId(): string | null {
@@ -108,10 +107,6 @@ function shouldOfferDesktopGoogle(): boolean {
 
 function requiresAccountChoice(): boolean {
   return chooseParam || readValue(REQUIRE_CHOICE_KEY) === "1";
-}
-
-function lastKnownEmail(): string | null {
-  return lastKnownAccount()?.email ?? null;
 }
 
 function normalizeAccount(input: {
@@ -151,9 +146,53 @@ function parseStoredAccount(raw: string | null): LastAccount | null {
   return normalizeAccount({ email: trimmed });
 }
 
-function persistLastAccount(account: LastAccount): void {
-  persistValue(LAST_EMAIL_KEY, account.email);
-  persistValue(LAST_ACCOUNT_KEY, JSON.stringify(account));
+function readStoredAccounts(): LastAccount[] {
+  const raw = readValue(LAST_ACCOUNT_KEY)?.trim() ?? "";
+  if (raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return [];
+      const accounts: LastAccount[] = [];
+      for (const item of parsed) {
+        if (!item || typeof item !== "object") continue;
+        const record = item as {
+          email?: unknown;
+          displayName?: unknown;
+          photoURL?: unknown;
+        };
+        const account = normalizeAccount({
+          email: typeof record.email === "string" ? record.email : null,
+          displayName: typeof record.displayName === "string" ? record.displayName : null,
+          photoURL: typeof record.photoURL === "string" ? record.photoURL : null,
+        });
+        if (account && !accounts.some((existing) => existing.email === account.email)) {
+          accounts.push(account);
+        }
+      }
+      return accounts;
+    } catch {
+      return [];
+    }
+  }
+
+  const single = parseStoredAccount(raw || readValue(LAST_EMAIL_KEY));
+  return single ? [single] : [];
+}
+
+function persistKnownAccounts(accounts: LastAccount[]): void {
+  const unique: LastAccount[] = [];
+  for (const account of accounts) {
+    if (unique.some((existing) => existing.email === account.email)) continue;
+    unique.push(account);
+    if (unique.length >= MAX_KNOWN_ACCOUNTS) break;
+  }
+  if (unique[0]) persistValue(LAST_EMAIL_KEY, unique[0].email);
+  persistValue(LAST_ACCOUNT_KEY, JSON.stringify(unique));
+}
+
+function rememberAccount(account: LastAccount): void {
+  const rest = readStoredAccounts().filter((existing) => existing.email !== account.email);
+  persistKnownAccounts([account, ...rest]);
 }
 
 function rememberCurrentUserAccount(): void {
@@ -163,26 +202,24 @@ function rememberCurrentUserAccount(): void {
     displayName: user?.displayName,
     photoURL: user?.photoURL,
   });
-  if (account) persistLastAccount(account);
+  if (account) rememberAccount(account);
 }
 
-function lastKnownAccount(): LastAccount | null {
-  const fromUser = normalizeAccount({
+function knownAccounts(): LastAccount[] {
+  const stored = readStoredAccounts();
+  const current = normalizeAccount({
     email: auth.currentUser?.email,
     displayName: auth.currentUser?.displayName,
     photoURL: auth.currentUser?.photoURL,
   });
-  if (fromUser) return fromUser;
-
-  const stored = parseStoredAccount(readValue(LAST_ACCOUNT_KEY));
-  const email =
-    (hintParam.includes("@") ? hintParam : null) ??
-    parseStoredAccount(readValue(LAST_EMAIL_KEY))?.email ??
-    stored?.email ??
-    null;
-  if (!email) return null;
-  if (stored?.email === email) return stored;
-  return { email, displayName: null, photoURL: null };
+  const accounts = current
+    ? [current, ...stored.filter((account) => account.email !== current.email)]
+    : [...stored];
+  const hint = hintParam.includes("@") ? hintParam : null;
+  if (hint && !accounts.some((account) => account.email === hint)) {
+    accounts.push({ email: hint, displayName: null, photoURL: null });
+  }
+  return accounts.slice(0, MAX_KNOWN_ACCOUNTS);
 }
 
 function accountDisplayName(account: LastAccount): string {
@@ -240,50 +277,74 @@ function showBusy(): void {
   document.documentElement.classList.add("is-busy");
 }
 
-function showChoose(account: LastAccount | null): void {
+function renderAccountCard(account: LastAccount): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "account-card";
+  const name = accountDisplayName(account);
+  button.setAttribute("aria-label", `Continue as ${name}`);
+
+  const avatar = document.createElement("span");
+  avatar.className = "account-card__avatar";
+  avatar.setAttribute("aria-hidden", "true");
+  renderAccountAvatar(avatar, account);
+
+  const meta = document.createElement("span");
+  meta.className = "account-card__meta";
+  const nameEl = document.createElement("span");
+  nameEl.className = "account-card__name";
+  nameEl.textContent = name;
+  const emailEl = document.createElement("span");
+  emailEl.className = "account-card__email";
+  emailEl.textContent = account.email;
+  meta.append(nameEl, emailEl);
+  button.append(avatar, meta);
+
+  button.addEventListener("click", () => {
+    void continueAsAccount(account).catch((err: unknown) => {
+      showError(errorMessage(err, "Sign-in failed."));
+    });
+  });
+  return button;
+}
+
+function showChoose(accounts: LastAccount[]): void {
   const title = document.getElementById("choose-title");
   const lead = document.getElementById("choose-lead");
-  const continueSame = document.getElementById("continue-same");
+  const list = document.getElementById("account-list");
   const useAnother = document.getElementById("use-another");
-  const avatar = document.getElementById("account-avatar");
-  const nameEl = document.getElementById("account-name");
-  const emailEl = document.getElementById("account-email");
+  const hasAccounts = accounts.length > 0;
   if (title) {
-    title.hidden = !account;
+    title.hidden = !hasAccounts;
     title.textContent = "Sign in to Meetra Desktop";
   }
   if (lead) {
-    lead.textContent = account
-      ? "The Meetra desktop app is asking to sign in with this account."
-      : "Sign in with Google to continue.";
+    lead.textContent = !hasAccounts
+      ? "Sign in with Google to continue."
+      : accounts.length === 1
+        ? "The Meetra desktop app is asking to sign in with this account."
+        : "The Meetra desktop app is asking to sign in with one of these accounts.";
   }
-  if (continueSame instanceof HTMLButtonElement) {
-    if (account) {
-      const name = accountDisplayName(account);
-      continueSame.hidden = false;
-      continueSame.setAttribute("aria-label", `Continue as ${name}`);
-      if (nameEl) nameEl.textContent = name;
-      if (emailEl) emailEl.textContent = account.email;
-      if (avatar) renderAccountAvatar(avatar, account);
-    } else {
-      continueSame.hidden = true;
-      continueSame.removeAttribute("aria-label");
-    }
+  if (list) {
+    list.replaceChildren(...accounts.map(renderAccountCard));
+    list.hidden = !hasAccounts;
   }
   if (useAnother instanceof HTMLButtonElement) {
-    useAnother.textContent = account ? "Use another account" : "Continue with Google";
-    useAnother.classList.toggle("btn-secondary", Boolean(account));
+    useAnother.textContent = hasAccounts ? "Use another account" : "Continue with Google";
+    useAnother.classList.toggle("btn-secondary", hasAccounts);
   }
-  document.documentElement.classList.toggle("has-account", Boolean(account));
+  document.documentElement.classList.toggle("has-account", hasAccounts);
   document.documentElement.classList.remove("is-error", "is-busy", "is-done");
   document.documentElement.classList.add("is-choose");
 }
 
-function showDone(): void {
+function showDone(code: string): void {
   const lead = document.getElementById("done-lead");
   if (lead) {
-    lead.textContent = `You can reopen the app on ${appHint()}. Your account is synced.`;
+    lead.textContent = "Enter this code in the Meetra app.";
   }
+  const issued = document.getElementById("issued-code");
+  if (issued) issued.textContent = code;
   document.documentElement.classList.remove("is-error", "is-busy", "is-choose", "has-account");
   document.documentElement.classList.add("is-done");
   rememberCurrentUserAccount();
@@ -337,9 +398,9 @@ function oauthPayloadFromResult(result: UserCredential) {
 async function completeViaBackend(
   sessionId: string,
   result: UserCredential | null,
-): Promise<boolean> {
+): Promise<string | "denied" | "failed"> {
   const idToken = await auth.currentUser?.getIdToken(true);
-  if (!idToken) return false;
+  if (!idToken) return "failed";
   let oauth: ReturnType<typeof oauthPayloadFromResult> | null = null;
   if (result) {
     try {
@@ -365,68 +426,40 @@ async function completeViaBackend(
         : {}),
     }),
   });
-  if (!response.ok) return false;
+  if (response.status === 403) return "denied";
+  if (!response.ok) return "failed";
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.includes("application/json")) return false;
-  const data = (await response.json()) as { ok?: unknown };
-  return data.ok === true;
+  if (!contentType.includes("application/json")) return "failed";
+  const data = (await response.json()) as { ok?: unknown; userCode?: unknown };
+  return data.ok === true && typeof data.userCode === "string" ? data.userCode : "failed";
 }
 
-async function completeViaFunction(sessionId: string): Promise<boolean> {
-  const callable = httpsCallable(functions, "completeDesktopAuthSession");
-  await callable({ sessionId });
-  return true;
-}
-
-async function completeViaFirestore(result: UserCredential): Promise<boolean> {
-  const sessionId = resolvedSessionId();
-  if (!sessionId) return false;
-  const payload = oauthPayloadFromResult(result);
-  if (!payload.idToken || payload.idToken.length <= 100) return false;
-  await setDoc(doc(db, "desktopAuthSessions", sessionId), {
-    provider: payload.provider,
-    idToken: payload.idToken,
-    accessToken: payload.accessToken,
-    createdAt: serverTimestamp(),
-  });
-  return true;
-}
-
-function settledOk(result: PromiseSettledResult<boolean>, label: string): boolean {
-  if (result.status === "fulfilled" && result.value) {
-    console.info(`[desktop-auth] session written via ${label}`);
-    return true;
+async function completeViaFunction(sessionId: string): Promise<string | "denied" | "failed"> {
+  try {
+    const callable = httpsCallable(functions, "completeDesktopAuthSession");
+    const result = await callable({ sessionId });
+    const data = result.data as { ok?: unknown; userCode?: unknown };
+    return data.ok === true && typeof data.userCode === "string" ? data.userCode : "failed";
+  } catch (err) {
+    const code = errorCode(err) ?? "";
+    if (code.includes("permission-denied")) return "denied";
+    return "failed";
   }
-  if (result.status === "rejected") {
-    console.info(
-      `[desktop-auth] ${label} complete failed`,
-      result.reason instanceof Error ? result.reason.message : errorCode(result.reason) ?? "unknown",
-    );
-  }
-  return false;
 }
 
-async function completeSession(result: UserCredential | null): Promise<void> {
+async function completeSession(result: UserCredential | null): Promise<string> {
   const sessionId = resolvedSessionId();
   if (!sessionId) {
     throw new Error("This sign-in is not linked to the desktop app. Return to Meetra and try again.");
   }
-
-  // Fan-out: Electron polls local backend, Firestore, and the claim function.
-  // Redirect leftovers used to try the function first and never reach localhost.
-  const writes = await Promise.allSettled([
-    completeViaBackend(sessionId, result),
-    completeViaFunction(sessionId),
-    result ? completeViaFirestore(result) : Promise.resolve(false),
-  ]);
-
-  const ok =
-    settledOk(writes[0], "local backend") ||
-    settledOk(writes[1], "function") ||
-    settledOk(writes[2], "firestore");
-  if (!ok) {
-    throw new Error("Could not reach the desktop app. Try signing in again.");
+  const viaBackend = await completeViaBackend(sessionId, result);
+  if (viaBackend !== "denied" && viaBackend !== "failed") return viaBackend;
+  if (viaBackend === "denied") {
+    throw new Error("This sign-in link is no longer valid. Return to Meetra and try again.");
   }
+  const viaFunction = await completeViaFunction(sessionId);
+  if (viaFunction !== "denied" && viaFunction !== "failed") return viaFunction;
+  throw new Error("Could not reach the desktop app. Try signing in again.");
 }
 
 async function finishSignIn(result: UserCredential | null): Promise<void> {
@@ -434,8 +467,8 @@ async function finishSignIn(result: UserCredential | null): Promise<void> {
     showError("This sign-in is not linked to the desktop app. Return to Meetra and try again.");
     return;
   }
-  await completeSession(result);
-  showDone();
+  const code = await completeSession(result);
+  showDone(code);
 }
 
 async function startGooglePopup(loginHint?: string | null): Promise<void> {
@@ -449,21 +482,20 @@ function browserSessionMatches(account: LastAccount | null): boolean {
   return Boolean(account && email && email === account.email);
 }
 
-async function continueAsLastAccount(): Promise<void> {
+async function continueAsAccount(account: LastAccount): Promise<void> {
   showBusy();
   await auth.authStateReady();
-  const account = lastKnownAccount();
   if (auth.currentUser && browserSessionMatches(account)) {
     try {
       await auth.currentUser.getIdToken(true);
     } catch {
-      await startGooglePopup(account?.email ?? null);
+      await startGooglePopup(account.email);
       return;
     }
     await finishSignIn(null);
     return;
   }
-  await startGooglePopup(account?.email ?? null);
+  await startGooglePopup(account.email);
 }
 
 async function useAnotherAccount(): Promise<void> {
@@ -480,7 +512,7 @@ async function useAnotherAccount(): Promise<void> {
       code === "auth/cancelled-popup-request" ||
       code === "auth/popup-blocked"
     ) {
-      showChoose(lastKnownAccount());
+      showChoose(knownAccounts());
       return;
     }
     throw err;
@@ -498,9 +530,9 @@ async function boot(): Promise<void> {
 
   // Never write a desktop session from a leftover browser Firebase user.
   // After logout the Chrome tab is still signed in — the user must choose.
-  const account = lastKnownAccount();
-  if (auth.currentUser || account || requiresAccountChoice()) {
-    showChoose(account);
+  const accounts = knownAccounts();
+  if (auth.currentUser || accounts.length > 0 || requiresAccountChoice()) {
+    showChoose(accounts);
     return;
   }
 
@@ -520,7 +552,6 @@ function bindAction(id: string, action: () => Promise<void>): void {
   });
 }
 
-bindAction("continue-same", continueAsLastAccount);
 bindAction("use-another", useAnotherAccount);
 bindAction("retry", useAnotherAccount);
 

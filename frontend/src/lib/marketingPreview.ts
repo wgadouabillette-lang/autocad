@@ -26,6 +26,14 @@ export type MarketingPreviewNavAction =
 /** Frozen Spotify progress shown in the marketing dashboard preview. */
 export const MARKETING_PREVIEW_SPOTIFY_ELAPSED_SEC = 32;
 
+/** Try (P!nk), held at 0:02 on the landing hero. */
+export const MARKETING_HOME_DJ_ELAPSED_SEC = 2;
+export const MARKETING_HOME_DJ_DURATION_SEC = 248;
+
+/** The Truth About Love art for Try (P!nk). */
+export const MARKETING_PREVIEW_TRY_COVER_URL =
+  "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/2c/b0/de/2cb0de7b-4559-d885-36f8-271c950cba34/886443562097.jpg/600x600bb.jpg";
+
 /** Beautiful Things, held at 1:34 in the recording preview. */
 export const MARKETING_RECORDING_DJ_TRACK_ID = "3xkHsmpQCBMytMJNiDf3Ii";
 export const MARKETING_RECORDING_DJ_ELAPSED_SEC = 94;
@@ -119,6 +127,10 @@ export function readMarketingPreviewSceneParam(): MarketingPreviewScene {
   if (raw === "notes") return "notes";
   if (raw === "spotify") return "spotify";
   return "dashboard";
+}
+
+export function isMarketingHomePreviewScene(): boolean {
+  return isMarketingPreview() && readMarketingPreviewSceneParam() === "home";
 }
 
 export function isMarketingRecordingPreviewScene(): boolean {

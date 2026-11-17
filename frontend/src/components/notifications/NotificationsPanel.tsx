@@ -15,6 +15,7 @@ import { hasFormaDesktop } from "../../lib/formaDesktop";
 import { shouldShowPollToUser } from "../../lib/voicePoll";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
+import { useDirectCallStore } from "../../store/useDirectCallStore";
 import { isNotificationsPreviewAllEnabled } from "../../lib/notificationPreviewFixtures";
 import RecordingNotificationVisual from "./RecordingNotificationVisual";
 import CalendarConnectNotificationVisual from "./CalendarConnectNotificationVisual";
@@ -241,6 +242,13 @@ export default function NotificationsPanel({
     }
   };
 
+  const handleJoinScheduledCall = () => {
+    if (!item?.callId) return;
+    useDirectCallStore.getState().joinCall(item.callId);
+    removeNotification(item.id);
+    closePanel();
+  };
+
   const handleScheduleUpdateTonight = async () => {
     if (!item || item.kind !== "app_update" || updateBusy) return;
     if (!hasFormaDesktop() || !window.formaDesktop?.scheduleUpdateTonight) return;
@@ -397,6 +405,14 @@ export default function NotificationsPanel({
                       <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
                     </button>
                   </>
+                ) : item.callId ? (
+                  <button
+                    type="button"
+                    className="chat-connectors-row__connect"
+                    onClick={handleJoinScheduledCall}
+                  >
+                    {t("directCall.joinNow")}
+                  </button>
                 ) : isRecordingSavedNotification(item) ? (
                   <>
                     <button

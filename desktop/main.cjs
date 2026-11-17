@@ -1350,10 +1350,29 @@ function fillWindowsWorkArea(win) {
   }
 }
 
+/**
+ * macOS fullscreen keeps the content view at the pre-transition size when the
+ * window is much smaller than the display. The content ends up pinned in the
+ * top-left of the Space with the rest painted the window background. Growing
+ * the window to the display area before entering fullscreen avoids that pin.
+ */
+function enterMacFullScreen(win) {
+  if (process.platform !== "darwin" || !win || win.isDestroyed()) return;
+  const area = macDisplayBounds(win);
+  if (!win.isFullScreen()) {
+    try {
+      win.setBounds({ x: area.x, y: area.y, width: area.width, height: area.height });
+    } catch {
+      // setBounds can throw on hidden windows during early init; ignored.
+    }
+  }
+  win.setFullScreen(true);
+}
+
 function enterLaunchFullScreen(win) {
   if (!win || win.isDestroyed()) return;
   if (process.platform === "darwin") {
-    win.setFullScreen(true);
+    enterMacFullScreen(win);
     return;
   }
   if (process.platform === "win32") {
@@ -1556,19 +1575,66 @@ function repairMacFullScreenFrame(win) {
   if (process.platform !== "darwin" || repairingMacFullScreen) return;
   if (!win || win.isDestroyed() || !macKeepFullScreen) return;
   repairingMacFullScreen = true;
-  try {
-    if (!win.isFullScreen()) {
-      win.setFullScreen(true);
-      return;
-    }
-    if (!macFullScreenFrameShrunken(win)) return;
-    const area = macDisplayBounds(win);
-    win.setContentSize(area.width, area.height);
-  } finally {
+  const release = () => {
     setTimeout(() => {
       repairingMacFullScreen = false;
     }, 500);
+  };
+  try {
+    if (!win.isFullScreen()) {
+      enterMacFullScreen(win);
+      release();
+      return;
+    }
+    if (!macFullScreenFrameShrunken(win)) {
+      release();
+      return;
+    }
+    const area = macDisplayBounds(win);
+    win.setContentSize(area.width, area.height);
+    // setContentSize sometimes does not take effect while the fullscreen
+    // transition is still settling. If the content stays shrunken, exit and
+    // re-enter fullscreen from a display-sized window.
+    setTimeout(() => {
+      if (!win || win.isDestroyed() || !macKeepFullScreen) {
+        release();
+        return;
+      }
+      if (!macFullScreenFrameShrunken(win)) {
+        release();
+        return;
+      }
+      const onLeave = () => {
+        if (!win || win.isDestroyed()) {
+          release();
+          return;
+        }
+        setTimeout(() => {
+          if (!win || win.isDestroyed() || !macKeepFullScreen) {
+            release();
+            return;
+          }
+          enterMacFullScreen(win);
+          release();
+        }, 120);
+      };
+      win.once("leave-full-screen", onLeave);
+      try {
+        win.setFullScreen(false);
+      } catch {
+        release();
+      }
+      setTimeout(() => {
+        win.removeListener("leave-full-screen", onLeave);
+        release();
+      }, 2000);
+    }, 400);
+    return;
+  } catch {
+    release();
+    return;
   }
+  release();
 }
 
 function attachMainWindowStateListeners(win) {
@@ -1653,8 +1719,12 @@ function toggleMainWindowFullscreen() {
     return getMainWindowState();
   }
   if (process.platform === "darwin") {
-    if (mainWindow.isFullScreen()) macKeepFullScreen = false;
-    mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    if (mainWindow.isFullScreen()) {
+      macKeepFullScreen = false;
+      mainWindow.setFullScreen(false);
+    } else {
+      enterMacFullScreen(mainWindow);
+    }
     return getMainWindowState();
   }
   const expanded =

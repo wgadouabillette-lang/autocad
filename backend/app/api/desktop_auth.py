@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import logging
 import re
+import secrets
 import threading
 import time
 from typing import Any, Optional
@@ -29,21 +30,23 @@ _lock = threading.Lock()
 _sessions: dict[str, dict[str, object]] = {}
 
 
-class CompleteDesktopAuthRequest(BaseModel):
-    sessionId: str = Field(min_length=36, max_length=36)
-    provider: Optional[str] = Field(default=None, max_length=32)
-    idToken: Optional[str] = Field(default=None, max_length=8192)
-    accessToken: Optional[str] = Field(default=None, max_length=8192)
-
-
 class StartDesktopAuthRequest(BaseModel):
     sessionId: str = Field(min_length=36, max_length=36)
     claimSecret: str = Field(min_length=32, max_length=200)
 
 
+class CompleteDesktopAuthRequest(BaseModel):
+    sessionId: str = Field(min_length=36, max_length=36)
+    # Ignored. The server issues the code and shows it on the web page.
+    provider: Optional[str] = Field(default=None, max_length=32)
+    idToken: Optional[str] = Field(default=None, max_length=8192)
+    accessToken: Optional[str] = Field(default=None, max_length=8192)
+
+
 class ClaimDesktopAuthRequest(BaseModel):
     sessionId: str = Field(min_length=36, max_length=36)
     claimSecret: str = Field(min_length=32, max_length=200)
+    userCode: str = Field(min_length=8, max_length=12)
 
 
 def _assert_session_id(session_id: str) -> str:
@@ -70,7 +73,14 @@ def _memory_claim_hash(session_id: str) -> Optional[str]:
     return stored if isinstance(stored, str) else None
 
 
-def _firestore_claim_hash(session_id: str) -> Optional[str]:
+def _normalize_user_code(raw: str) -> str:
+    compact = re.sub(r"[\s-]", "", (raw or "").strip().upper())
+    if not re.fullmatch(r"[A-Z2-9]{8}", compact):
+        raise HTTPException(403, "Desktop auth code was refused.")
+    return compact
+
+
+def _firestore_field(session_id: str, field: str) -> Optional[str]:
     try:
         from app.core.firebase import firestore_available
 
@@ -81,11 +91,132 @@ def _firestore_claim_hash(session_id: str) -> Optional[str]:
         snap = firestore.client().document(f"desktopAuthSessions/{session_id}").get()
         if not snap.exists:
             return None
-        stored = (snap.to_dict() or {}).get("claimSecretHash")
+        stored = (snap.to_dict() or {}).get(field)
         return stored if isinstance(stored, str) else None
     except Exception:
-        logger.warning("Could not read desktop auth claim hash.", exc_info=True)
+        logger.warning("Could not read desktop auth session field.", exc_info=True)
         return None
+
+
+def _firestore_claim_hash(session_id: str) -> Optional[str]:
+    return _firestore_field(session_id, "claimSecretHash")
+
+
+def _memory_user_code_hash(session_id: str) -> Optional[str]:
+    with _lock:
+        entry = _sessions.get(session_id)
+        stored = entry.get("userCodeHash") if entry else None
+    return stored if isinstance(stored, str) else None
+
+
+def _user_code_gate(session_id: str, raw_code: str) -> str:
+    """'pending' until the browser page has issued a code, then match or refuse."""
+    digest = _claim_secret_hash(_normalize_user_code(raw_code))
+    memory = _memory_user_code_hash(session_id)
+    remote = _firestore_field(session_id, "userCodeHash")
+    if memory is None and remote is None:
+        return "pending"
+    if _hashes_match(memory, digest) or _hashes_match(remote, digest):
+        return "ok"
+    raise HTTPException(403, "Desktop auth code was refused.")
+
+
+_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _new_user_code() -> str:
+    return "".join(secrets.choice(_CODE_ALPHABET) for _ in range(8))
+
+
+def _format_user_code(code: str) -> str:
+    return f"{code[:4]}-{code[4:]}"
+
+
+def _remember_issued_code(session_id: str, uid: str, code: str) -> None:
+    digest = _claim_secret_hash(code)
+    now = time.time()
+    with _lock:
+        entry = _sessions.get(session_id) or {}
+        expires_at = float(entry.get("expiresAt", 0) or 0)
+        if expires_at <= now:
+            expires_at = now + SESSION_TTL_SECONDS
+        _sessions[session_id] = {
+            **entry,
+            "uid": uid,
+            "userCode": code,
+            "userCodeHash": digest,
+            "expiresAt": expires_at,
+        }
+
+
+def _issued_code_for(session_id: str, uid: str) -> Optional[str]:
+    with _lock:
+        entry = _sessions.get(session_id) or {}
+        code = entry.get("userCode")
+        owner = entry.get("uid")
+        if isinstance(code, str) and owner == uid:
+            return code
+        if isinstance(code, str) and isinstance(owner, str) and owner != uid:
+            raise HTTPException(403, "Desktop auth code was refused.")
+    remote_code = _firestore_field(session_id, "userCode")
+    remote_uid = _firestore_field(session_id, "uid")
+    if isinstance(remote_code, str) and remote_uid == uid:
+        _remember_issued_code(session_id, uid, remote_code)
+        return remote_code
+    if isinstance(remote_code, str) and isinstance(remote_uid, str) and remote_uid != uid:
+        raise HTTPException(403, "Desktop auth code was refused.")
+    return None
+
+
+def _session_was_started(session_id: str) -> bool:
+    if _memory_claim_hash(session_id):
+        return True
+    return bool(_firestore_claim_hash(session_id))
+
+
+def _issue_user_code(session_id: str, uid: str) -> str:
+    existing = _issued_code_for(session_id, uid)
+    if existing:
+        return existing
+    code = _new_user_code()
+    if not firestore_available_safe():
+        _remember_issued_code(session_id, uid, code)
+        return code
+    try:
+        from firebase_admin import firestore
+
+        db = firestore.client()
+        ref = db.document(f"desktopAuthSessions/{session_id}")
+
+        @firestore.transactional
+        def _txn(transaction: Any) -> str:
+            snap = ref.get(transaction=transaction)
+            data = snap.to_dict() or {}
+            current = data.get("userCode")
+            owner = data.get("uid")
+            if isinstance(current, str) and owner == uid:
+                return current
+            if isinstance(current, str) and isinstance(owner, str) and owner != uid:
+                raise HTTPException(403, "Desktop auth code was refused.")
+            transaction.set(
+                ref,
+                {
+                    "userCode": code,
+                    "userCodeHash": _claim_secret_hash(code),
+                    "uid": uid,
+                },
+                merge=True,
+            )
+            return code
+
+        issued = _txn(db.transaction())
+    except HTTPException:
+        raise
+    except Exception:
+        logger.warning("Could not issue desktop auth code.", exc_info=True)
+        raise HTTPException(503, "Desktop auth session could not be started.") from None
+    _remember_issued_code(session_id, uid, issued)
+    return issued
 
 
 def _claim_secret_matches(session_id: str, secret: str) -> bool:
@@ -238,7 +369,7 @@ def _purge_expired(now: float) -> None:
         _sessions.pop(session_id, None)
 
 
-def _claim_from_firestore(session_id: str) -> Optional[dict[str, Any]]:
+def _claim_from_firestore(session_id: str, code_digest: str) -> Optional[dict[str, Any]]:
     """One-shot claim via Admin SDK (docs are not client-readable)."""
     try:
         from app.core.firebase import firestore_available
@@ -258,6 +389,11 @@ def _claim_from_firestore(session_id: str) -> Optional[dict[str, Any]]:
         if not snap.exists:
             return None
         data = snap.to_dict() or {}
+        stored_hash = data.get("userCodeHash")
+        if not isinstance(stored_hash, str):
+            return None
+        if not _hashes_match(stored_hash, code_digest):
+            raise HTTPException(403, "Desktop auth code was refused.")
         created = data.get("createdAt")
         created_ms = 0
         if created is not None and hasattr(created, "timestamp"):
@@ -313,12 +449,17 @@ def start_desktop_auth(body: StartDesktopAuthRequest, request: Request):
 @router.post("/complete")
 def complete_desktop_auth(
     body: CompleteDesktopAuthRequest,
+    request: Request,
     user: Optional[FirebaseUser] = Depends(optional_firebase_user),
 ):
+    rate_limit_request(request, "desktop_auth_complete", limit=20, window_sec=60)
     session_id = _assert_session_id(body.sessionId)
-    # 0.1.18 never calls /start. Completing those sessions keeps already
-    # installed apps able to sign in. 0.1.19+ registers a claim hash first.
+    # The desktop started the session. The code is created here and shown only
+    # to this signed-in browser. The app must send it back with the claim secret.
+    if not _session_was_started(session_id):
+        raise HTTPException(403, "Desktop auth code was refused.")
     firebase_user = _require_user(user)
+    issued_code = _issue_user_code(session_id, firebase_user.uid)
     custom_token: Optional[str] = None
     try:
         custom_token = _create_custom_token(firebase_user.uid)
@@ -342,47 +483,24 @@ def complete_desktop_auth(
         }
         if custom_token:
             entry["token"] = custom_token
-        if provider == "google" and google_id:
+        elif provider == "google" and google_id:
             entry["provider"] = "google"
             entry["idToken"] = google_id
             if access:
                 entry["accessToken"] = access
+        entry["userCode"] = issued_code
+        entry["userCodeHash"] = _claim_secret_hash(issued_code)
         _sessions[session_id] = entry
     if custom_token:
         _publish_session_to_firestore(session_id, firebase_user.uid, custom_token)
-    return {"ok": True}
+    return {"ok": True, "userCode": _format_user_code(issued_code)}
 
 
 @router.get("/claim")
 def claim_desktop_auth_legacy(sessionId: str = Query(..., min_length=36, max_length=36)):
-    """Unsigned claim used by desktop builds before 0.1.19.
-
-    Sessions that registered a claim secret stay on POST /claim so a newer
-    login cannot be taken by the old endpoint.
-    """
-    session_id = _assert_session_id(sessionId)
-    if _memory_claim_hash(session_id) or _firestore_claim_hash(session_id):
-        return {"status": "pending"}
-
-    now = time.time()
-    with _lock:
-        _purge_expired(now)
-        entry = _sessions.pop(session_id, None)
-
-    if entry is not None:
-        expires_at = float(entry.get("expiresAt", 0) or 0)
-        if expires_at <= now:
-            raise HTTPException(410, "Desktop auth session expired.")
-        token = entry.get("token")
-        if not isinstance(token, str) or not token:
-            raise HTTPException(500, "Desktop auth session is invalid.")
-        return {"status": "ready", "customToken": token}
-
-    firestore_claim = _claim_from_firestore(session_id)
-    if firestore_claim is not None:
-        return firestore_claim
-
-    return {"status": "pending"}
+    """Unsigned claim is closed. Desktop builds must POST the claim secret."""
+    _ = sessionId
+    raise HTTPException(403, "Desktop auth claim was refused.")
 
 
 @router.post("/claim")
@@ -391,6 +509,8 @@ def claim_desktop_auth(body: ClaimDesktopAuthRequest, request: Request):
     session_id = _assert_session_id(body.sessionId)
     if not _claim_secret_matches(session_id, body.claimSecret):
         raise HTTPException(403, "Desktop auth claim was refused.")
+    if _user_code_gate(session_id, body.userCode) == "pending":
+        return {"status": "pending"}
     now = time.time()
     token: Optional[str] = None
     oauth_payload: Optional[dict[str, Any]] = None
@@ -426,7 +546,10 @@ def claim_desktop_auth(body: ClaimDesktopAuthRequest, request: Request):
     if oauth_payload is not None:
         return oauth_payload
 
-    firestore_claim = _claim_from_firestore(session_id)
+    firestore_claim = _claim_from_firestore(
+        session_id,
+        _claim_secret_hash(_normalize_user_code(body.userCode)),
+    )
     if firestore_claim is not None:
         return firestore_claim
 

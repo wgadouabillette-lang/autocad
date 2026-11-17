@@ -237,6 +237,106 @@ def verify_bearer_token(token: str) -> Optional[FirebaseUser]:
     return user
 
 
+def users_are_connected(caller_uid: str, other_uid: str) -> bool:
+    """Friends, or members of a workspace the caller belongs to."""
+    if not caller_uid or not other_uid:
+        return False
+    if caller_uid == other_uid:
+        return True
+    _ensure_db()
+    if _db is None:
+        return False
+    pair = "_".join(sorted((caller_uid, other_uid)))
+    try:
+        friendship = _db.collection("friendships").document(pair).get()
+        if friendship.exists:
+            participants = (friendship.to_dict() or {}).get("participants") or []
+            if caller_uid in participants and other_uid in participants:
+                return True
+        if _db.collection("users").document(caller_uid).collection("friends").document(other_uid).get().exists:
+            return True
+    except Exception as exc:
+        logger.warning("Failed to check friendship for %s and %s: %s", caller_uid, other_uid, exc)
+        return False
+
+    workspace_ids = set()
+    try:
+        for doc in _db.collection("users").document(caller_uid).collection("memberships").stream():
+            data = doc.to_dict() or {}
+            recorded = str(data.get("workspaceId") or "").strip()
+            workspace_ids.add(recorded or doc.id)
+        for doc in _db.collection("users").document(caller_uid).collection("workspaces").stream():
+            workspace_ids.add(doc.id)
+        owned = (
+            _db.collection("workspacesShared")
+            .where("ownerId", "==", caller_uid)
+            .limit(20)
+            .stream()
+        )
+        for doc in owned:
+            workspace_ids.add(doc.id)
+    except Exception as exc:
+        logger.warning("Failed to list workspaces for %s: %s", caller_uid, exc)
+        return False
+
+    for wid in list(workspace_ids)[:40]:
+        if not wid:
+            continue
+        try:
+            workspace = _db.collection("workspacesShared").document(wid).get()
+            if not workspace.exists:
+                continue
+            data = workspace.to_dict() or {}
+            caller_is_owner = str(data.get("ownerId") or "") == caller_uid
+            if not caller_is_owner:
+                member = (
+                    _db.collection("workspacesShared")
+                    .document(wid)
+                    .collection("members")
+                    .document(caller_uid)
+                    .get()
+                )
+                if not member.exists:
+                    continue
+            if str(data.get("ownerId") or "") == other_uid:
+                return True
+            other = (
+                _db.collection("workspacesShared")
+                .document(wid)
+                .collection("members")
+                .document(other_uid)
+                .get()
+            )
+            if other.exists:
+                return True
+        except Exception as exc:
+            logger.warning("Failed to compare workspace %s: %s", wid, exc)
+    return False
+
+
+def load_directory_profile(uid: str) -> Optional[Dict[str, object]]:
+    _ensure_db()
+    if _db is None or not uid:
+        return None
+    try:
+        snap = _db.collection("userDirectory").document(uid).get()
+    except Exception as exc:
+        logger.warning("Failed to read directory profile for %s: %s", uid, exc)
+        return None
+    if not snap.exists:
+        return None
+    data = snap.to_dict() or {}
+    email = str(data.get("email") or "").strip()
+    if not email:
+        return None
+    return {
+        "uid": uid,
+        "email": email,
+        "displayName": str(data.get("displayName") or email.split("@")[0]),
+        "photoURL": data.get("photoURL"),
+    }
+
+
 def find_user_by_email(email: str) -> Optional[FirebaseDirectoryUser]:
     normalized = (email or "").strip().lower()
     if not normalized:
@@ -298,7 +398,11 @@ def load_user_api_keys(uid: str) -> Dict[str, str]:
             data = doc.to_dict() or {}
             value = data.get("apiKey")
             if isinstance(value, str) and value.strip():
-                keys[doc.id] = value.strip()
+                from app.core.data_cipher import open_sealed
+
+                opened = open_sealed(value.strip())
+                if opened:
+                    keys[doc.id] = opened
     except Exception as exc:
         logger.warning("Failed to load user API keys for %s: %s", uid, exc)
     return keys
