@@ -300,7 +300,7 @@ async function playPreview(track: SpotifyTrackCard, restart = false): Promise<bo
     const imageUrl =
       hasOfficialAlbumArt(track.imageUrl)
         ? track.imageUrl
-        : current?.id === track.id && hasOfficialAlbumArt(current.imageUrl)
+        : current != null && current.id === track.id && hasOfficialAlbumArt(current.imageUrl)
           ? current.imageUrl
           : track.imageUrl;
     const next = { ...track, imageUrl };

@@ -3,7 +3,7 @@
   "private": true,
   "main": "lib/index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "build": "mkdir -p prompts lib/prompts && cp ../shared/prompts/*.txt prompts/ && tsc && cp prompts/*.txt lib/prompts/",
