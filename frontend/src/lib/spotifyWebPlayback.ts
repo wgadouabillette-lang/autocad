@@ -81,7 +81,10 @@ const SDK_URL = "https://sdk.scdn.co/spotify-player.js";
 
 let cachedPlayerAccessToken: string | null = null;
 let cachedPlayerAccessTokenAt = 0;
-const PLAYER_ACCESS_TOKEN_TTL_MS = 50 * 60 * 1000;
+// Spotify access tokens last about an hour. A long cache keeps handing the
+// Web Playback SDK a dead token after the window was in the background, so
+// the account still looks connected while play does nothing until restart.
+const PLAYER_ACCESS_TOKEN_TTL_MS = 2 * 60 * 1000;
 
 async function resolveSpotifyPlayerAccessToken(forceRefresh = false): Promise<string> {
   if (
@@ -95,6 +98,11 @@ async function resolveSpotifyPlayerAccessToken(forceRefresh = false): Promise<st
   cachedPlayerAccessToken = token;
   cachedPlayerAccessTokenAt = Date.now();
   return token;
+}
+
+function invalidateSpotifyAccessToken(): void {
+  cachedPlayerAccessToken = null;
+  cachedPlayerAccessTokenAt = 0;
 }
 
 let sdkPromise: Promise<void> | null = null;
@@ -190,6 +198,23 @@ async function putPlayOnDevice(trackId: string, activeDeviceId: string): Promise
         signal: playController.signal,
       },
     );
+    if (play.status === 401) {
+      invalidateSpotifyAccessToken();
+      const fresh = await resolveSpotifyPlayerAccessToken(true);
+      const retry = await fetch(
+        `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(activeDeviceId)}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${fresh}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ uris: [`spotify:track:${trackId}`] }),
+          signal: playController.signal,
+        },
+      );
+      return retry.ok || retry.status === 204;
+    }
     return play.ok || play.status === 204;
   } finally {
     window.clearTimeout(playTimeout);
@@ -658,6 +683,36 @@ function connectSpotifyPlayer(target: SpotifyWebPlayer): Promise<boolean> {
   });
 }
 
+let reconnectInflight: Promise<boolean> | null = null;
+let spotifyAuthRecoveryUsed = false;
+
+/** Reattach the same Web Playback device after the window was in the background. */
+async function reconnectExistingSpotifyPlayer(): Promise<boolean> {
+  if (hasSpotifyWebView2Desktop() || !player) return false;
+  if (reconnectInflight) return reconnectInflight;
+  const target = player;
+  reconnectInflight = (async () => {
+    deviceId = null;
+    deviceReadyPromise = null;
+    try {
+      target.disconnect();
+    } catch {
+      // already disconnected
+    }
+    try {
+      const connected = await connectSpotifyPlayer(target);
+      if (!connected) return false;
+      const id = await waitForDeviceId(defaultDeviceReadyTimeoutMs());
+      return Boolean(id);
+    } catch {
+      return false;
+    }
+  })().finally(() => {
+    reconnectInflight = null;
+  });
+  return reconnectInflight;
+}
+
 async function ensureDeviceReady(timeoutMs?: number): Promise<string | null> {
   if (deviceId) return deviceId;
   if (!player) return null;
@@ -717,6 +772,7 @@ export async function ensureSpotifyWebPlayer(options?: { premiumHint?: boolean |
 
       player.addListener("ready", ({ device_id }) => {
         deviceId = device_id;
+        spotifyAuthRecoveryUsed = false;
       });
       player.addListener("not_ready", ({ device_id }) => {
         if (!device_id || deviceId === device_id) deviceId = null;
@@ -730,6 +786,10 @@ export async function ensureSpotifyWebPlayer(options?: { premiumHint?: boolean |
       });
       player.addListener("authentication_error", ({ message }) => {
         console.warn("[spotify-web-playback] auth:", message);
+        invalidateSpotifyAccessToken();
+        if (spotifyAuthRecoveryUsed) return;
+        spotifyAuthRecoveryUsed = true;
+        void reconnectExistingSpotifyPlayer();
       });
       player.addListener("account_error", ({ message }) => {
         console.warn("[spotify-web-playback] account:", message);
@@ -892,9 +952,11 @@ export async function playSpotifyFullTrack(trackId: string): Promise<boolean> {
   try {
     const ok = await playSpotifyFullTrackOnce(trackId);
     if (ok) return true;
-    // Stale SDK / wiped ready listener — hard reset once then retry.
-    resetSpotifyWebPlayer();
-    premiumAvailable = true;
+    // The SDK allows one player per page. Replacing it leaves play dead
+    // until the app is reopened, so reuse this instance with a fresh token.
+    invalidateSpotifyAccessToken();
+    const revived = await reconnectExistingSpotifyPlayer();
+    if (!revived) return false;
     return await playSpotifyFullTrackOnce(trackId);
   } catch (err) {
     console.warn("[spotify-web-playback] play failed", err);
@@ -1004,7 +1066,44 @@ export async function resumeSpotifyWebPlayback(): Promise<void> {
     return;
   }
   if (!player) return;
-  await player.resume();
+  const deviceWasDown = !deviceId;
+  if (deviceWasDown) {
+    invalidateSpotifyAccessToken();
+    const revived = await reconnectExistingSpotifyPlayer();
+    if (!revived || !deviceId) return;
+  }
+  try {
+    await player.activateElement();
+  } catch {
+    // Play may still work after the device is back.
+  }
+  try {
+    await player.resume();
+  } catch {
+    // A dead device has nothing to resume; replay below.
+  }
+  if (!deviceWasDown) return;
+  const trackId = lastPlayTrackId;
+  const activeDeviceId = deviceId;
+  if (!trackId || !activeDeviceId) return;
+  await new Promise((resolve) => window.setTimeout(resolve, 350));
+  try {
+    const state = await player.getCurrentState();
+    if (state && !state.paused) {
+      syncPlaybackPosition(state);
+      return;
+    }
+  } catch {
+    // Fall through and start the last track on the revived device.
+  }
+  const ok = await putPlayOnDevice(trackId, activeDeviceId);
+  if (!ok) return;
+  try {
+    await player.resume();
+    syncPlaybackPosition(await player.getCurrentState());
+  } catch {
+    // player_state_changed will sync shortly
+  }
 }
 
 export function resetSpotifyWebPlayer() {
@@ -1016,13 +1115,13 @@ export function resetSpotifyWebPlayer() {
   cancelSpotifyPlaybackEnded();
   stopPlaybackProgressWatch();
   void player?.disconnect();
-  player = null;
+  // Keep the Player instance. A second Spotify.Player on the same page
+  // never becomes ready, which forced a full app restart after reconnect.
   deviceId = null;
   deviceReadyPromise = null;
   premiumAvailable = false;
   initPromise = null;
-  cachedPlayerAccessToken = null;
-  cachedPlayerAccessTokenAt = 0;
+  invalidateSpotifyAccessToken();
   cachedPositionMs = 0;
   cachedPositionAt = 0;
   cachedDurationMs = 0;
@@ -1113,4 +1212,24 @@ export function seedSpotifyPlaybackDurationMs(
   if (cachedDurationMs <= 0) {
     rememberPlaybackDuration(durationMs, id);
   }
+}
+
+let spotifyResumeTimer = 0;
+
+function scheduleSpotifyPlayerResume(): void {
+  if (hasSpotifyWebView2Desktop()) return;
+  window.clearTimeout(spotifyResumeTimer);
+  spotifyResumeTimer = window.setTimeout(() => {
+    if (document.visibilityState === "hidden") return;
+    if (!player || !premiumAvailable || deviceId) return;
+    invalidateSpotifyAccessToken();
+    void reconnectExistingSpotifyPlayer();
+  }, 400);
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("focus", scheduleSpotifyPlayerResume);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") scheduleSpotifyPlayerResume();
+  });
 }
