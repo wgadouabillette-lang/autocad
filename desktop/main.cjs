@@ -1198,9 +1198,17 @@ function createSplashWindow() {
   });
   splashWindow.once("ready-to-show", () => {
     if (!splashWindow || splashWindow.isDestroyed() || mainWindowMode === "app") return;
-    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) return;
+    if (
+      !updateSplashActive &&
+      mainWindow &&
+      !mainWindow.isDestroyed() &&
+      mainWindow.isVisible()
+    ) {
+      return;
+    }
     splashWindow.setBounds(getCenteredSplashBounds());
     splashWindow.show();
+    if (updateSplashActive) splashWindow.focus();
   });
   splashWindow.on("closed", () => {
     splashWindow = null;
@@ -1213,6 +1221,8 @@ let splashChromePromise = null;
 let splashShowPromise = null;
 /** Bumps on every mode change so a late splash resize cannot shrink the sign-in window. */
 let windowModeGeneration = 0;
+/** Update install is showing splash.html. Never resize the live workspace into that card. */
+let updateSplashActive = false;
 
 function windowIsSplashSized(win) {
   if (!win || win.isDestroyed()) return false;
@@ -1273,7 +1283,53 @@ function applySplashChromeToMainWindow() {
   return splashChromePromise;
 }
 
+function revealStandaloneSplash() {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.setBounds(getCenteredSplashBounds());
+    if (!splashWindow.isVisible()) splashWindow.show();
+    splashWindow.focus();
+    return;
+  }
+  createSplashWindow();
+}
+
+/**
+ * Boot card for an update. Hides the workspace without changing its size, so
+ * macOS cannot scale the live app down into the 250×300 splash.
+ */
+async function presentUpdateSplash() {
+  updateSplashActive = true;
+  windowModeGeneration += 1;
+  mainWindowMode = "splash";
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      mainWindow.setOpacity(0);
+    } catch {
+      // Opacity is optional. hide() below is what takes the workspace off screen.
+    }
+    await waitForLeaveFullScreen(mainWindow);
+    if (!updateSplashActive || !mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.hide();
+    try {
+      mainWindow.setOpacity(1);
+    } catch {
+      // Restored while hidden so the next real show is opaque.
+    }
+  }
+  if (!updateSplashActive) return;
+  revealStandaloneSplash();
+}
+
+function restoreWorkspaceAfterUpdateFailure() {
+  updateSplashActive = false;
+  showAppWindow();
+}
+
 async function showSplashMainWindow() {
+  if (updateSplashActive) {
+    revealStandaloneSplash();
+    return;
+  }
   if (splashShowPromise) return splashShowPromise;
   const generation = ++windowModeGeneration;
   splashShowPromise = (async () => {
@@ -1285,15 +1341,21 @@ async function showSplashMainWindow() {
       // An update (or any return to splash while the workspace is on screen)
       // must show the boot card, not the live app squeezed into 250×300.
       if (leavingApp && (mainWindow.isVisible() || mainWindow.isFullScreen())) {
+        try {
+          mainWindow.setOpacity(0);
+        } catch {
+          // hide() still removes the window if opacity is unavailable.
+        }
         await waitForLeaveFullScreen(mainWindow);
         if (!splashStillCurrent() || !mainWindow || mainWindow.isDestroyed()) return;
         mainWindow.hide();
-        if (splashWindow && !splashWindow.isDestroyed()) {
-          splashWindow.show();
-          splashWindow.focus();
-        } else {
-          createSplashWindow();
+        try {
+          mainWindow.setOpacity(1);
+        } catch {
+          // Restored while hidden.
         }
+        if (!splashStillCurrent()) return;
+        revealStandaloneSplash();
         return;
       }
       await applySplashChromeToMainWindow();
@@ -1470,6 +1532,7 @@ function armLaunchWatchdog(win) {
 }
 
 function showAppWindow() {
+  if (updateSplashActive) return;
   windowModeGeneration += 1;
   const alreadyApp = mainWindowMode === "app";
   mainWindowMode = "app";
@@ -2385,6 +2448,8 @@ app.whenReady().then(async () => {
     initUpdater({
       getMainWindow: () => mainWindow,
       getWindowMode: () => mainWindowMode,
+      presentUpdateSplash,
+      restoreAfterUpdateFailure: restoreWorkspaceAfterUpdateFailure,
     });
     if (!DEV_URL) {
       void waitForBackend().catch((err) => {

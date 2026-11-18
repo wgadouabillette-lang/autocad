@@ -204,12 +204,12 @@ export function effectiveOnDemandUsage(
 }
 
 export function canCreateOwnedWorkspace(
-  ownedWorkspaceCount: number,
-  subscriptionPlan: SubscriptionPlan,
-  billingManaged = false,
+  _ownedWorkspaceCount: number,
+  _subscriptionPlan: SubscriptionPlan,
+  _billingManaged = false,
 ): boolean {
-  if (effectiveSubscriptionPlan(subscriptionPlan, billingManaged) === "pro") return true;
-  return ownedWorkspaceCount < FREE_OWNED_WORKSPACE_LIMIT;
+  // A seat or a personal payment is required to enter the app. Inside it, nothing is locked.
+  return true;
 }
 
 export function ownedWorkspaceLimitMessage(
@@ -223,18 +223,18 @@ export function ownedWorkspaceLimitMessage(
 }
 
 export function hasPersonalAiAccess(
-  plan: SubscriptionPlan,
-  billingManaged = false,
+  _plan: SubscriptionPlan,
+  _billingManaged = false,
 ): boolean {
-  return effectiveSubscriptionPlan(plan, billingManaged) === "pro";
+  return true;
 }
 
 export function hasAiAccess(
-  plan: SubscriptionPlan,
-  billingManaged = false,
-  workspaceEnterprise = false,
+  _plan: SubscriptionPlan,
+  _billingManaged = false,
+  _workspaceEnterprise = false,
 ): boolean {
-  return hasPersonalAiAccess(plan, billingManaged) || workspaceEnterprise;
+  return true;
 }
 
 export function hasAiNotesAccess(
@@ -245,7 +245,7 @@ export function hasAiNotesAccess(
   return hasAiAccess(plan, billingManaged, workspaceEnterprise);
 }
 
-/** Création de sondage : Pro personnel ou workspace Team / boosté. */
+/** Création de sondage : ouverte pour toute personne déjà dans l'app. */
 export function hasVoicePollAccess(
   plan: SubscriptionPlan,
   billingManaged = false,

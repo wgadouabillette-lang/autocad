@@ -11,6 +11,8 @@ const STARTUP_CHECK_DELAY_MS = 400;
 
 let getMainWindow = () => null;
 let getWindowMode = () => "app";
+let presentUpdateSplash = async () => {};
+let restoreAfterUpdateFailure = () => {};
 let schedulerTimer = null;
 let pollTimer = null;
 let pendingInfo = null;
@@ -197,6 +199,14 @@ async function runInstallNow(info) {
   if (installing) return { ok: false, reason: "busy" };
   installing = true;
 
+  if (!isDevMode()) {
+    try {
+      await presentUpdateSplash();
+    } catch (err) {
+      console.error("[forma-updater] splash:", err);
+    }
+  }
+
   if (isDevMode()) {
     clearPending();
     const result = await runMockInstall(info);
@@ -222,6 +232,11 @@ async function runInstallNow(info) {
   } catch (err) {
     installing = false;
     console.error("[forma-updater] install failed:", err);
+    try {
+      restoreAfterUpdateFailure();
+    } catch {
+      // The workspace stays hidden only if the restore itself throws.
+    }
     return { ok: false, reason: "install_failed" };
   }
 }
@@ -286,6 +301,12 @@ function initUpdater(options) {
   getMainWindow = options.getMainWindow;
   if (typeof options.getWindowMode === "function") {
     getWindowMode = options.getWindowMode;
+  }
+  if (typeof options.presentUpdateSplash === "function") {
+    presentUpdateSplash = options.presentUpdateSplash;
+  }
+  if (typeof options.restoreAfterUpdateFailure === "function") {
+    restoreAfterUpdateFailure = options.restoreAfterUpdateFailure;
   }
   startScheduler();
 

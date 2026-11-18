@@ -220,7 +220,6 @@ export default function WorkspaceQuickMenu() {
                 <label className="workspace-overlay__create-label" htmlFor="workspace-quick-create-name">
                   Créer un workspace
                 </label>
-                <p className="workspace-overlay__create-label text-muted-500">{workspaceLimitHint}</p>
                 <div className="workspace-overlay__create-row">
                   <input
                     id="workspace-quick-create-name"
