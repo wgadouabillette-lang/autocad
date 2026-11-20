@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useDirectCallStore } from "./useDirectCallStore";
 import {
   DEFAULT_LAST_SPOKE_AT,
   DEFAULT_PARTICIPANT_MEDIA,
@@ -675,7 +676,9 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     });
 
     if (partnerLeftMergedCall) {
-      get().stopLocalMediaTracks();
+      if (!useDirectCallStore.getState().callId) {
+        get().stopLocalMediaTracks();
+      }
       stopScreenShare();
       playVoiceLeaveSound();
       pushVoicePresence(get, workspaceId);
@@ -1325,7 +1328,9 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const remainingAudience = withoutLocal(theater.audience);
     const remainingQuestion = theater.question?.isLocal ? null : theater.question;
 
-    get().stopLocalMediaTracks();
+    if (!useDirectCallStore.getState().callId) {
+      get().stopLocalMediaTracks();
+    }
     stopScreenShare();
 
     patchTheater(set, workspaceId, {
@@ -1799,7 +1804,9 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
     const wasInCall = get().isLocalInCall(workspaceId);
 
-    get().stopLocalMediaTracks();
+    if (!useDirectCallStore.getState().callId) {
+      get().stopLocalMediaTracks();
+    }
     stopScreenShare();
 
     const openChannels = mapOpenChannelsVacancy(

@@ -18,6 +18,7 @@ import { useWorkspacePresence } from "./hooks/useWorkspacePresence";
 import { useWorkspaceJoinRequests } from "./hooks/useWorkspaceJoinRequests";
 import { useWorkspaceVoiceKnocks } from "./hooks/useWorkspaceVoiceKnocks";
 import { useWorkspaceVoiceRtc } from "./hooks/useWorkspaceVoiceRtc";
+import { useDirectCallRtc } from "./hooks/useDirectCallRtc";
 import { useWorkspacePolls } from "./hooks/useWorkspacePolls";
 import { useWorkspaceTextChannels } from "./hooks/useWorkspaceTextChannels";
 import { useWorkspaceOpenVoiceChannels } from "./hooks/useWorkspaceOpenVoiceChannels";
@@ -194,6 +195,7 @@ export default function App() {
   useWorkspaceJoinRequests();
   useWorkspaceVoiceKnocks();
   useWorkspaceVoiceRtc();
+  useDirectCallRtc();
   useWorkspacePolls();
   useWorkspaceOpenVoiceChannels();
   useWorkspaceTextChannels();

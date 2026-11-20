@@ -12621,13 +12621,16 @@ html.is-desktop-windows .app-voice-settings-floating {
 .direct-call-stage__body {
   flex: 1;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
+  gap: 16px;
   min-height: 0;
   padding: 24px;
 }
 
 .direct-call-stage__tile {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -12635,8 +12638,17 @@ html.is-desktop-windows .app-voice-settings-floating {
   gap: 16px;
   width: min(28rem, 100%);
   aspect-ratio: 4 / 3;
+  overflow: hidden;
   border-radius: 28px;
   background: #1c1c1c;
+}
+
+.direct-call-stage__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .direct-call-stage__avatar {
@@ -12652,9 +12664,19 @@ html.is-desktop-windows .app-voice-settings-floating {
 }
 
 .direct-call-stage__name {
+  position: relative;
+  z-index: 1;
   font-size: 15px;
   font-weight: 500;
   color: #f4f4f5;
+}
+
+.direct-call-stage__tile:has(.direct-call-stage__video) .direct-call-stage__name {
+  position: absolute;
+  bottom: 16px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.45);
 }
 
 .calendar-panel__event--call {

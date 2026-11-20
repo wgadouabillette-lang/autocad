@@ -6,6 +6,12 @@ import {
 } from "../firebase/webrtcSignaling";
 import { createPeerConnection } from "./iceConfig";
 
+export interface RtcSignalTransport {
+  send(signal: Omit<RtcSignalDoc, "id" | "createdAt">): Promise<void>;
+  subscribe(onSignal: (signal: RtcSignalDoc) => void): () => void;
+  remove(signalId: string): Promise<void>;
+}
+
 export interface RemoteParticipantStreams {
   audioStream: MediaStream | null;
   cameraStream: MediaStream | null;
@@ -91,23 +97,28 @@ export class WorkspaceVoiceRtcSession {
     screenSharing: false,
   };
 
+  private transport: RtcSignalTransport;
+
   constructor(
     private workspaceId: string,
     private sessionId: string,
     private localUid: string,
     private onRemoteMedia: (uid: string, media: RemoteParticipantStreams) => void,
     private onRemoteMediaClear: (uid: string) => void,
-  ) {}
+    transport?: RtcSignalTransport,
+  ) {
+    this.transport = transport ?? {
+      send: (signal) => sendRtcSignal(workspaceId, sessionId, signal),
+      subscribe: (onSignal) =>
+        watchIncomingRtcSignals(workspaceId, sessionId, localUid, onSignal),
+      remove: (signalId) => deleteRtcSignal(workspaceId, sessionId, signalId, localUid),
+    };
+  }
 
   start(): void {
-    this.signalUnsub = watchIncomingRtcSignals(
-      this.workspaceId,
-      this.sessionId,
-      this.localUid,
-      (signal) => {
-        void this.handleSignal(signal);
-      },
-    );
+    this.signalUnsub = this.transport.subscribe((signal) => {
+      void this.handleSignal(signal);
+    });
   }
 
   async setPeerUids(peerUids: string[]): Promise<void> {
@@ -267,12 +278,14 @@ export class WorkspaceVoiceRtcSession {
 
     pc.onicecandidate = (event) => {
       if (!event.candidate) return;
-      void sendRtcSignal(this.workspaceId, this.sessionId, {
-        fromUid: this.localUid,
-        toUid: remoteUid,
-        type: "candidate",
-        candidate: event.candidate.toJSON(),
-      }).catch(() => {});
+      void this.transport
+        .send({
+          fromUid: this.localUid,
+          toUid: remoteUid,
+          type: "candidate",
+          candidate: event.candidate.toJSON(),
+        })
+        .catch(() => {});
     };
 
     pc.oniceconnectionstatechange = () => {
@@ -402,7 +415,7 @@ export class WorkspaceVoiceRtcSession {
       peer.makingOffer = true;
       await this.applyLocalTracks(peer);
       await peer.pc.setLocalDescription(await peer.pc.createOffer());
-      await sendRtcSignal(this.workspaceId, this.sessionId, {
+      await this.transport.send({
         fromUid: this.localUid,
         toUid: peer.remoteUid,
         type: "offer",
@@ -460,7 +473,7 @@ export class WorkspaceVoiceRtcSession {
         await this.applyLocalTracks(peer);
         await this.flushPendingCandidates(peer);
         await peer.pc.setLocalDescription(await peer.pc.createAnswer());
-        await sendRtcSignal(this.workspaceId, this.sessionId, {
+        await this.transport.send({
           fromUid: this.localUid,
           toUid: peer.remoteUid,
           type: "answer",
@@ -498,7 +511,7 @@ export class WorkspaceVoiceRtcSession {
 
   private async safeDeleteSignal(signalId: string): Promise<void> {
     try {
-      await deleteRtcSignal(this.workspaceId, this.sessionId, signalId, this.localUid);
+      await this.transport.remove(signalId);
     } catch {
       // Déjà supprimé.
     }
