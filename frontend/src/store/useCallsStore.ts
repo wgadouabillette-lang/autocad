@@ -1618,6 +1618,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       fromBlockId: localBlock.id,
       toBlockId,
       status: "pending",
+      personName: toBlock.participants.find((participant) => !participant.isLocal)?.name,
     };
 
     set((s) => {

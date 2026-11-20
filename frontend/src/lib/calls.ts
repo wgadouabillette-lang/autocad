@@ -23,6 +23,8 @@ export interface JoinRequest {
   fromBlockId: string;
   toBlockId: string;
   status: "pending" | "accepted" | "declined";
+  /** Nom affiché quand le bloc d'origine n'est plus dans la grille. */
+  personName?: string;
 }
 
 /** Salon vocal ouvert — rejoindre directement, sans demande. */
@@ -231,7 +233,8 @@ export function syncRoomCallsWithMembers(
     openChannels: mapOpenChannelsVacancy(normalizedOpenChannels),
     requests: existing.requests.filter(
       (request) =>
-        validBlockIds.has(request.fromBlockId) && validBlockIds.has(request.toBlockId),
+        request.status === "pending" ||
+        (validBlockIds.has(request.fromBlockId) && validBlockIds.has(request.toBlockId)),
     ),
     handRaises: (existing.handRaises ?? []).filter((request) =>
       validUserIds.has(request.userId),

@@ -3,10 +3,12 @@ import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { Trans, useTranslation } from "react-i18next";
 import { useStore } from "../../store/useStore";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
 import {
   findLocalBlock,
   memberBlockId,
+  parseVoiceKnockRequestId,
   type CallBlock,
   type JoinRequest,
 } from "../../lib/calls";
@@ -21,36 +23,43 @@ function resolveKnock(
   blocks: CallBlock[],
   requests: JoinRequest[],
   localBlockId: string | undefined,
+  localUid: string | null,
 ):
   | { mode: "incoming"; request: JoinRequest; knockerName: string }
   | { mode: "outgoing"; request: JoinRequest; targetName: string }
   | null {
-  if (!localBlockId) return null;
-
   const localKnockBlockId = memberBlockId(workspaceId, "local");
-  const incoming = requests.find(
-    (r) =>
-      r.status === "pending" &&
-      (r.toBlockId === localBlockId || r.toBlockId === localKnockBlockId),
-  );
+  const pending = requests.filter((request) => request.status === "pending");
+
+  const incoming = pending.find((request) => {
+    const parsed = parseVoiceKnockRequestId(request.id);
+    if (localUid && parsed?.toUid === localUid) return true;
+    return (
+      !!localBlockId &&
+      (request.toBlockId === localBlockId || request.toBlockId === localKnockBlockId)
+    );
+  });
   if (incoming) {
     return {
       mode: "incoming",
       request: incoming,
-      knockerName: blockPrimaryName(blocks, incoming.fromBlockId),
+      knockerName: incoming.personName || blockPrimaryName(blocks, incoming.fromBlockId),
     };
   }
 
-  const outgoing = requests.find(
-    (r) =>
-      r.status === "pending" &&
-      (r.fromBlockId === localBlockId || r.fromBlockId === localKnockBlockId),
-  );
+  const outgoing = pending.find((request) => {
+    const parsed = parseVoiceKnockRequestId(request.id);
+    if (localUid && parsed?.fromUid === localUid && parsed.toUid !== localUid) return true;
+    return (
+      !!localBlockId &&
+      (request.fromBlockId === localBlockId || request.fromBlockId === localKnockBlockId)
+    );
+  });
   if (outgoing) {
     return {
       mode: "outgoing",
       request: outgoing,
-      targetName: blockPrimaryName(blocks, outgoing.toBlockId),
+      targetName: outgoing.personName || blockPrimaryName(blocks, outgoing.toBlockId),
     };
   }
 
@@ -140,6 +149,7 @@ export default function JoinKnockOverlay() {
   const { t } = useTranslation();
   const labelOf = usePersonLabel();
   const activeRoomId = useStore((s) => s.activeRoomId);
+  const localUid = useAuthStore((s) => s.firebaseUid);
   const roomCalls = useCallsStore((s) => s.callsByRoom[activeRoomId]);
   const acceptJoin = useCallsStore((s) => s.acceptJoin);
   const declineJoin = useCallsStore((s) => s.declineJoin);
@@ -155,6 +165,7 @@ export default function JoinKnockOverlay() {
     roomCalls.blocks,
     roomCalls.requests,
     localBlock?.id,
+    localUid,
   );
   if (!knock) return null;
 

@@ -7,7 +7,7 @@ import {
   type Unsubscribe,
 } from "firebase/database";
 import { rtdb } from "./client";
-import { ensureWorkspaceRtdbAcl } from "./workspaceRtdbAcl";
+import { clearWorkspaceRtdbAclCache, ensureWorkspaceRtdbAcl } from "./workspaceRtdbAcl";
 
 export type VoiceKnockStatus = "pending" | "accepted" | "declined" | "ejected";
 
@@ -40,17 +40,29 @@ export async function sendVoiceKnock(
   fromName: string,
   toUid: string,
 ): Promise<string> {
-  await ensureWorkspaceRtdbAcl(workspaceId);
   const id = knockId(fromUid, toUid);
-  await set(ref(rtdb, knockPath(workspaceId, id)), {
+  const node = ref(rtdb, knockPath(workspaceId, id));
+  const payload = {
     id,
     workspaceId,
     fromUid,
     fromName: fromName.trim() || "Membre",
     toUid,
-    status: "pending",
+    status: "pending" as const,
     createdAt: Date.now(),
-  });
+  };
+
+  await ensureWorkspaceRtdbAcl(workspaceId);
+  try {
+    await set(node, payload);
+  } catch {
+    // Une frappe précédente reste sur le nœud et refuse un nouveau pending.
+    // On renouvelle aussi l'accès workspace, puis on réécrit.
+    clearWorkspaceRtdbAclCache(workspaceId);
+    await ensureWorkspaceRtdbAcl(workspaceId);
+    await remove(node).catch(() => {});
+    await set(node, { ...payload, createdAt: Date.now() });
+  }
   return id;
 }
 

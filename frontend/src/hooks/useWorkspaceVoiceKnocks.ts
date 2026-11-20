@@ -31,6 +31,7 @@ function knockToJoinRequest(
       ? memberBlockId(workspaceId, knock.toUid)
       : memberBlockId(workspaceId, "local"),
     status: "pending",
+    personName: isOutgoing ? undefined : knock.fromName,
   };
 }
 
