@@ -55,14 +55,6 @@ export const NOTIFICATION_PREVIEW_FIXTURES: AppNotification[] = [
     title: "Réponse impossible",
     body: "Impossible d'accepter la demande d'ami pour le moment.",
   }),
-  fixture("message-failed", {
-    kind: "message",
-    category: "Messages",
-    title: "Message non envoyé",
-    body: "Votre message n'a pas pu être envoyé. Réessayez.",
-    messagePersonId: "preview-person",
-    messagePersonName: "Jordan",
-  }),
   fixture("schedule-failed", {
     kind: "message",
     category: "Messages",

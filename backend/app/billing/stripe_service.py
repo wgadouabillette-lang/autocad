@@ -280,7 +280,10 @@ def sync_enterprise_subscription_for_workspace(
     *,
     paid_by_uid: Optional[str] = None,
 ) -> None:
-    plan, seat_count = _enterprise_subscription_state(subscription)
+    plan, paid_seats = _enterprise_subscription_state(subscription)
+    # Le nombre choisi à l'achat s'ajoute aux sièges déjà là. La quantité Stripe
+    # est ce qui est facturé ; seat_count dans les metadata est le total.
+    seat_count = max(paid_seats, _metadata_seat_count(subscription))
     customer_id = str(subscription.get("customer") or "")
     subscription_id = str(subscription.get("id") or "")
     member_count = count_workspace_members(workspace_id)
@@ -1448,6 +1451,16 @@ def _seat_subscription_item(subscription: Dict[str, Any]) -> Optional[Dict[str, 
     return fallback
 
 
+def _workspace_seat_baseline(workspace: Dict[str, Any], workspace_id: str) -> int:
+    """Sièges déjà comptés : le total payé, ou au minimum les membres déjà présents."""
+    try:
+        stored = int(workspace.get("enterpriseSeatCount") or 0)
+    except (TypeError, ValueError):
+        stored = 0
+    members = count_workspace_members(workspace_id, workspace)
+    return max(stored, members, 1)
+
+
 def create_workspace_seat_upgrade_intent(
     uid: str,
     email: Optional[str],
@@ -1486,16 +1499,18 @@ def create_workspace_seat_upgrade_intent(
     unit_cents = _enterprise_seat_unit_cents()
     workspace_name = str(workspace.get("name") or wid).strip() or wid
 
+    baseline = _workspace_seat_baseline(workspace, wid)
     if active:
         current = stripe.Subscription.retrieve(sub_id, expand=["items.data.price"])
         item = _seat_subscription_item(current)
         current_qty = int(item.get("quantity") or 0) if item else 0
-        new_qty = current_qty + requested
+        new_paid = current_qty + requested
+        new_qty = max(current_qty, baseline) + requested
         if new_qty > 500:
             raise ValueError("Maximum 500 sièges.")
         seat_price = ensure_meetra_seat_price(stripe)
         item_update: Dict[str, Any] = (
-            {"id": str(item.get("id") or ""), "quantity": new_qty}
+            {"id": str(item.get("id") or ""), "quantity": new_paid}
             if item and str(item.get("id") or "").strip()
             else {"price": seat_price, "quantity": requested}
         )
@@ -1508,7 +1523,7 @@ def create_workspace_seat_upgrade_intent(
                 "firebase_uid": uid,
                 "workspace_id": wid,
                 "intent": "enterprise",
-                "seat_count": str(new_qty if item else requested),
+                "seat_count": str(new_qty),
             },
             expand=["latest_invoice.confirmation_secret", "latest_invoice.payment_intent", "pending_setup_intent"],
         )
@@ -1527,7 +1542,7 @@ def create_workspace_seat_upgrade_intent(
                 "clientSecret": "",
                 "publishableKey": publishable,
                 "subscriptionId": sub_id,
-                "seatCount": int(live.get("seatCount") or 0) + requested,
+                "seatCount": new_qty,
                 "unitAmountCents": unit_cents,
                 "totalAmountCents": 0,
                 "mode": "enterprise",
@@ -1539,7 +1554,7 @@ def create_workspace_seat_upgrade_intent(
             "clientSecret": _subscription_client_secret(updated),
             "publishableKey": publishable,
             "subscriptionId": sub_id,
-            "seatCount": int(live.get("seatCount") or 0) + requested,
+            "seatCount": new_qty,
             "unitAmountCents": unit_cents,
             "totalAmountCents": amount_due,
             "mode": "enterprise",
@@ -1548,6 +1563,9 @@ def create_workspace_seat_upgrade_intent(
             "paid": False,
         }
 
+    new_total = baseline + requested
+    if new_total > 500:
+        raise ValueError("Maximum 500 sièges.")
     seat_price = ensure_meetra_seat_price(stripe)
     try:
         incomplete = stripe.Subscription.list(
@@ -1577,7 +1595,7 @@ def create_workspace_seat_upgrade_intent(
             "firebase_uid": uid,
             "workspace_id": wid,
             "intent": "enterprise",
-            "seat_count": str(requested),
+            "seat_count": str(new_total),
         },
         "expand": ["latest_invoice.confirmation_secret", "pending_setup_intent"],
     }
@@ -1592,14 +1610,14 @@ def create_workspace_seat_upgrade_intent(
             "stripeSubscriptionId": sub_id,
             "stripeSubscriptionStatus": str(subscription.get("status") or "incomplete"),
             "paidByUid": uid,
-            "seatCount": requested,
+            "seatCount": new_total,
         },
     )
     return {
         "clientSecret": _subscription_client_secret(subscription),
         "publishableKey": publishable,
         "subscriptionId": sub_id,
-        "seatCount": requested,
+        "seatCount": new_total,
         "unitAmountCents": unit_cents,
         "totalAmountCents": unit_cents * requested,
         "mode": "enterprise",

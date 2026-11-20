@@ -2,7 +2,7 @@ import { ArrowUpCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { watchSharedWorkspaceDoc, watchWorkspaceMembers } from "../../lib/firebase/workspaceRegistry";
-import { isMarketingPreview } from "../../lib/marketingPreview";
+import { isMarketingHomePreviewScene, isMarketingPreview } from "../../lib/marketingPreview";
 import {
   loadWorkspaceSeatCounts,
   type WorkspaceSeatCounts,
@@ -11,6 +11,9 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspaceUpgradeStore } from "../../store/useWorkspaceUpgradeStore";
 import { workspaceLabel, useWorkspacesStore } from "../../store/useWorkspacesStore";
+
+/** Personnes visibles dans l'aperçu d'accueil : cartes, théâtre et salon. */
+const MARKETING_HOME_HEADCOUNT = 17;
 
 /** Capsule Upgrade, à gauche du bouton Workspace. Toujours visible. */
 export default function HeaderUpgradeButton() {
@@ -25,10 +28,11 @@ export default function HeaderUpgradeButton() {
   const billingManaged = useStore((s) => s.billingManaged);
   const label = t("onboarding.upgrade.button");
   const [seats, setSeats] = useState<WorkspaceSeatCounts | null>(null);
+  const previewHeadcount = isMarketingHomePreviewScene() ? MARKETING_HOME_HEADCOUNT : null;
 
   useEffect(() => {
     const workspaceId = (workspace?.id ?? activeRoomId).trim();
-    if (!workspaceId || !isAuthenticated) {
+    if (!workspaceId || !isAuthenticated || isMarketingHomePreviewScene()) {
       setSeats(null);
       return;
     }
@@ -49,7 +53,11 @@ export default function HeaderUpgradeButton() {
     };
   }, [activeRoomId, billingManaged, isAuthenticated, subscriptionPlan, workspace?.id]);
 
-  const seatLabel = seats ? `${seats.filled}/${seats.capacity}` : null;
+  const seatLabel = previewHeadcount
+    ? `${previewHeadcount}/${previewHeadcount}`
+    : seats
+      ? `${seats.filled}/${seats.capacity}`
+      : null;
 
   return (
     <button

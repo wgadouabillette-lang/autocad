@@ -102,6 +102,7 @@ export default function NotificationsPanel({
   const declineFriendRequest = usePeopleStore((s) => s.declineFriendRequest);
   const acceptWorkspaceInvite = useWorkspacesStore((s) => s.acceptWorkspaceInvite);
   const declineWorkspaceInvite = useWorkspacesStore((s) => s.declineWorkspaceInvite);
+  const respondJoinRequest = useWorkspacesStore((s) => s.respondJoinRequest);
   const openMessageFromNotification = usePeopleStore((s) => s.openMessageFromNotification);
   const workspaceId = useStore((s) => s.activeRoomId);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
@@ -112,6 +113,7 @@ export default function NotificationsPanel({
   const [updateBusy, setUpdateBusy] = useState(false);
   const [friendActionBusy, setFriendActionBusy] = useState(false);
   const [workspaceInviteBusy, setWorkspaceInviteBusy] = useState(false);
+  const [joinRequestBusy, setJoinRequestBusy] = useState(false);
 
   const updatePanelPosition = useCallback(() => {
     const anchor = anchorRef.current;
@@ -230,6 +232,24 @@ export default function NotificationsPanel({
     }
   };
 
+  const handleJoinRequest = async (accept: boolean) => {
+    if (!item?.joinRequestWorkspaceId || !item.joinRequesterUid || joinRequestBusy) return;
+    setJoinRequestBusy(true);
+    try {
+      await respondJoinRequest(item.joinRequestWorkspaceId, item.joinRequesterUid, accept, {
+        requesterName: item.joinRequesterName ?? "Membre",
+        requesterEmail: item.joinRequesterEmail ?? "",
+      });
+      removeNotification(item.id);
+    } catch (error) {
+      window.alert(
+        error instanceof Error ? error.message : "Impossible de répondre à la demande.",
+      );
+    } finally {
+      setJoinRequestBusy(false);
+    }
+  };
+
   const handleInstallUpdateNow = async () => {
     if (!item || item.kind !== "app_update" || updateBusy) return;
     if (!hasFormaDesktop() || !window.formaDesktop?.installUpdateNow) return;
@@ -322,6 +342,12 @@ export default function NotificationsPanel({
                   friendRequestId={item.friendRequestId}
                   body={item.body}
                 />
+              ) : item.joinRequesterUid ? (
+                <FriendRequestNotificationVisual
+                  friendRequestId={item.joinRequesterUid}
+                  body={item.body}
+                  name={item.joinRequesterName}
+                />
               ) : null}
             </div>
 
@@ -341,6 +367,7 @@ export default function NotificationsPanel({
                   (item.kind === "friend_request" ||
                     item.kind === "workspace_invite" ||
                     item.kind === "app_update" ||
+                    Boolean(item.joinRequesterUid) ||
                     isRecordingSavedNotification(item)) &&
                     "notifications-panel__actions--split",
                 )}
@@ -380,6 +407,26 @@ export default function NotificationsPanel({
                       className="chat-connectors-row__connect"
                       disabled={friendActionBusy}
                       onClick={() => void handleFriendRequestAccept()}
+                    >
+                      {t("calls.accept")}
+                      <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />
+                    </button>
+                  </>
+                ) : item.joinRequesterUid && item.joinRequestWorkspaceId ? (
+                  <>
+                    <button
+                      type="button"
+                      className="chat-connectors-row__connect"
+                      disabled={joinRequestBusy}
+                      onClick={() => void handleJoinRequest(false)}
+                    >
+                      {t("calls.decline")}
+                    </button>
+                    <button
+                      type="button"
+                      className="chat-connectors-row__connect"
+                      disabled={joinRequestBusy}
+                      onClick={() => void handleJoinRequest(true)}
                     >
                       {t("calls.accept")}
                       <ArrowUpRight size={11} strokeWidth={2.25} className="shrink-0 opacity-80" aria-hidden />

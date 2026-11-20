@@ -18,6 +18,8 @@ export interface WorkspaceVoicePresence {
   inPrivateCall: boolean;
   openChannelId: string | null;
   inTheaterCall?: boolean;
+  /** speaker, audience ou question — visible par les autres dans le théâtre. */
+  theaterRole?: "speaker" | "audience" | "question" | null;
   speaking?: boolean;
   muted?: boolean;
   handRaised?: boolean;
@@ -33,6 +35,7 @@ export interface WorkspacePresenceDoc {
   voiceInPrivateCall?: boolean;
   voiceOpenChannelId?: string | null;
   voiceInTheaterCall?: boolean;
+  voiceTheaterRole?: string | null;
   voiceSpeaking?: boolean;
   voiceMuted?: boolean;
   voiceHandRaised?: boolean;
@@ -60,6 +63,7 @@ const OFFLINE_CLEAR = {
   voiceInPrivateCall: false,
   voiceOpenChannelId: null,
   voiceInTheaterCall: false,
+  voiceTheaterRole: null,
   voiceSpeaking: false,
   voiceMuted: false,
   voiceHandRaised: false,
@@ -95,6 +99,12 @@ function voiceFromDoc(data: WorkspacePresenceDoc): WorkspaceVoicePresence {
         ? data.voiceOpenChannelId
         : null,
     inTheaterCall: data.voiceInTheaterCall === true,
+    theaterRole:
+      data.voiceTheaterRole === "speaker" ||
+      data.voiceTheaterRole === "audience" ||
+      data.voiceTheaterRole === "question"
+        ? data.voiceTheaterRole
+        : null,
     speaking: data.voiceSpeaking === true,
     muted: data.voiceMuted === true,
     handRaised: data.voiceHandRaised === true,
@@ -261,6 +271,7 @@ export async function touchWorkspacePresence(
     payload.voiceInPrivateCall = voice.inPrivateCall;
     payload.voiceOpenChannelId = voice.openChannelId ?? null;
     payload.voiceInTheaterCall = voice.inTheaterCall === true;
+    payload.voiceTheaterRole = voice.theaterRole ?? null;
     // Speaking is UI-only (WebRTC VAD) — clear any legacy RTDB value.
     payload.voiceSpeaking = false;
     payload.voiceMuted = voice.muted === true;

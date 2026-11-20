@@ -572,8 +572,6 @@ function syncFriendChatsMetadata(
       const isViewingPerson =
         activeThreadId != null &&
         state.threadById(activeThreadId)?.personId === partnerId;
-      const keepMessages =
-        inboxState.activeThreadId === threadId && inboxState.threadMessageUnsub != null;
 
       if (
         chat.lastMessageKind === "meeting" &&
@@ -630,7 +628,6 @@ function syncFriendChatsMetadata(
           preview: preview || thread.preview,
           updatedAt,
           unread: isViewingPerson ? 0 : isUnread ? Math.max(thread.unread, 1) : thread.unread,
-          messages: keepMessages ? thread.messages : [],
         };
       };
 
@@ -1551,14 +1548,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
         return;
       }
       const groupId = groupIdFromThreadId(threadId);
-      if (!myUid || !groupId || !thread.memberIds?.includes(myUid)) {
-        useNotificationsStore.getState().push({
-          kind: "message",
-          title: "Message non envoyé",
-          body: "Connectez-vous pour envoyer un message de groupe.",
-        });
-        return;
-      }
+      if (!myUid || !groupId || !thread.memberIds?.includes(myUid)) return;
 
       const optimisticId = `msg-${Date.now()}`;
       const msg: PeopleMessage = {
@@ -1601,13 +1591,8 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
         myName,
         thread.memberIds,
         trimmed,
-      ).catch((error) => {
+      ).catch(() => {
         set({ groupThreads: get().groupThreads.map(rollbackGroup) });
-        useNotificationsStore.getState().push({
-          kind: "message",
-          title: "Message non envoyé",
-          body: error instanceof Error ? error.message : "Erreur d'envoi.",
-        });
       });
       return;
     }
@@ -1622,14 +1607,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
         return;
       }
       const channelRef = workspaceTextChannelFromThreadId(threadId);
-      if (!myUid || !channelRef) {
-        useNotificationsStore.getState().push({
-          kind: "message",
-          title: "Message non envoyé",
-          body: "Connectez-vous pour envoyer un message dans ce salon.",
-        });
-        return;
-      }
+      if (!myUid || !channelRef) return;
 
       const optimisticId = `msg-${Date.now()}`;
       const msg: PeopleMessage = {
@@ -1690,7 +1668,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
           mentionedUids,
           mentionBroadcast: broadcast ?? undefined,
         },
-      ).catch((error) => {
+      ).catch(() => {
         set((state) => ({
           workspaceChannelThreadsByWorkspace: Object.fromEntries(
             Object.entries(state.workspaceChannelThreadsByWorkspace).map(([workspaceId, threads]) => [
@@ -1699,11 +1677,6 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
             ]),
           ),
         }));
-        useNotificationsStore.getState().push({
-          kind: "message",
-          title: "Message non envoyé",
-          body: error instanceof Error ? error.message : "Erreur d'envoi.",
-        });
       });
       return;
     }
@@ -1713,16 +1686,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     const cloudPersonId = rawPersonId ? resolveCloudFriendId(state, rawPersonId) : null;
     const isCloudFriend = Boolean(myUid && cloudPersonId && isCloudCapableFriend(cloudPersonId));
 
-    if (!isCloudFriend) {
-      useNotificationsStore.getState().push({
-        kind: "message",
-        title: "Message non envoyé",
-        body: myUid
-          ? "Ce contact ne peut pas recevoir de messages cloud pour le moment."
-          : "Connectez-vous pour envoyer des messages à d'autres utilisateurs.",
-      });
-      return;
-    }
+    if (!isCloudFriend) return;
 
     const fileError = outgoingFiles.map(chatFileRejection).find((reason) => reason);
     if (fileError) {
@@ -1829,7 +1793,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
             attachments: uploaded,
           });
         })
-        .catch((error) => {
+        .catch(() => {
           pendingCloudMessages.delete(optimisticId);
           set({
             friendThreads: get().friendThreads.map(rollbackThread),
@@ -1839,11 +1803,6 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
                 threads.map(rollbackThread),
               ]),
             ),
-          });
-          useNotificationsStore.getState().push({
-            kind: "friend_request",
-            title: "Message non envoyé",
-            body: error instanceof Error ? error.message : "Erreur d'envoi.",
           });
         });
     }

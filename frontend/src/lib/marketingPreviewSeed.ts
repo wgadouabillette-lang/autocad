@@ -212,10 +212,13 @@ const LANDING_HERO_PLAY_QUERY = "blinding lights";
 
 function memberBlock(userId: string, name: string, inCall = false): CallBlock {
   const isLocal = userId === "local";
+  const photoURL = landingAvatarUrl(userId);
   return {
     id: memberBlockId(MARKETING_PREVIEW_WORKSPACE_ID, userId),
     roomId: MARKETING_PREVIEW_WORKSPACE_ID,
-    participants: isLocal ? [{ ...LOCAL_USER }] : [{ id: userId, name }],
+    participants: isLocal
+      ? [{ ...LOCAL_USER, name, photoURL }]
+      : [{ id: userId, name, photoURL }],
     inCall,
   };
 }
@@ -254,17 +257,20 @@ function buildTheaterState(
     id: member.id,
     name: member.name,
     role: "speaker" as const,
+    photoURL: landingAvatarUrl(member.id),
   }));
   const audience = [
     ...DEMO_MEMBERS.slice(speakerCount).map((member) => ({
       id: member.id,
       name: member.name,
       role: "audience" as const,
+      photoURL: landingAvatarUrl(member.id),
     })),
     ...THEATER_AUDIENCE_EXTRA.map((member) => ({
       id: member.id,
       name: member.name,
       role: "audience" as const,
+      photoURL: landingAvatarUrl(member.id),
     })),
   ].slice(0, audienceSize);
 
@@ -281,7 +287,7 @@ function buildTheaterState(
   };
 }
 
-const LANDING_AVATAR_IDS = [
+const LANDING_AVATAR_FILES = [
   "jordan",
   "sam",
   "riley",
@@ -296,12 +302,70 @@ const LANDING_AVATAR_IDS = [
   "chris",
   "lena",
   "omar",
+  "nina",
+  "lina",
+  "oscar",
+  "iris",
+  "jules",
+  "mina",
 ] as const;
 
-function landingAvatarUrl(userId: string): string | undefined {
-  if (!LANDING_AVATAR_IDS.includes(userId as (typeof LANDING_AVATAR_IDS)[number])) return undefined;
+const YOUNG_AVATAR_FILES = [
+  "noah",
+  "omar",
+  "jules",
+  "iris",
+  "mina",
+  "chris",
+  "oscar",
+  "elena",
+  "nina",
+  "lina",
+  "riley",
+  "morgan",
+  "taylor",
+  "casey",
+] as const;
+
+const AVATAR_FILE_BY_ID: Record<string, string> = {
+  local: "oscar",
+  malik: "omar",
+  "hero-ines": "iris",
+  lea: "elena",
+  "hero-hugo": "jules",
+  chloe: "lina",
+  sam: "casey",
+  amina: "mina",
+  nadia: "nina",
+  felix: "chris",
+  jamie: "avery",
+  dana: "lina",
+  robin: "riley",
+  kai: "oscar",
+};
+
+function landingAvatarUrl(userId: string): string {
+  const aliased = AVATAR_FILE_BY_ID[userId];
+  const known = LANDING_AVATAR_FILES.includes(userId as (typeof LANDING_AVATAR_FILES)[number]);
+  const fileId = aliased ?? (known ? userId : LANDING_AVATAR_FILES[avatarFileIndex(userId)]);
   const base = import.meta.env.BASE_URL;
-  return `${base.endsWith("/") ? base : `${base}/`}avatars/${userId}.jpg`;
+  return `${base.endsWith("/") ? base : `${base}/`}avatars/${fileId}.jpg`;
+}
+
+function avatarFileIndex(userId: string): number {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i += 1) hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
+  return hash % LANDING_AVATAR_FILES.length;
+}
+
+function youngAvatarUrl(userId: string): string {
+  const preferred = AVATAR_FILE_BY_ID[userId];
+  const fileId =
+    preferred && YOUNG_AVATAR_FILES.includes(preferred as (typeof YOUNG_AVATAR_FILES)[number])
+      ? preferred
+      : YOUNG_AVATAR_FILES[avatarFileIndex(userId) % YOUNG_AVATAR_FILES.length];
+  const base = import.meta.env.BASE_URL;
+  return `${base.endsWith("/") ? base : `${base}/`}avatars/${fileId}.jpg`;
 }
 
 /** Three listeners scattered through the rightmost bench column, the one in the Notes crop. */
@@ -611,6 +675,7 @@ function seedPresence(): void {
     string,
     {
       displayName: string;
+      photoURL?: string;
       lastSeenMs: number;
       online: boolean;
       voice: { inPrivateCall: boolean; openChannelId: string | null };
@@ -619,9 +684,10 @@ function seedPresence(): void {
 
   for (const member of DEMO_MEMBERS) {
     const isOffline = OFFLINE_MEMBER_IDS.has(member.id);
-    members[member.id] = {
-      displayName: member.name,
-      lastSeenMs: isOffline ? now - PRESENCE_OFFLINE_AFTER_MS - 60_000 : now,
+      members[member.id] = {
+        displayName: member.name,
+        photoURL: landingAvatarUrl(member.id),
+        lastSeenMs: isOffline ? now - PRESENCE_OFFLINE_AFTER_MS - 60_000 : now,
       online: !isOffline,
       voice: {
         inPrivateCall: false,
@@ -780,7 +846,10 @@ function seedPeopleThreads(): void {
       [MARKETING_PREVIEW_WORKSPACE_ID]: threads,
     },
     personPhotoByUserId: Object.fromEntries(
-      LANDING_AVATAR_IDS.map((id) => [id, landingAvatarUrl(id)!]),
+      [...LANDING_AVATAR_FILES, ...Object.keys(AVATAR_FILE_BY_ID)].map((id) => [
+        id,
+        landingAvatarUrl(id),
+      ]),
     ),
   });
 }
@@ -876,16 +945,16 @@ export function seedMarketingPreview(): void {
   seedPeopleThreads();
 }
 
-/** Accueil au repos : neuf personnes, le chat de la capture, Try de P!nk sur le DJ. */
+/** Accueil au repos : neuf personnes, le chat ouvert et vide, Try de P!nk sur le DJ. */
 export function seedMarketingHome(): void {
   seedMarketingPreview();
   usePresenceActivityStore.setState({ byKey: {} });
 
   const people = [
-    { id: "local", name: "William Gadoua" },
+    { id: "local", name: "You" },
     { id: "malik", name: "Malik" },
     { id: "noah", name: "Noah" },
-    { id: "hero-ines", name: "Inès" },
+    { id: "hero-ines", name: "Camille" },
     { id: "lea", name: "Léa" },
     { id: "hero-hugo", name: "Hugo" },
     { id: "chloe", name: "Chloé" },
@@ -893,18 +962,41 @@ export function seedMarketingHome(): void {
     { id: "amina", name: "Amina" },
   ] as const;
 
+  const now = Date.now();
+  useWorkspacePresenceStore.setState((state) => {
+    const existing = state.membersByWorkspace[MARKETING_PREVIEW_WORKSPACE_ID] ?? {};
+    const members = { ...existing };
+    for (const person of people) {
+      if (person.id === "local") continue;
+      members[person.id] = {
+        displayName: person.name,
+        photoURL: landingAvatarUrl(person.id),
+        lastSeenMs: now,
+        online: true,
+        voice: { inPrivateCall: false, openChannelId: null },
+      };
+    }
+    return {
+      membersByWorkspace: {
+        ...state.membersByWorkspace,
+        [MARKETING_PREVIEW_WORKSPACE_ID]: members,
+      },
+    };
+  });
+
   const blocks: CallBlock[] = people.map((person) => ({
     id: memberBlockId(MARKETING_PREVIEW_WORKSPACE_ID, person.id),
     roomId: MARKETING_PREVIEW_WORKSPACE_ID,
     participants:
       person.id === "local"
-        ? [{ id: "local", name: person.name, isLocal: true }]
-        : [{ id: person.id, name: person.name }],
+        ? [{ id: "local", name: person.name, isLocal: true, photoURL: landingAvatarUrl(person.id) }]
+        : [{ id: person.id, name: person.name, photoURL: landingAvatarUrl(person.id) }],
     inCall: false,
   }));
 
   useCallsStore.setState((state) => {
     const room = state.callsByRoom[MARKETING_PREVIEW_WORKSPACE_ID];
+    const theater = state.theaterByWorkspace[MARKETING_PREVIEW_WORKSPACE_ID];
     return {
       recording: false,
       screenSharing: false,
@@ -916,6 +1008,22 @@ export function seedMarketingHome(): void {
         ...state.callsViewModeByWorkspace,
         [MARKETING_PREVIEW_WORKSPACE_ID]: "blocks",
       },
+      theaterByWorkspace: theater
+        ? {
+            ...state.theaterByWorkspace,
+            [MARKETING_PREVIEW_WORKSPACE_ID]: {
+              ...theater,
+              speakers: theater.speakers.map((member) => ({
+                ...member,
+                photoURL: youngAvatarUrl(member.id),
+              })),
+              audience: theater.audience.map((member) => ({
+                ...member,
+                photoURL: youngAvatarUrl(member.id),
+              })),
+            },
+          }
+        : state.theaterByWorkspace,
       callsByRoom: {
         ...state.callsByRoom,
         [MARKETING_PREVIEW_WORKSPACE_ID]: room
@@ -924,6 +1032,7 @@ export function seedMarketingHome(): void {
               blocks,
               openChannels: room.openChannels.map((channel) => ({
                 ...channel,
+                name: "Lounge",
                 participants: [],
                 inCall: false,
               })),
@@ -933,35 +1042,15 @@ export function seedMarketingHome(): void {
     };
   });
 
-  const calendarDraft = {
-    title: "Partnership discussion with a client",
-    dateKey: "2026-11-17",
-    startMinutes: 10 * 60,
-    endMinutes: 11 * 60,
-  };
-  const heroChat: ChatMessage[] = [
-    {
-      role: "user",
-      text: "can you add a meeting in two days a 10am with a client to discuss about a potential partnership",
-    },
-    {
-      role: "assistant",
-      text: "Add “Partnership discussion with a client” on Tuesday, November 17 · 10:00–11:00?",
-      source: "calendar-add",
-      calendarAdd: calendarDraft,
-    },
-  ];
-
   useStore.setState((state) => ({
-    userDisplayName: "William Gadoua",
+    userDisplayName: "You",
+    photoURL: landingAvatarUrl("local"),
     chatPanelOpen: true,
     chatPanelMode: "agent",
     chatPanelExpanded: false,
-    chat: heroChat,
+    chat: [],
     openChatTabs: state.openChatTabs.map((tab) =>
-      tab.id === state.activeChatTabId
-        ? { ...tab, title: "Partnership", messages: heroChat }
-        : tab,
+      tab.id === state.activeChatTabId ? { ...tab, title: "New", messages: [] } : tab,
     ),
   }));
 

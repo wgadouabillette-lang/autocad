@@ -235,7 +235,7 @@ export default function WorkspaceSwitcher() {
                 ) : null}
                 {joinSent ? (
                   <p className="app-chrome-row__workspace-menu-hint text-emerald-400">
-                    Demande envoyée au propriétaire.
+                    Demande envoyée. Le propriétaire la reçoit dans ses notifications, avec Accepter et Refuser.
                   </p>
                 ) : null}
               </form>

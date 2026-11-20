@@ -377,6 +377,7 @@
       "button": "Upgrade",
       "title": "Combien de sièges voulez-vous ajouter ?",
       "subtitle": "Ces sièges s’ajoutent à {{workspace}}.",
+      "result": "Vous en avez {{current}}. Après ce paiement : {{total}}.",
       "continue": "Continuer"
     },
     "inviteSeats": {
@@ -487,7 +488,7 @@
     "namePlaceholder": "Nom du workspace…",
     "codePlaceholder": "Code d'invitation…",
     "sent": "Demande envoyée.",
-    "sentLong": "Demande envoyée. Vous serez notifié si le propriétaire accepte.",
+    "sentLong": "Demande envoyée. Le propriétaire la reçoit dans ses notifications, avec Accepter et Refuser.",
     "none": "Vous n'avez encore rejoint aucun workspace.",
     "choose": "Choisir un workspace",
     "closeMenu": "Fermer le menu workspace",

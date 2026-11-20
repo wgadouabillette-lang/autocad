@@ -374,6 +374,7 @@
       "button": "アップグレード",
       "title": "シートをいくつ追加しますか？",
       "subtitle": "このシートは {{workspace}} に追加されます。",
+      "result": "現在 {{current}} 席。支払い後は {{total}} 席です。",
       "continue": "続ける"
     },
     "inviteSeats": {

@@ -906,6 +906,13 @@ html:not(.app-loading-splash) #root {
     user-select: none;
     --forma-calls-lift: 24px;
   }
+  html.has-desktop-mac-traffic-lights .marketing-preview-shell--home .app-chrome-row__brand {
+    left: 14px;
+    transform: translateY(-50%);
+  }
+  html.has-desktop-mac-traffic-lights .marketing-preview-shell--home .app-chrome-row__main {
+    padding-left: 7.25rem;
+  }
   .marketing-preview-shell .app-layout {
     border-radius: 0;
     border: none;
@@ -972,6 +979,9 @@ html:not(.app-loading-splash) #root {
   .marketing-preview-shell .calls-view__grid {
     transform: scale(0.9);
     transform-origin: center center;
+  }
+  .marketing-preview-shell--home {
+    --forma-chat-panel-width: 27rem;
   }
   .marketing-preview-shell--home .calls-view {
     justify-content: flex-start;
@@ -1229,7 +1239,8 @@ html:not(.app-loading-splash) #root {
     pointer-events: none;
   }
   .app-chrome-row--immersive .app-chrome-row__actions {
-    display: none;
+    pointer-events: auto;
+    -webkit-app-region: no-drag;
   }
   .app-chrome-row--panel-right {
     display: grid;

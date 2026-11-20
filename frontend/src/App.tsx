@@ -3,7 +3,6 @@ import { useCallback, useEffect, useLayoutEffect, useState, type CSSProperties }
 import ChatFullscreenMediaPip from "./components/chat/ChatFullscreenMediaPip";
 import AppChromeRow from "./components/AppChromeRow";
 import DesktopWindowControls from "./components/chrome/DesktopWindowControls";
-import PanelToolbarButtons from "./components/toolbar/PanelToolbarButtons";
 import AppLoadingScreen from "./components/AppLoadingScreen";
 import ChatPanelShell from "./components/ChatPanelShell";
 import BottomHeader from "./components/BottomHeader";
@@ -517,11 +516,6 @@ export default function App() {
       >
         {!settingsOpen && <AppChromeRow immersive={inVoiceCall} />}
         <main className="app-layout__main">
-          {!settingsOpen && inVoiceCall ? (
-            <div className="app-voice-settings-floating">
-              <PanelToolbarButtons />
-            </div>
-          ) : null}
           {settingsOpen ? <SettingsPage /> : <CallsView />}
           {settingsOpen && inVoiceCall ? <ChatFullscreenMediaPip placement="settings" /> : null}
         </main>

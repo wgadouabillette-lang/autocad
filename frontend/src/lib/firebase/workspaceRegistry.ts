@@ -319,6 +319,14 @@ export async function deleteSharedWorkspace(workspaceId: string): Promise<void> 
   await deleteDoc(sharedWorkspaceRef(trimmed));
 }
 
+function firestoreErrorCode(error: unknown): string {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string") return code;
+  }
+  return "";
+}
+
 export async function requestWorkspaceJoin(
   workspaceId: string,
   profile: { uid: string; displayName: string; email: string },
@@ -327,20 +335,36 @@ export async function requestWorkspaceJoin(
   if (!trimmed || !profile.uid) {
     throw new Error("Workspace invalide.");
   }
-  const shared = await fetchSharedWorkspace(trimmed);
-  if (!shared) {
+  let shared: Workspace | null = null;
+  let workspaceUnreadable = false;
+  try {
+    shared = await fetchSharedWorkspace(trimmed);
+  } catch (error) {
+    // Anciennes règles : la fiche n'est lisible qu'une fois membre. La demande
+    // elle-même reste autorisée, on ne bloque pas le join sur cette lecture.
+    if (firestoreErrorCode(error) !== "permission-denied") throw error;
+    workspaceUnreadable = true;
+  }
+  if (!workspaceUnreadable && !shared) {
     throw new Error("Ce workspace n'existe pas.");
   }
-  if (shared.ownerId === profile.uid) {
+  if (shared?.ownerId === profile.uid) {
     throw new Error("Vous êtes déjà propriétaire de ce workspace.");
   }
-  await setDoc(joinRequestRef(trimmed, profile.uid), {
-    requesterUid: profile.uid,
-    requesterName: profile.displayName.trim() || "Membre",
-    requesterEmail: profile.email.trim().toLowerCase(),
-    status: "pending",
-    createdAt: serverTimestamp(),
-  });
+  try {
+    await setDoc(joinRequestRef(trimmed, profile.uid), {
+      requesterUid: profile.uid,
+      requesterName: profile.displayName.trim() || "Membre",
+      requesterEmail: profile.email.trim().toLowerCase(),
+      status: "pending",
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    if (firestoreErrorCode(error) === "permission-denied") {
+      throw new Error("Impossible d'envoyer la demande avec ce code.");
+    }
+    throw error;
+  }
 }
 
 export async function respondWorkspaceJoinRequest(

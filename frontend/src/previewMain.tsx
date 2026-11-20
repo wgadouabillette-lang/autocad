@@ -37,7 +37,7 @@ function applyMarketingPreviewDesktopChrome(): void {
   const chrome = params.get("chrome");
   const root = document.documentElement;
   if (chrome === "mac") {
-    root.classList.add("has-desktop-mac-traffic-lights", "has-desktop-autohide-titlebar");
+    root.classList.add("has-desktop-mac-traffic-lights");
     if (params.get("fullscreen") === "1") {
       root.classList.add("is-desktop-mac-fullscreen");
     }

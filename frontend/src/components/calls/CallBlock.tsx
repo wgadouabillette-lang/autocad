@@ -56,11 +56,6 @@ export default function CallBlock({
     (r) => r.status === "pending" && r.fromBlockId === block.id,
   );
   const remoteUserId = block.participants.find((p) => !p.isLocal)?.id ?? null;
-  const isOffline = useWorkspacePresenceStore((s) => {
-    if (isLocal || !remoteUserId || !s.loadedByWorkspace[activeRoomId]) return false;
-    void s.presenceTick;
-    return !s.isOnline(activeRoomId, remoteUserId);
-  });
   const remoteVoiceActive = useWorkspacePresenceStore((s) => {
     if (isLocal || !remoteUserId) return block.inCall === true;
     const voice = s.membersByWorkspace[activeRoomId]?.[remoteUserId]?.voice;
@@ -75,7 +70,6 @@ export default function CallBlock({
     !isLocal &&
     !inCall &&
     !localOpenChannelId &&
-    !isOffline &&
     !isMerged &&
     block.participants.length === 1 &&
     localBlock?.participants.length === 1 &&
@@ -96,7 +90,7 @@ export default function CallBlock({
   );
   const { userId: activityUserId, isLocal: activityIsLocal } = blockActivityUser(block);
   const aiStrokeRaw = useUserAiStroke(activeRoomId, activityUserId, activityIsLocal);
-  const aiStroke = isLocal && inOpenChannelOnly ? null : isOffline ? null : aiStrokeRaw;
+  const aiStroke = isLocal && inOpenChannelOnly ? null : aiStrokeRaw;
 
   return (
     <CallBlockCard
@@ -106,11 +100,10 @@ export default function CallBlock({
         layout === "side" && "call-block--side",
         isLocal && blockActive && "call-block--local",
         isLocal && !blockActive && "call-block--idle",
-        !isLocal && !isOffline && !remoteVoiceActive && "call-block--connected",
+        !isLocal && !remoteVoiceActive && "call-block--connected",
         !isLocal && remoteVoiceActive && "call-block--local",
-        !isLocal && isOffline && "call-block--offline",
         isMerged && "call-block--merged",
-        isActionable && !isOffline && "call-block--clickable",
+        isActionable && "call-block--clickable",
         (incoming || outgoing) && "call-block--pending",
       )}
       title={title}
@@ -121,7 +114,6 @@ export default function CallBlock({
       activityIsLocal={activityIsLocal}
       showActivity={false}
       aiStroke={aiStroke}
-      standby={isOffline}
       trailing={
         isPrivateCallHost ? (
           <>
@@ -149,13 +141,7 @@ export default function CallBlock({
       }
       mainDisabled={!isActionable}
       onMainClick={canRequestJoin ? () => onRequestJoin(block.id) : undefined}
-      mainAriaLabel={
-        isOffline
-          ? t("calls.offline", { name: title })
-          : canRequestJoin
-            ? t("calls.askToJoin", { name: title })
-            : title
-      }
+      mainAriaLabel={canRequestJoin ? t("calls.askToJoin", { name: title }) : title}
     />
   );
 }

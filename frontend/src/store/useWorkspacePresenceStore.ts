@@ -8,6 +8,7 @@ export interface WorkspacePresenceVoice {
   inPrivateCall: boolean;
   openChannelId: string | null;
   inTheaterCall?: boolean;
+  theaterRole?: "speaker" | "audience" | "question" | null;
   speaking?: boolean;
 }
 
@@ -86,6 +87,7 @@ function presenceEntriesEqual(
       before.voice.inPrivateCall === after.voice.inPrivateCall &&
       before.voice.openChannelId === after.voice.openChannelId &&
       before.voice.inTheaterCall === after.voice.inTheaterCall &&
+      before.voice.theaterRole === after.voice.theaterRole &&
       before.voice.speaking === after.voice.speaking
     );
   });
@@ -233,15 +235,7 @@ export const useWorkspacePresenceStore = create<WorkspacePresenceState>((set, ge
 
   isLoaded: (workspaceId) => Boolean(get().loadedByWorkspace[workspaceId]),
 
-  isOnline: (workspaceId, userId) => {
-    if (!workspaceId || !userId || userId === "local") return true;
-    if (!get().loadedByWorkspace[workspaceId]) return true;
-    const entry = get().membersByWorkspace[workspaceId]?.[userId];
-    if (!entry) return false;
-    if (entry.online === false) return false;
-    if (!entry.lastSeenMs) return false;
-    return Date.now() - entry.lastSeenMs < PRESENCE_OFFLINE_AFTER_MS;
-  },
+  isOnline: () => true,
 
   isInPrivateCall: (workspaceId, userId) => {
     if (!workspaceId || !userId || userId === "local") return false;

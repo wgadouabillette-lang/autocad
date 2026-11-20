@@ -292,7 +292,7 @@ export default function WorkspaceQuickMenu() {
                 ) : null}
                 {joinSent ? (
                   <p className="workspace-overlay__create-label text-emerald-400">
-                    Demande envoyée. Vous serez notifié si le propriétaire accepte.
+                    Demande envoyée. Le propriétaire la reçoit dans ses notifications, avec Accepter et Refuser.
                   </p>
                 ) : null}
               </form>

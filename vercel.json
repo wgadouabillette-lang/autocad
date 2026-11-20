@@ -59,6 +59,30 @@
   },
   "redirects": [
     {
+      "source": "/",
+      "has": [{ "type": "host", "value": "www.meetra.cc" }],
+      "destination": "https://meetra.cc/",
+      "permanent": true
+    },
+    {
+      "source": "/:path((?!sitemap\\.xml$|robots\\.txt$).*)",
+      "has": [{ "type": "host", "value": "www.meetra.cc" }],
+      "destination": "https://meetra.cc/:path",
+      "permanent": true
+    },
+    { "source": "/index.html", "destination": "/", "permanent": true },
+    { "source": "/compact", "destination": "/", "permanent": true },
+    { "source": "/compact.html", "destination": "/", "permanent": true },
+    { "source": "/auth.html", "destination": "/auth", "permanent": true },
+    { "source": "/tarifs.html", "destination": "/tarifs", "permanent": true },
+    { "source": "/careers.html", "destination": "/careers", "permanent": true },
+    { "source": "/ressources.html", "destination": "/ressources", "permanent": true },
+    { "source": "/terms.html", "destination": "/terms", "permanent": true },
+    { "source": "/privacy.html", "destination": "/privacy", "permanent": true },
+    { "source": "/subprocessors.html", "destination": "/subprocessors", "permanent": true },
+    { "source": "/google-limited-use.html", "destination": "/google-limited-use", "permanent": true },
+    { "source": "/affiliate.html", "destination": "/affiliate", "permanent": true },
+    {
       "source": "/downloads/meetra.exe",
       "destination": "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media",
       "permanent": false
@@ -96,6 +120,10 @@
   ],
   "rewrites": [
     {
+      "source": "/sitemap.xml",
+      "destination": "/_/backend/sitemap.xml"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/_/backend/api/$1"
     },
@@ -110,6 +138,18 @@
     {
       "source": "/auth",
       "destination": "/auth.html"
+    },
+    {
+      "source": "/tarifs",
+      "destination": "/tarifs.html"
+    },
+    {
+      "source": "/careers",
+      "destination": "/careers.html"
+    },
+    {
+      "source": "/ressources",
+      "destination": "/ressources.html"
     },
     {
       "source": "/terms",
@@ -155,6 +195,15 @@
     }
   ],
   "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    },
     {
       "source": "/app",
       "headers": [

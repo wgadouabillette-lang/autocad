@@ -13,11 +13,13 @@ function parseFriendRequestName(body: string): string {
 interface FriendRequestNotificationVisualProps {
   friendRequestId?: string;
   body: string;
+  name?: string;
 }
 
 export default function FriendRequestNotificationVisual({
   friendRequestId,
   body,
+  name,
 }: FriendRequestNotificationVisualProps) {
   const friendRequest = usePeopleStore((state) =>
     friendRequestId
@@ -28,18 +30,25 @@ export default function FriendRequestNotificationVisual({
   );
 
   const requester = useMemo(() => {
+    const explicitName = name?.trim();
+    if (explicitName) {
+      return {
+        id: friendRequestId ?? explicitName,
+        name: explicitName,
+      };
+    }
     if (friendRequest) {
       return {
         id: friendRequest.from.id,
         name: friendRequest.from.name,
       };
     }
-    const name = parseFriendRequestName(body);
+    const parsedName = parseFriendRequestName(body);
     return {
-      id: friendRequestId ?? `friend-preview-${name.toLowerCase()}`,
-      name,
+      id: friendRequestId ?? `friend-preview-${parsedName.toLowerCase()}`,
+      name: parsedName,
     };
-  }, [body, friendRequest, friendRequestId]);
+  }, [body, friendRequest, friendRequestId, name]);
 
   return (
     <div className="notifications-panel__friend-request">

@@ -751,7 +751,6 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     if (!get().canManageWorkspaceInvites(normalized, actorUid)) {
       throw new Error("Vous n'avez pas la permission de gérer les invitations.");
     }
-    await respondWorkspaceJoinRequest(normalized, requesterUid, accept);
     if (accept) {
       await grantWorkspaceMember(normalized, {
         uid: requesterUid,
@@ -759,6 +758,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
         email: requester?.requesterEmail?.trim().toLowerCase() || "",
       });
     }
+    await respondWorkspaceJoinRequest(normalized, requesterUid, accept);
   },
 
   reconcilePendingJoinRequests: async (userId) => {

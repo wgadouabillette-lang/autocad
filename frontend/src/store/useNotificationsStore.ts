@@ -3,6 +3,7 @@ import type { VoicePoll } from "../lib/voicePoll";
 import { closePanelsOnSide } from "../lib/bottomPanelCoordination";
 import {
   finalizeNotifications,
+  isStickyNotification,
   loadPersistedNotifications,
   markNotificationSeen,
   markNotificationsSeen,
@@ -45,6 +46,20 @@ export interface AppNotification {
   recordingSessionId?: string;
   /** Appel 1:1 à rejoindre depuis « Join Now ». */
   callId?: string;
+  /** Demande d'adhésion à accepter ou refuser depuis l'inbox. */
+  joinRequestWorkspaceId?: string;
+  joinRequesterUid?: string;
+  joinRequesterName?: string;
+  joinRequesterEmail?: string;
+}
+
+export interface WorkspaceJoinRequestNotificationInput {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  requesterUid: string;
+  requesterName: string;
+  requesterEmail: string;
 }
 
 export interface FriendRequestNotificationInput {
@@ -77,6 +92,7 @@ interface NotificationsState {
   hydrate: (email: string | null) => void;
   syncFriendRequests: (requests: FriendRequestNotificationInput[]) => void;
   syncWorkspaceInvites: (invites: WorkspaceInviteNotificationInput[]) => void;
+  syncWorkspaceJoinRequests: (requests: WorkspaceJoinRequestNotificationInput[]) => void;
   togglePanel: () => void;
   openPanel: () => void;
   closePanel: () => void;
@@ -226,6 +242,72 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     });
   },
 
+  syncWorkspaceJoinRequests: (requests) => {
+    if (isNotificationsPreviewAllEnabled()) return;
+    const previousIds = new Set(
+      get()
+        .items.filter((item) => item.joinRequesterUid)
+        .map((item) => item.id),
+    );
+    let openedId: string | null = null;
+    set((s) => {
+      const existingById = new Map(
+        s.items.filter((item) => item.joinRequesterUid).map((item) => [item.id, item]),
+      );
+      const joinNotifications: AppNotification[] = requests.map((request) => {
+        const existing = existingById.get(request.id);
+        const workspaceName = request.workspaceName.trim() || "votre workspace";
+        const requesterName = request.requesterName.trim() || "Quelqu'un";
+        return {
+          id: request.id,
+          kind: "workspace",
+          category: "Workspace",
+          title: "Demande d'adhésion",
+          body: `${requesterName} souhaite rejoindre ${workspaceName}.`,
+          createdAt: existing?.createdAt ?? Date.now(),
+          read: false,
+          joinRequestWorkspaceId: request.workspaceId,
+          joinRequesterUid: request.requesterUid,
+          joinRequesterName: requesterName,
+          joinRequesterEmail: request.requesterEmail.trim().toLowerCase(),
+        };
+      });
+      const otherItems = s.items.filter((item) => !item.joinRequesterUid);
+      const items = commitItems(s.persistedEmail, [...joinNotifications, ...otherItems]);
+      const arrived = items.find((item) => item.joinRequesterUid && !previousIds.has(item.id));
+      openedId = arrived?.id ?? null;
+      if (s.onboardingSilence || !arrived) {
+        return {
+          items,
+          currentIndex: firstUnreadIndex(items),
+          panelOpen: items.length > 0 ? s.panelOpen : false,
+        };
+      }
+      closePanelsOnSide("left", "notifications");
+      const index = items.findIndex((item) => item.id === arrived.id);
+      return {
+        items,
+        currentIndex: index >= 0 ? index : 0,
+        panelOpen: true,
+        panelOpenGeneration: s.panelOpenGeneration + 1,
+      };
+    });
+    if (!openedId) return;
+    const notificationId = openedId;
+    queueMicrotask(() => {
+      const state = get();
+      if (state.onboardingSilence || state.panelOpen) return;
+      const index = state.items.findIndex((item) => item.id === notificationId);
+      if (index < 0) return;
+      closePanelsOnSide("left", "notifications");
+      set({
+        panelOpen: true,
+        currentIndex: index,
+        panelOpenGeneration: state.panelOpenGeneration + 1,
+      });
+    });
+  },
+
   togglePanel: () => {
     if (get().onboardingSilence) return;
     const { panelOpen, items, panelOpenGeneration } = get();
@@ -313,12 +395,8 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
       return;
     }
     set((s) => {
-      const dismissable = s.items.filter(
-        (n) => n.kind !== "friend_request" && n.kind !== "workspace_invite",
-      );
-      const persistent = s.items.filter(
-        (n) => n.kind === "friend_request" || n.kind === "workspace_invite",
-      );
+      const dismissable = s.items.filter((n) => !isStickyNotification(n));
+      const persistent = s.items.filter((n) => isStickyNotification(n));
       markNotificationsSeen(
         s.persistedEmail,
         dismissable.map((n) => n.id),

@@ -5,7 +5,6 @@ export type ErrorNotificationVisualVariant = "message" | "friend" | "connector" 
 const ERROR_TITLES = new Set([
   "Demandes d'amis indisponibles",
   "Réponse impossible",
-  "Message non envoyé",
   "Planning non envoyé",
   "Connecteur non lié",
   "Demande refusée",

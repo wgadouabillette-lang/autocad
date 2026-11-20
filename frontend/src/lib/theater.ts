@@ -56,63 +56,163 @@ export function createTheaterState(workspaceId: string): TheaterState {
   };
 }
 
-/** Réaligne le théâtre sur les membres réels — conserve le rôle local connecté. */
-export function syncTheaterWithMembers(
-  workspaceId: string,
-  existing?: TheaterState,
-): TheaterState {
-  const fresh = createTheaterState(workspaceId);
-  if (!existing) return fresh;
+export interface TheaterPresenceMember {
+  id: string;
+  name: string;
+  photoURL?: string;
+  inTheaterCall?: boolean;
+  theaterRole?: TheaterRole | null;
+}
 
-  const validUserIds = new Set([
-    ...fresh.speakers.map((speaker) => speaker.id),
-    ...fresh.audience.map((member) => member.id),
-    LOCAL_USER.id,
-  ]);
+function keepRemote(users: TheaterParticipant[]): TheaterParticipant[] {
+  return users.filter((user) => !user.isLocal && !isLegacyMockMemberId(user.id));
+}
 
-  const withoutLocal = (users: TheaterParticipant[]) =>
-    users.filter((user) => !user.isLocal);
-
-  let speakers = withoutLocal(fresh.speakers);
-  let audience = withoutLocal(fresh.audience);
-  let question =
-    existing.question &&
-    !existing.question.isLocal &&
-    validUserIds.has(existing.question.id)
-      ? existing.question
-      : null;
-  let localRole = existing.localRole;
-
+function placeLocal(
+  speakers: TheaterParticipant[],
+  audience: TheaterParticipant[],
+  question: TheaterParticipant | null,
+  existing: TheaterState | undefined,
+): {
+  speakers: TheaterParticipant[];
+  audience: TheaterParticipant[];
+  question: TheaterParticipant | null;
+  localRole: TheaterRole | null;
+} {
+  let localRole = existing?.localRole ?? null;
   if (localRole === "speaker") {
     speakers = [...speakers, { ...LOCAL_USER, role: "speaker" }];
   } else if (localRole === "audience") {
     audience = [...audience, { ...LOCAL_USER, role: "audience" }];
   } else if (localRole === "question") {
-    if (existing.question?.isLocal) {
-      question = existing.question;
-    } else if (!question) {
-      localRole = null;
-    }
+    question = existing?.question?.isLocal
+      ? existing.question
+      : { ...LOCAL_USER, role: "question" };
   }
+  return { speakers, audience, question, localRole };
+}
 
-  if (localRole === "speaker" && speakers.length === 0) localRole = null;
-  if (localRole === "audience" && audience.length === 0) localRole = null;
-
-  const audienceSeatByUserId = Object.fromEntries(
-    Object.entries(existing.audienceSeatByUserId ?? {}).filter(([userId]) =>
-      validUserIds.has(userId),
-    ),
+function seatsForAudience(
+  audience: TheaterParticipant[],
+  previous: Record<string, number>,
+): Record<string, number> {
+  const ids = new Set(audience.map((participant) => participant.id));
+  let seats = Object.fromEntries(
+    Object.entries(previous).filter(([userId]) => ids.has(userId)),
   );
+  for (const participant of audience) {
+    if (seats[participant.id] !== undefined) continue;
+    const placed = buildTheaterAudienceSeats(audience, seats);
+    const freeIndex = firstFreeAudienceSeatIndex(placed);
+    if (freeIndex === null) break;
+    seats = assignAudienceSeat(seats, participant.id, freeIndex);
+  }
+  return seats;
+}
+
+/** Réaligne le théâtre sans effacer les personnes déjà vues via la présence. */
+export function syncTheaterWithMembers(
+  workspaceId: string,
+  existing?: TheaterState,
+): TheaterState {
+  if (!existing) return createTheaterState(workspaceId);
+
+  const placed = placeLocal(
+    keepRemote(existing.speakers),
+    keepRemote(existing.audience),
+    existing.question && !existing.question.isLocal && !isLegacyMockMemberId(existing.question.id)
+      ? existing.question
+      : null,
+    existing,
+  );
+  const validUserIds = new Set([
+    ...placed.speakers.map((speaker) => speaker.id),
+    ...placed.audience.map((member) => member.id),
+    ...(placed.question ? [placed.question.id] : []),
+    LOCAL_USER.id,
+  ]);
 
   return {
-    ...fresh,
-    speakers,
-    audience,
-    audienceSeatByUserId,
-    question,
-    localRole,
+    ...existing,
+    workspaceId,
+    speakers: placed.speakers,
+    audience: placed.audience,
+    question: placed.question,
+    localRole: placed.localRole,
+    audienceSeatByUserId: seatsForAudience(
+      placed.audience,
+      existing.audienceSeatByUserId ?? {},
+    ),
     handRaises: existing.handRaises.filter((request) => validUserIds.has(request.userId)),
   };
+}
+
+/**
+ * Les autres personnes du théâtre viennent de la présence, comme les salons vocaux.
+ * Le rôle local reste celui de cet appareil.
+ */
+export function syncTheaterFromPresence(
+  existing: TheaterState | undefined,
+  workspaceId: string,
+  members: TheaterPresenceMember[],
+  localFirebaseUid?: string | null,
+): TheaterState {
+  const speakers: TheaterParticipant[] = [];
+  const audience: TheaterParticipant[] = [];
+  let question: TheaterParticipant | null = null;
+
+  for (const member of members) {
+    if (!member.id || member.id === "local" || member.id === localFirebaseUid) continue;
+    if (!member.inTheaterCall) continue;
+    const role: TheaterRole =
+      member.theaterRole === "speaker" ||
+      member.theaterRole === "question" ||
+      member.theaterRole === "audience"
+        ? member.theaterRole
+        : "audience";
+    const participant: TheaterParticipant = {
+      id: member.id,
+      name: member.name.trim() || "Membre",
+      photoURL: member.photoURL,
+      role,
+    };
+    if (role === "speaker") speakers.push(participant);
+    else if (role === "question") {
+      if (!question) question = participant;
+    } else audience.push(participant);
+  }
+
+  const placed = placeLocal(speakers, audience, question, existing);
+  return {
+    workspaceId,
+    speakers: placed.speakers,
+    audience: placed.audience,
+    question: placed.question,
+    localRole: placed.localRole,
+    audienceSeatByUserId: seatsForAudience(
+      placed.audience,
+      existing?.audienceSeatByUserId ?? {},
+    ),
+    handRaises: existing?.handRaises ?? [],
+  };
+}
+
+export function theaterRosterSignature(state: TheaterState | undefined): string {
+  if (!state) return "";
+  const people = (list: TheaterParticipant[]) =>
+    list.map((person) => `${person.id}:${person.role}:${person.name}`).join(",");
+  const seats = Object.entries(state.audienceSeatByUserId ?? {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, seat]) => `${id}=${seat}`)
+    .join(",");
+  return [
+    state.localRole ?? "",
+    people(state.speakers),
+    people(state.audience),
+    state.question ? `${state.question.id}:${state.question.role}` : "",
+    seats,
+    state.handRaises.map((request) => `${request.id}:${request.status}`).join(","),
+  ].join("|");
 }
 
 export function isLocalInTheater(state: TheaterState): boolean {

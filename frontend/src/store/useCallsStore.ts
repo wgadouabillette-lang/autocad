@@ -98,7 +98,9 @@ import {
   isLocalInTheater,
   LOCAL_USER,
   pendingLocalHandRaise,
+  syncTheaterFromPresence,
   syncTheaterWithMembers,
+  theaterRosterSignature,
   THEATER_AUDIENCE_SEAT_COUNT,
   type HandRaiseRequest,
   type TheaterState,
@@ -239,10 +241,12 @@ function localVoicePresence(get: () => CallsState, workspaceId: string): Workspa
     ? !!(get().speakingByParticipant[firebaseUid] || get().speakingByParticipant.local)
     : get().speakingByParticipant.local === true;
   const inVoice = inCall || inTheater;
+  const theater = get().theaterByWorkspace[workspaceId];
   return {
     inPrivateCall,
     openChannelId: inCall && openChannelId ? openChannelId : null,
     inTheaterCall: inTheater,
+    theaterRole: inTheater ? (theater?.localRole ?? "audience") : null,
     speaking,
     muted: inVoice ? get().muted : false,
     handRaised: inVoice ? get().raiseHand : false,
@@ -604,14 +608,36 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         workspaceId,
       );
       const theater = s.theaterByWorkspace[workspaceId];
-      const nextTheaterHandRaises = theater
-        ? syncRemoteHandRaises(
-            theater.handRaises,
-            theaterHandRaiseMembers,
-            localFirebaseUid ?? null,
+      const seededPreview =
+        isMarketingPreview() &&
+        !!theater &&
+        (theater.speakers.length > 0 || theater.audience.length > 0);
+      const rosterTheater = seededPreview
+        ? theater
+        : syncTheaterFromPresence(
+            theater,
             workspaceId,
-          )
-        : null;
+            members.map((member) => ({
+              id: member.id,
+              name: member.name,
+              photoURL: member.photoURL,
+              inTheaterCall: member.voice?.inTheaterCall === true,
+              theaterRole: member.voice?.theaterRole ?? null,
+            })),
+            localFirebaseUid ?? null,
+          );
+      const nextTheater: TheaterState =
+        seededPreview && theater
+          ? theater
+          : {
+              ...rosterTheater,
+              handRaises: syncRemoteHandRaises(
+                rosterTheater.handRaises,
+                theaterHandRaiseMembers,
+                localFirebaseUid ?? null,
+                workspaceId,
+              ),
+            };
 
       const blocksUnchanged =
         memberBlocksSignature(current.blocks) === memberBlocksSignature(blocks) &&
@@ -620,9 +646,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         mutedByParticipantSignature(s.mutedByParticipant) ===
           mutedByParticipantSignature(nextMutedByParticipant) &&
         handRaisesSignature(current.handRaises) === handRaisesSignature(nextRoomHandRaises) &&
-        (!theater ||
-          handRaisesSignature(theater.handRaises) ===
-            handRaisesSignature(nextTheaterHandRaises ?? theater.handRaises));
+        theaterRosterSignature(theater) === theaterRosterSignature(nextTheater);
 
       if (!partnerLeftMergedCall && blocksUnchanged && voiceMetaUnchanged) {
         return s;
@@ -634,14 +658,10 @@ export const useCallsStore = create<CallsState>((set, get) => ({
           [workspaceId]: { ...current, blocks, openChannels, handRaises: nextRoomHandRaises },
         },
         mutedByParticipant: nextMutedByParticipant,
-        ...(nextTheaterHandRaises && theater
-          ? {
-              theaterByWorkspace: {
-                ...s.theaterByWorkspace,
-                [workspaceId]: { ...theater, handRaises: nextTheaterHandRaises },
-              },
-            }
-          : {}),
+        theaterByWorkspace: {
+          ...s.theaterByWorkspace,
+          [workspaceId]: nextTheater,
+        },
         ...(partnerLeftMergedCall
           ? {
               localInCallByRoom: { ...s.localInCallByRoom, [workspaceId]: false },
@@ -1232,6 +1252,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const wasMuted = get().muted;
     set({ muted: false, raiseHand: false });
     playMutedTransition(wasMuted, false);
+    pushVoicePresence(get, workspaceId);
   },
 
   returnToTheaterBackstage: (workspaceId) => {
@@ -1261,6 +1282,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const wasMuted = get().muted;
     set({ muted: true, raiseHand: false });
     playMutedTransition(wasMuted, true);
+    pushVoicePresence(get, workspaceId);
   },
 
   moveLocalTheaterSeat: (workspaceId, seatIndex) => {
@@ -1461,6 +1483,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       set({ muted: false, raiseHand: false });
       playMutedTransition(wasMuted, false);
       patchTheater(set, workspaceId, { localRole: "question" });
+      pushVoicePresence(get, workspaceId);
     }
   },
 
@@ -1505,6 +1528,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
       set({ muted: true });
       playMutedTransition(wasMuted, true);
       patchTheater(set, workspaceId, { localRole: "audience" });
+      pushVoicePresence(get, workspaceId);
     }
   },
 

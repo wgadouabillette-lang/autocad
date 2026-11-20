@@ -374,6 +374,7 @@
       "button": "Upgrade",
       "title": "Wie viele Plätze möchtest du hinzufügen?",
       "subtitle": "Diese Plätze werden {{workspace}} hinzugefügt.",
+      "result": "Du hast {{current}}. Nach dieser Zahlung: {{total}}.",
       "continue": "Weiter"
     },
     "inviteSeats": {

@@ -23,6 +23,12 @@ function cleanUrlsMiddleware(req, res, next) {
     return;
   }
 
+  if (pathname === "/compact" || pathname === "/compact/") {
+    res.writeHead(301, { Location: `/${search}` });
+    res.end();
+    return;
+  }
+
   if (pathname.endsWith(".html")) {
     const name = pathname.slice(1, -5);
     if (name === "index" || name === "") {

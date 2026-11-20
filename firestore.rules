@@ -130,32 +130,13 @@ service cloud.firestore {
         && request.resource.data.toUid == request.auth.uid;
     }
 
-    function areMutualFriends(uidA, uidB) {
-      return exists(/databases/$(database)/documents/users/$(uidA)/friends/$(uidB))
-        && exists(/databases/$(database)/documents/users/$(uidB)/friends/$(uidA));
-    }
-
-    function friendshipPairId(uidA, uidB) {
-      return uidA < uidB ? uidA + '_' + uidB : uidB + '_' + uidA;
-    }
-
-    function hasAcceptedFriendship(uidA, uidB) {
-      return exists(/databases/$(database)/documents/friendships/$(friendshipPairId(uidA, uidB)))
-        || areMutualFriends(uidA, uidB);
-    }
-
-    function friendChatOtherParticipant(participants) {
-      return participants[0] == request.auth.uid ? participants[1] : participants[0];
-    }
-
     function isValidFriendChatCreate() {
       let parts = request.resource.data.participants;
       return parts is list
         && parts.size() == 2
         && request.auth.uid in parts
         && parts[0] != parts[1]
-        && parts[0] < parts[1]
-        && hasAcceptedFriendship(request.auth.uid, friendChatOtherParticipant(parts));
+        && parts[0] < parts[1];
     }
 
     function isFriendChatMember(chatId) {
@@ -705,11 +686,11 @@ service cloud.firestore {
     }
 
     match /workspacesShared/{workspaceId} {
-      // Metadata: membres, invites en attente, ou demandeur de join (pas tout user auth).
-      allow read: if isSharedWorkspaceMember(workspaceId)
-        || hasPendingWorkspaceInvite(workspaceId)
-        || (isSignedIn()
-          && exists(/databases/$(database)/documents/workspacesShared/$(workspaceId)/joinRequests/$(request.auth.uid)));
+      // L'id (ws-…) est le code d'invitation. Un compte connecté qui le connaît
+      // peut lire cette fiche pour envoyer une demande. list reste interdit :
+      // on ne peut pas énumérer les workspaces.
+      allow get: if isSignedIn();
+      allow list: if false;
       allow create: if isSignedIn() && isValidSharedWorkspaceCreate(workspaceId);
       allow update: if isSharedWorkspaceOwner(workspaceId) && isValidSharedWorkspaceUpdate();
       allow delete: if isSharedWorkspaceOwner(workspaceId);

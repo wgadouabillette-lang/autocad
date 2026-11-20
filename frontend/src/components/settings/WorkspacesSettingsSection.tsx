@@ -516,7 +516,7 @@ export default function WorkspacesSettingsSection() {
         {joinError ? <p className="mt-2 text-[11px] text-red-300">{joinError}</p> : null}
         {joinSent ? (
           <p className="mt-2 text-[11px] text-emerald-400">
-            Demande envoyée. Vous serez notifié si le propriétaire accepte.
+            Demande envoyée. Le propriétaire la reçoit dans ses notifications, avec Accepter et Refuser.
           </p>
         ) : null}
         </div>

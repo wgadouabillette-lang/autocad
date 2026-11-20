@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
-import { ArrowLeft, ArrowUpRight, Check, Crown, Plus, UsersRound, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Crown, Plus, UsersRound, X } from "lucide-react";
 import {
   LOCAL_USER_ID,
   type ServerRole,
@@ -117,8 +117,6 @@ export default function WorkspaceOverlay() {
   const createWorkspace = useWorkspacesStore((s) => s.createWorkspace);
   const ensureWorkspaceCloudPublished = useWorkspacesStore((s) => s.ensureWorkspaceCloudPublished);
   const requestJoinWorkspace = useWorkspacesStore((s) => s.requestJoinWorkspace);
-  const respondJoinRequest = useWorkspacesStore((s) => s.respondJoinRequest);
-  const incomingJoinRequests = useWorkspacesStore((s) => s.incomingJoinRequests);
 
   const [view, setView] = useState<OverlayView>("list");
   const [draftName, setDraftName] = useState("");
@@ -127,7 +125,6 @@ export default function WorkspaceOverlay() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinSent, setJoinSent] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [respondBusyUid, setRespondBusyUid] = useState<string | null>(null);
 
   useEffect(() => {
     if (!panelOpen || !pendingJoinCode) return;
@@ -264,27 +261,6 @@ export default function WorkspaceOverlay() {
     }
   };
 
-  const onRespond = async (
-    requesterUid: string,
-    accept: boolean,
-    requester?: { requesterName: string; requesterEmail: string },
-  ) => {
-    if (respondBusyUid) return;
-    setRespondBusyUid(requesterUid);
-    try {
-      await respondJoinRequest(activeRoomId, requesterUid, accept, requester);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Impossible de répondre à la demande.";
-      window.alert(message);
-    } finally {
-      setRespondBusyUid(null);
-    }
-  };
-
-  const showIncoming =
-    roleIn(activeRoomId, ownerUserId) === "owner" && incomingJoinRequests.length > 0;
-
   return createPortal(
     <div className="workspace-edge-overlay" role="dialog" aria-modal="true" aria-label="Choisir un workspace">
       <div className="workspace-edge-overlay__backdrop" aria-hidden />
@@ -331,52 +307,6 @@ export default function WorkspaceOverlay() {
                 </p>
               )}
 
-              {showIncoming && (
-                <ul className="workspace-overlay__list">
-                  {incomingJoinRequests.map((request) => (
-                    <li key={request.requesterUid} className="workspace-overlay__row">
-                      <span className="min-w-0 flex-1 text-left">
-                        <span className="workspace-overlay__row-name">
-                          {request.requesterName}
-                        </span>
-                        <span className="workspace-overlay__row-address">
-                          {request.requesterEmail}
-                        </span>
-                      </span>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          type="button"
-                          className="workspace-overlay__create-btn"
-                          disabled={respondBusyUid === request.requesterUid}
-                          onClick={() =>
-                            void onRespond(request.requesterUid, true, {
-                              requesterName: request.requesterName,
-                              requesterEmail: request.requesterEmail,
-                            })
-                          }
-                          aria-label={`Accepter ${request.requesterName}`}
-                        >
-                          <Check size={14} aria-hidden />
-                        </button>
-                        <button
-                          type="button"
-                          className="workspace-overlay__create-btn"
-                          disabled={respondBusyUid === request.requesterUid}
-                          onClick={() =>
-                            void onRespond(request.requesterUid, false, {
-                              requesterName: request.requesterName,
-                              requesterEmail: request.requesterEmail,
-                            })
-                          }
-                          aria-label={`Refuser ${request.requesterName}`}
-                        >
-                          <X size={14} aria-hidden />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
 
             <div className="workspace-edge-overlay__footer">
@@ -481,7 +411,7 @@ export default function WorkspaceOverlay() {
                     <p className="workspace-edge-overlay__error">{joinError}</p>
                   ) : null}
                   {joinSent ? (
-                    <p className="workspace-edge-overlay__success">{t("workspaceUi.sent")}</p>
+                    <p className="workspace-edge-overlay__success">{t("workspaceUi.sentLong")}</p>
                   ) : null}
                   <button
                     type="submit"

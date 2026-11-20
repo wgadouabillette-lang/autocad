@@ -22,6 +22,14 @@ export function useWorkspaceVoiceRtc() {
   const inVoice = callsViewMode === "theater" ? inTheaterCall : inBlockCall;
   const localOpenChannelId = useCallsStore((s) => s.localOpenChannelByRoom[activeRoomId]);
   const roomCalls = useCallsStore((s) => s.callsByRoom[activeRoomId]);
+  const theaterPeerKey = useCallsStore((s) => {
+    const theater = s.theaterByWorkspace[activeRoomId];
+    if (!theater) return "";
+    return [...theater.speakers, ...theater.audience, theater.question]
+      .filter((participant) => participant && !participant.isLocal)
+      .map((participant) => participant!.id)
+      .join("\n");
+  });
   const presenceMembers = useWorkspacePresenceStore((s) => s.membersByWorkspace[activeRoomId]);
   const localStream = useCallsStore((s) => s.localStream);
   const screenShareStream = useCallsStore((s) => s.screenShareStream);
@@ -43,7 +51,26 @@ export function useWorkspaceVoiceRtc() {
         presenceMembers,
       });
       if (!base) return null;
-      return enrichVoiceRtcContextWithPresence(base, presenceMembers, firebaseUid, null);
+      const theater = useCallsStore.getState().theaterByWorkspace[activeRoomId];
+      const visiblePeerIds = theater
+        ? [
+            ...theater.speakers,
+            ...theater.audience,
+            ...(theater.question ? [theater.question] : []),
+          ]
+            .filter((participant) => !participant.isLocal)
+            .map((participant) => participant.id)
+        : [];
+      const enriched = enrichVoiceRtcContextWithPresence(
+        base,
+        presenceMembers,
+        firebaseUid,
+        null,
+      );
+      const peerUids = [...new Set([...enriched.peerUids, ...visiblePeerIds])].filter(
+        (id) => id && id !== "local" && id !== firebaseUid,
+      );
+      return { ...enriched, peerUids };
     }
 
     const openChannelId = localOpenChannelId ?? null;
@@ -77,6 +104,7 @@ export function useWorkspaceVoiceRtc() {
     inBlockCall,
     inTheaterCall,
     localOpenChannelId,
+    theaterPeerKey,
     roomCalls?.blocks,
     roomCalls?.openChannels,
     presenceMembers,

@@ -374,6 +374,7 @@
       "button": "升级",
       "title": "要添加多少个席位？",
       "subtitle": "这些席位会添加到 {{workspace}}。",
+      "result": "当前 {{current}} 个席位。付款后为 {{total}} 个。",
       "continue": "继续"
     },
     "inviteSeats": {

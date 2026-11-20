@@ -374,6 +374,7 @@
       "button": "Melhorar",
       "title": "Quantos assentos você quer adicionar?",
       "subtitle": "Esses assentos são adicionados a {{workspace}}.",
+      "result": "Você tem {{current}}. Depois deste pagamento: {{total}}.",
       "continue": "Continuar"
     },
     "inviteSeats": {

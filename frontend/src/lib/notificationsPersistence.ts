@@ -72,6 +72,15 @@ export function persistNotifications(email: string | null, items: AppNotificatio
 
 const DISABLED_NOTIFICATION_KINDS = new Set(["onboarding", "connector"]);
 
+/** Reste dans l'inbox tant que la personne n'a pas accepté ou refusé. */
+export function isStickyNotification(item: AppNotification): boolean {
+  return (
+    item.kind === "friend_request" ||
+    item.kind === "workspace_invite" ||
+    Boolean(item.joinRequesterUid)
+  );
+}
+
 /** Garde uniquement les notifications non lues et jamais vues par l'utilisateur. */
 export function activeNotifications(
   email: string | null,
@@ -81,9 +90,7 @@ export function activeNotifications(
   return items.filter(
     (item) =>
       !DISABLED_NOTIFICATION_KINDS.has(item.kind) &&
-      (item.kind === "friend_request" ||
-        item.kind === "workspace_invite" ||
-        (!item.read && !seen.has(item.id))),
+      (isStickyNotification(item) || (!item.read && !seen.has(item.id))),
   );
 }
 

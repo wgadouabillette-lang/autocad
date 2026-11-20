@@ -9,10 +9,10 @@
       content="Meetra is a desktop team workspace with voice channels, AI chat, calendar, screen recording, and Google/Spotify connectors — download the app to collaborate."
     />
     <title data-i18n-title="meta.title">Meetra — Collaborative workspace</title>
+    <link rel="canonical" href="https://meetra.cc/" />
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
     <link rel="icon" type="image/png" href="icon.png" />
-    <link rel="stylesheet" href="styles.css?v=chips-pad-1" />
-    <link rel="stylesheet" href="https://assets.calendly.com/assets/external/widget.css" />
+    <link rel="stylesheet" href="styles.css?v=flow-overlay-1" />
     <script src="sitePrefs.js?v=ga-1"></script>
   </head>
   <body>
@@ -22,7 +22,7 @@
       <section class="hero">
         <div class="hero__text">
           <h1 class="hero__title" data-i18n-html="hero.title">
-            AI-powered collaborative<br />workspace for remote teams
+            AI-powered virtual office<br />for remote teams
           </h1>
           <p class="hero__lead" data-i18n="hero.lead">
             A collaborative workspace application that helps teams communicate, organize meetings,
@@ -50,14 +50,6 @@
               </svg>
               <span id="hero-download-label" data-i18n="try.downloadMac">Download for macOS</span>
             </a>
-            <a
-              class="btn btn--ghost"
-              id="hero-book-demo"
-              href="https://calendly.com/wgadouabillette/30min"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-i18n="hero.cta.demo"
-            >Book a Demo</a>
           </div>
         </div>
 
@@ -68,12 +60,6 @@
               id="workspaces-preview"
               aria-hidden="true"
             >
-              <img
-                class="hero__shot-desktop"
-                src="okokok.avif"
-                alt=""
-                decoding="async"
-              />
             </div>
             <nav class="hero__feature-chips" data-feature-chips aria-label="App features">
               <span class="hero__feature-chip-item">
@@ -382,6 +368,7 @@
                   />
                 </svg>
               </div>
+              <span class="hero__shot-rule" aria-hidden="true"><span></span></span>
               <h3 class="hero__shot-title" data-i18n="hero.shot.skills.title">AI Skills</h3>
               <p class="hero__shot-desc" data-i18n="hero.shot.skills.desc">
                 Type / for in-app skills — schedule tasks with /manage or share context with
@@ -394,6 +381,7 @@
                 id="demo-recording-preview"
                 aria-hidden="true"
               ></figure>
+              <span class="hero__shot-rule" aria-hidden="true"><span></span></span>
               <h3 class="hero__shot-title" data-i18n="hero.shot.recording.title">
                 Demo Recording
               </h3>
@@ -401,467 +389,334 @@
                 Capture your screen and voice from the bottom bar — one click to record.
               </p>
             </article>
-            <article class="hero__shot-block" id="connectors">
-              <figure class="hero__shot hero__shot--section hero__shot--chat" aria-hidden="true">
-                <div class="hero__shot-chat__content"></div>
-                <div class="chat-panel-footer">
-                  <div class="chat-panel-footer__inner">
-                    <div class="chat-connectors-stage chat-connectors-stage--footer">
-                      <div
-                        class="chat-connectors-list chat-connectors-list--from-bottom"
-                        id="connectors-cascade-list"
-                        role="list"
-                        aria-label="Connectors"
-                      >
-                        <div class="chat-connectors-row" role="listitem">
-                          <div class="chat-connectors-row__main">
-                            <span class="chat-connectors-row__icon">
-                              <span class="chat-app-circle__logo" aria-hidden="true">
-                                <img
-                                  class="chat-app-circle__img"
-                                  src="icons/connectors/google-calendar.svg"
-                                  alt=""
-                                />
-                              </span>
-                            </span>
-                            <span class="chat-connectors-row__label-wrap">
-                              <span class="chat-connectors-row__label">Google Calendar</span>
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            class="chat-connectors-row__slash"
-                            tabindex="-1"
-                            aria-hidden="true"
-                          >
-                            use <span class="chat-connectors-row__slash-cmd">/calendar</span>
-                          </button>
-                        </div>
-                        <div class="chat-connectors-row" role="listitem">
-                          <div class="chat-connectors-row__main">
-                            <span class="chat-connectors-row__icon">
-                              <span class="chat-app-circle__logo" aria-hidden="true">
-                                <img
-                                  class="chat-app-circle__img"
-                                  src="icons/connectors/spotify.svg"
-                                  alt=""
-                                />
-                              </span>
-                            </span>
-                            <span class="chat-connectors-row__label-wrap">
-                              <span class="chat-connectors-row__label">Spotify</span>
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            class="chat-connectors-row__slash"
-                            tabindex="-1"
-                            aria-hidden="true"
-                          >
-                            use <span class="chat-connectors-row__slash-cmd">/play</span>
-                          </button>
-                        </div>
-                        <div class="chat-connectors-row" role="listitem">
-                          <div class="chat-connectors-row__main">
-                            <span class="chat-connectors-row__icon">
-                              <span class="chat-app-circle__logo" aria-hidden="true">
-                                <img
-                                  class="chat-app-circle__img"
-                                  src="icons/connectors/gmail.svg"
-                                  alt=""
-                                />
-                              </span>
-                            </span>
-                            <span class="chat-connectors-row__label-wrap">
-                              <span class="chat-connectors-row__label">Gmail</span>
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            class="chat-connectors-row__slash"
-                            tabindex="-1"
-                            aria-hidden="true"
-                          >
-                            use <span class="chat-connectors-row__slash-cmd">/mail</span>
-                          </button>
-                        </div>
-                        <div class="chat-connectors-row" role="listitem">
-                          <div class="chat-connectors-row__main">
-                            <span class="chat-connectors-row__icon">
-                              <span class="chat-app-circle__logo" aria-hidden="true">
-                                <img
-                                  class="chat-app-circle__img"
-                                  src="icons/connectors/outlook.svg"
-                                  alt=""
-                                />
-                              </span>
-                            </span>
-                            <span class="chat-connectors-row__label-wrap">
-                              <span class="chat-connectors-row__label">Outlook</span>
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            class="chat-connectors-row__slash"
-                            tabindex="-1"
-                            aria-hidden="true"
-                          >
-                            use <span class="chat-connectors-row__slash-cmd">/outlook</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="chat-composer">
-                      <div class="chat-composer__input-wrap">
-                        <div class="chat-composer__prompt">
-                          <span class="chat-composer__placeholder"
-                            >Type "/" for free in-app skills!</span
-                          >
-                        </div>
-                      </div>
-                      <div class="chat-composer__toolbar">
-                        <button
-                          type="button"
-                          class="chat-apps-capsule is-open"
-                          tabindex="-1"
-                          aria-hidden="true"
-                        >
-                          <span class="chat-apps-stack">
-                            <span class="chat-app-circle" style="z-index: 1">
-                              <span class="chat-app-circle__logo" aria-hidden="true">
-                                <img
-                                  class="chat-app-circle__img"
-                                  src="icons/connectors/google-calendar.svg"
-                                  alt=""
-                                />
-                              </span>
-                            </span>
-                            <span class="chat-app-circle" style="z-index: 2">
-                              <span class="chat-app-circle__logo" aria-hidden="true">
-                                <img
-                                  class="chat-app-circle__img"
-                                  src="icons/connectors/spotify.svg"
-                                  alt=""
-                                />
-                              </span>
-                            </span>
-                            <span class="chat-app-circle" style="z-index: 3">
-                              <span class="chat-app-circle__logo" aria-hidden="true">
-                                <img
-                                  class="chat-app-circle__img"
-                                  src="icons/connectors/gmail.svg"
-                                  alt=""
-                                />
-                              </span>
-                            </span>
-                            <span
-                              class="chat-app-circle chat-app-circle--more chat-app-circle--stacked"
-                              style="z-index: 4"
-                              aria-hidden="true"
-                            >
-                              <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true">
-                                <path
-                                  d="M12 5v14M5 12h14"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  stroke-width="2.5"
-                                  stroke-linecap="round"
-                                />
-                              </svg>
-                            </span>
+            <article class="hero__shot-block" id="polls">
+              <figure class="hero__shot hero__shot--section hero__shot--poll" id="polls-preview">
+                <div class="hero-poll-frame">
+                  <div class="chat-poll-vote" data-hero-poll>
+                    <span class="chat-poll-vote__close" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="18" height="18">
+                        <path
+                          d="M18 6 6 18M6 6l12 12"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                        />
+                      </svg>
+                    </span>
+                    <div class="chat-poll-composer__body">
+                      <p class="chat-poll-composer__field chat-poll-composer__field--title">
+                        When should we meet?
+                      </p>
+                      <p class="chat-poll-composer__field chat-poll-composer__field--subtitle">
+                        This week
+                      </p>
+                      <ul class="chat-poll-composer__options">
+                        <li>
+                          <span class="chat-poll-vote__option-row" data-percent="22">
+                            <span class="chat-poll-vote__option-fill" aria-hidden="true"></span>
+                            <span class="chat-poll-vote__option-label">Morning</span>
+                            <span class="chat-poll-vote__option-percent">22%</span>
                           </span>
-                        </button>
-                        <button
-                          type="button"
-                          class="chat-composer__model-btn"
-                          tabindex="-1"
-                          aria-hidden="true"
-                        >
-                          <span class="chat-composer__model-label">
-                            <span class="chat-composer__model-name">Auto</span>
+                        </li>
+                        <li>
+                          <span
+                            class="chat-poll-vote__option-row"
+                            data-percent="41"
+                            data-poll-target
+                          >
+                            <span class="chat-poll-vote__option-fill" aria-hidden="true"></span>
+                            <span class="chat-poll-vote__option-label">Afternoon</span>
+                            <span class="chat-poll-vote__option-percent">41%</span>
                           </span>
-                          <svg
-                            class="chat-composer__model-chevron"
-                            viewBox="0 0 24 24"
-                            width="12"
-                            height="12"
-                            aria-hidden="true"
-                          >
-                            <path
-                              d="m6 9 6 6 6-6"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            />
-                          </svg>
-                        </button>
-                        <div class="chat-composer__actions">
-                          <button
-                            type="button"
-                            class="chat-composer__icon-btn"
-                            tabindex="-1"
-                            aria-hidden="true"
-                          >
-                            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-                              <path
-                                d="M12 5v14M5 12h14"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2.5"
-                                stroke-linecap="round"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="chat-composer__icon-btn chat-composer__icon-btn--send"
-                            tabindex="-1"
-                            aria-hidden="true"
-                          >
-                            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                              <path
-                                d="M12 19V5M5 12l7-7 7 7"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2.5"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
+                        </li>
+                        <li>
+                          <span class="chat-poll-vote__option-row" data-percent="24">
+                            <span class="chat-poll-vote__option-fill" aria-hidden="true"></span>
+                            <span class="chat-poll-vote__option-label">Evening</span>
+                            <span class="chat-poll-vote__option-percent">24%</span>
+                          </span>
+                        </li>
+                        <li>
+                          <span class="chat-poll-vote__option-row" data-percent="13">
+                            <span class="chat-poll-vote__option-fill" aria-hidden="true"></span>
+                            <span class="chat-poll-vote__option-label">Night</span>
+                            <span class="chat-poll-vote__option-percent">13%</span>
+                          </span>
+                        </li>
+                      </ul>
                     </div>
                   </div>
                 </div>
+                <div class="hero-poll-pointer" id="polls-pointer" hidden aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                    <path
+                      d="M5 3l14 9.5-6.5 1.5 2 7.5-2 1-2-7.5L5 20z"
+                      fill="#ffffff"
+                      stroke="#111111"
+                      stroke-width="1.2"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
               </figure>
+              <span class="hero__shot-rule" aria-hidden="true"><span></span></span>
               <h3 class="hero__shot-title" data-i18n="hero.shot.calendar.title">
-                Calendar &amp; connectors
+                Workspace polls
               </h3>
               <p class="hero__shot-desc" data-i18n="hero.shot.calendar.desc">
-                Schedule meetings and connect Gmail, Calendar, Spotify, and more.
+                Ask the workspace a question. One click shows the percentage for every option.
               </p>
             </article>
             </div>
           </div>
 
-          <div class="hero__shot-feature-stack">
-            <article class="hero__feature-card hero__feature-card--media-right">
-              <div class="hero__feature-copy hero__feature-copy--spotify">
-                <div class="hero__feature-spotify-wash" aria-hidden="true"></div>
-                <h3 class="hero__feature-title" data-i18n="hero.shot.notes.title">Spotify integrated</h3>
-                <p class="hero__feature-desc" data-i18n="hero.shot.notes.desc">
-                  Play Spotify inside Meetra — see what’s playing while you chat.
-                </p>
-                <button type="button" class="hero__feature-link" data-feature-try="spotify">
-                  <span data-i18n="hero.shot.notes.cta">Try Spotify</span>
-                  <svg
-                    class="hero__feature-link-icon"
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
-                  </svg>
-                </button>
-              </div>
-              <figure class="hero__feature-media">
-                <div
-                  class="hero__feature-media-frame hero__feature-media-frame--theater"
-                  id="spotify-feature-preview"
-                  role="img"
-                  aria-label="Meetra preview — Starboy playing in the workspace"
-                  data-i18n-aria-label="hero.shot.notes.alt"
-                ></div>
-              </figure>
-            </article>
-            <article class="hero__feature-card hero__feature-card--media-left">
-              <figure class="hero__feature-media">
-                <div
-                  class="hero__feature-media-frame hero__feature-media-frame--theater hero__feature-media-frame--notes"
-                  id="handoff-feature-preview"
-                  role="img"
-                  aria-label="Meetra preview — AI one-pager handed off to a teammate"
-                  data-i18n-aria-label="hero.shot.workspace.alt"
-                ></div>
-              </figure>
-              <div class="hero__feature-copy">
-                <h3 class="hero__feature-title" data-i18n="hero.shot.workspace.title">
-                  AI handoff
-                </h3>
-                <p class="hero__feature-desc" data-i18n="hero.shot.workspace.desc">
-                  Select messages from any thread and send them to a teammate or group with
-                  /handoff — full context, zero copy-paste.
-                </p>
-                <button type="button" class="hero__feature-link" data-feature-try="handoff">
-                  <span data-i18n="hero.shot.workspace.cta">Try handoff</span>
-                  <svg
-                    class="hero__feature-link-icon"
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
-                  </svg>
-                </button>
-              </div>
-            </article>
-            <article class="hero__feature-card hero__feature-card--media-right">
-              <div class="hero__feature-copy">
-                <h3 class="hero__feature-title" data-i18n="hero.shot.followup.title">
-                  AI Notes
-                </h3>
-                <p class="hero__feature-desc" data-i18n="hero.shot.followup.desc">
-                  Live transcription during the call, then structured notes when you stop.
-                </p>
-                <button type="button" class="hero__feature-link" data-feature-try="followup">
-                  <span data-i18n="hero.shot.followup.cta">Try AI Notes</span>
-                  <svg
-                    class="hero__feature-link-icon"
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
-                  </svg>
-                </button>
-              </div>
-              <figure class="hero__feature-media">
-                <div
-                  class="hero__feature-media-frame hero__feature-media-frame--theater hero__feature-media-frame--notes"
-                  id="notes-feature-preview"
-                  role="img"
-                  aria-label="Meetra preview — Notes tab after a completed meeting"
-                  data-i18n-aria-label="hero.shot.followup.alt"
-                ></div>
-              </figure>
-            </article>
-          </div>
         </div>
       </section>
 
-      <section class="home-highlights" aria-labelledby="highlights-heading">
-        <div class="home-highlights__inner">
-          <div class="home-highlights__header">
-            <h2 id="highlights-heading" class="section__title" data-i18n="highlights.heading">
-              Recent highlights
-            </h2>
-          </div>
+      <section class="home-faq" aria-labelledby="faq-heading">
+        <div class="home-faq__grid">
+          <h2 id="faq-heading" class="home-faq__title" data-i18n="faq.title">Questions, answered.</h2>
+          <ul class="home-faq__list">
+            <li class="home-faq__item">
+              <button type="button" class="home-faq__trigger" aria-expanded="false" aria-controls="faq-panel-1">
+                <span data-i18n="faq.q1">What is Meetra?</span>
+                <svg class="home-faq__icon" viewBox="0 0 16 16" aria-hidden="true" fill="none">
+                  <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+                </svg>
+              </button>
+              <div class="home-faq__panel" id="faq-panel-1" role="region" aria-hidden="true">
+                <div class="home-faq__panel-inner">
+                  <p data-i18n="faq.a1">A desktop workspace for remote teams. Voice, AI chat, calendar, screen recording, and connectors live in one app.</p>
+                </div>
+              </div>
+            </li>
+            <li class="home-faq__item">
+              <button type="button" class="home-faq__trigger" aria-expanded="false" aria-controls="faq-panel-2">
+                <span data-i18n="faq.q2">What can my team do in it?</span>
+                <svg class="home-faq__icon" viewBox="0 0 16 16" aria-hidden="true" fill="none">
+                  <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+                </svg>
+              </button>
+              <div class="home-faq__panel" id="faq-panel-2" role="region" aria-hidden="true">
+                <div class="home-faq__panel-inner">
+                  <p data-i18n="faq.a2">Join a voice channel, type / for AI skills, record a demo from the bottom bar, and connect Calendar, Spotify, Gmail, and Outlook.</p>
+                </div>
+              </div>
+            </li>
+            <li class="home-faq__item">
+              <button type="button" class="home-faq__trigger" aria-expanded="false" aria-controls="faq-panel-3">
+                <span data-i18n="faq.q3">Which computers can run it?</span>
+                <svg class="home-faq__icon" viewBox="0 0 16 16" aria-hidden="true" fill="none">
+                  <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+                </svg>
+              </button>
+              <div class="home-faq__panel" id="faq-panel-3" role="region" aria-hidden="true">
+                <div class="home-faq__panel-inner">
+                  <p data-i18n="faq.a3">macOS and Windows. The download button matches the computer you're on.</p>
+                </div>
+              </div>
+            </li>
+            <li class="home-faq__item">
+              <button type="button" class="home-faq__trigger" aria-expanded="false" aria-controls="faq-panel-4">
+                <span data-i18n="faq.q4">Does it work on a phone?</span>
+                <svg class="home-faq__icon" viewBox="0 0 16 16" aria-hidden="true" fill="none">
+                  <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+                </svg>
+              </button>
+              <div class="home-faq__panel" id="faq-panel-4" role="region" aria-hidden="true">
+                <div class="home-faq__panel-inner">
+                  <p data-i18n="faq.a4">No. Meetra is a desktop app, so the download stays on Mac and Windows.</p>
+                </div>
+              </div>
+            </li>
+            <li class="home-faq__item">
+              <button type="button" class="home-faq__trigger" aria-expanded="false" aria-controls="faq-panel-5">
+                <span data-i18n="faq.q5">How do I start?</span>
+                <svg class="home-faq__icon" viewBox="0 0 16 16" aria-hidden="true" fill="none">
+                  <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+                </svg>
+              </button>
+              <div class="home-faq__panel" id="faq-panel-5" role="region" aria-hidden="true">
+                <div class="home-faq__panel-inner">
+                  <p data-i18n="faq.a5">Download the app and sign in.</p>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </section>
 
-          <div class="home-highlights__grid" id="highlights-grid">
-            <button type="button" class="home-highlights__card">
-              <span class="home-highlights__card-tag" data-i18n="highlights.card1.tag">Voice</span>
-              <span class="home-highlights__card-title" data-i18n="highlights.card1.title"
-                >Video spotlight</span
-              >
-              <span class="home-highlights__card-desc" data-i18n="highlights.card1.desc">
-                Expand a participant camera or screen share in one click.
-              </span>
-            </button>
-            <button type="button" class="home-highlights__card">
-              <span class="home-highlights__card-tag" data-i18n="highlights.card2.tag">Chat</span>
-              <span class="home-highlights__card-title" data-i18n="highlights.card2.title"
-                >AI handoff</span
-              >
-              <span class="home-highlights__card-desc" data-i18n="highlights.card2.desc">
-                Share a conversation excerpt with a teammate or group.
-              </span>
-            </button>
-            <button type="button" class="home-highlights__card">
-              <span class="home-highlights__card-tag" data-i18n="highlights.card3.tag">Calls</span>
-              <span class="home-highlights__card-title" data-i18n="highlights.card3.title"
-                >AI Notes</span
-              >
-              <span class="home-highlights__card-desc" data-i18n="highlights.card3.desc">
-                Live transcription during voice calls, right inside Meetra.
-              </span>
-            </button>
-            <button type="button" class="home-highlights__card">
-              <span class="home-highlights__card-tag" data-i18n="highlights.card4.tag"
-                >Connectors</span
-              >
-              <span class="home-highlights__card-title" data-i18n="highlights.card4.title"
-                >Spotify in chat</span
-              >
-              <span class="home-highlights__card-desc" data-i18n="highlights.card4.desc">
-                Play a track or queue it from the composer.
-              </span>
-            </button>
-            <button type="button" class="home-highlights__card home-highlights__card--extra">
-              <span class="home-highlights__card-tag" data-i18n="highlights.card5.tag"
-                >Presence</span
-              >
-              <span class="home-highlights__card-title" data-i18n="highlights.card5.title"
-                >Mute &amp; hand raise</span
-              >
-              <span class="home-highlights__card-desc" data-i18n="highlights.card5.desc">
-                See who is muted or has raised a hand during a call.
-              </span>
-            </button>
-            <button type="button" class="home-highlights__card home-highlights__card--extra">
-              <span class="home-highlights__card-tag" data-i18n="highlights.card6.tag"
-                >Calendar</span
-              >
-              <span class="home-highlights__card-title" data-i18n="highlights.card6.title"
-                >Shared calendar</span
-              >
-              <span class="home-highlights__card-desc" data-i18n="highlights.card6.desc">
-                See the week, book time, and keep meetings next to the call.
-              </span>
-            </button>
-          </div>
-
-          <div class="home-highlights__actions">
-            <button
-              type="button"
-              class="home-highlights__more"
-              id="highlights-more"
-              aria-expanded="false"
-              aria-controls="highlights-grid"
-            >
-              <span class="home-highlights__more-label" data-i18n="highlights.more"
-                >View more product upgrades</span
-              >
-              <svg
-                class="home-highlights__more-icon"
-                aria-hidden="true"
-                viewBox="0 0 24 24"
-                width="14"
-                height="14"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-            </button>
-          </div>
+      <section class="home-flow" aria-labelledby="flow-heading">
+        <div class="home-flow__intro">
+          <p class="home-flow__label" data-i18n="flow.label">How it works</p>
+          <h2 id="flow-heading" class="home-flow__title" data-i18n="flow.title">From conversation, to context, to action.</h2>
+          <p class="home-flow__lead" data-i18n="flow.lead">Meetra does two things. It keeps the team in one place, then it turns that conversation into work.</p>
+        </div>
+        <div class="home-flow__stack">
+          <article class="home-flow__card" id="workspace">
+            <div class="home-flow__copy">
+              <div>
+                <h3 class="home-flow__card-title" data-i18n="flow.card1.title">The workspace</h3>
+                <p class="home-flow__card-kicker" data-i18n="flow.card1.kicker">Your team, connected.</p>
+                <p class="home-flow__card-body" data-i18n="flow.card1.body">Voice, chat, calendar, and the tools you already use stay in one app. A call, a thread, and the work around them become the context.</p>
+              </div>
+              <ul class="home-faq__list home-flow__list">
+                <li class="home-faq__item">
+                  <button type="button" class="home-faq__trigger" aria-expanded="false" aria-controls="flow-panel-1">
+                    <span data-i18n="flow.card1.q1">Voice and chat</span>
+                    <svg class="home-faq__icon" viewBox="0 0 16 16" aria-hidden="true" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" /></svg>
+                  </button>
+                  <div class="home-faq__panel" id="flow-panel-1" role="region" aria-hidden="true">
+                    <div class="home-faq__panel-inner"><p data-i18n="flow.card1.a1">Join a channel in one click. The thread stays next to the call.</p></div>
+                  </div>
+                </li>
+                <li class="home-faq__item">
+                  <button type="button" class="home-faq__trigger" aria-expanded="false" aria-controls="flow-panel-2">
+                    <span data-i18n="flow.card1.q2">Connectors</span>
+                    <svg class="home-faq__icon" viewBox="0 0 16 16" aria-hidden="true" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" /></svg>
+                  </button>
+                  <div class="home-faq__panel" id="flow-panel-2" role="region" aria-hidden="true">
+                    <div class="home-faq__panel-inner"><p data-i18n="flow.card1.a2">Calendar, Spotify, Gmail, and Outlook connect without leaving the workspace.</p></div>
+                  </div>
+                </li>
+                <li class="home-faq__item">
+                  <button type="button" class="home-faq__trigger" aria-expanded="false" aria-controls="flow-panel-3">
+                    <span data-i18n="flow.card1.q3">Hand off the thread</span>
+                    <svg class="home-faq__icon" viewBox="0 0 16 16" aria-hidden="true" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" /></svg>
+                  </button>
+                  <div class="home-faq__panel" id="flow-panel-3" role="region" aria-hidden="true">
+                    <div class="home-faq__panel-inner"><p data-i18n="flow.card1.a3">Send a conversation to a teammate with the full context attached.</p></div>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="home-flow__stage home-flow__stage--lilac">
+              <div class="app-overlay" aria-hidden="true">
+                <div class="app-overlay__card">
+                  <span class="app-overlay__close">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                  </span>
+                  <header class="app-overlay__header">
+                    <h3 class="app-overlay__title">Workspaces</h3>
+                  </header>
+                  <div class="app-overlay__scroll">
+                    <ul class="app-overlay__list">
+                      <li>
+                        <div class="app-overlay__row app-overlay__row--active">
+                          <span class="app-overlay__mark">D</span>
+                          <span class="app-overlay__meta">
+                            <span class="app-overlay__name">Design</span>
+                            <span class="app-overlay__sub">Owner</span>
+                          </span>
+                          <svg class="app-overlay__crown" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z" /></svg>
+                        </div>
+                      </li>
+                      <li>
+                        <div class="app-overlay__row">
+                          <span class="app-overlay__mark">P</span>
+                          <span class="app-overlay__meta">
+                            <span class="app-overlay__name">Product</span>
+                            <span class="app-overlay__sub">Member</span>
+                          </span>
+                          <span class="app-overlay__badge">Active</span>
+                        </div>
+                      </li>
+                      <li>
+                        <div class="app-overlay__row">
+                          <span class="app-overlay__mark">C</span>
+                          <span class="app-overlay__meta">
+                            <span class="app-overlay__name">Client</span>
+                            <span class="app-overlay__sub">Member</span>
+                          </span>
+                        </div>
+                      </li>
+                    </ul>
+                  </div>
+                  <div class="app-overlay__footer">
+                    <span class="app-overlay__cta app-overlay__cta--secondary">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1" /><circle cx="9.5" cy="7" r="3" /><path d="M20 8v6M23 11h-6" /></svg>
+                      Join
+                    </span>
+                    <span class="app-overlay__cta app-overlay__cta--primary">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                      Create
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+          <article class="home-flow__card" id="action">
+            <div class="home-flow__copy">
+              <div>
+                <h3 class="home-flow__card-title" data-i18n="flow.card2.title">AI in the work</h3>
+                <p class="home-flow__card-kicker" data-i18n="flow.card2.kicker">Drafted for your team.</p>
+                <p class="home-flow__card-body" data-i18n="flow.card2.body">From that context, Meetra drafts the next step in the app. A person approves before a meeting, a note, or a handoff goes out.</p>
+              </div>
+              <ul class="home-faq__list home-flow__list">
+                <li class="home-faq__item">
+                  <button type="button" class="home-faq__trigger" aria-expanded="false" aria-controls="flow-panel-4">
+                    <span data-i18n="flow.card2.q1">In the chat</span>
+                    <svg class="home-faq__icon" viewBox="0 0 16 16" aria-hidden="true" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" /></svg>
+                  </button>
+                  <div class="home-faq__panel" id="flow-panel-4" role="region" aria-hidden="true">
+                    <div class="home-faq__panel-inner"><p data-i18n="flow.card2.a1">Type / to schedule a task or hand the thread to someone else.</p></div>
+                  </div>
+                </li>
+                <li class="home-faq__item">
+                  <button type="button" class="home-faq__trigger" aria-expanded="false" aria-controls="flow-panel-5">
+                    <span data-i18n="flow.card2.q2">After the call</span>
+                    <svg class="home-faq__icon" viewBox="0 0 16 16" aria-hidden="true" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" /></svg>
+                  </button>
+                  <div class="home-faq__panel" id="flow-panel-5" role="region" aria-hidden="true">
+                    <div class="home-faq__panel-inner"><p data-i18n="flow.card2.a2">Transcription while you talk, then structured notes when you stop.</p></div>
+                  </div>
+                </li>
+                <li class="home-faq__item">
+                  <button type="button" class="home-faq__trigger" aria-expanded="false" aria-controls="flow-panel-6">
+                    <span data-i18n="flow.card2.q3">People approve</span>
+                    <svg class="home-faq__icon" viewBox="0 0 16 16" aria-hidden="true" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" /></svg>
+                  </button>
+                  <div class="home-faq__panel" id="flow-panel-6" role="region" aria-hidden="true">
+                    <div class="home-faq__panel-inner"><p data-i18n="flow.card2.a3">A meeting or a handoff is proposed in the chat. Nothing is sent until someone adds it.</p></div>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="home-flow__stage home-flow__stage--sage">
+              <div class="app-overlay app-overlay--handoff" aria-hidden="true">
+                <div class="app-overlay__handoff">
+                  <div class="app-overlay__handoff-head">
+                    <span class="app-overlay__title">Handoff note</span>
+                    <span class="app-overlay__handoff-close">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                    </span>
+                  </div>
+                  <p class="app-overlay__handoff-note">Standup — summary ready</p>
+                  <p class="app-overlay__handoff-label">Destinataire</p>
+                  <div class="app-overlay__pills">
+                    <span class="app-overlay__pill app-overlay__pill--active">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="3.2" /><path d="M5.5 19.2a6.5 6.5 0 0 1 13 0" /></svg>
+                      Léa
+                    </span>
+                    <span class="app-overlay__pill">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="3.2" /><path d="M5.5 19.2a6.5 6.5 0 0 1 13 0" /></svg>
+                      Malik
+                    </span>
+                    <span class="app-overlay__pill">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 20v-1a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 19v1" /><circle cx="10" cy="8" r="2.6" /><path d="M20 8v5M22.5 10.5h-5" /></svg>
+                      Product
+                    </span>
+                  </div>
+                  <span class="app-overlay__send">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+                    Send handoff
+                  </span>
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -876,22 +731,20 @@
                 href="/downloads/meetra.dmg"
                 download
               >
-                <span id="home-download-label" data-i18n="try.downloadMac">Download for macOS</span>
                 <svg
-                  class="hero__cta-icon"
+                  class="hero__cta-platform-icon"
                   aria-hidden="true"
                   viewBox="0 0 24 24"
-                  width="14"
-                  height="14"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
+                  width="15"
+                  height="15"
+                  focusable="false"
                 >
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
+                  <path
+                    fill="currentColor"
+                    d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.27 4.7 9.15c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.01 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
+                  />
                 </svg>
+                <span id="home-download-label" data-i18n="try.downloadMac">Download for macOS</span>
               </a>
             </div>
           </div>
@@ -943,19 +796,17 @@
     </div>
 
     <script src="footerIcons.js"></script>
-    <script src="i18n.js?v=hero-demo-1"></script>
+    <script src="i18n.js?v=nav-menu-1"></script>
     <script src="download-urls.js"></script>
-    <script src="nav.js?v=nav-platform-1"></script>
+    <script src="nav.js?v=nav-contrast-3"></script>
     <script src="footer.js?v=footer-trim-1"></script>
-    <script src="dashboardPreview.js?v=hero-wallpaper-1"></script>
-    <script src="recordingSectionPreview.js"></script>
+    <script src="dashboardPreview.js?v=hero-fill-2"></script>
+    <script src="recordingSectionPreview.js?v=canvas-2"></script>
     <script src="spotifyFeaturePreview.js?v=play-11"></script>
     <script src="notesFeaturePreview.js?v=notes-last-row-1"></script>
     <script src="handoffFeaturePreview.js?v=play-2"></script>
-    <script src="connectorsSectionPreview.js"></script>
+    <script src="pollsSectionPreview.js?v=hero-poll-7"></script>
     <script src="skillsSectionPreview.js"></script>
-    <script src="home.js?v=nav-platform-1"></script>
-    <script src="https://assets.calendly.com/assets/external/widget.js" async></script>
-    <script src="calendlyDemo.js?v=demo-1"></script>
+    <script src="home.js?v=flow-1"></script>
   </body>
 </html>

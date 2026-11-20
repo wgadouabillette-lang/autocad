@@ -26,7 +26,7 @@
       var unavailable =
         typeof window.HallUnavailableLabel === "function"
           ? window.HallUnavailableLabel()
-          : "Unavailable on mobile";
+          : "Available on desktop";
       if (labelEl && !preserveLabel) {
         labelEl.textContent = unavailable;
       }
@@ -76,6 +76,7 @@
     if (icon && !preserveLabel) {
       var usePlatformIcon =
         link.id === "hero-download" ||
+        link.id === "home-download" ||
         link.id === "feature-try-download" ||
         link.id === "nav-download";
       if (
@@ -92,6 +93,7 @@
         var labelNode =
           labelEl ||
           link.querySelector("#hero-download-label") ||
+          link.querySelector("#home-download-label") ||
           link.querySelector("#feature-try-download-label") ||
           link.querySelector("#nav-download-label");
         var inserted = link.querySelector("." + platformClass);
@@ -291,6 +293,19 @@
     refreshDownloadLabel: refreshDownloadLabel,
     refreshHighlightsMoreLabel: refreshHighlightsMoreLabel,
   };
+
+  document.querySelectorAll(".home-faq__list").forEach(function (faqList) {
+    faqList.addEventListener("click", function (event) {
+      var button = event.target.closest(".home-faq__trigger");
+      if (!button || !faqList.contains(button)) return;
+      var item = button.closest(".home-faq__item");
+      var panel = item ? item.querySelector(".home-faq__panel") : null;
+      var open = button.getAttribute("aria-expanded") === "true";
+      button.setAttribute("aria-expanded", open ? "false" : "true");
+      if (item) item.classList.toggle("is-open", !open);
+      if (panel) panel.setAttribute("aria-hidden", open ? "true" : "false");
+    });
+  });
 
   wireFeatureTryLinks();
   refreshDownloadLabel(window.HallSitePrefs ? window.HallSitePrefs.getLocale() : "en");

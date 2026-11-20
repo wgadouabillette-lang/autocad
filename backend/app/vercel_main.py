@@ -1,8 +1,9 @@
 """Entrée FastAPI minimale pour Vercel — diagnostic boot."""
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 app = FastAPI(title="Meetra API")
 
@@ -49,6 +50,29 @@ app.add_middleware(
 @app.get("/api/health")
 def health():
     return {"ok": True, "runtime": "vercel-bare"}
+
+
+_SITEMAP_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://meetra.cc/</loc></url>
+  <url><loc>https://meetra.cc/tarifs</loc></url>
+  <url><loc>https://meetra.cc/careers</loc></url>
+  <url><loc>https://meetra.cc/ressources</loc></url>
+  <url><loc>https://meetra.cc/terms</loc></url>
+  <url><loc>https://meetra.cc/privacy</loc></url>
+  <url><loc>https://meetra.cc/subprocessors</loc></url>
+  <url><loc>https://meetra.cc/google-limited-use</loc></url>
+  <url><loc>https://meetra.cc/affiliate</loc></url>
+</urlset>
+"""
+
+
+@app.api_route("/sitemap.xml", methods=["GET", "HEAD"], include_in_schema=False)
+def public_sitemap(request: Request):
+    body = _SITEMAP_XML.strip() + "\n"
+    if request.method == "HEAD":
+        return Response(status_code=200, media_type="application/xml", headers={"Content-Length": str(len(body.encode()))})
+    return Response(content=body, media_type="application/xml")
 
 
 try:

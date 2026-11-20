@@ -1,19 +1,15 @@
 (function () {
   var PREVIEW_WIDTH = 1680;
   var PREVIEW_HEIGHT = 940;
-  var WINDOW_SCALE = 0.94;
-  var MOBILE_INSET = 0.06;
-  var TITLE_BAR_PX = 0;
   var LOAD_TIMEOUT_MS = 8000;
   var NAV_MESSAGE = "lyte-marketing-preview-nav";
-  var DESKTOP_WALLPAPER =
-    '<img class="hero__shot-desktop" src="okokok.avif" alt="" decoding="async" />';
   var activeIframe = null;
 
   function resolvePreviewHref() {
     var params = new URLSearchParams();
     var theme = document.documentElement.dataset.theme || "dark";
     params.set("theme", theme);
+    params.set("scene", "home");
     params.set("chrome", "mac");
     return "/app/preview.html?" + params.toString();
   }
@@ -39,13 +35,9 @@
     },
   };
 
-  function desktopWallpaperHtml() {
-    return DESKTOP_WALLPAPER;
-  }
-
-  function createMacTrafficLights() {
+  function createCaptionBar() {
     var bar = document.createElement("div");
-    bar.className = "hero__preview-traffic";
+    bar.className = "hero__preview-caption";
     bar.setAttribute("aria-hidden", "true");
     var kinds = ["close", "min", "max"];
     for (var i = 0; i < kinds.length; i++) {
@@ -58,7 +50,6 @@
 
   function showFallback(mount) {
     mount.innerHTML =
-      desktopWallpaperHtml() +
       '<img class="hero__shot-img" src="app-preview.png" alt="Meetra workspace preview" loading="eager" decoding="async" />';
   }
 
@@ -103,79 +94,40 @@
   function scalePreview(mount, wrapper, scaleLayer) {
     fitLockedMount(mount);
 
-    var width = mount.clientWidth;
-    var height = mount.clientHeight;
+    // Layout size, not the visual box. The entrance transform must not shrink the scale.
+    var width = wrapper.clientWidth || mount.clientWidth;
+    var height = wrapper.clientHeight || width * (PREVIEW_HEIGHT / PREVIEW_WIDTH);
     if (width <= 0 || height <= 0) return false;
 
-    if (isMobilePreview()) {
-      mount.style.marginRight = "";
-      mount.style.width = "";
-      width = mount.clientWidth;
-      height = mount.clientHeight;
-      var mountRect = mount.getBoundingClientRect();
-      var rightGap = window.innerWidth - mountRect.right;
-      if (rightGap > 0.5) {
-        mount.style.marginRight = -rightGap + "px";
-        mount.style.width = Math.round(width + rightGap) + "px";
-        width = mount.clientWidth;
-        height = mount.clientHeight;
-      }
+    mount.style.marginRight = "";
+    mount.style.width = "";
 
-      var insetX = Math.max(12, Math.round(width * MOBILE_INSET));
-      var insetY = Math.max(12, Math.round(height * MOBILE_INSET));
-      // Stretch to the card/viewport right edge; wallpaper peeks only on the left.
-      var innerH = Math.max(height - insetY * 2, 1);
+    // Cover the frame. A top-left scale that falls a pixel short leaves a seam on the right and bottom.
+    var scale = Math.max((width + 2) / PREVIEW_WIDTH, (height + 2) / PREVIEW_HEIGHT);
 
-      wrapper.style.inset = "";
-      wrapper.style.bottom = "";
-      wrapper.style.left = insetX + "px";
-      wrapper.style.top = insetY + "px";
-      wrapper.style.right = "0px";
-      wrapper.style.width = "";
-      wrapper.style.maxWidth = "none";
-      wrapper.style.height = innerH + "px";
-      wrapper.style.transform = "none";
-      wrapper.style.borderTopRightRadius = "0";
-      wrapper.style.borderBottomRightRadius = "0";
-
-      var innerW = Math.max(wrapper.clientWidth || width - insetX, 1);
-      var wrapRect = wrapper.getBoundingClientRect();
-      var wrapGap = window.innerWidth - wrapRect.right;
-      if (wrapGap > 0.5) {
-        innerW = Math.max(Math.round(innerW + wrapGap), 1);
-        wrapper.style.width = innerW + "px";
-      }
-      var bodyH = Math.max(innerH - TITLE_BAR_PX, 1);
-      var coverScale = Math.max(innerW / PREVIEW_WIDTH, bodyH / PREVIEW_HEIGHT);
-      var coverH = PREVIEW_HEIGHT * coverScale;
-
-      scaleLayer.style.width = PREVIEW_WIDTH + "px";
-      scaleLayer.style.height = PREVIEW_HEIGHT + "px";
-      scaleLayer.style.left = "0px";
-      scaleLayer.style.top = (bodyH - coverH) / 2 + "px";
-      scaleLayer.style.transform = "scale(" + coverScale + ")";
-      return true;
-    }
-
-    var scale = Math.min(width / PREVIEW_WIDTH, height / PREVIEW_HEIGHT) * WINDOW_SCALE;
-    var scaledW = PREVIEW_WIDTH * scale;
-    var scaledH = PREVIEW_HEIGHT * scale;
-
-    wrapper.style.inset = "";
-    wrapper.style.right = "";
-    wrapper.style.bottom = "";
-    wrapper.style.width = scaledW + "px";
-    wrapper.style.height = scaledH + "px";
-    wrapper.style.left = "50%";
-    wrapper.style.top = "50%";
-    wrapper.style.transform = "translate(-50%, -50%)";
+    wrapper.style.position = "relative";
+    wrapper.style.inset = "auto";
+    wrapper.style.right = "auto";
+    wrapper.style.bottom = "auto";
+    wrapper.style.width = "100%";
+    wrapper.style.height = "auto";
+    wrapper.style.left = "auto";
+    wrapper.style.top = "auto";
+    wrapper.style.transform = "none";
+    wrapper.style.borderRadius = "";
+    wrapper.style.boxShadow = "";
 
     scaleLayer.style.width = PREVIEW_WIDTH + "px";
     scaleLayer.style.height = PREVIEW_HEIGHT + "px";
-    scaleLayer.style.left = "0";
-    scaleLayer.style.top = "0";
+    scaleLayer.style.left = "0px";
+    scaleLayer.style.top = "0px";
     scaleLayer.style.transform = "scale(" + scale + ")";
     return true;
+  }
+
+  function revealPreview(mount) {
+    if (!mount) return;
+    mount.classList.add("is-in");
   }
 
   function mountPreview() {
@@ -183,7 +135,7 @@
     if (!mount) return;
 
     var href = resolvePreviewHref();
-    mount.innerHTML = desktopWallpaperHtml();
+    mount.innerHTML = "";
     activeIframe = null;
 
     var wrapper = document.createElement("div");
@@ -201,16 +153,19 @@
     activeIframe = iframe;
 
     scaleLayer.appendChild(iframe);
-    scaleLayer.appendChild(createMacTrafficLights());
     var windowBody = document.createElement("div");
     windowBody.className = "hero__preview-window";
     windowBody.appendChild(scaleLayer);
     wrapper.appendChild(windowBody);
+    mount.appendChild(createCaptionBar());
     mount.appendChild(wrapper);
 
     var loaded = false;
     var fallbackTimer = window.setTimeout(function () {
-      if (!loaded) showFallback(mount);
+      if (!loaded) {
+        showFallback(mount);
+        revealPreview(mount);
+      }
     }, LOAD_TIMEOUT_MS);
 
     var syncScale = function () {
@@ -229,6 +184,7 @@
       loaded = true;
       window.clearTimeout(fallbackTimer);
       ensureScale(0);
+      revealPreview(mount);
     });
 
     ensureScale(0);

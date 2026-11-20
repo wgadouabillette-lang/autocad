@@ -24,8 +24,8 @@ export default function AppChromeRow({ immersive = false }: { immersive?: boolea
             <WorkspaceBrandButton />
           </div>
         )}
-        <div className="app-chrome-row__actions" aria-hidden={immersive || undefined}>
-          {!immersive ? <PanelToolbarButtons /> : null}
+        <div className="app-chrome-row__actions">
+          <PanelToolbarButtons />
         </div>
       </div>
     </header>
