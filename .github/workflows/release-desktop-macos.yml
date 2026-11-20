@@ -122,8 +122,8 @@ jobs:
         run: |
           chmod +x scripts/prepare-landing-downloads.sh
           ./scripts/prepare-landing-downloads.sh
-          test -f landing/public/downloads/Hall-mac.dmg
-          ls -lh landing/public/downloads/Hall-mac.dmg desktop/release/*.dmg
+          test -f landing/public/downloads/meetra.dmg
+          ls -lh landing/public/downloads/meetra.dmg desktop/release/*.dmg
 
       - name: Upload installer to GitHub Release
         if: github.event_name == 'release'
@@ -133,7 +133,7 @@ jobs:
             desktop/release/*.dmg
             desktop/release/*.zip
             desktop/release/*.yml
-            landing/public/downloads/Hall-mac.dmg
+            landing/public/downloads/meetra.dmg
           fail_on_unmatched_files: false
 
       - name: Upload workflow artifact
@@ -144,6 +144,6 @@ jobs:
             desktop/release/*.dmg
             desktop/release/*.zip
             desktop/release/latest-mac.yml
-            landing/public/downloads/Hall-mac.dmg
+            landing/public/downloads/meetra.dmg
           if-no-files-found: error
           retention-days: 30

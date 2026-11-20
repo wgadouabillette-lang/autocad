@@ -283,6 +283,7 @@ html:not(.app-loading-splash) #root {
     -webkit-appearance: none;
     background-color: transparent;
     border-radius: var(--forma-toolbar-radius);
+    -webkit-app-region: no-drag;
   }
   .toolbar-btn:hover:not(:disabled) {
     background-color: var(--forma-control-hover-bg);
@@ -1224,22 +1225,31 @@ html:not(.app-loading-splash) #root {
      Absolute left/right:0 was resolving against the full app-layout and shifted
      the centered Meetra brand when joining a call (esp. with chat open). */
   .app-chrome-row--immersive {
-    z-index: 35;
+    z-index: 60;
     background-color: transparent;
     pointer-events: none;
+    -webkit-app-region: no-drag;
   }
   .app-chrome-row--immersive .app-chrome-row__main {
     background-color: transparent;
     border-bottom: 0;
   }
-  .app-chrome-row--immersive .app-chrome-row__leading {
+  .app-chrome-row--immersive .app-chrome-row__leading,
+  .app-chrome-row--immersive .app-chrome-row__actions,
+  .app-chrome-row--immersive .header-toolbar-actions,
+  .app-chrome-row--immersive .header-toolbar-actions button,
+  .app-chrome-row--immersive .toolbar-btn {
+    position: relative;
+    z-index: 2;
     pointer-events: auto;
+    -webkit-app-region: no-drag;
   }
   .app-chrome-row--immersive .app-chrome-row__brand {
     pointer-events: none;
   }
-  .app-chrome-row--immersive .app-chrome-row__actions {
-    pointer-events: auto;
+  /* Windows paints the whole top row as a drag region. That region swallows the
+     gear during a call unless this more specific rule turns drag off there. */
+  html.is-desktop-windows .app-chrome-row.app-chrome-row--immersive {
     -webkit-app-region: no-drag;
   }
   .app-chrome-row--panel-right {
