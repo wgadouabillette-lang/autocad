@@ -609,7 +609,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const introStillValid =
         get().meetraIntroCompleted || rememberedMeetraIntroCompleted(user.uid);
-      set({ ready: false, meetraIntroCompleted: introStillValid });
+      // Keep ready if the splash already closed. Setting it back to false
+      // leaves the desktop on splash.html, which cannot install updates.
+      set({ meetraIntroCompleted: introStillValid });
       set({ ...applyFirebaseUser(user), desktopWebAuthPending: false });
 
       const readySafety = window.setTimeout(() => {
@@ -685,9 +687,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // the next update.
     absoluteReady = window.setTimeout(() => {
       if (disposed || get().ready) return;
-      const user = auth.currentUser;
-      if (user) {
-        handleAuthenticatedUser(user, "absolute-ready-timeout");
+      if (auth.currentUser) {
+        set({ ready: true });
         return;
       }
       setSignedOut("absolute-ready-timeout");

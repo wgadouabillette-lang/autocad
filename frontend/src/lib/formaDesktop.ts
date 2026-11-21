@@ -143,3 +143,11 @@ export function isFormaDesktopMac(): boolean {
 export function isFormaDesktopWindows(): boolean {
   return hasFormaDesktop() && window.formaDesktop?.platform === "win32";
 }
+
+/** Ferme le splash natif. Le splash ne peut pas installer la prochaine mise à jour. */
+export function revealDesktopAppWindow(): void {
+  if (typeof document !== "undefined") {
+    document.documentElement.classList.remove("app-loading-splash");
+  }
+  void window.formaDesktop?.setWindowMode?.("app");
+}

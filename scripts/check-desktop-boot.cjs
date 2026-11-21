@@ -45,8 +45,8 @@ for (const token of [
 const handlerAt = main.indexOf('ipcMain.handle("forma:set-window-mode"');
 if (handlerAt < 0) fail("forma:set-window-mode handler is missing");
 const handler = main.slice(handlerAt, main.indexOf("ipcMain.handle", handlerAt + 20));
-if (!handler.includes("markRendererAckedWindowMode")) {
-  fail("forma:set-window-mode must cancel the launch watchdog");
+if (!handler.includes('if (mode === "app") markRendererAckedWindowMode')) {
+  fail("forma:set-window-mode must cancel the launch watchdog only after the app is ready");
 }
 
 const closedAt = main.indexOf('app.on("window-all-closed"');

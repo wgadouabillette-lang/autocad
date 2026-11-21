@@ -40,7 +40,12 @@ import { useMeetingReminders } from "./hooks/useMeetingReminders";
 import { useSpotifyVoiceMix } from "./hooks/useSpotifyVoiceMix";
 import { useMobileLayout } from "./hooks/useMobileLayout";
 import { canAccessApp, DESKTOP_VIEWPORT_QUERY, getLandingUrl } from "./lib/appAccess";
-import { hasFormaDesktop, isFormaDesktopMac, isFormaDesktopWindows } from "./lib/formaDesktop";
+import {
+  hasFormaDesktop,
+  isFormaDesktopMac,
+  isFormaDesktopWindows,
+  revealDesktopAppWindow,
+} from "./lib/formaDesktop";
 import { isMarketingPreview } from "./lib/marketingPreview";
 import { parseWorkspaceInviteInput } from "./lib/workspaceInvite";
 import { runAppBoot, type AppBootStatus } from "./lib/appBoot";
@@ -154,12 +159,15 @@ export default function App() {
   }, []);
 
   const { progress: updateProgress, blockingUpdate } = useDesktopUpdater();
+  const [forceLeaveSplash, setForceLeaveSplash] = useState(false);
   const showDesktopAuthSuccess = Boolean(desktopWebAuthConnected && !authReady);
   const launchPending =
-    !authReady ||
-    (isAuthenticated && bootStatus !== "ready" && bootStatus !== "connection_error");
+    !forceLeaveSplash &&
+    (!authReady ||
+      (isAuthenticated && bootStatus !== "ready" && bootStatus !== "connection_error"));
   const bootPending =
     !showDesktopAuthSuccess &&
+    !forceLeaveSplash &&
     (blockingUpdate ||
       !authReady ||
       (isAuthenticated && bootStatus !== "ready"));
@@ -169,7 +177,9 @@ export default function App() {
   });
   const showSignInWindow = authReady && !isAuthenticated && !blockingUpdate;
   const desktopSplashWindow =
-    !showSignInWindow && (blockingUpdate || (hasFormaDesktop() && launchPending));
+    !forceLeaveSplash &&
+    !showSignInWindow &&
+    (blockingUpdate || (hasFormaDesktop() && launchPending));
   useLayoutEffect(() => {
     const root = document.documentElement;
     if (desktopSplashWindow) {
@@ -182,6 +192,16 @@ export default function App() {
     if (!setWindowMode) return;
     void setWindowMode(desktopSplashWindow ? "splash" : "app");
   }, [desktopSplashWindow, showSignInWindow]);
+
+  useEffect(() => {
+    if (!hasFormaDesktop()) return;
+    if (!launchPending && !blockingUpdate) return;
+    const id = window.setTimeout(() => {
+      setForceLeaveSplash(true);
+      revealDesktopAppWindow();
+    }, 8000);
+    return () => window.clearTimeout(id);
+  }, [launchPending, blockingUpdate]);
 
   useAppKeyboardShortcuts();
   useColorTheme();
@@ -455,7 +475,7 @@ export default function App() {
     return null;
   }
 
-  if (hasFormaDesktop() && blockingUpdate) {
+  if (hasFormaDesktop() && blockingUpdate && !forceLeaveSplash) {
     return (
       <AppLoadingScreen
         connectionError={false}

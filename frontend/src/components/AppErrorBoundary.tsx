@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { debugLog } from "../lib/debugLog";
+import { revealDesktopAppWindow } from "../lib/formaDesktop";
 
 type AppErrorBoundaryProps = {
   children: ReactNode;
@@ -20,6 +21,7 @@ export default class AppErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    revealDesktopAppWindow();
     console.error("Forma render error", error, info.componentStack);
     debugLog(
       "AppErrorBoundary.tsx:componentDidCatch",

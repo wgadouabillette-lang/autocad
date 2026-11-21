@@ -1223,6 +1223,8 @@ let splashShowPromise = null;
 let windowModeGeneration = 0;
 /** Update install is showing splash.html. Never resize the live workspace into that card. */
 let updateSplashActive = false;
+/** Watchdog already opened the real window. Ignore later splash requests. */
+let launchForcedReveal = false;
 
 function windowIsSplashSized(win) {
   if (!win || win.isDestroyed()) return false;
@@ -1513,6 +1515,8 @@ function forceRevealMainWindow(reason) {
     `[hall] launch watchdog (${reason}): opening the window without a renderer ack\n`,
   );
   clearLaunchRevealTimers();
+  launchForcedReveal = true;
+  updateSplashActive = false;
   ensureMainWindowShown();
 }
 
@@ -1532,7 +1536,8 @@ function armLaunchWatchdog(win) {
 }
 
 function showAppWindow() {
-  if (updateSplashActive) return;
+  if (updateSplashActive && !launchForcedReveal) return;
+  updateSplashActive = false;
   windowModeGeneration += 1;
   const alreadyApp = mainWindowMode === "app";
   mainWindowMode = "app";
@@ -1806,6 +1811,7 @@ function setMainWindowMode(mode) {
     return Promise.resolve();
   }
   if (mode !== "splash") return Promise.resolve();
+  if (launchForcedReveal) return Promise.resolve();
   return showSplashMainWindow();
 }
 
@@ -1819,6 +1825,7 @@ function createWindow() {
   }
 
   mainWindowMode = "splash";
+  launchForcedReveal = false;
   createSplashWindow();
 
   mainWindow = new BrowserWindow({
@@ -2148,8 +2155,9 @@ ipcMain.handle("forma:open-connector-oauth", async (_event, url) => {
 
 ipcMain.handle("forma:set-window-mode", async (_event, mode) => {
   if (mode !== "splash" && mode !== "app") return { ok: false };
-  // Cancel the splash watchdog before any await. The renderer has the bridge.
-  markRendererAckedWindowMode();
+  // Only the real app cancels the watchdog. A splash ack used to leave users
+  // stuck on splash.html, which cannot install the next update.
+  if (mode === "app") markRendererAckedWindowMode();
   // Cold start: the standalone splash stays up until the renderer asks for the app.
   // Showing splash chrome on the hidden main window would replace that screen.
   // If that splash is already gone, fall through so the main window cannot stay hidden.
@@ -2157,6 +2165,7 @@ ipcMain.handle("forma:set-window-mode", async (_event, mode) => {
     splashWindow && !splashWindow.isDestroyed() && splashWindow.isVisible();
   if (
     mode === "splash" &&
+    !launchForcedReveal &&
     mainWindowMode === "splash" &&
     mainWindow &&
     !mainWindow.isDestroyed() &&

@@ -198,6 +198,16 @@ async function runMockInstall(info) {
 async function runInstallNow(info) {
   if (installing) return { ok: false, reason: "busy" };
   installing = true;
+  const stallTimer = setTimeout(() => {
+    if (!installing) return;
+    installing = false;
+    console.error("[forma-updater] install stalled; restoring the window");
+    try {
+      restoreAfterUpdateFailure();
+    } catch (restoreErr) {
+      console.error("[forma-updater] restore after stalled install:", restoreErr);
+    }
+  }, 4 * 60 * 1000);
 
   if (!isDevMode()) {
     try {
@@ -211,12 +221,14 @@ async function runInstallNow(info) {
     clearPending();
     const result = await runMockInstall(info);
     installing = false;
+    clearTimeout(stallTimer);
     return result;
   }
 
   const updater = loadAutoUpdater();
   if (!updater) {
     installing = false;
+    clearTimeout(stallTimer);
     return { ok: false, reason: "no_updater" };
   }
 
@@ -228,9 +240,20 @@ async function runInstallNow(info) {
     clearPending();
     sendToRenderer("forma:update-installed", { version: info.version });
     updater.quitAndInstall(false, true);
+    setTimeout(() => {
+      if (!installing) return;
+      installing = false;
+      console.error("[forma-updater] quitAndInstall did not exit; restoring the window");
+      try {
+        restoreAfterUpdateFailure();
+      } catch (restoreErr) {
+        console.error("[forma-updater] restore after stalled install:", restoreErr);
+      }
+    }, 12_000);
     return { ok: true };
   } catch (err) {
     installing = false;
+    clearTimeout(stallTimer);
     console.error("[forma-updater] install failed:", err);
     try {
       restoreAfterUpdateFailure();
