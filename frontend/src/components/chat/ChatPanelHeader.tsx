@@ -160,7 +160,7 @@ export default function ChatPanelHeader() {
 
       <h2 className="chat-panel-header__title pointer-events-none min-w-0 select-none text-xs font-semibold tracking-wide text-muted-200">
         {friendsSplit ? (
-          t("chat.friends")
+          t("chat.messages")
         ) : inFriendThread && activeFriendThread ? (
           <span className="chat-panel-header__thread-identity">
             {inGroupThread ? (
@@ -190,7 +190,7 @@ export default function ChatPanelHeader() {
             </span>
           </span>
         ) : friendsMode ? (
-          t("chat.friends")
+          t("chat.messages")
         ) : theaterMode ? (
           t("chat.theaterChat")
         ) : calendarMode ? (

@@ -62,6 +62,7 @@ export interface TheaterPresenceMember {
   photoURL?: string;
   inTheaterCall?: boolean;
   theaterRole?: TheaterRole | null;
+  theaterSeat?: number | null;
 }
 
 function keepRemote(users: TheaterParticipant[]): TheaterParticipant[] {
@@ -92,14 +93,37 @@ function placeLocal(
   return { speakers, audience, question, localRole };
 }
 
+function publishedAudienceSeats(members: TheaterPresenceMember[]): Record<string, number> {
+  const seats: Record<string, number> = {};
+  for (const member of members) {
+    if (!member.id || !member.inTheaterCall || member.theaterRole !== "audience") continue;
+    const seat = member.theaterSeat;
+    if (typeof seat !== "number" || !Number.isInteger(seat)) continue;
+    if (seat < 0 || seat >= THEATER_AUDIENCE_SEAT_COUNT) continue;
+    seats[member.id] = seat;
+  }
+  return seats;
+}
+
 function seatsForAudience(
   audience: TheaterParticipant[],
   previous: Record<string, number>,
+  published: Record<string, number> = {},
 ): Record<string, number> {
   const ids = new Set(audience.map((participant) => participant.id));
   let seats = Object.fromEntries(
-    Object.entries(previous).filter(([userId]) => ids.has(userId)),
+    Object.entries(previous).filter(
+      ([userId]) => ids.has(userId) && published[userId] === undefined,
+    ),
   );
+  for (const [userId, seatIndex] of Object.entries(published)) {
+    if (!ids.has(userId)) continue;
+    seats = assignAudienceSeat(seats, userId, seatIndex);
+  }
+  const localSeat = previous[LOCAL_USER.id];
+  if (ids.has(LOCAL_USER.id) && typeof localSeat === "number") {
+    seats = assignAudienceSeat(seats, LOCAL_USER.id, localSeat);
+  }
   for (const participant of audience) {
     if (seats[participant.id] !== undefined) continue;
     const placed = buildTheaterAudienceSeats(audience, seats);
@@ -192,6 +216,7 @@ export function syncTheaterFromPresence(
     audienceSeatByUserId: seatsForAudience(
       placed.audience,
       existing?.audienceSeatByUserId ?? {},
+      publishedAudienceSeats(members),
     ),
     handRaises: existing?.handRaises ?? [],
   };
@@ -200,7 +225,9 @@ export function syncTheaterFromPresence(
 export function theaterRosterSignature(state: TheaterState | undefined): string {
   if (!state) return "";
   const people = (list: TheaterParticipant[]) =>
-    list.map((person) => `${person.id}:${person.role}:${person.name}`).join(",");
+    list
+      .map((person) => `${person.id}:${person.role}:${person.name}:${person.photoURL ?? ""}`)
+      .join(",");
   const seats = Object.entries(state.audienceSeatByUserId ?? {})
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([id, seat]) => `${id}=${seat}`)

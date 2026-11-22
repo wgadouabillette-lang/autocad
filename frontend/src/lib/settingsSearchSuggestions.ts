@@ -2,7 +2,6 @@ import { CHAT_CONNECTORS, isConnectorComingSoon } from "../components/chat/chatC
 
 export type SettingsTab =
   | "general"
-  | "friends"
   | "workspaces"
   | "billing"
   | "audio"
@@ -19,13 +18,13 @@ export type LegacySettingsTab =
   | "usage"
   | "recording"
   | "workspace"
-  | "voice";
+  | "voice"
+  | "friends";
 
 export type AnySettingsTab = SettingsTab | LegacySettingsTab;
 
 const SETTINGS_TABS: SettingsTab[] = [
   "general",
-  "friends",
   "workspaces",
   "billing",
   "audio",
@@ -43,6 +42,7 @@ const LEGACY_TAB_MAP: Record<LegacySettingsTab, SettingsTab> = {
   recording: "audio",
   workspace: "workspaces",
   voice: "audio",
+  friends: "general",
 };
 
 export function normalizeSettingsTab(tab: string | null | undefined): SettingsTab {
@@ -72,13 +72,6 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     hint: "Commandes / utilisables dans le chat",
     keywords:
       "skills skill slash manage group meeting mail play calendar gmail outlook onedrive dropbox recap",
-  },
-  {
-    id: "accent-color",
-    tab: "general",
-    label: "Accent color",
-    hint: "Header buttons, chat bubbles, and primary controls",
-    keywords: "accent couleur color bouton button chat bubble emerald amber cyan bleu blue vert orange profil profile",
   },
   {
     id: "availability-hours",
@@ -114,13 +107,6 @@ const BASE_SUGGESTIONS: SettingsSearchSuggestion[] = [
     label: "Enregistrement",
     hint: "Options de capture vidéo et audio",
     keywords: "audio video vocal salon appel enregistrement recording capture caméra",
-  },
-  {
-    id: "friends",
-    tab: "friends",
-    label: "Amis",
-    hint: "Vos amis",
-    keywords: "amis friends liste messages",
   },
   {
     id: "workspaces",

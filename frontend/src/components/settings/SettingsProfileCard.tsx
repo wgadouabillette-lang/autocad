@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import UserAvatar from "../UserAvatar";
-import { ACCENT_COLOR_OPTIONS, type AccentColorPreference } from "../../lib/accentColor";
 import { intlLocaleForAppLocale, resolveAppLocale } from "../../lib/appLocale";
 import {
   AVAILABILITY_WEEKDAY_ORDER,
@@ -14,7 +13,7 @@ import {
 } from "../../lib/userPreferences";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStore } from "../../store/useStore";
-import SettingsPicker, { SettingsTimeInput } from "./SettingsControls";
+import { SettingsTimeInput } from "./SettingsControls";
 import SettingsFieldRow from "./SettingsFieldRow";
 
 const ACCEPTED_IMAGE_TYPES = "image/jpeg,image/png,image/webp";
@@ -57,8 +56,6 @@ export default function SettingsProfileCard() {
   const setUserDisplayName = useStore((s) => s.setUserDisplayName);
   const userEmail = useStore((s) => s.userEmail);
   const photoURL = useStore((s) => s.photoURL);
-  const accentColor = useStore((s) => s.accentColor);
-  const setAccentColor = useStore((s) => s.setAccentColor);
   const calendarWorkStartMinutes = useStore((s) => s.calendarWorkStartMinutes);
   const calendarWorkEndMinutes = useStore((s) => s.calendarWorkEndMinutes);
   const setCalendarWorkingHours = useStore((s) => s.setCalendarWorkingHours);
@@ -84,9 +81,6 @@ export default function SettingsProfileCard() {
     () => normalizeAvailabilityDays(storedAvailabilityDays),
     [storedAvailabilityDays],
   );
-
-  const selectedAccent =
-    ACCENT_COLOR_OPTIONS.find((option) => option.id === accentColor) ?? ACCENT_COLOR_OPTIONS[0]!;
 
   useEffect(() => {
     setDraftName(userDisplayName);
@@ -199,33 +193,6 @@ export default function SettingsProfileCard() {
 
           <SettingsFieldRow id="account-email" label="Courriel">
             <p className="settings-field-row__value">{userEmail || "—"}</p>
-          </SettingsFieldRow>
-        </div>
-      </section>
-
-      <section className="settings-preferences__group">
-        <h3 className="settings-preferences__title">{t("settingsUi.appearance")}</h3>
-        <div className="settings-field-list">
-          <SettingsFieldRow
-            id="accent-color"
-            label={t("settings.profile.color")}
-            description={t("settings.profile.colorHint")}
-          >
-            <SettingsPicker
-              value={accentColor}
-              ariaLabel={t("settings.profile.colorAria")}
-              prefix={
-                <span
-                  className="settings-picker__swatch"
-                  style={{ backgroundColor: selectedAccent.swatch }}
-                />
-              }
-              options={ACCENT_COLOR_OPTIONS.map((option) => ({
-                value: option.id,
-                label: t(`settings.profile.accent.${option.id}`),
-              }))}
-              onChange={(value) => setAccentColor(value as AccentColorPreference)}
-            />
           </SettingsFieldRow>
         </div>
       </section>

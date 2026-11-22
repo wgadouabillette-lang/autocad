@@ -20,6 +20,8 @@ export interface WorkspaceVoicePresence {
   inTheaterCall?: boolean;
   /** speaker, audience ou question — visible par les autres dans le théâtre. */
   theaterRole?: "speaker" | "audience" | "question" | null;
+  /** Siège d'audience choisi, pour que les autres voient la photo au bon endroit. */
+  theaterSeat?: number | null;
   speaking?: boolean;
   muted?: boolean;
   handRaised?: boolean;
@@ -36,6 +38,7 @@ export interface WorkspacePresenceDoc {
   voiceOpenChannelId?: string | null;
   voiceInTheaterCall?: boolean;
   voiceTheaterRole?: string | null;
+  voiceTheaterSeat?: number | null;
   voiceSpeaking?: boolean;
   voiceMuted?: boolean;
   voiceHandRaised?: boolean;
@@ -64,6 +67,7 @@ const OFFLINE_CLEAR = {
   voiceOpenChannelId: null,
   voiceInTheaterCall: false,
   voiceTheaterRole: null,
+  voiceTheaterSeat: null,
   voiceSpeaking: false,
   voiceMuted: false,
   voiceHandRaised: false,
@@ -104,6 +108,12 @@ function voiceFromDoc(data: WorkspacePresenceDoc): WorkspaceVoicePresence {
       data.voiceTheaterRole === "audience" ||
       data.voiceTheaterRole === "question"
         ? data.voiceTheaterRole
+        : null,
+    theaterSeat:
+      typeof data.voiceTheaterSeat === "number" &&
+      Number.isInteger(data.voiceTheaterSeat) &&
+      data.voiceTheaterSeat >= 0
+        ? data.voiceTheaterSeat
         : null,
     speaking: data.voiceSpeaking === true,
     muted: data.voiceMuted === true,
@@ -149,7 +159,7 @@ function memberFromEntry(uid: string, raw: unknown): WorkspacePresenceMember {
   };
 }
 
-/** Arme onDisconnect une seule fois par session de connexion (pas à chaque heartbeat). */
+/** Arme onDisconnect une seule fois par session de connexion. */
 async function ensurePresenceDisconnect(workspaceId: string, uid: string): Promise<void> {
   ensureConnectedWatch();
   const key = presenceKey(workspaceId, uid);
@@ -171,6 +181,14 @@ const lastPresenceProfileByKey = new Map<string, string>();
 
 function clearPresenceProfileCache(workspaceId: string, uid: string): void {
   lastPresenceProfileByKey.delete(presenceKey(workspaceId, uid));
+}
+
+/** Firebase a repris la socket. `.info/connected` est local, non facturé. */
+export function watchRtdbConnection(onConnected: () => void): Unsubscribe {
+  ensureConnectedWatch();
+  return onValue(ref(rtdb, ".info/connected"), (snap) => {
+    if (snap.val() === true) onConnected();
+  });
 }
 
 export function watchWorkspacePresence(
@@ -257,7 +275,7 @@ export async function touchWorkspacePresence(
   const profileSig = `${displayName}\0${photoURL ?? ""}`;
   const profileChanged = lastPresenceProfileByKey.get(profileKey) !== profileSig;
 
-  // Heartbeats: lastSeen + ephemeral fields. Profile only on first touch / change.
+  // lastSeen date cette écriture. Le profil part seulement au premier envoi ou s'il change.
   const payload: Record<string, unknown> = {
     lastSeen: Date.now(),
     online: true,
@@ -272,6 +290,10 @@ export async function touchWorkspacePresence(
     payload.voiceOpenChannelId = voice.openChannelId ?? null;
     payload.voiceInTheaterCall = voice.inTheaterCall === true;
     payload.voiceTheaterRole = voice.theaterRole ?? null;
+    payload.voiceTheaterSeat =
+      typeof voice.theaterSeat === "number" && Number.isInteger(voice.theaterSeat)
+        ? voice.theaterSeat
+        : null;
     // Speaking is UI-only (WebRTC VAD) — clear any legacy RTDB value.
     payload.voiceSpeaking = false;
     payload.voiceMuted = voice.muted === true;

@@ -9,6 +9,18 @@ export interface TranscribeRequest {
   audioBase64?: string;
   mimeType?: string;
   filename?: string;
+  language?: string;
+}
+
+function languageCode(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const raw = value.trim().toLowerCase();
+  if (raw.length >= 2 && /^[a-z]{2}/.test(raw)) return raw.slice(0, 2);
+  return undefined;
+}
+
+function appendLanguage(form: FormData, language: string | undefined): void {
+  if (language) form.append("language", language);
 }
 
 function safeFilename(raw: unknown, mimeType: string): string {
@@ -37,9 +49,11 @@ async function transcribeOpenAi(
   mimeType: string,
   filename: string,
   apiKey: string,
+  language?: string,
 ): Promise<Response> {
   const form = new FormData();
   form.append("model", "whisper-1");
+  appendLanguage(form, language);
   form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
   return fetch(OPENAI_STT_URL, {
     method: "POST",
@@ -53,11 +67,12 @@ async function transcribeXai(
   mimeType: string,
   filename: string,
   apiKey: string,
+  language?: string,
   includeModel = true,
 ): Promise<Response> {
   const form = new FormData();
   if (includeModel) form.append("model", "grok-stt");
-  form.append("language", "fr");
+  appendLanguage(form, language);
   form.append("format", "true");
   form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
   return fetch(XAI_STT_URL, {
@@ -102,6 +117,7 @@ export async function runAiTranscribe(
       ? data.mimeType.trim()
       : "audio/webm";
   const filename = safeFilename(data.filename, mimeType);
+  const language = languageCode(data.language);
 
   const attempts: Array<{
     name: "openai" | "xai";
@@ -110,39 +126,40 @@ export async function runAiTranscribe(
   if (keys.xai) {
     attempts.push({
       name: "xai",
-      run: () => transcribeXai(buffer, mimeType, filename, keys.xai),
+      run: () => transcribeXai(buffer, mimeType, filename, keys.xai, language),
     });
   }
   if (keys.openai) {
     attempts.push({
       name: "openai",
-      run: () => transcribeOpenAi(buffer, mimeType, filename, keys.openai),
+      run: () => transcribeOpenAi(buffer, mimeType, filename, keys.openai, language),
     });
   }
 
   let lastKind: "service" | "network" = "network";
-  for (const attempt of attempts) {
+  for (let index = 0; index < attempts.length; index += 1) {
+    const attempt = attempts[index];
+    const isLast = index === attempts.length - 1;
     let response: Response;
     try {
       response = await attempt.run();
+      if (attempt.name === "xai" && response.status === 400) {
+        response = await transcribeXai(buffer, mimeType, filename, keys.xai, language, false);
+      }
     } catch {
       lastKind = "network";
       continue;
     }
     if (response.ok) {
-      return { text: transcriptText(await response.json()) };
-    }
-    if (attempt.name === "xai" && response.status === 400) {
+      let text = "";
       try {
-        const retry = await transcribeXai(buffer, mimeType, filename, keys.xai, false);
-        if (retry.ok) {
-          return { text: transcriptText(await retry.json()) };
-        }
-        response = retry;
+        text = transcriptText(await response.json());
       } catch {
         lastKind = "network";
         continue;
       }
+      if (text || isLast) return { text };
+      continue;
     }
     lastKind = response.status === 401 || response.status === 403 ? "service" : "network";
   }

@@ -271,6 +271,7 @@
     "otherMembers_one": "{{count}} outro membro",
     "otherMembers_other": "{{count}} outros membros",
     "disconnect": "Desconectar {{name}}",
+    "participantVolume": "Volume de {{name}}",
     "offline": "{{name}} — offline",
     "askToJoin": "Pedir para entrar com {{name}}",
     "messageTo": "Mensagem para {{name}}",
@@ -374,7 +375,6 @@
       "button": "Melhorar",
       "title": "Quantos assentos você quer adicionar?",
       "subtitle": "Esses assentos são adicionados a {{workspace}}.",
-      "result": "Você tem {{current}}. Depois deste pagamento: {{total}}.",
       "continue": "Continuar"
     },
     "inviteSeats": {

@@ -325,8 +325,27 @@ def _create_custom_token(uid: str) -> str:
         raise HTTPException(503, "Unable to create desktop auth token.") from exc
 
 
-def _publish_session_to_firestore(session_id: str, uid: str, custom_token: str) -> None:
+def _publish_session_to_firestore(
+    session_id: str,
+    uid: str,
+    custom_token: Optional[str] = None,
+    *,
+    provider: Optional[str] = None,
+    id_token: Optional[str] = None,
+    access_token: Optional[str] = None,
+) -> None:
     """Mirror the session so Electron can claim via Admin (backend or Functions)."""
+    credentials: dict[str, str] = {}
+    if isinstance(custom_token, str) and custom_token:
+        credentials["token"] = custom_token
+    elif provider == "google" and isinstance(id_token, str) and id_token:
+        credentials["provider"] = "google"
+        credentials["idToken"] = id_token
+        if isinstance(access_token, str) and access_token:
+            credentials["accessToken"] = access_token
+    else:
+        return
+
     try:
         from app.core.firebase import firestore_available
 
@@ -336,7 +355,7 @@ def _publish_session_to_firestore(session_id: str, uid: str, custom_token: str) 
 
         firestore.client().document(f"desktopAuthSessions/{session_id}").set(
             {
-                "token": custom_token,
+                **credentials,
                 "uid": uid,
                 "createdAt": firestore.SERVER_TIMESTAMP,
             },
@@ -493,6 +512,14 @@ def complete_desktop_auth(
         _sessions[session_id] = entry
     if custom_token:
         _publish_session_to_firestore(session_id, firebase_user.uid, custom_token)
+    elif provider == "google" and google_id:
+        _publish_session_to_firestore(
+            session_id,
+            firebase_user.uid,
+            provider="google",
+            id_token=google_id,
+            access_token=access,
+        )
     return {"ok": True, "userCode": _format_user_code(issued_code)}
 
 
@@ -544,6 +571,7 @@ def claim_desktop_auth(body: ClaimDesktopAuthRequest, request: Request):
         return {"status": "ready", "customToken": token}
 
     if oauth_payload is not None:
+        _delete_firestore_session(session_id)
         return oauth_payload
 
     firestore_claim = _claim_from_firestore(

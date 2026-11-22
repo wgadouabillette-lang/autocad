@@ -14,6 +14,7 @@ import { usePersonLabel } from "../../lib/participantLabel";
 import { participantVideoStream } from "../../lib/webrtc/workspaceVoiceRtc";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
+import ParticipantVolumeControl from "./ParticipantVolumeControl";
 import VoiceMuteBadge from "./VoiceMuteBadge";
 import LocalScreenSharePreview from "./LocalScreenSharePreview";
 import ScreenShareLiveBadge from "./ScreenShareLiveBadge";
@@ -129,7 +130,10 @@ export default function CallPresentView({ blocks }: CallPresentViewProps) {
                 {userInitials(partnerName)}
               </div>
             )}
-            <span className="call-present-tile__label">{partnerName}</span>
+            <div className="call-present-tile__label">
+              <span className="call-present-tile__name">{partnerName}</span>
+              <ParticipantVolumeControl uid={partner.id} name={partnerName} />
+            </div>
             {partner && mutedByParticipant[partner.id] ? <VoiceMuteBadge /> : null}
             {canDisconnectPartner ? (
               <button

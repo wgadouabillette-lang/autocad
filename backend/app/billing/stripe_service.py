@@ -191,7 +191,8 @@ def _is_new_seat_price(item: Dict[str, Any]) -> bool:
         amount = int(price.get("unit_amount") or 0)
     except (TypeError, ValueError):
         return False
-    return amount == _enterprise_seat_unit_cents()
+    # 1500 : sièges déjà vendus à 15 $. 2000 : tarif actuel.
+    return amount == _enterprise_seat_unit_cents() or amount in {1500, 2000}
 
 
 def _resolve_uid(
@@ -956,7 +957,7 @@ def create_personal_seat_subscription_intent(
     seat_count: int,
     promotion_code_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Abonnement incomplet : N sièges à 15 $ US sur le compte personnel."""
+    """Abonnement incomplet : N sièges à 20 $ US sur le compte personnel."""
     publishable = settings.stripe_publishable_key.strip()
     if not publishable:
         raise ValueError("STRIPE_PUBLISHABLE_KEY is not configured.")
@@ -1333,22 +1334,22 @@ def sync_workspace_subscription_from_stripe(workspace_id: str) -> Dict[str, Any]
 
 
 def _enterprise_seat_unit_cents() -> int:
-    raw = (os.getenv("STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS") or "1500").strip()
+    raw = (os.getenv("STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS") or "2000").strip()
     try:
         return max(1, int(raw))
     except ValueError:
-        return 1500
+        return 2000
 
 
 def _enterprise_seat_price_label() -> str:
     return (
-        os.getenv("STRIPE_ENTERPRISE_SEAT_PRICE_LABEL", "$15 / seat").strip()
-        or "$15 / seat"
+        os.getenv("STRIPE_ENTERPRISE_SEAT_PRICE_LABEL", "$20 / seat").strip()
+        or "$20 / seat"
     )
 
 
 def ensure_meetra_seat_price(stripe) -> str:
-    """Prix mensuel à 15 $ US, partagé par les sièges perso et entreprise."""
+    """Prix mensuel à 20 $ US, partagé par les sièges perso et entreprise."""
     target = _enterprise_seat_unit_cents()
     product_id = ""
     for price_id in (
@@ -1510,7 +1511,7 @@ def create_workspace_seat_upgrade_intent(
             raise ValueError("Maximum 500 sièges.")
         seat_price = ensure_meetra_seat_price(stripe)
         item_update: Dict[str, Any] = (
-            {"id": str(item.get("id") or ""), "quantity": new_paid}
+            {"id": str(item.get("id") or ""), "price": seat_price, "quantity": new_paid}
             if item and str(item.get("id") or "").strip()
             else {"price": seat_price, "quantity": requested}
         )

@@ -155,7 +155,6 @@ export default function BottomHeader() {
   const stopSpotify = useSpotifyPlayerStore((s) => s.stop);
   const spotifyCurrentTrack = useSpotifyPlayerStore((s) => s.currentTrack);
   const spotifyPlaying = useSpotifyPlayerStore((s) => s.playing);
-  const spotifyPlaybackMode = useSpotifyPlayerStore((s) => s.playbackMode);
   const queueAddFlashAt = useSpotifyPlayerStore((s) => s.queueAddFlashAt);
   const hallDjLoading = useHallDjStore((s) => s.loading);
   const hallDjActive = useHallDjStore((s) => s.active);
@@ -310,6 +309,7 @@ export default function BottomHeader() {
       onPointerEnter={primeSpotifyOnIntent}
       onFocus={primeSpotifyOnIntent}
       onClick={() => {
+        if (showHallDjLoading) return;
         if (!spotifyConnected) {
           void connect("spotify");
           return;
@@ -334,7 +334,8 @@ export default function BottomHeader() {
           await startHallDj();
         })();
       }}
-      disabled={showHallDjLoading || connectingId === "spotify"}
+      disabled={connectingId === "spotify"}
+      aria-busy={showHallDjLoading}
       active={showHallDjSkip || showHallDjLoading}
       className={clsx(
         hallDjNeedsPremium && !showHallDjSkip ? "bottom-bar-btn--wide-signet" : undefined,
@@ -347,7 +348,18 @@ export default function BottomHeader() {
           style={{ width: ICON_SIZE, height: ICON_SIZE }}
           aria-hidden
         >
-          <span className="hall-dj-loading-icon__ring" />
+          <svg className="hall-dj-loading-icon__ring" viewBox="0 0 24 24">
+            <circle
+              cx="12"
+              cy="12"
+              r="8.25"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              strokeDasharray="13 40"
+            />
+          </svg>
         </span>
       ) : showHallDjSkip ? (
         <SkipForward size={ICON_SIZE} aria-hidden className={spotifyIconShimmerClass} />
@@ -533,9 +545,7 @@ export default function BottomHeader() {
 
   if (isMobileLayout) {
     return (
-      <footer
-        className="app-bottom-header app-bottom-header--mobile"
-      >
+      <footer className="app-bottom-header app-bottom-header--mobile">
         <div
           ref={notificationsAnchorRef}
           className="bottom-bar-capsule-anchor app-bottom-header__unified"

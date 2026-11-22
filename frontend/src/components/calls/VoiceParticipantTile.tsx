@@ -7,6 +7,7 @@ import { usePersonLabel } from "../../lib/participantLabel";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import UserAvatar from "../UserAvatar";
+import ParticipantVolumeControl from "./ParticipantVolumeControl";
 import VoiceMuteBadge from "./VoiceMuteBadge";
 import LocalScreenSharePreview from "./LocalScreenSharePreview";
 import ScreenShareLiveBadge from "./ScreenShareLiveBadge";
@@ -99,7 +100,12 @@ export default function VoiceParticipantTile({
           />
         </div>
       )}
-      <span className="voice-participant-tile__label">{name}</span>
+      <div className="voice-participant-tile__label">
+        <span className="voice-participant-tile__name">{name}</span>
+        {!participant.isLocal ? (
+          <ParticipantVolumeControl uid={participant.id} name={name} />
+        ) : null}
+      </div>
       {showMuteBadge && <VoiceMuteBadge />}
       {showLocalScreen ? <ScreenShareLiveBadge /> : null}
       {handRaised && (
@@ -168,12 +174,13 @@ export default function VoiceParticipantTile({
       onClick={(event) => {
         if (event.currentTarget !== event.target) {
           const target = event.target as HTMLElement;
-          if (target.closest("button, a")) return;
+          if (target.closest("button, a, .participant-volume")) return;
         }
         handleActivate(event);
       }}
       onKeyDown={(event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
+        if ((event.target as HTMLElement).closest(".participant-volume")) return;
         event.preventDefault();
         handleActivate(event);
       }}

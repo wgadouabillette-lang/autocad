@@ -1,4 +1,4 @@
-"""Live-notes / recap STT — OpenAI Whisper, then xAI Grok STT."""
+"""Live-notes / recap STT — xAI Grok STT, then OpenAI Whisper."""
 from __future__ import annotations
 
 import logging
@@ -50,11 +50,12 @@ def _text_from_payload(payload: object) -> str:
     return text.strip() if isinstance(text, str) else ""
 
 
-def _language_code(value: Optional[str]) -> str:
+def _language_code(value: Optional[str]) -> Optional[str]:
+    """ISO-639-1 when the client sent one. Empty means the provider detects it."""
     raw = _trim(value).lower()
     if len(raw) >= 2 and raw[:2].isalpha():
         return raw[:2]
-    return "fr"
+    return None
 
 
 def _prompt_text(value: Optional[str]) -> str:
@@ -69,10 +70,12 @@ async def _post_openai(
     data: bytes,
     filename: str,
     mime: str,
-    language: str,
+    language: Optional[str],
     prompt: str,
 ) -> httpx.Response:
-    form = {"model": "whisper-1", "language": language, "temperature": "0"}
+    form: dict[str, str] = {"model": "whisper-1", "temperature": "0"}
+    if language:
+        form["language"] = language
     if prompt:
         form["prompt"] = prompt
     return await client.post(
@@ -90,10 +93,12 @@ async def _post_xai(
     data: bytes,
     filename: str,
     mime: str,
-    language: str,
+    language: Optional[str],
     include_model: bool = True,
 ) -> httpx.Response:
-    form = {"language": language, "format": "true"}
+    form: dict[str, str] = {"format": "true"}
+    if language:
+        form["language"] = language
     if include_model:
         form["model"] = "grok-stt"
     return await client.post(
@@ -130,7 +135,8 @@ async def transcribe_audio(
             if openai_key:
                 attempts.append(("openai", openai_key))
 
-            for provider, api_key in attempts:
+            for index, (provider, api_key) in enumerate(attempts):
+                is_last = index == len(attempts) - 1
                 try:
                     response = (
                         await _post_openai(
@@ -152,25 +158,25 @@ async def transcribe_audio(
                             language=lang,
                         )
                     )
+                    if response.status_code == 400 and provider == "xai":
+                        response = await _post_xai(
+                            client,
+                            api_key=api_key,
+                            data=data,
+                            filename=filename,
+                            mime=mime,
+                            language=lang,
+                            include_model=False,
+                        )
                 except httpx.HTTPError as exc:
                     last_kind = "network"
-                    if provider == attempts[-1][0]:
+                    if is_last:
                         raise SttError(
                             "network",
                             "Transcription indisponible (réseau).",
                         ) from exc
                     continue
 
-                if response.status_code == 400 and provider == "xai":
-                    response = await _post_xai(
-                        client,
-                        api_key=api_key,
-                        data=data,
-                        filename=filename,
-                        mime=mime,
-                        language=lang,
-                        include_model=False,
-                    )
                 if response.status_code in {401, 403}:
                     last_kind = "service"
                     logger.warning("STT %s auth failed: %s", provider, response.text[:240])
@@ -184,7 +190,15 @@ async def transcribe_audio(
                         response.text[:240],
                     )
                     continue
-                return _text_from_payload(response.json())
+                try:
+                    text = _text_from_payload(response.json())
+                except Exception:
+                    last_kind = "network"
+                    logger.warning("STT %s returned invalid JSON", provider, exc_info=True)
+                    continue
+                if text or is_last:
+                    return text
+                logger.warning("STT %s returned empty text, trying next provider", provider)
     except SttError:
         raise
     except Exception as exc:

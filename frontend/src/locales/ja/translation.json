@@ -271,6 +271,7 @@
     "otherMembers_one": "他{{count}}人",
     "otherMembers_other": "他{{count}}人",
     "disconnect": "{{name}}を切断",
+    "participantVolume": "{{name}}の音量",
     "offline": "{{name}} — オフライン",
     "askToJoin": "{{name}}への参加をリクエスト",
     "messageTo": "{{name}}にメッセージ",
@@ -374,7 +375,6 @@
       "button": "アップグレード",
       "title": "シートをいくつ追加しますか？",
       "subtitle": "このシートは {{workspace}} に追加されます。",
-      "result": "現在 {{current}} 席。支払い後は {{total}} 席です。",
       "continue": "続ける"
     },
     "inviteSeats": {

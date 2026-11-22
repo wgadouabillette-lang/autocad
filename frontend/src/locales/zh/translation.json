@@ -271,6 +271,7 @@
     "otherMembers_one": "另有 {{count}} 位成员",
     "otherMembers_other": "另有 {{count}} 位成员",
     "disconnect": "断开 {{name}}",
+    "participantVolume": "{{name}}的音量",
     "offline": "{{name}} — 离线",
     "askToJoin": "请求加入 {{name}}",
     "messageTo": "给 {{name}} 发消息",
@@ -374,7 +375,6 @@
       "button": "升级",
       "title": "要添加多少个席位？",
       "subtitle": "这些席位会添加到 {{workspace}}。",
-      "result": "当前 {{current}} 个席位。付款后为 {{total}} 个。",
       "continue": "继续"
     },
     "inviteSeats": {

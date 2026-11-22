@@ -73,6 +73,24 @@ export interface FriendRequest {
   outgoing?: boolean;
 }
 
+/**
+ * Identifiant de la personne dans un fil ami ou collègue.
+ * Les workspaces réels sont `ws-` + 8 caractères, donc le premier tiret
+ * ne sépare pas l'espace de la personne.
+ */
+export function personIdFromPeopleThreadId(threadId: string): string | null {
+  if (threadId.startsWith("friend-")) {
+    const personId = threadId.slice("friend-".length);
+    return personId || null;
+  }
+  if (!threadId.startsWith("colleague-")) return null;
+  const rest = threadId.slice("colleague-".length);
+  const workspaceScoped = /^ws-[a-z2-9]{8}-(.+)$/i.exec(rest);
+  if (workspaceScoped?.[1]) return workspaceScoped[1];
+  const simple = /^[^-]+-(.+)$/.exec(rest);
+  return simple?.[1] || null;
+}
+
 export function createThreadForPerson(
   person: Person,
   section: PeopleChatSection,
@@ -107,34 +125,19 @@ function sortMessagePanelThreads(threads: PeopleThread[]): PeopleThread[] {
   });
 }
 
-export type MessagePanelCategoryId = "friends" | "colleague" | "workspace";
-
-function buildFriendEntries(
-  friends: Person[],
-  friendThreads: PeopleThread[],
-): PeopleThread[] {
-  const entries: PeopleThread[] = [];
-  for (const friend of friends) {
-    const existing = friendThreads.find((thread) => thread.personId === friend.id);
-    entries.push(existing ?? createThreadForPerson(friend, "friends"));
-  }
-  return sortMessagePanelThreads(entries);
-}
+export type MessagePanelCategoryId = "colleague" | "workspace";
 
 function buildColleagueEntries(
   workspaceId: string,
-  friends: Person[],
   colleagueThreads: PeopleThread[],
   workspaceMembers: Person[],
   localUserId?: string | null,
 ): PeopleThread[] {
-  const friendIds = new Set(friends.map((friend) => friend.id));
   const entries: PeopleThread[] = [];
 
   for (const member of workspaceMembers) {
     if (!member.id || member.id === "local") continue;
     if (localUserId && member.id === localUserId) continue;
-    if (friendIds.has(member.id)) continue;
 
     const existing = colleagueThreads.find((thread) => thread.personId === member.id);
     entries.push(existing ?? createThreadForPerson(member, "colleagues", workspaceId));
@@ -143,27 +146,20 @@ function buildColleagueEntries(
   return sortMessagePanelThreads(entries);
 }
 
-/** Liste complète Messages : amis (tous workspaces) + collègues du workspace actif. */
+/** Liste Messages : collègues du workspace actif. */
 export function buildMessagePanelThreads(opts: {
   workspaceId: string;
-  friends: Person[];
-  friendThreads: PeopleThread[];
   colleagueThreads: PeopleThread[];
   workspaceMembers: Person[];
   localUserId?: string | null;
 }): PeopleThread[] {
-  const { workspaceId, friends, friendThreads, colleagueThreads, workspaceMembers, localUserId } =
-    opts;
-  return [
-    ...buildFriendEntries(friends, friendThreads),
-    ...buildColleagueEntries(
-      workspaceId,
-      friends,
-      colleagueThreads,
-      workspaceMembers,
-      localUserId,
-    ),
-  ];
+  const { workspaceId, colleagueThreads, workspaceMembers, localUserId } = opts;
+  return buildColleagueEntries(
+    workspaceId,
+    colleagueThreads,
+    workspaceMembers,
+    localUserId,
+  );
 }
 
 export function buildMessagePanelCategoryThreads(
@@ -177,13 +173,9 @@ export function buildMessagePanelCategoryThreads(
     localUserId?: string | null;
   },
 ): PeopleThread[] {
-  if (category === "friends") {
-    return buildFriendEntries(opts.friends, opts.friendThreads);
-  }
   if (category === "colleague") {
     return buildColleagueEntries(
       opts.workspaceId,
-      opts.friends,
       opts.colleagueThreads,
       opts.workspaceMembers,
       opts.localUserId,

@@ -1,11 +1,11 @@
 import clsx from "clsx";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { chatPanelModeTabs } from "../../lib/chatPanelModes";
 import type { ChatPanelMode } from "../../lib/voiceAssistPanel";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useNotificationsStore } from "../../store/useNotificationsStore";
-import { usePeopleStore } from "../../store/usePeopleStore";
+import { peopleMessagesUnreadTotal, usePeopleStore } from "../../store/usePeopleStore";
 import { useStore } from "../../store/useStore";
 
 export default function ChatPanelModeTabs() {
@@ -19,28 +19,18 @@ export default function ChatPanelModeTabs() {
   const inTheaterView = useCallsStore(
     (s) => s.getCallsViewMode(activeRoomId) === "theater",
   );
-  const friendThreads = usePeopleStore((s) => s.friendThreads);
-  const colleagueThreadsByWorkspace = usePeopleStore(
-    (s) => s.colleagueThreadsByWorkspace,
+  const missedMessages = usePeopleStore((s) =>
+    peopleMessagesUnreadTotal({
+      friendThreads: s.friendThreads,
+      groupThreads: s.groupThreads,
+      colleagueThreadsByWorkspace: s.colleagueThreadsByWorkspace,
+      workspaceChannelThreadsByWorkspace: s.workspaceChannelThreadsByWorkspace,
+    }),
   );
-  const friendsTabSeenAt = usePeopleStore((s) => s.friendsTabSeenAt);
   const pendingWorkspaceInvites = useNotificationsStore(
     (s) => s.items.filter((n) => n.kind === "workspace_invite").length,
   );
-  const unreadPeopleChats = useMemo(() => {
-    const personIds = new Set<string>();
-    const track = (thread: { unread: number; updatedAt: number; personId: string }) => {
-      if (thread.unread <= 0) return;
-      if (thread.updatedAt <= friendsTabSeenAt) return;
-      personIds.add(thread.personId);
-    };
-    for (const thread of friendThreads) track(thread);
-    for (const threads of Object.values(colleagueThreadsByWorkspace)) {
-      for (const thread of threads) track(thread);
-    }
-    return personIds.size;
-  }, [friendThreads, colleagueThreadsByWorkspace, friendsTabSeenAt]);
-  const messagesBadgeCount = unreadPeopleChats + pendingWorkspaceInvites;
+  const messagesBadgeCount = missedMessages + pendingWorkspaceInvites;
   const hasMessagesBadge = messagesBadgeCount > 0;
   const tabs = chatPanelModeTabs(
     subscriptionPlan,
@@ -114,7 +104,7 @@ export default function ChatPanelModeTabs() {
                   <span>{label}</span>
                   {showUnreadBadge && (
                     <span className="chat-panel-mode-tabs__unread-badge" aria-hidden>
-                      {messagesBadgeCount}
+                      {messagesBadgeCount > 99 ? "99+" : messagesBadgeCount}
                     </span>
                   )}
                 </button>

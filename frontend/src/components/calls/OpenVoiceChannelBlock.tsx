@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Check, Users, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocalAiStroke, useRemoteAiStroke } from "../../hooks/useAiBlockStroke";
@@ -7,6 +7,7 @@ import { isDraftOpenChannel, type OpenVoiceChannel } from "../../lib/calls";
 import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 import CallBlockCard, { CALL_BLOCK_AVATAR_SLOTS } from "./CallBlockCard";
+import CallOccupancyHint from "./CallOccupancyHint";
 
 interface OpenVoiceChannelBlockProps {
   channel: OpenVoiceChannel;
@@ -138,10 +139,10 @@ export default function OpenVoiceChannelBlock({ channel }: OpenVoiceChannelBlock
       showHandRaise
       showActivity={false}
       trailing={
-        <span className="call-block__hint call-block__hint--theater" aria-hidden>
-          <Users size={14} />
-          <span className="call-block__hint-count">{channel.participants.length}</span>
-        </span>
+        <CallOccupancyHint
+          count={channel.participants.length}
+          participants={channel.participants}
+        />
       }
       aiStroke={aiStroke}
       onMainClick={

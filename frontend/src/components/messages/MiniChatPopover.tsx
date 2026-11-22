@@ -43,8 +43,8 @@ export default function MiniChatPopover() {
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const [draft, setDraft] = useState("");
   const chatTypingScope = useMemo(
-    () => resolveChatTypingScopeFromThread(threadId, firebaseUid),
-    [threadId, firebaseUid],
+    () => resolveChatTypingScopeFromThread(threadId, firebaseUid, thread?.personId),
+    [threadId, firebaseUid, thread?.personId],
   );
   const typingUsers = useChatTyping(chatTypingScope, draft, open && !!threadId);
 

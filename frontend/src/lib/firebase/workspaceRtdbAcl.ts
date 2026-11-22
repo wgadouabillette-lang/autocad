@@ -44,7 +44,7 @@ export async function ensureWorkspaceRtdbAcl(workspaceId: string): Promise<void>
   try {
     await run;
   } catch (error) {
-    // Do not cache failures — next presence pulse can retry.
+    // Ne pas mémoriser l'échec : la prochaine écriture de présence réessaie.
     ensured.delete(wid);
     throw error;
   } finally {

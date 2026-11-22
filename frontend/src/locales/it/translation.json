@@ -271,6 +271,7 @@
     "otherMembers_one": "{{count}} altro membro",
     "otherMembers_other": "{{count}} altri membri",
     "disconnect": "Disconnetti {{name}}",
+    "participantVolume": "Volume di {{name}}",
     "offline": "{{name}} — offline",
     "askToJoin": "Chiedi di unirti a {{name}}",
     "messageTo": "Messaggio a {{name}}",
@@ -374,7 +375,6 @@
       "button": "Potenzia",
       "title": "Quanti posti vuoi aggiungere?",
       "subtitle": "Questi posti vengono aggiunti a {{workspace}}.",
-      "result": "Ne hai {{current}}. Dopo questo pagamento: {{total}}.",
       "continue": "Continua"
     },
     "inviteSeats": {

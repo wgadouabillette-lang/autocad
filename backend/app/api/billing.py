@@ -319,7 +319,7 @@ def billing_config(user: Optional[FirebaseUser] = Depends(optional_firebase_user
         enterpriseMinMembers=settings.stripe_enterprise_min_members,
         enterpriseSeatPriceLabel=os.getenv(
             "STRIPE_ENTERPRISE_SEAT_PRICE_LABEL",
-            "$15 / seat",
+            "$20 / seat",
         ),
         enterpriseSeatUnitAmountCents=stripe_service._enterprise_seat_unit_cents(),
         publishableKey=settings.stripe_publishable_key.strip(),
@@ -622,7 +622,7 @@ def checkout_seats_intent(
     body: SeatCheckoutRequest,
     user: FirebaseUser = Depends(require_firebase_user),
 ):
-    """Sièges à 15 $ US : pour le compte, ou pour un workspace."""
+    """Sièges à 20 $ US : pour le compte, ou pour un workspace."""
     _require_stripe()
     if not settings.stripe_publishable_key.strip():
         raise HTTPException(503, "STRIPE_PUBLISHABLE_KEY is not configured.")
@@ -643,7 +643,7 @@ def checkout_seats_intent(
                 publishableKey=result["publishableKey"],
                 subscriptionId=result["subscriptionId"],
                 seatCount=int(result.get("seatCount") or body.seatCount),
-                unitAmountCents=int(result.get("unitAmountCents") or 1500),
+                unitAmountCents=int(result.get("unitAmountCents") or 2000),
                 totalAmountCents=int(result.get("totalAmountCents") or 0),
                 mode="enterprise",
                 workspaceId=str(result.get("workspaceId") or workspace_id),

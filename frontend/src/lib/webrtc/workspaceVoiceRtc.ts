@@ -36,6 +36,7 @@ interface PeerState {
   ignoreOffer: boolean;
   isSettingRemoteAnswerPending: boolean;
   pendingCandidates: RTCIceCandidateInit[];
+  everConnected: boolean;
   audioSender: RTCRtpSender | null;
   screenAudioSender: RTCRtpSender | null;
   screenAudioTransceiver: RTCRtpTransceiver | null;
@@ -122,16 +123,36 @@ export class WorkspaceVoiceRtcSession {
   }
 
   async setPeerUids(peerUids: string[]): Promise<void> {
+    await this.enqueuePeerUpdate(() => this.applyPeerUids(peerUids));
+  }
+
+  private async applyPeerUids(peerUids: string[]): Promise<void> {
     const next = new Set(peerUids);
     for (const uid of [...this.peers.keys()]) {
       if (!next.has(uid)) this.removePeer(uid);
     }
     for (const uid of peerUids) {
+      const existing = this.peers.get(uid);
+      if (existing?.pc.connectionState === "closed" || existing?.pc.connectionState === "failed") {
+        this.removePeer(uid);
+      }
       if (!this.peers.has(uid)) {
         await this.addPeer(uid);
       }
     }
     await this.syncLocalMedia(this.localMedia);
+  }
+
+  /** Ferme le pair mort et en ouvre un nouveau qui renégocie tout de suite. */
+  private async replacePeer(uid: string): Promise<void> {
+    await this.enqueuePeerUpdate(async () => {
+      if (this.closed || !this.peers.has(uid)) return;
+      const now = Date.now();
+      if (now - (this.lastReplaceAt.get(uid) ?? 0) < 400) return;
+      this.lastReplaceAt.set(uid, now);
+      this.removePeer(uid);
+      await this.addPeer(uid);
+    });
   }
 
   async syncLocalMedia(media: LocalMediaSnapshot): Promise<void> {
@@ -154,6 +175,30 @@ export class WorkspaceVoiceRtcSession {
   }
 
   private iceRecoveryTimers = new Map<RTCPeerConnection, number>();
+  private peerUpdateQueue: Promise<void> = Promise.resolve();
+  private peerUpdateDepth = 0;
+  private lastReplaceAt = new Map<string, number>();
+
+  private enqueuePeerUpdate(task: () => Promise<void>): Promise<void> {
+    if (this.peerUpdateDepth > 0) return task();
+    const job = this.peerUpdateQueue.then(async () => {
+      this.peerUpdateDepth += 1;
+      try {
+        await task();
+      } finally {
+        this.peerUpdateDepth -= 1;
+      }
+    });
+    this.peerUpdateQueue = job.catch(() => {});
+    return job;
+  }
+
+  private uidForPc(pc: RTCPeerConnection): string | null {
+    for (const [uid, peer] of this.peers) {
+      if (peer.pc === pc) return uid;
+    }
+    return null;
+  }
 
   private scheduleIceRecovery(pc: RTCPeerConnection): void {
     const state = pc.iceConnectionState;
@@ -172,29 +217,39 @@ export class WorkspaceVoiceRtcSession {
       return;
     }
 
-    if (state === "failed" || connectionState === "failed") {
+    const recover = () => {
+      if (pc.connectionState === "closed" || this.closed) return;
+      const uid = this.uidForPc(pc);
+      if (!uid) return;
+      const peer = this.peers.get(uid);
+      if (!peer || this.negotiating.has(uid) || peer.pc.signalingState !== "stable") return;
+      // Un pair déjà connecté qui tombe, c'est un départ/retour : on refait le lien.
+      // Un pair jamais connecté reste sur restartIce pour ne pas boucler.
+      if (peer?.everConnected) {
+        void this.replacePeer(uid);
+        return;
+      }
       try {
         pc.restartIce();
       } catch {
         // Peer may already be closing.
       }
+    };
+
+    if (state === "failed" || connectionState === "failed") {
+      recover();
       return;
     }
 
     if (this.iceRecoveryTimers.has(pc)) return;
     const timer = window.setTimeout(() => {
       this.iceRecoveryTimers.delete(pc);
-      if (pc.connectionState === "closed") return;
       const ice = pc.iceConnectionState;
       const conn = pc.connectionState;
       if (ice === "disconnected" || ice === "failed" || conn === "disconnected" || conn === "failed") {
-        try {
-          pc.restartIce();
-        } catch {
-          // Peer may already be closing.
-        }
+        recover();
       }
-    }, 2500);
+    }, 300);
     this.iceRecoveryTimers.set(pc, timer);
   }
 
@@ -230,8 +285,6 @@ export class WorkspaceVoiceRtcSession {
 
   private async addPeer(remoteUid: string): Promise<void> {
     const pc = createPeerConnection();
-    const audioTransceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
-    const screenAudioTransceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
     const peer: PeerState = {
       pc,
       remoteUid,
@@ -240,13 +293,25 @@ export class WorkspaceVoiceRtcSession {
       ignoreOffer: false,
       isSettingRemoteAnswerPending: false,
       pendingCandidates: [],
-      audioSender: audioTransceiver.sender,
-      screenAudioSender: screenAudioTransceiver.sender,
-      screenAudioTransceiver,
+      everConnected: false,
+      audioSender: null,
+      screenAudioSender: null,
+      screenAudioTransceiver: null,
       cameraSender: null,
       screenSender: null,
       remoteMedia: emptyRemoteMedia(),
     };
+
+    pc.onnegotiationneeded = () => {
+      if (peer.pc.signalingState !== "stable" || this.negotiating.has(peer.remoteUid)) return;
+      void this.negotiate(peer);
+    };
+
+    const audioTransceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
+    const screenAudioTransceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
+    peer.audioSender = audioTransceiver.sender;
+    peer.screenAudioSender = screenAudioTransceiver.sender;
+    peer.screenAudioTransceiver = screenAudioTransceiver;
 
     pc.ontrack = (event) => {
       const track = event.track;
@@ -292,12 +357,8 @@ export class WorkspaceVoiceRtcSession {
       this.scheduleIceRecovery(pc);
     };
 
-    pc.onnegotiationneeded = () => {
-      if (peer.pc.signalingState !== "stable" || this.negotiating.has(peer.remoteUid)) return;
-      void this.negotiate(peer);
-    };
-
     pc.onconnectionstatechange = () => {
+      if (pc.connectionState === "connected") peer.everConnected = true;
       if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
         this.scheduleIceRecovery(pc);
       }
@@ -315,7 +376,9 @@ export class WorkspaceVoiceRtcSession {
       await this.processSignal(peer, signal);
     }
 
-    if (this.localUid < remoteUid && pc.signalingState === "stable") {
+    // Les deux côtés proposent. Celui qui revient annonce tout de suite,
+    // même si l'autre a encore l'ancienne connexion. La collision est gérée.
+    if (pc.signalingState === "stable") {
       await this.negotiate(peer);
     }
   }
@@ -452,8 +515,23 @@ export class WorkspaceVoiceRtcSession {
     }
   }
 
-  private async processSignal(peer: PeerState, signal: RtcSignalDoc): Promise<void> {
+  private async processSignal(
+    peer: PeerState,
+    signal: RtcSignalDoc,
+    retried = false,
+  ): Promise<void> {
     try {
+      if (
+        !retried &&
+        signal.type === "offer" &&
+        (peer.pc.connectionState === "failed" || peer.pc.connectionState === "closed")
+      ) {
+        const uid = peer.remoteUid;
+        await this.replacePeer(uid);
+        const fresh = this.peers.get(uid);
+        if (fresh) await this.processSignal(fresh, signal, true);
+        return;
+      }
       if (signal.type === "offer" && signal.sdp) {
         const offerCollision =
           peer.makingOffer || peer.pc.signalingState !== "stable";
@@ -493,6 +571,15 @@ export class WorkspaceVoiceRtcSession {
         }
       }
     } catch (err) {
+      if (!retried && signal.type === "offer") {
+        const uid = peer.remoteUid;
+        await this.replacePeer(uid);
+        const fresh = this.peers.get(uid);
+        if (fresh && fresh !== peer) {
+          await this.processSignal(fresh, signal, true);
+          return;
+        }
+      }
       console.warn("[webrtc] signal handling failed", signal.type, err);
     }
   }

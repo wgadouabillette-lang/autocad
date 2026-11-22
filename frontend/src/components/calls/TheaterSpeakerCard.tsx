@@ -7,6 +7,7 @@ import { useCallsStore } from "../../store/useCallsStore";
 import { useMiniChatStore } from "../../store/useMiniChatStore";
 import UserAvatar from "../UserAvatar";
 import ParticipantAvatarSignetHost from "./ParticipantAvatarSignetHost";
+import ParticipantVolumeControl from "./ParticipantVolumeControl";
 import VoiceMuteBadge from "./VoiceMuteBadge";
 import LocalScreenSharePreview from "./LocalScreenSharePreview";
 import ScreenShareLiveBadge from "./ScreenShareLiveBadge";
@@ -115,6 +116,9 @@ export default function TheaterSpeakerCard({
 
       <div className="theater-speaker-card__footer">
         <p className="theater-speaker-card__name">{participant.name}</p>
+        {canMessage ? (
+          <ParticipantVolumeControl uid={participant.id} name={participant.name} />
+        ) : null}
       </div>
 
       {(participant.isLocal ? localMuted : mutedByParticipant[participant.id]) ? (

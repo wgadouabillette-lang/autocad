@@ -359,12 +359,12 @@ html:not(.app-loading-splash) #root {
   .hall-dj-loading-icon__ring {
     position: absolute;
     inset: 0;
-    box-sizing: border-box;
-    border-radius: 999px;
-    border: 2px solid currentColor;
-    border-top-color: transparent;
+    width: 100%;
+    height: 100%;
     transform-origin: 50% 50%;
+    transform-box: fill-box;
     animation: hall-dj-loading-spin 0.75s linear infinite;
+    will-change: transform;
   }
   .hall-dj-disco-icon {
     @apply relative z-0 h-6 w-6 object-contain shrink-0;
@@ -380,8 +380,7 @@ html:not(.app-loading-splash) #root {
   @media (prefers-reduced-motion: reduce) {
     .hall-dj-loading-icon__ring {
       animation: none;
-      border-top-color: currentColor;
-      opacity: 0.55;
+      opacity: 0.7;
     }
   }
   .header-chrome-control {
@@ -2467,29 +2466,11 @@ html:not(.app-loading-splash) #root {
   .settings-view__panel {
     @apply flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden;
     margin: 0.15rem 0 0.15rem 0;
-    background: var(--forma-content-bg);
-    border-radius: 1rem 0 0 1rem;
-    border: 1px solid color-mix(in srgb, #fff 5%, transparent);
-    border-right: none;
+    background: transparent;
+    border: none;
+    border-radius: 0;
     container-type: inline-size;
     container-name: settings-panel;
-  }
-  /* Windows clips a border that sits on a one-sided radius. Paint the stroke inside. */
-  html.is-desktop-windows .settings-view__panel {
-    position: relative;
-    border-color: transparent;
-  }
-  html.is-desktop-windows .settings-view__panel::before {
-    content: "";
-    position: absolute;
-    z-index: 6;
-    pointer-events: none;
-    inset: 1px 0 1px 1px;
-    border-radius: inherit;
-    border-top: 1px solid color-mix(in srgb, #fff 5%, transparent);
-    border-bottom: 1px solid color-mix(in srgb, #fff 5%, transparent);
-    border-left: 1px solid color-mix(in srgb, #fff 5%, transparent);
-    border-right: 0;
   }
   .settings-view__panel-header {
     @apply shrink-0 pt-7;
@@ -4013,8 +3994,11 @@ html:not(.app-loading-splash) #root {
     @apply flex flex-1 items-center justify-center text-4xl font-semibold text-white;
   }
   .call-present-tile__label {
-    @apply absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 to-transparent px-4 py-3
-      text-sm font-medium text-muted-100;
+    @apply absolute bottom-0 left-0 right-0 flex items-center gap-2 bg-gradient-to-t from-black/75
+      to-transparent px-4 py-3 text-sm font-medium text-muted-100;
+  }
+  .call-present-tile__name {
+    @apply min-w-0 flex-1 truncate;
   }
   .call-present-tile__disconnect {
     @apply absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full
@@ -4264,8 +4248,59 @@ html:not(.app-loading-splash) #root {
     @apply h-full w-full bg-ink-900 object-contain;
   }
   .voice-participant-tile__label {
-    @apply absolute bottom-0 left-0 right-0 truncate bg-gradient-to-t from-black/75 to-transparent
-      px-2.5 py-2 text-[11px] font-medium text-muted-100;
+    @apply absolute bottom-0 left-0 right-0 flex items-center gap-1.5 bg-gradient-to-t from-black/75
+      to-transparent px-2.5 py-2 text-[11px] font-medium text-muted-100;
+  }
+  .voice-participant-tile__name {
+    @apply min-w-0 flex-1 truncate;
+  }
+  .participant-volume {
+    @apply relative z-[2] ml-auto flex shrink-0 items-center;
+    pointer-events: auto;
+  }
+  .participant-volume__slider {
+    display: flex;
+    align-items: center;
+    width: 0;
+    margin-right: 0;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      width 140ms ease,
+      margin-right 140ms ease,
+      opacity 140ms ease;
+  }
+  .participant-volume:hover .participant-volume__slider,
+  .participant-volume:focus-within .participant-volume__slider {
+    width: 4.75rem;
+    margin-right: 0.35rem;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .participant-volume__slider input[type="range"] {
+    @apply h-1 w-[4.5rem] shrink-0 cursor-pointer appearance-none rounded-full;
+    background-color: rgb(255 255 255 / 0.28);
+    accent-color: rgb(var(--forma-brand-focus));
+  }
+  .participant-volume__icon {
+    @apply inline-flex h-5 w-5 items-center justify-center text-white;
+    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.65));
+  }
+  .voice-participant-tile--compact .participant-volume:hover .participant-volume__slider,
+  .voice-participant-tile--compact .participant-volume:focus-within .participant-volume__slider {
+    width: 3.15rem;
+    margin-right: 0.2rem;
+  }
+  .voice-participant-tile--compact .participant-volume__slider input[type="range"] {
+    width: 2.9rem;
+  }
+  .voice-participant-tile--compact .participant-volume__icon {
+    @apply h-4 w-4;
+  }
+  .voice-participant-tile--compact .participant-volume__icon svg {
+    width: 12px;
+    height: 12px;
   }
   .voice-participant-tile--compact .voice-participant-tile__label {
     @apply px-1.5 py-0.5 text-[9px] leading-tight;
@@ -5102,10 +5137,10 @@ html:not(.app-loading-splash) #root {
     box-shadow: 0 0 0 3px var(--forma-tint-14);
   }
   .theater-speaker-card__footer {
-    @apply pointer-events-none absolute inset-x-0 bottom-0 px-3 pb-2 pt-1 text-left;
+    @apply pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-2 px-3 pb-2 pt-1 text-left;
   }
   .theater-speaker-card__name {
-    @apply truncate text-sm font-semibold text-muted-100;
+    @apply min-w-0 flex-1 truncate text-sm font-semibold text-muted-100;
     text-shadow: 0 1px 4px rgb(0 0 0 / 0.75);
   }
   .theater-speaker-card__role {
@@ -6623,6 +6658,7 @@ html:not(.app-loading-splash) #root {
   .chat-panel-mode-tabs__scroll {
     @apply min-w-0 overflow-x-auto py-0;
     overflow-y: visible;
+    padding-top: 6px;
     padding-bottom: 0.4375rem;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -6671,10 +6707,13 @@ html:not(.app-loading-splash) #root {
     @apply relative inline-flex shrink-0 items-center justify-center;
   }
   .chat-panel-mode-tabs__unread-badge {
-    @apply ml-1 inline-flex shrink-0 items-center justify-center rounded-full px-1.5 text-[9px] font-semibold leading-none text-white;
-    min-width: 14px;
-    height: 14px;
+    @apply pointer-events-none absolute z-[2] inline-flex items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none text-white;
+    top: -5px;
+    right: -6px;
+    min-width: 15px;
+    height: 15px;
     background-color: #ef4444;
+    box-shadow: 0 0 0 1.5px var(--forma-content-bg);
   }
   .chat-panel-mode-tabs__btn:hover {
     @apply text-muted-100;
@@ -9708,30 +9747,117 @@ html:not(.app-loading-splash) #root {
     max-width: var(--forma-friends-composer-width);
     margin-inline: auto;
   }
+  .friends-chat-composer.chat-composer {
+    padding-top: 12px;
+    row-gap: 8px;
+  }
   .friends-chat-composer__bar {
     display: grid;
     min-width: 0;
-    grid-template-columns: auto 1fr;
-    grid-template-areas:
-      "input input"
-      "clip actions";
-    align-items: center;
-    column-gap: 0.5rem;
-    row-gap: 0.25rem;
+    min-height: 1.5rem;
   }
-  .friends-chat-composer__clip {
-    grid-area: clip;
-  }
-  .friends-chat-composer__input {
-    grid-area: input;
+  .friends-chat-composer__bar > * {
+    grid-area: 1 / 1;
     min-width: 0;
   }
+  .friends-chat-composer__controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
+    min-height: 1.5rem;
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity 0.22s ease,
+      transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .friends-chat-composer__bar.is-emoji .friends-chat-composer__controls {
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+  }
+  .friends-chat-composer__clip {
+    justify-self: start;
+  }
+  .friends-chat-composer .friends-chat-composer__input {
+    width: 100%;
+    min-width: 0;
+    min-height: 16px;
+    padding: 0;
+  }
+  .friends-chat-composer__input textarea,
+  .friends-chat-composer__input [aria-hidden] {
+    min-height: 16px;
+    padding: 0 2px;
+    line-height: 16px;
+    transform: none;
+  }
   .friends-chat-composer__actions {
-    grid-area: actions;
     display: flex;
     align-items: center;
     justify-self: end;
     gap: 0.375rem;
+  }
+  .friends-chat-emoji-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition:
+      opacity 0.28s ease,
+      transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .friends-chat-composer__bar.is-emoji .friends-chat-emoji-row {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  .friends-chat-emoji-row__scroller {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 0.125rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .friends-chat-emoji-row__scroller::-webkit-scrollbar {
+    display: none;
+  }
+  .friends-chat-emoji-row__emoji,
+  .friends-chat-emoji-row__close {
+    display: inline-flex;
+    height: 1.5rem;
+    width: 1.5rem;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .friends-chat-emoji-row__emoji {
+    font-size: 1.15rem;
+    line-height: 1;
+  }
+  .friends-chat-emoji-row__emoji:hover,
+  .friends-chat-emoji-row__close:hover {
+    background: var(--forma-control-hover-bg);
+  }
+  .friends-chat-emoji-row__close {
+    color: var(--forma-text-muted);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .friends-chat-composer__controls,
+    .friends-chat-emoji-row {
+      transition: none;
+    }
   }
   .friends-chat-panel__categories {
     @apply flex min-h-0 flex-1 flex-col overflow-y-auto py-1;
@@ -11333,7 +11459,6 @@ html:not(.app-loading-splash) #root {
 
     .settings-view__panel {
       margin: 0;
-      border-radius: 0.75rem 0 0 0.75rem;
     }
 
     .settings-view__panel-content {
@@ -12293,15 +12418,29 @@ html.is-desktop-windows .app-voice-settings-floating {
   right: 0.75rem;
 }
 
-/* Colleague thread: each message keeps its own row. Own messages sit on the right, replies on the left. */
+/* Un message par ligne : les tiens à droite, la réponse à gauche, en dessous. */
+.friends-chat-panel .people-chat-thread,
+.mini-chat .people-chat-thread {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  width: 100%;
+  gap: 12px;
+}
 .friends-chat-panel .people-chat-thread__group,
 .mini-chat .people-chat-thread__group {
+  display: flex;
+  flex-direction: column;
   flex: 0 0 auto;
+  width: 100%;
   height: auto;
   min-height: min-content;
   max-height: none;
   overflow: visible;
   align-items: flex-start;
+  justify-content: flex-start;
   transform: none;
 }
 .friends-chat-panel .people-chat-thread__group--mine,
@@ -12311,13 +12450,17 @@ html.is-desktop-windows .app-voice-settings-floating {
 .friends-chat-panel .people-chat-bubble-wrap,
 .mini-chat .people-chat-bubble-wrap {
   width: fit-content;
-  max-width: 85%;
+  max-width: min(85%, 28rem);
   flex: 0 0 auto;
+  align-self: flex-start;
   margin-left: 0;
   margin-right: auto;
 }
+.friends-chat-panel .people-chat-thread__group--mine .people-chat-bubble-wrap,
+.mini-chat .people-chat-thread__group--mine .people-chat-bubble-wrap,
 .friends-chat-panel .people-chat-bubble-wrap--mine,
 .mini-chat .people-chat-bubble-wrap--mine {
+  align-self: flex-end;
   margin-left: auto;
   margin-right: 0;
 }
@@ -12666,17 +12809,30 @@ html.is-desktop-windows .app-voice-settings-floating {
 .direct-call-stage__name {
   position: relative;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
   font-size: 15px;
   font-weight: 500;
   color: #f4f4f5;
 }
 
-.direct-call-stage__tile:has(.direct-call-stage__video) .direct-call-stage__name {
+.direct-call-stage__name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.direct-call-stage__name--remote {
   position: absolute;
-  bottom: 16px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.45);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  max-width: none;
+  padding: 12px 16px;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.75), transparent);
 }
 
 .calendar-panel__event--call {

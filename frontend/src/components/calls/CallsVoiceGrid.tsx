@@ -138,7 +138,15 @@ export default function CallsVoiceGrid({
   onOpenTheater,
   onStartOpenChannelDraft,
 }: CallsVoiceGridProps) {
-  const gridBlocks = memberBlocksForVoiceGrid(blocks, openChannels);
+  const theaterParticipantIds = [
+    ...theater.speakers,
+    ...theater.audience,
+    ...(theater.question ? [theater.question] : []),
+  ].map((person) => person.id);
+  const gridBlocks = memberBlocksForVoiceGrid(blocks, openChannels, {
+    participantIds: theaterParticipantIds,
+    hideLocal: theater.localRole != null,
+  });
 
   const gridRef = useRef<HTMLDivElement>(null);
   const [columnCount, setColumnCount] = useState<CallsGridColumnCount>(5);

@@ -31,5 +31,7 @@ export function cloudMessageSortKey(message: {
   clientCreatedAt?: unknown;
   createdAt?: unknown;
 }): number {
-  return firestoreTimeMs(message.clientCreatedAt) || firestoreTimeMs(message.createdAt);
+  // Server receipt time. Client clocks differ, so clientCreatedAt piles one
+  // person above the other. Use it only until createdAt resolves.
+  return firestoreTimeMs(message.createdAt) || firestoreTimeMs(message.clientCreatedAt);
 }

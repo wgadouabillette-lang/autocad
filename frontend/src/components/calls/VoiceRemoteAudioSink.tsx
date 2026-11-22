@@ -53,6 +53,7 @@ function RemoteAudioPlayer({
       });
     };
 
+    play();
     void applyAudioOutputToElement(audio, outputDeviceId).finally(play);
 
     stream.addEventListener("addtrack", play);
@@ -81,7 +82,7 @@ function RemoteAudioPlayer({
       if (audio.paused && !audio.muted && stream.getAudioTracks().some((t) => t.readyState === "live")) {
         play();
       }
-    }, 2000);
+    }, 400);
 
     return () => {
       window.clearInterval(watchdog);
@@ -133,6 +134,7 @@ export default function VoiceRemoteAudioSink() {
   const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
   const deafen = useCallsStore((s) => s.deafen);
   const remoteScreenShareVolume = useCallsStore((s) => s.remoteScreenShareVolume);
+  const remoteVolumeByUid = useCallsStore((s) => s.remoteVolumeByUid);
 
   useEffect(() => {
     if (!inVoice) return;
@@ -152,30 +154,33 @@ export default function VoiceRemoteAudioSink() {
 
   return (
     <>
-      {Object.entries(remoteMediaByUid).map(([uid, media]: [string, RemoteParticipantStreams]) => (
-        <Fragment key={uid}>
-          {media.audioStream ? (
-            <RemoteAudioPlayer
-              key={`${uid}:mic:${media.audioStream.id}`}
-              uid={uid}
-              stream={media.audioStream}
-              muted={audioMuted}
-              volume={1}
-              outputDeviceId={audioOutputDeviceId}
-            />
-          ) : null}
-          {media.screenAudioStream ? (
-            <RemoteAudioPlayer
-              key={`${uid}:screen:${media.screenAudioStream.id}`}
-              uid={`${uid}-screen`}
-              stream={media.screenAudioStream}
-              muted={audioMuted}
-              volume={remoteScreenShareVolume}
-              outputDeviceId={audioOutputDeviceId}
-            />
-          ) : null}
-        </Fragment>
-      ))}
+      {Object.entries(remoteMediaByUid).map(([uid, media]: [string, RemoteParticipantStreams]) => {
+        const personVolume = remoteVolumeByUid[uid] ?? 1;
+        return (
+          <Fragment key={uid}>
+            {media.audioStream ? (
+              <RemoteAudioPlayer
+                key={`${uid}:mic:${media.audioStream.id}`}
+                uid={uid}
+                stream={media.audioStream}
+                muted={audioMuted}
+                volume={personVolume}
+                outputDeviceId={audioOutputDeviceId}
+              />
+            ) : null}
+            {media.screenAudioStream ? (
+              <RemoteAudioPlayer
+                key={`${uid}:screen:${media.screenAudioStream.id}`}
+                uid={`${uid}-screen`}
+                stream={media.screenAudioStream}
+                muted={audioMuted}
+                volume={Math.min(1, remoteScreenShareVolume * personVolume)}
+                outputDeviceId={audioOutputDeviceId}
+              />
+            ) : null}
+          </Fragment>
+        );
+      })}
     </>
   );
 }

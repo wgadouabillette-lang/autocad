@@ -236,6 +236,7 @@ export default function ChatPanelShell() {
   const hallDjActive = useHallDjStore((s) => s.active);
   const spotifyPulseLevel = useSpotifyAudioPulse();
   const spotifyPulseActive =
+    chatPanelMode === "agent" &&
     (spotifyCurrentTrack != null || hallDjActive || hallDjLoading) &&
     (spotifyPlaying || spotifyPlaybackMode !== null);
   const spotifyPulseStyle = spotifyPulseActive

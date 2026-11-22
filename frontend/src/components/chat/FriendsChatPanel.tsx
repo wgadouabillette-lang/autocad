@@ -7,6 +7,7 @@ import {
   FileImage,
   Hash,
   Megaphone,
+  Mic,
   Paperclip,
   Smile,
   Trash2,
@@ -60,6 +61,11 @@ import {
   workspaceMembersForMentions,
   type WorkspaceChannelMentionMenuItem,
 } from "../../lib/workspaceChannelMentions";
+import {
+  isFatalDictationError,
+  startComposerDictation,
+  stopComposerDictation,
+} from "../../lib/composerDictation";
 import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
@@ -126,11 +132,6 @@ const MESSAGE_PANEL_CATEGORIES: {
   labelKey: string;
   emptyKey: string;
 }[] = [
-  {
-    id: "friends",
-    labelKey: "chat.categories.friends",
-    emptyKey: "chat.categories.friendsEmpty",
-  },
   {
     id: "colleague",
     labelKey: "chat.categories.colleagues",
@@ -266,7 +267,7 @@ function MessagePanelPersonRow({
 
 
 export default function FriendsChatPanel() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isMobileLayout = useMobileLayout();
   const chatPanelExpanded = useStore((s) => s.chatPanelExpanded);
   const splitLayout = !isMobileLayout && chatPanelExpanded;
@@ -334,6 +335,17 @@ export default function FriendsChatPanel() {
   );
 
   const [draft, setDraft] = useState("");
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const [dictating, setDictating] = useState(false);
+  const [dictationStopping, setDictationStopping] = useState(false);
+  const [dictationError, setDictationError] = useState<string | null>(null);
+  const dictatingRef = useRef(false);
+  const dictationAcceptRef = useRef(false);
+  const dictationBaseRef = useRef("");
+  const dictationFinalRef = useRef("");
+  const dictationInterimRef = useRef("");
+  const dictationLastRef = useRef<string | null>(null);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [activeComposerSkill, setActiveComposerSkill] = useState<"group" | "manage" | null>(null);
@@ -362,7 +374,7 @@ export default function FriendsChatPanel() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<
     Partial<Record<MessagePanelCategoryId, boolean>>
-  >({ friends: true, colleague: true, workspace: true });
+  >({ colleague: true, workspace: true });
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -376,8 +388,8 @@ export default function FriendsChatPanel() {
   const slashOptions = filterPeopleSlashSkillMenu(slashFilter);
   const skillComposerOpen = activeComposerSkill !== null;
   const chatTypingScope = useMemo(
-    () => resolveChatTypingScopeFromThread(thread?.id, firebaseUid),
-    [thread?.id, firebaseUid],
+    () => resolveChatTypingScopeFromThread(thread?.id, firebaseUid, thread?.personId),
+    [thread?.id, thread?.personId, firebaseUid],
   );
   const typingIndicatorEnabled =
     !!thread && !skillComposerOpen && !emojiPickerOpen;
@@ -526,11 +538,6 @@ export default function FriendsChatPanel() {
     ],
   );
 
-  const friendItems = useMemo(
-    () => buildMessagePanelCategoryThreads("friends", messagePanelThreadOpts),
-    [messagePanelThreadOpts],
-  );
-
   const colleagueItems = useMemo(
     () => buildMessagePanelCategoryThreads("colleague", messagePanelThreadOpts),
     [messagePanelThreadOpts],
@@ -598,6 +605,17 @@ export default function FriendsChatPanel() {
   }, [markFriendsTabSeen]);
 
   useEffect(() => {
+    if (!emojiPickerOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setEmojiPickerOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [emojiPickerOpen]);
+
+  useEffect(() => {
     return () => {
       setActiveFriendThread(null);
     };
@@ -606,6 +624,13 @@ export default function FriendsChatPanel() {
   useEffect(() => {
     if (selectedThreadId) {
       markThreadRead(selectedThreadId);
+      if (dictatingRef.current || dictationAcceptRef.current) {
+        dictationAcceptRef.current = false;
+        dictatingRef.current = false;
+        setDictating(false);
+        setDictationStopping(false);
+        stopComposerDictation({ flush: false });
+      }
       setDraft("");
       setEmojiPickerOpen(false);
       setSlashOpen(false);
@@ -667,11 +692,10 @@ export default function FriendsChatPanel() {
 
   const categoryCounts = useMemo(
     () => ({
-      friends: friendItems.length,
       colleague: colleagueItems.length,
       workspace: workspaceChannelCount,
     }),
-    [friendItems.length, colleagueItems.length, workspaceChannelCount],
+    [colleagueItems.length, workspaceChannelCount],
   );
 
   const renderCategoryItems = (items: PeopleThread[]) => (
@@ -730,7 +754,125 @@ export default function FriendsChatPanel() {
     setSlashOpen(false);
   }, []);
 
+  const composeDictationText = () => {
+    const spoken = [dictationFinalRef.current, dictationInterimRef.current]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const base = dictationBaseRef.current;
+    if (!spoken) return base;
+    if (!base.trim()) return spoken;
+    return /\s$/.test(base) ? `${base}${spoken}` : `${base} ${spoken}`;
+  };
+
+  const applyDictationChunk = (chunk: { text: string; isFinal: boolean }) => {
+    if (!dictationAcceptRef.current) return;
+    const incoming = chunk.text.trim();
+    if (!incoming) return;
+    if (chunk.isFinal) {
+      dictationFinalRef.current = [dictationFinalRef.current, incoming]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+      dictationInterimRef.current = "";
+    } else {
+      dictationInterimRef.current = incoming;
+    }
+    const next = composeDictationText();
+    dictationLastRef.current = next;
+    draftRef.current = next;
+    setDraft(next);
+    setDictationError(null);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(next.length, next.length);
+    });
+  };
+
+  const sealDictation = () => {
+    const composed = dictationLastRef.current ?? draftRef.current;
+    draftRef.current = composed;
+    dictationBaseRef.current = composed;
+    dictationFinalRef.current = "";
+    dictationInterimRef.current = "";
+    dictationLastRef.current = null;
+    return composed;
+  };
+
+  const endDictation = (discardPending = false) => {
+    const wasListening = dictatingRef.current;
+    dictatingRef.current = false;
+    if (discardPending || !wasListening) {
+      dictationAcceptRef.current = false;
+      setDictating(false);
+      setDictationStopping(false);
+      stopComposerDictation({ flush: false });
+      return sealDictation();
+    }
+    setDictationStopping(true);
+    stopComposerDictation({ flush: true });
+    return draftRef.current;
+  };
+
+  const toggleDictation = () => {
+    if (dictationStopping) return;
+    if (dictatingRef.current) {
+      endDictation(false);
+      return;
+    }
+    dictationBaseRef.current = draftRef.current;
+    dictationFinalRef.current = "";
+    dictationInterimRef.current = "";
+    dictationLastRef.current = draftRef.current;
+    dictationAcceptRef.current = true;
+    dictatingRef.current = true;
+    setDictating(true);
+    setDictationStopping(false);
+    setDictationError(null);
+    void startComposerDictation({
+      locale: i18n.language,
+      onTranscript: applyDictationChunk,
+      onError: (message) => {
+        if (!dictationAcceptRef.current && !dictatingRef.current) return;
+        setDictationError(message);
+        if (isFatalDictationError(message)) endDictation(true);
+      },
+      onIdle: () => {
+        dictatingRef.current = false;
+        dictationAcceptRef.current = false;
+        setDictating(false);
+        setDictationStopping(false);
+        sealDictation();
+      },
+    }).catch((error: unknown) => {
+      const denied = error instanceof DOMException && error.name === "NotAllowedError";
+      setDictationError(
+        denied
+          ? "Permission micro refusée pour la transcription."
+          : error instanceof Error
+            ? error.message
+            : "Micro inaccessible.",
+      );
+      endDictation(true);
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (!dictatingRef.current && !dictationAcceptRef.current) return;
+      dictationAcceptRef.current = false;
+      dictatingRef.current = false;
+      stopComposerDictation({ flush: false });
+    };
+  }, []);
+
   const submit = () => {
+    if (dictatingRef.current || dictationStopping) endDictation(true);
     if (activeComposerSkill === "group") {
       if (!memberPromptReady) return;
       void submitPeopleGroupSkill();
@@ -746,7 +888,7 @@ export default function FriendsChatPanel() {
     if (skillComposerOpen) return;
     if (!thread) return;
 
-    const trimmed = draft.trim();
+    const trimmed = draftRef.current.trim();
     const files = attachments.map((attachment) => attachment.file);
     if (!trimmed && files.length === 0) return;
     const directMessage =
@@ -1093,7 +1235,7 @@ export default function FriendsChatPanel() {
         <div
           className={clsx(
             "chat-panel-footer pointer-events-none w-full min-w-0 max-w-full shrink-0 overflow-x-hidden px-3 pb-3 pt-0",
-            (emojiPickerOpen || skillComposerOpen) && "chat-panel-footer--poll-morph",
+            skillComposerOpen && "chat-panel-footer--poll-morph",
           )}
         >
           <div className="pointer-events-auto relative w-full min-w-0 max-w-full friends-chat-composer-shell">
@@ -1119,20 +1261,13 @@ export default function FriendsChatPanel() {
               ref={mentionAnchorRef}
               className={clsx(
                 "relative friends-chat-composer",
-                (emojiPickerOpen || skillComposerOpen) &&
-                  "chat-composer chat-composer-morph rounded-xl",
-                !emojiPickerOpen &&
-                  !skillComposerOpen &&
+                skillComposerOpen && "chat-composer chat-composer-morph rounded-xl",
+                !skillComposerOpen &&
                   "chat-composer z-10 flex flex-col gap-1 rounded-xl px-2 py-1.5",
               )}
               style={CHAT_COMPOSER_SURFACE_STYLE}
             >
-              {emojiPickerOpen ? (
-                <PeopleChatEmojiPicker
-                  onSelect={handleEmojiSelect}
-                  onClose={() => setEmojiPickerOpen(false)}
-                />
-              ) : activeComposerSkill === "group" ? (
+              {activeComposerSkill === "group" ? (
                 <CreateGroupPromptLine
                   draft={memberPromptDraft}
                   members={promptMembers}
@@ -1229,19 +1364,10 @@ export default function FriendsChatPanel() {
                 }}
               />
 
-              <div className="friends-chat-composer__bar">
-                <button
-                  type="button"
-                  title="Add attachment"
-                  aria-label="Add attachment"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="friends-chat-composer__clip inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-transparent text-muted-400 transition-colors hover:text-muted-200"
-                >
-                  <Paperclip size={14} strokeWidth={2.25} aria-hidden />
-                </button>
-                <HighlightedPromptInput
+              <HighlightedPromptInput
                 ref={textareaRef}
                 value={draft}
+                dictating={(dictating || dictationStopping) && draft.trim().length === 0}
                 placeholder={composerPlaceholder}
                 composerSkill={null}
                 peopleHandles={workspaceChannelComposer ? mentionHighlightHandles : []}
@@ -1281,6 +1407,11 @@ export default function FriendsChatPanel() {
                   syncComposerMenu(draft, caret);
                 }}
                 onKeyDown={(e) => {
+                  if (emojiPickerOpen && e.key === "Escape") {
+                    e.preventDefault();
+                    setEmojiPickerOpen(false);
+                    return;
+                  }
                   if (showMentionMenu && mentionOptions.length > 0) {
                     if (e.key === "ArrowDown") {
                       e.preventDefault();
@@ -1332,17 +1463,64 @@ export default function FriendsChatPanel() {
                     submit();
                   }
                 }}
-                className="friends-chat-composer__input px-1 py-1 text-muted-100"
+                className="friends-chat-composer__input text-muted-100"
               />
+              {dictationError ? (
+                <p className="px-1 text-[11px] leading-4 text-muted-300" role="alert">
+                  {dictationError}
+                </p>
+              ) : null}
+              <div className={clsx("friends-chat-composer__bar", emojiPickerOpen && "is-emoji")}>
+                <div className="friends-chat-composer__controls" aria-hidden={emojiPickerOpen}>
+                <button
+                  type="button"
+                  title="Add attachment"
+                  aria-label="Add attachment"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="friends-chat-composer__clip inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-transparent text-muted-400 transition-colors hover:text-muted-200"
+                >
+                  <Paperclip size={14} strokeWidth={2.25} aria-hidden />
+                </button>
                 <div className="friends-chat-composer__actions">
                   <button
                     type="button"
-                    onClick={() => setEmojiPickerOpen(true)}
+                    onClick={() => setEmojiPickerOpen((open) => !open)}
                     title="Add emoji"
                     aria-label="Add emoji"
+                    aria-pressed={emojiPickerOpen}
                     className="inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-transparent text-muted-400 transition-colors hover:text-muted-200"
                   >
                     <Smile size={14} strokeWidth={2.25} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleDictation}
+                    disabled={dictationStopping}
+                    aria-pressed={dictating || dictationStopping}
+                    title={
+                      dictationError ??
+                      (dictationStopping
+                        ? t("chat.dictateWorking")
+                        : dictating
+                          ? t("chat.dictateStop")
+                          : t("chat.dictate"))
+                    }
+                    aria-label={
+                      dictationError ??
+                      (dictationStopping
+                        ? t("chat.dictateWorking")
+                        : dictating
+                          ? t("chat.dictateStop")
+                          : t("chat.dictate"))
+                    }
+                    className={clsx(
+                      "chat-composer-mic inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full transition-colors hover:text-muted-200 disabled:opacity-30",
+                      dictating || dictationStopping
+                        ? "chat-composer-mic--live bg-[var(--forma-control-bg)] text-muted-100"
+                        : "bg-transparent text-muted-400",
+                    )}
+                  >
+                    <Mic size={14} strokeWidth={2.25} aria-hidden />
                   </button>
                   <button
                     type="submit"
@@ -1356,6 +1534,11 @@ export default function FriendsChatPanel() {
                     <ArrowUp size={14} strokeWidth={2.5} className="shrink-0" aria-hidden />
                   </button>
                 </div>
+                </div>
+                <PeopleChatEmojiPicker
+                  onSelect={handleEmojiSelect}
+                  onClose={() => setEmojiPickerOpen(false)}
+                />
               </div>
                 </>
               )}
@@ -1382,7 +1565,7 @@ export default function FriendsChatPanel() {
         const count = categoryCounts[category.id];
         return (
           <Fragment key={category.id}>
-            {category.id === "colleague" || category.id === "workspace" ? (
+            {category.id === "workspace" ? (
               <div
                 className="friends-chat-panel__categories-divider"
                 role="separator"
@@ -1397,17 +1580,15 @@ export default function FriendsChatPanel() {
               fillRemaining={category.id === "workspace"}
               onToggle={() => toggleCategory(category.id)}
             >
-              {category.id === "friends"
-                ? renderCategoryItems(friendItems)
-                : category.id === "colleague"
-                  ? renderCategoryItems(colleagueItems)
-                  : (
-                    <WorkspaceTextChannelsSection
-                      workspaceId={activeRoomId}
-                      selectedThreadId={selectedThreadId}
-                      onOpenChannel={setActiveFriendThread}
-                    />
-                  )}
+              {category.id === "colleague" ? (
+                renderCategoryItems(colleagueItems)
+              ) : (
+                <WorkspaceTextChannelsSection
+                  workspaceId={activeRoomId}
+                  selectedThreadId={selectedThreadId}
+                  onOpenChannel={setActiveFriendThread}
+                />
+              )}
             </MessagePanelCategory>
           </Fragment>
         );

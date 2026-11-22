@@ -6,6 +6,7 @@ import { parsePromptDisplaySegments } from "../../lib/promptMentions";
 import ManageSchedulePromptLine from "./ManageSchedulePromptLine";
 import WorkspaceInviteInboxCard from "./WorkspaceInviteInboxCard";
 import UserAvatar from "../UserAvatar";
+import { useAuthStore } from "../../store/useAuthStore";
 import {
   buildPeopleChatTimeline,
   type PeopleChatRenderItem,
@@ -282,7 +283,11 @@ export default function PeopleChatThreadMessages({
   tailContent,
   mentionHighlightHandles,
 }: PeopleChatThreadMessagesProps) {
-  const timeline = useMemo(() => buildPeopleChatTimeline(messages), [messages]);
+  const localUserId = useAuthStore((s) => s.firebaseUid);
+  const timeline = useMemo(
+    () => buildPeopleChatTimeline(messages, localUserId),
+    [messages, localUserId],
+  );
 
   return (
     <ul ref={listRef} className={clsx("people-chat-thread", className)}>

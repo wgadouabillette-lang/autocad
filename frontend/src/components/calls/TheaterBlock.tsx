@@ -1,8 +1,8 @@
 import clsx from "clsx";
-import { Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { countTheaterParticipants, type TheaterState } from "../../lib/theater";
 import CallBlockCard from "./CallBlockCard";
+import CallOccupancyHint from "./CallOccupancyHint";
 import TheaterBlockPreview from "./TheaterBlockPreview";
 
 interface TheaterBlockProps {
@@ -32,10 +32,7 @@ export default function TheaterBlock({
       participants={[]}
       showActivity={false}
       trailing={
-        <span className="call-block__hint call-block__hint--theater" aria-hidden>
-          <Users size={14} />
-          <span className="call-block__hint-count">{connected}</span>
-        </span>
+        <CallOccupancyHint count={connected} participants={theater.speakers} />
       }
       body={<TheaterBlockPreview theater={theater} />}
       onMainClick={onOpen}

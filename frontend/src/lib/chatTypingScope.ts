@@ -2,6 +2,7 @@ import { friendChatId } from "./firebase/friendChats";
 import {
   groupIdFromThreadId,
   isCloudCapablePersonId,
+  personIdFromPeopleThreadId,
   workspaceTextChannelFromThreadId,
 } from "./peopleChat";
 
@@ -11,15 +12,10 @@ export type ChatTypingScope =
   | { kind: "group"; groupId: string }
   | { kind: "workspace-channel"; workspaceId: string; channelId: string };
 
-function personIdFromThreadId(threadId: string): string | null {
-  if (threadId.startsWith("friend-")) return threadId.slice("friend-".length);
-  const colleagueMatch = /^colleague-[^-]+-(.+)$/.exec(threadId);
-  return colleagueMatch?.[1] ?? null;
-}
-
 export function resolveChatTypingScopeFromThread(
   threadId: string | null | undefined,
   firebaseUid: string | null | undefined,
+  personId?: string | null,
 ): ChatTypingScope | null {
   if (!threadId || !firebaseUid) return null;
 
@@ -35,9 +31,9 @@ export function resolveChatTypingScopeFromThread(
     };
   }
 
-  const personId = personIdFromThreadId(threadId);
-  if (personId && isCloudCapablePersonId(personId)) {
-    return { kind: "friend", chatId: friendChatId(firebaseUid, personId) };
+  const resolvedPersonId = personId?.trim() || personIdFromPeopleThreadId(threadId);
+  if (resolvedPersonId && isCloudCapablePersonId(resolvedPersonId)) {
+    return { kind: "friend", chatId: friendChatId(firebaseUid, resolvedPersonId) };
   }
 
   return null;

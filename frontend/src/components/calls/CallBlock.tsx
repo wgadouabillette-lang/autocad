@@ -17,6 +17,7 @@ import { useCallsStore } from "../../store/useCallsStore";
 import { useStore } from "../../store/useStore";
 import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
 import CallBlockCard, { CALL_BLOCK_PRIVATE_AVATAR_SLOTS } from "./CallBlockCard";
+import CallOccupancyHint from "./CallOccupancyHint";
 
 interface CallBlockProps {
   block: CallBlockType;
@@ -115,29 +116,30 @@ export default function CallBlock({
       showActivity={false}
       aiStroke={aiStroke}
       trailing={
-        isPrivateCallHost ? (
-          <>
-            {remoteParticipants.map((participant) => (
-              <button
-                key={participant.id}
-                type="button"
-                className="call-block__kick"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  disconnectRemoteFromPrivateCall(activeRoomId, participant.id);
-                }}
-                aria-label={t("calls.disconnect", {
-                  name: personLabel(participant.name, participant.isLocal, userDisplayName, t),
-                })}
-                title={t("calls.disconnect", {
-                  name: personLabel(participant.name, participant.isLocal, userDisplayName, t),
-                })}
-              >
-                <UserMinus size={12} strokeWidth={2.25} aria-hidden />
-              </button>
-            ))}
-          </>
-        ) : undefined
+        <>
+          <CallOccupancyHint participants={block.participants} mediaOnly />
+          {isPrivateCallHost
+            ? remoteParticipants.map((participant) => (
+                <button
+                  key={participant.id}
+                  type="button"
+                  className="call-block__kick"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    disconnectRemoteFromPrivateCall(activeRoomId, participant.id);
+                  }}
+                  aria-label={t("calls.disconnect", {
+                    name: personLabel(participant.name, participant.isLocal, userDisplayName, t),
+                  })}
+                  title={t("calls.disconnect", {
+                    name: personLabel(participant.name, participant.isLocal, userDisplayName, t),
+                  })}
+                >
+                  <UserMinus size={12} strokeWidth={2.25} aria-hidden />
+                </button>
+              ))
+            : null}
+        </>
       }
       mainDisabled={!isActionable}
       onMainClick={canRequestJoin ? () => onRequestJoin(block.id) : undefined}

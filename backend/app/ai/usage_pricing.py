@@ -91,7 +91,7 @@ def personal_usage_allowance_usd(*, plus: bool = False) -> float:
 
 
 def seat_usage_allowance_per_seat_usd() -> float:
-    """Crédit IA retail par siège à 15 $. Reste sous le prix (coût fournisseur ~7,50 $)."""
+    """Crédit IA retail par siège à 20 $. Reste sous le prix (coût fournisseur ~7,50 $)."""
     raw = os.getenv("FORMA_SEAT_USAGE_ALLOWANCE_USD", "10").strip()
     try:
         value = float(raw)
@@ -106,7 +106,7 @@ def seat_usage_allowance_usd(seat_count: int) -> float:
 
 
 def enterprise_usage_allowance_per_seat_usd() -> float:
-    # Ancien forfait Team. Les nouveaux sièges à 15 $ passent par seat_usage_allowance_usd.
+    # Ancien forfait Team. Les nouveaux sièges à 20 $ passent par seat_usage_allowance_usd.
     raw = os.getenv("FORMA_ENTERPRISE_USAGE_ALLOWANCE_USD_PER_SEAT", "25").strip()
     try:
         value = float(raw)

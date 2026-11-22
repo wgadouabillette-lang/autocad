@@ -6,11 +6,7 @@ import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { billingApi, type SeatCheckoutIntent } from "../../lib/billingApi";
 import { auth } from "../../lib/firebase/client";
-import {
-  countWorkspaceMembers,
-  fetchSharedWorkspaceDoc,
-  grantWorkspaceMember,
-} from "../../lib/firebase/workspaceRegistry";
+import { grantWorkspaceMember } from "../../lib/firebase/workspaceRegistry";
 import { isMarketingPreview } from "../../lib/marketingPreview";
 import { getStripePromise } from "../../lib/stripeClient";
 import { intlLocaleForAppLocale, isAppLocale } from "../../lib/appLocale";
@@ -44,7 +40,6 @@ export default function WorkspaceUpgradeOverlay() {
   const closeUpgrade = useWorkspaceUpgradeStore((s) => s.closeUpgrade);
   const [step, setStep] = useState<UpgradeStep>("seats");
   const [seats, setSeats] = useState(1);
-  const [currentSeats, setCurrentSeats] = useState(1);
   const [workspaceId, setWorkspaceId] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
   const [intent, setIntent] = useState<SeatCheckoutIntent | null>(null);
@@ -67,20 +62,6 @@ export default function WorkspaceUpgradeOverlay() {
     setWorkspaceName(workspace?.name || "");
     setStep("seats");
     setSeats(1);
-    setCurrentSeats(1);
-    const seatWorkspaceId = workspace?.id || id;
-    void (async () => {
-      try {
-        const [shared, members] = await Promise.all([
-          fetchSharedWorkspaceDoc(seatWorkspaceId),
-          countWorkspaceMembers(seatWorkspaceId),
-        ]);
-        const stored = Number(shared?.enterpriseSeatCount || 0);
-        setCurrentSeats(Math.max(stored, members, 1));
-      } catch {
-        setCurrentSeats(1);
-      }
-    })();
     setIntent(null);
     setExpectedSeats(0);
     setAccessGranted(false);
@@ -297,12 +278,6 @@ export default function WorkspaceUpgradeOverlay() {
               </h2>
               <p className="seat-gate__subtitle">
                 {t("onboarding.upgrade.subtitle", { workspace: workspaceName || t("settings.tabs.workspaces") })}
-              </p>
-              <p className="seat-gate__subtitle">
-                {t("onboarding.upgrade.result", {
-                  current: currentSeats,
-                  total: currentSeats + seats,
-                })}
               </p>
             </div>
             <div className="seat-gate__fields">

@@ -133,10 +133,7 @@ export const ACCENT_COLOR_OPTIONS: AccentColorOption[] = [
   },
 ];
 
-export function normalizeAccentColorPreference(value: unknown): AccentColorPreference {
-  if (value === "emerald" || value === "amber" || value === "cyan") {
-    return value;
-  }
+export function normalizeAccentColorPreference(_value: unknown): AccentColorPreference {
   return "blue";
 }
 
@@ -144,12 +141,12 @@ export function readAccentColorPreference(): AccentColorPreference {
   return normalizeAccentColorPreference(readUserPreferences().accentColor);
 }
 
-export function applyDocumentAccentColor(accent: AccentColorPreference): void {
+export function applyDocumentAccentColor(_accent?: AccentColorPreference): void {
   const root = document.documentElement;
-  const palette = ACCENT_PALETTES[accent] ?? ACCENT_PALETTES.blue;
-  root.dataset.accent = accent;
+  const palette = ACCENT_PALETTES.blue;
+  root.dataset.accent = "blue";
   for (const key of ACCENT_CSS_KEYS) {
-    root.style.setProperty(key, palette[key] ?? ACCENT_PALETTES.blue[key]!);
+    root.style.setProperty(key, palette[key]!);
   }
 }
 

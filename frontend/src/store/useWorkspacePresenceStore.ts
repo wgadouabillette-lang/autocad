@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { usePeopleStore } from "./usePeopleStore";
 
-/** Au-delà de ce délai sans lastSeen, on considère le membre offline (doit rester > heartbeat idle). */
+/** Délai utilisé par l'aperçu marketing pour afficher un membre hors ligne. */
 export const PRESENCE_OFFLINE_AFTER_MS = 210_000;
 
 export interface WorkspacePresenceVoice {
@@ -9,6 +9,7 @@ export interface WorkspacePresenceVoice {
   openChannelId: string | null;
   inTheaterCall?: boolean;
   theaterRole?: "speaker" | "audience" | "question" | null;
+  theaterSeat?: number | null;
   speaking?: boolean;
 }
 
@@ -88,6 +89,7 @@ function presenceEntriesEqual(
       before.voice.openChannelId === after.voice.openChannelId &&
       before.voice.inTheaterCall === after.voice.inTheaterCall &&
       before.voice.theaterRole === after.voice.theaterRole &&
+      before.voice.theaterSeat === after.voice.theaterSeat &&
       before.voice.speaking === after.voice.speaking
     );
   });

@@ -159,15 +159,18 @@ function isEnterpriseIntent(metadata?: Stripe.Metadata | null): boolean {
 }
 
 function seatUnitCents(): number {
-  const raw = Number.parseInt(process.env.STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS ?? "1500", 10);
-  return Number.isFinite(raw) && raw > 0 ? raw : 1500;
+  const raw = Number.parseInt(process.env.STRIPE_ENTERPRISE_SEAT_AMOUNT_CENTS ?? "2000", 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 2000;
 }
 
 function isNewSeatPrice(item: Stripe.SubscriptionItem): boolean {
   const price = item.price;
   if (!price || typeof price === "string") return false;
   const amount = price.unit_amount ?? 0;
-  return amount === seatUnitCents() && price.recurring?.interval === "month";
+  return (
+    (amount === seatUnitCents() || amount === 1500 || amount === 2000) &&
+    price.recurring?.interval === "month"
+  );
 }
 
 function subscriptionIntent(subscription: Stripe.Subscription): string {

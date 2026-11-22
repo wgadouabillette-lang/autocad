@@ -7,7 +7,6 @@ import {
   Settings,
   SlidersHorizontal,
   Sparkles,
-  Users,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from "react";
@@ -17,7 +16,6 @@ import {
   type SettingsTab,
 } from "../lib/settingsSearchSuggestions";
 import { useStore } from "../store/useStore";
-import FriendsSettingsSection from "./settings/FriendsSettingsSection";
 import GeneralSettingsSection from "./settings/GeneralSettingsSection";
 import PluginsSettingsSection from "./settings/PluginsSettingsSection";
 import SkillsSettingsSection from "./settings/SkillsSettingsSection";
@@ -28,13 +26,12 @@ import SettingsProfileHeader from "./settings/SettingsProfileHeader";
 import WorkspacesSettingsSection from "./settings/WorkspacesSettingsSection";
 
 const NAV_GROUPS: { id: "personal" | "workspace"; tabs: SettingsTab[] }[] = [
-  { id: "personal", tabs: ["general", "friends", "audio", "skills", "plugins"] },
+  { id: "personal", tabs: ["general", "audio", "skills", "plugins"] },
   { id: "workspace", tabs: ["workspaces", "billing"] },
 ];
 
 const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
   general: Settings,
-  friends: Users,
   workspaces: LayoutGrid,
   billing: CreditCard,
   audio: SlidersHorizontal,
@@ -44,7 +41,6 @@ const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
 
 const TAB_PANELS: Record<SettingsTab, () => JSX.Element> = {
   general: GeneralSettingsSection,
-  friends: FriendsSettingsSection,
   workspaces: WorkspacesSettingsSection,
   billing: BillingSettingsSection,
   audio: AudioSettingsSection,

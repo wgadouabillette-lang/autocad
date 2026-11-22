@@ -6,9 +6,9 @@ import {
 import {
   markWorkspacePresenceAway,
   touchWorkspacePresence,
+  watchRtdbConnection,
   watchWorkspacePresence,
 } from "../lib/firebase/workspacePresence";
-import { createPresenceHeartbeat } from "../lib/firebase/workspacePresenceHeartbeat";
 import { getLocalPresenceActivityForSync } from "../lib/localPresenceActivity";
 import { getLocalSpotifyNowPlayingForSync } from "../lib/spotifyNowPlaying";
 import { presenceActivityKey } from "../lib/presenceActivity";
@@ -123,34 +123,58 @@ export function useWorkspacePresence() {
       return nextTargets;
     };
 
-    const heartbeat = () => {
-      const targets = syncWriteTargets();
-      if (targets.length === 0) return;
-      void Promise.all(targets.map((workspaceId) => pushPresence(workspaceId)));
+    // Une écriture seulement quand l'état change, au retour réseau, ou si
+    // un changement est arrivé pendant que la fenêtre était cachée.
+    // onDisconnect marque hors ligne : pas de heartbeat.
+    // Un échec d'écriture est retenté ; un succès ne relance rien.
+    let pending = true;
+    let retryTimer: number | null = null;
+
+    const clearRetry = () => {
+      if (retryTimer === null) return;
+      window.clearTimeout(retryTimer);
+      retryTimer = null;
     };
 
-    const scheduler = createPresenceHeartbeat({
-      isHighFrequency: () => liveTargets.some((id) => isLocalInVoiceSession(id)),
-      onPulse: heartbeat,
-    });
+    const scheduleRetry = () => {
+      pending = true;
+      if (retryTimer !== null || document.hidden) return;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        if (pending) publish();
+      }, 5_000);
+    };
 
-    scheduler.pulse();
-    scheduler.reschedule();
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        scheduler.pulse();
-        scheduler.reschedule();
+    const publish = () => {
+      if (document.hidden) {
+        pending = true;
         return;
       }
-      scheduler.stop();
+      clearRetry();
+      pending = false;
+      const targets = syncWriteTargets();
+      if (targets.length === 0) return;
+      for (const workspaceId of targets) {
+        void pushPresence(workspaceId).catch(() => {
+          scheduleRetry();
+        });
+      }
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || !pending) return;
+      publish();
     };
     document.addEventListener("visibilitychange", onVisible);
 
+    const unsubConnected = watchRtdbConnection(() => {
+      pending = true;
+      publish();
+    });
+
     const unsubActiveRoom = useStore.subscribe((state, previous) => {
       if (state.activeRoomId === previous.activeRoomId) return;
-      scheduler.pulse();
-      scheduler.reschedule();
+      publish();
     });
 
     const voiceSnapshotRef = { current: "" };
@@ -166,8 +190,7 @@ export function useWorkspacePresence() {
       });
       if (snapshot === voiceSnapshotRef.current) return;
       voiceSnapshotRef.current = snapshot;
-      scheduler.pulse();
-      scheduler.reschedule();
+      publish();
     });
 
     const activitySnapshotRef = { current: "" };
@@ -178,7 +201,7 @@ export function useWorkspacePresence() {
       );
       if (snapshot === activitySnapshotRef.current) return;
       activitySnapshotRef.current = snapshot;
-      scheduler.pulse();
+      publish();
     });
 
     const spotifySnapshotRef = { current: "" };
@@ -193,11 +216,14 @@ export function useWorkspacePresence() {
       });
       if (snapshot === spotifySnapshotRef.current) return;
       spotifySnapshotRef.current = snapshot;
-      scheduler.pulse();
+      publish();
     });
 
+    publish();
+
     return () => {
-      scheduler.stop();
+      clearRetry();
+      unsubConnected();
       document.removeEventListener("visibilitychange", onVisible);
       unsubActiveRoom();
       unsubCalls();

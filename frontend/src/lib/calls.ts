@@ -849,18 +849,29 @@ export function participantIdsInOpenChannels(
   return ids;
 }
 
+/**
+ * Masque les blocs solo déjà occupés ailleurs (salon vocal ouvert ou théâtre).
+ * Un membre ne peut pas apparaître à deux endroits. Le bloc solo revient
+ * dès qu'il quitte cet endroit.
+ */
 export function memberBlocksForVoiceGrid(
   blocks: CallBlock[],
   openChannels: OpenVoiceChannel[],
+  occupied?: { participantIds?: Iterable<string>; hideLocal?: boolean },
 ): CallBlock[] {
-  const inOpenChannel = participantIdsInOpenChannels(openChannels);
-  if (inOpenChannel.size === 0) return blocks;
+  const hidden = participantIdsInOpenChannels(openChannels);
+  if (occupied?.participantIds) {
+    for (const id of occupied.participantIds) hidden.add(id);
+  }
+  const hideLocal = occupied?.hideLocal === true;
+  if (hidden.size === 0 && !hideLocal) return blocks;
 
   return blocks.filter((block) => {
     if (block.participants.length > 1) return true;
     const participant = block.participants[0];
     if (!participant) return false;
-    return !inOpenChannel.has(participant.id);
+    if (hideLocal && participant.isLocal) return false;
+    return !hidden.has(participant.id);
   });
 }
 

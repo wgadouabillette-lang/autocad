@@ -118,6 +118,8 @@ interface CallControls {
   deafen: boolean;
   /** 0–1 volume for remote screen-share system audio. */
   remoteScreenShareVolume: number;
+  /** 0–1 playback volume per remote participant. Missing means full volume. */
+  remoteVolumeByUid: Record<string, number>;
   mediaError: string | null;
   localStream: MediaStream | null;
   screenShareStream: MediaStream | null;
@@ -199,6 +201,7 @@ interface CallsState extends CallControls {
   togglePushToTalk: () => void;
   toggleDeafen: () => void;
   setRemoteScreenShareVolume: (volume: number) => void;
+  setRemoteParticipantVolume: (uid: string, volume: number) => void;
   startLocalMedia: () => Promise<void>;
   stopLocalMediaTracks: () => void;
   toggleMuted: () => Promise<void>;
@@ -248,6 +251,10 @@ function localVoicePresence(get: () => CallsState, workspaceId: string): Workspa
     openChannelId: inCall && openChannelId ? openChannelId : null,
     inTheaterCall: inTheater,
     theaterRole: inTheater ? (theater?.localRole ?? "audience") : null,
+    theaterSeat:
+      inTheater && theater?.localRole === "audience"
+        ? (theater.audienceSeatByUserId[LOCAL_USER.id] ?? null)
+        : null,
     speaking,
     muted: inVoice ? get().muted : false,
     handRaised: inVoice ? get().raiseHand : false,
@@ -307,6 +314,52 @@ function patchTheater(
       [workspaceId]: { ...s.theaterByWorkspace[workspaceId], ...patch },
     },
   }));
+}
+
+/** Quitte le salon privé ou le salon vocal : impossible d'y rester en même temps que le théâtre. */
+function releasePrivatePlaceForTheater(
+  get: () => CallsState,
+  set: (partial: Partial<CallsState>) => void,
+  workspaceId: string,
+) {
+  const state = get().callsByRoom[workspaceId];
+  if (!state) return;
+
+  const localBlock = findLocalBlock(state.blocks);
+  let blocks = state.blocks;
+  if (localBlock && localBlock.participants.length > 1) {
+    for (const participant of localBlock.participants) {
+      if (!participant.isLocal) {
+        forgetConfirmedPrivateCallPeer(workspaceId, participant.id);
+      }
+    }
+    blocks = splitLocalFromBlock(blocks, localBlock.id);
+  }
+  blocks = blocks.map((block) =>
+    block.participants.some((participant) => participant.isLocal)
+      ? { ...block, inCall: false }
+      : block,
+  );
+
+  const openChannels = mapOpenChannelsVacancy(
+    (state.openChannels ?? []).map((channel) => {
+      const participants = channel.participants.filter((participant) => !participant.isLocal);
+      return { ...channel, participants, inCall: participants.length > 0 };
+    }),
+  );
+
+  const privateCallHostByRoom = { ...get().privateCallHostByRoom };
+  delete privateCallHostByRoom[workspaceId];
+
+  set({
+    callsByRoom: {
+      ...get().callsByRoom,
+      [workspaceId]: { ...state, blocks, openChannels },
+    },
+    localInCallByRoom: { ...get().localInCallByRoom, [workspaceId]: false },
+    localOpenChannelByRoom: { ...get().localOpenChannelByRoom, [workspaceId]: null },
+    privateCallHostByRoom,
+  });
 }
 
 function nextLocalAudienceSeatAssignment(
@@ -375,6 +428,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   raiseHand: false,
   deafen: false,
   remoteScreenShareVolume: 1,
+  remoteVolumeByUid: {},
   mediaError: null,
   localStream: null,
   screenShareStream: null,
@@ -624,6 +678,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
               photoURL: member.photoURL,
               inTheaterCall: member.voice?.inTheaterCall === true,
               theaterRole: member.voice?.theaterRole ?? null,
+              theaterSeat: member.voice?.theaterSeat ?? null,
             })),
             localFirebaseUid ?? null,
           );
@@ -1079,18 +1134,10 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const localUser = localBlock?.participants.find((p) => p.isLocal);
     if (!localUser) return;
 
-    if (!isMarketingPreview()) {
-      try {
-        if (!hasLiveAudioTrack()) {
-          await acquireLocalMedia({ audio: true, video: get().cameraOn });
-        }
-        setMicrophoneEnabled(!get().muted);
-        syncStreamState(set);
-      } catch (error) {
-        set({ mediaError: mediaMessage(error, "Impossible d'accéder au micro.") });
-        return;
-      }
-    }
+    const needsMic = !isMarketingPreview() && !hasLiveAudioTrack();
+    const micPromise = needsMic
+      ? acquireLocalMedia({ audio: true, video: get().cameraOn })
+      : null;
 
     set((s) => {
       const current = s.callsByRoom[roomId];
@@ -1133,6 +1180,17 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     if (!isMarketingPreview()) {
       pushVoicePresence(get, roomId);
       playVoiceJoinSound();
+      try {
+        if (micPromise) await micPromise;
+        if (get().localOpenChannelByRoom[roomId] !== channelId) return;
+        setMicrophoneEnabled(!get().muted);
+        syncStreamState(set);
+      } catch (error) {
+        if (get().localOpenChannelByRoom[roomId] === channelId) {
+          get().leaveCall(roomId);
+        }
+        set({ mediaError: mediaMessage(error, "Impossible d'accéder au micro.") });
+      }
     }
   },
 
@@ -1218,6 +1276,8 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         localRole: "audience",
       });
     }
+
+    releasePrivatePlaceForTheater(get, set, workspaceId);
 
     const wasMuted = get().muted;
     const nextMuted = !asSpeaker;
@@ -1306,6 +1366,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         seatIndex,
       ),
     });
+    pushVoicePresence(get, workspaceId);
   },
 
   leaveTheater: (workspaceId) => {
@@ -2209,6 +2270,13 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   toggleDeafen: () => set((s) => ({ deafen: !s.deafen })),
   setRemoteScreenShareVolume: (volume) =>
     set({ remoteScreenShareVolume: Math.min(1, Math.max(0, volume)) }),
+  setRemoteParticipantVolume: (uid, volume) =>
+    set((state) => ({
+      remoteVolumeByUid: {
+        ...state.remoteVolumeByUid,
+        [uid]: Math.min(1, Math.max(0, volume)),
+      },
+    })),
 }));
 
 setLocalMediaAudioRecoveryHandler(() => {

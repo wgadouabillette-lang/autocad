@@ -274,6 +274,7 @@
     "otherMembers_one": "{{count}} autre membre",
     "otherMembers_other": "{{count}} autres membres",
     "disconnect": "Déconnecter {{name}}",
+    "participantVolume": "Volume de {{name}}",
     "offline": "{{name}} — hors ligne",
     "askToJoin": "Demander à rejoindre {{name}}",
     "messageTo": "Message à {{name}}",
@@ -377,7 +378,6 @@
       "button": "Upgrade",
       "title": "Combien de sièges voulez-vous ajouter ?",
       "subtitle": "Ces sièges s’ajoutent à {{workspace}}.",
-      "result": "Vous en avez {{current}}. Après ce paiement : {{total}}.",
       "continue": "Continuer"
     },
     "inviteSeats": {
