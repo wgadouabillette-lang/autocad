@@ -13,5 +13,6 @@ export const firebaseConfig = {
     "https://forma-cad-dev-default-rtdb.firebaseio.com",
 };
 
-export const functionsRegion =
-  env.VITE_FIREBASE_FUNCTIONS_REGION ?? "northamerica-northeast1";
+// Functions are deployed in Montréal. A production web build once set this
+// env to europe-west1, and desktop sign-in then called a region with no function.
+export const functionsRegion = "northamerica-northeast1";

@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from app.api.calendar_sync import CalendarEventInput, _create_google_event, _invalidate_google_auth
-from app.api.outlook_calendar_sync import _create_outlook_event
+from app.api.outlook_calendar_sync import _create_outlook_event, _invalidate_outlook_auth
 from app.calendar.event_store import (
     delete_event,
     list_events,
@@ -154,6 +154,50 @@ async def _sync_unsynced_to_google(uid: str) -> dict[str, object]:
     return {"synced": synced, "reason": None if synced else "nothing_to_sync"}
 
 
+async def _sync_unsynced_to_outlook(uid: str) -> dict[str, object]:
+    connections = await run_in_threadpool(load_all_connections, uid)
+    if not is_connected_from_items(connections, "outlook"):
+        return {"synced": 0, "reason": "not_connected"}
+
+    token = await get_valid_access_token(uid, "outlook")
+    if not token:
+        return {"synced": 0, "reason": "not_connected"}
+
+    events = await run_in_threadpool(list_events, uid)
+    unsynced = [event for event in events if not event.get("outlookEventId")]
+    synced = 0
+    for event in unsynced:
+        item = CalendarEventInput(
+            title=str(event["title"]),
+            detail=event.get("detail"),
+            dateKey=str(event["dateKey"]),
+            startMinutes=int(event["startMinutes"]),
+            endMinutes=int(event["endMinutes"]),
+        )
+        outlook_id, outlook_status = await _create_outlook_event(token, item)
+        if outlook_id:
+            await run_in_threadpool(
+                patch_event,
+                uid,
+                str(event["id"]),
+                {"outlookEventId": outlook_id},
+            )
+            synced += 1
+            continue
+        if outlook_status == 401:
+            await _invalidate_outlook_auth(uid, outlook_status)
+            return {"synced": synced, "reason": "auth_expired"}
+        if outlook_status == 403:
+            return {"synced": synced, "reason": "outlook_forbidden"}
+        logger.warning(
+            "Outlook Calendar retro-sync failed for user %s event %r",
+            uid,
+            event.get("title"),
+        )
+
+    return {"synced": synced, "reason": None if synced else "nothing_to_sync"}
+
+
 @router.get("/user-events")
 async def get_user_calendar_events(user: FirebaseUser = Depends(require_firebase_user)):
     expired = await run_in_threadpool(purge_expired, user.uid)
@@ -175,9 +219,13 @@ async def create_user_calendar_events(
     google_connected = False
     google_synced_count = 0
     google_error: str | None = None
+    outlook_connected = False
+    outlook_synced_count = 0
+    outlook_error: str | None = None
 
     connections = await run_in_threadpool(load_all_connections, user.uid)
     google_connected = is_connected_from_items(connections, "calendar")
+    outlook_connected = is_connected_from_items(connections, "outlook")
 
     for item in body.events:
         event: dict = {
@@ -218,13 +266,30 @@ async def create_user_calendar_events(
                 )
                 google_error = google_error or "not_connected"
 
-        connections = await run_in_threadpool(load_all_connections, user.uid)
-        if is_connected_from_items(connections, "outlook"):
+        if outlook_connected:
             token = await get_valid_access_token(user.uid, "outlook")
             if token:
-                outlook_id = await _create_outlook_event(token, item)
+                outlook_id, outlook_status = await _create_outlook_event(token, item)
                 if outlook_id:
                     event["outlookEventId"] = outlook_id
+                    outlook_synced_count += 1
+                else:
+                    logger.warning(
+                        "Outlook Calendar sync failed for user %s event %r (%s)",
+                        user.uid,
+                        item.title,
+                        outlook_status,
+                    )
+                    if outlook_status == 401:
+                        await _invalidate_outlook_auth(user.uid, outlook_status)
+                        outlook_connected = False
+                        outlook_error = "auth_expired"
+                    elif outlook_status == 403:
+                        outlook_error = outlook_error or "outlook_forbidden"
+                    else:
+                        outlook_error = outlook_error or f"outlook_http_{outlook_status}"
+            else:
+                outlook_error = outlook_error or "not_connected"
 
         prepared.append(event)
 
@@ -234,12 +299,25 @@ async def create_user_calendar_events(
         "googleConnected": google_connected or google_synced_count > 0,
         "googleSynced": google_synced_count,
         "googleError": google_error,
+        "outlookConnected": outlook_connected or outlook_synced_count > 0,
+        "outlookSynced": outlook_synced_count,
+        "outlookError": outlook_error,
     }
 
 
 @router.post("/user-events/sync-google")
 async def sync_user_events_to_google(user: FirebaseUser = Depends(require_firebase_user)):
     result = await _sync_unsynced_to_google(user.uid)
+    events = await run_in_threadpool(list_events, user.uid)
+    return {
+        **result,
+        "events": [_serialize(event) for event in events],
+    }
+
+
+@router.post("/user-events/sync-outlook")
+async def sync_user_events_to_outlook(user: FirebaseUser = Depends(require_firebase_user)):
+    result = await _sync_unsynced_to_outlook(user.uid)
     events = await run_in_threadpool(list_events, user.uid)
     return {
         **result,

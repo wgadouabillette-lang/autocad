@@ -475,6 +475,7 @@
     "invalidTimes": "Heures invalides.",
     "endAfterStart": "L'heure de fin doit être après l'heure de début.",
     "savedGoogleFailed": "Événement enregistré dans l'app, mais la synchronisation Google a échoué. Reconnectez Google Calendar.",
+    "savedOutlookFailed": "Événement enregistré dans l'app, mais la synchronisation Outlook a échoué. Reconnectez Outlook.",
     "savedConnectGoogle": "Événement enregistré dans l'app. Connectez Google Calendar pour synchroniser.",
     "saveFailed": "Impossible d'enregistrer l'événement.",
     "createAction": "Créer",

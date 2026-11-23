@@ -1,6 +1,7 @@
 const { spawn } = require("child_process");
 const fs = require("fs");
 const http = require("http");
+const https = require("https");
 const os = require("os");
 const path = require("path");
 
@@ -137,9 +138,65 @@ function handlePlayerEvent(payload) {
   }
 }
 
+function spotifyPlay(token, deviceId, trackId) {
+  const body = JSON.stringify({ uris: [`spotify:track:${trackId}`] });
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: "api.spotify.com",
+        path: `/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`,
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        res.resume();
+        res.on("end", () => resolve(res.statusCode || 0));
+      },
+    );
+    req.on("error", reject);
+    req.setTimeout(12_000, () => {
+      req.destroy(new Error("Spotify play timeout."));
+    });
+    req.end(body);
+  });
+}
+
 function createPlayerServer() {
   const playerServer = http.createServer((req, res) => {
     const requestUrl = new URL(req.url || "/", playerOrigin || "http://127.0.0.1");
+    if (req.method === "POST" && requestUrl.pathname === "/spotify-play") {
+      void readRequestBody(req)
+        .then(async (raw) => {
+          const payload = JSON.parse(raw);
+          const trackId = String(payload.trackId || "").trim();
+          const deviceId = String(payload.deviceId || "").trim();
+          if (!trackId || !deviceId) {
+            res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+            res.end("missing");
+            return;
+          }
+          const token = await requestSpotifyToken();
+          if (!token) {
+            res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
+            res.end("token");
+            return;
+          }
+          const status = await spotifyPlay(token, deviceId, trackId);
+          res.writeHead(status === 204 || status === 202 || status === 200 ? 204 : status, {
+            "Cache-Control": "no-store",
+          });
+          res.end();
+        })
+        .catch(() => {
+          if (!res.headersSent) res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end("spotify");
+        });
+      return;
+    }
     if (req.method === "GET" && requestUrl.pathname === "/spotify-token") {
       void requestSpotifyToken().then((token) => {
         res.writeHead(200, {
@@ -405,7 +462,8 @@ function startHost() {
             "--disable-background-timer-throttling",
             "--disable-renderer-backgrounding",
             "--disable-backgrounding-occluded-windows",
-            "--disable-features=CalculateNativeWinOcclusion",
+            "--disable-web-security",
+            "--disable-features=CalculateNativeWinOcclusion,TrackingPrevention,msEnhancedTrackingPrevention",
             "--window-position=-2400,-2400",
             "--window-size=480,320",
             `--app=${playerOrigin}/player.html`,

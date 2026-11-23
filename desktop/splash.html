@@ -119,18 +119,20 @@
         var fill = document.querySelector(".progress-fill");
         var bar = document.querySelector(".progress");
         if (!fill) return;
-        var start = performance.now();
-        // Same curve as macOS. Windows often reports reduced motion, which
-        // made this bar race ahead and then sit still.
+        var start = Date.now();
+        // Same curve as macOS. On the transparent Windows splash, rAF stops
+        // after the first paint, so a timer is what keeps the bar moving.
         var cap = 90;
         var tau = 2200;
+        var windows = document.documentElement.classList.contains("win");
         function tick(now) {
-          var pct = cap * (1 - Math.exp(-(now - start) / tau));
+          var pct = cap * (1 - Math.exp(-((now || Date.now()) - start) / tau));
           fill.style.width = pct.toFixed(2) + "%";
           if (bar) bar.setAttribute("aria-valuenow", String(Math.round(pct)));
-          window.requestAnimationFrame(tick);
+          if (!windows) window.requestAnimationFrame(tick);
         }
-        window.requestAnimationFrame(tick);
+        if (windows) window.setInterval(function () { tick(Date.now()); }, 50);
+        else window.requestAnimationFrame(tick);
       })();
     </script>
   </body>

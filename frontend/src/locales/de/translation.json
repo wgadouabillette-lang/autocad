@@ -472,6 +472,7 @@
     "invalidTimes": "Ungültige Zeiten.",
     "endAfterStart": "Das Ende muss nach dem Beginn liegen.",
     "savedGoogleFailed": "Termin in der App gespeichert, aber die Google-Synchronisierung ist fehlgeschlagen. Verbinde Google Calendar erneut.",
+    "savedOutlookFailed": "Termin in der App gespeichert, aber die Outlook-Synchronisierung ist fehlgeschlagen. Verbinde Outlook erneut.",
     "savedConnectGoogle": "Termin in der App gespeichert. Verbinde Google Calendar, um ihn zu synchronisieren.",
     "saveFailed": "Termin konnte nicht gespeichert werden.",
     "createAction": "Erstellen",

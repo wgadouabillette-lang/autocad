@@ -87,6 +87,14 @@ export async function cancelVoiceKnock(
   await respondVoiceKnock(workspaceId, fromUid, toUid, false);
 }
 
+/** Retire une frappe déjà traitée pour qu'un prochain lancement ne rejoigne pas l'appel. */
+export async function dismissVoiceKnock(workspaceId: string, knockId: string): Promise<void> {
+  const id = knockId.trim();
+  if (!workspaceId || !id) return;
+  await ensureWorkspaceRtdbAcl(workspaceId);
+  await remove(ref(rtdb, knockPath(workspaceId, id))).catch(() => {});
+}
+
 export async function sendVoiceEject(
   workspaceId: string,
   hostUid: string,

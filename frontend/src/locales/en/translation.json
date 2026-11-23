@@ -475,6 +475,7 @@
     "invalidTimes": "Invalid times.",
     "endAfterStart": "The end time must be after the start time.",
     "savedGoogleFailed": "Event saved in the app, but Google sync failed. Reconnect Google Calendar.",
+    "savedOutlookFailed": "Event saved in the app, but Outlook sync failed. Reconnect Outlook.",
     "savedConnectGoogle": "Event saved in the app. Connect Google Calendar to sync it.",
     "saveFailed": "Couldn't save the event.",
     "createAction": "Create",

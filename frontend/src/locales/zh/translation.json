@@ -472,6 +472,7 @@
     "invalidTimes": "时间无效。",
     "endAfterStart": "结束时间必须晚于开始时间。",
     "savedGoogleFailed": "日程已保存在应用中，但 Google 同步失败。请重新连接 Google 日历。",
+    "savedOutlookFailed": "日程已保存在应用中，但 Outlook 同步失败。请重新连接 Outlook。",
     "savedConnectGoogle": "日程已保存在应用中。连接 Google 日历后即可同步。",
     "saveFailed": "无法保存日程。",
     "createAction": "创建",

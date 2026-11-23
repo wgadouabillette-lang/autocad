@@ -229,7 +229,15 @@ function formatUserCode(code: string): string {
   return `${code.slice(0, 4)}-${code.slice(4)}`;
 }
 
-export const completeDesktopAuthSession = onCall({ cors: true }, async (request) => {
+// The live web sign-in page was built with the functions region set to
+// europe-west1, so it never reached this function in Montréal and always
+// ended on "Could not reach the desktop app." Serve both regions.
+export const completeDesktopAuthSession = onCall(
+  {
+    cors: true,
+    region: ["northamerica-northeast1", "europe-west1"] as unknown as string,
+  },
+  async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError("unauthenticated", "Authentication required.");
   }

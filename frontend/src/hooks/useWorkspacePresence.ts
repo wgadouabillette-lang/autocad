@@ -123,8 +123,8 @@ export function useWorkspacePresence() {
       return nextTargets;
     };
 
-    // Une écriture seulement quand l'état change, au retour réseau, ou si
-    // un changement est arrivé pendant que la fenêtre était cachée.
+    // Une écriture à chaque changement, même fenêtre cachée : sinon le vocal
+    // quitté reste écrit et réapparaît à la prochaine ouverture.
     // onDisconnect marque hors ligne : pas de heartbeat.
     // Un échec d'écriture est retenté ; un succès ne relance rien.
     let pending = true;
@@ -138,7 +138,7 @@ export function useWorkspacePresence() {
 
     const scheduleRetry = () => {
       pending = true;
-      if (retryTimer !== null || document.hidden) return;
+      if (retryTimer !== null) return;
       retryTimer = window.setTimeout(() => {
         retryTimer = null;
         if (pending) publish();
@@ -146,10 +146,6 @@ export function useWorkspacePresence() {
     };
 
     const publish = () => {
-      if (document.hidden) {
-        pending = true;
-        return;
-      }
       clearRetry();
       pending = false;
       const targets = syncWriteTargets();
@@ -160,12 +156,6 @@ export function useWorkspacePresence() {
         });
       }
     };
-
-    const onVisible = () => {
-      if (document.visibilityState !== "visible" || !pending) return;
-      publish();
-    };
-    document.addEventListener("visibilitychange", onVisible);
 
     const unsubConnected = watchRtdbConnection(() => {
       pending = true;
@@ -224,7 +214,6 @@ export function useWorkspacePresence() {
     return () => {
       clearRetry();
       unsubConnected();
-      document.removeEventListener("visibilitychange", onVisible);
       unsubActiveRoom();
       unsubCalls();
       unsubActivity();

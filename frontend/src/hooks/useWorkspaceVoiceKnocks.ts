@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { memberBlockId, type JoinRequest } from "../lib/calls";
 import {
+  dismissVoiceKnock,
   watchVoiceEjects,
   watchVoiceKnockResponses,
   watchVoiceKnocks,
@@ -76,24 +77,43 @@ export function useWorkspaceVoiceKnocks() {
     const workspaceIds = workspaceIdsFromKey(workspaceIdsKey);
     if (!isAuthenticated || !firebaseUid || workspaceIds.length === 0) return;
 
-    const unsubs = workspaceIds.map((workspaceId) =>
-      watchVoiceKnockResponses(
+    const unsubs = workspaceIds.map((workspaceId) => {
+      const consumed = new Set<string>();
+      let primed = false;
+      const startedAt = Date.now();
+      return watchVoiceKnockResponses(
         workspaceId,
         firebaseUid,
         (knocks) => {
+          const initial = !primed;
+          primed = true;
+          const present = new Set(knocks.map((knock) => knock.id));
+          for (const id of consumed) {
+            if (!present.has(id)) consumed.delete(id);
+          }
           for (const knock of knocks) {
-            if (knock.status === "accepted") {
+            if (!knock.id || consumed.has(knock.id)) continue;
+            consumed.add(knock.id);
+            // Une acceptation écrite avant cette ouverture de l'app ne remet
+            // personne dans l'ancien vocal privé.
+            const acceptedThisSession =
+              knock.status === "accepted" &&
+              !initial &&
+              typeof knock.respondedAt === "number" &&
+              knock.respondedAt >= startedAt;
+            if (acceptedThisSession) {
               void useCallsStore
                 .getState()
                 .completeRemoteKnockJoin(workspaceId, knock.toUid, knock.id);
-            } else {
+            } else if (!initial) {
               useCallsStore.getState().clearJoinRequest(workspaceId, knock.id);
             }
+            void dismissVoiceKnock(workspaceId, knock.id);
           }
         },
         () => {},
-      ),
-    );
+      );
+    });
 
     return () => {
       for (const unsub of unsubs) unsub();

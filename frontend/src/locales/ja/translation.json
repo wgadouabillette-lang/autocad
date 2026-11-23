@@ -472,6 +472,7 @@
     "invalidTimes": "時刻が正しくありません。",
     "endAfterStart": "終了時刻は開始より後にしてください。",
     "savedGoogleFailed": "予定はアプリに保存されましたが、Google 同期に失敗しました。Google カレンダーを再接続してください。",
+    "savedOutlookFailed": "予定はアプリに保存されましたが、Outlook 同期に失敗しました。Outlook を再接続してください。",
     "savedConnectGoogle": "予定はアプリに保存されました。同期するには Google カレンダーを接続してください。",
     "saveFailed": "予定を保存できませんでした。",
     "createAction": "作成",

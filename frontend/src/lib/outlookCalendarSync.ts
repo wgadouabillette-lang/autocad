@@ -16,6 +16,7 @@ export interface OutlookCalendarStatus {
   connected: boolean;
   configured: boolean;
   accountEmail?: string | null;
+  authExpired?: boolean;
 }
 
 const BASE = "/api/connectors/outlook/calendar";
@@ -23,7 +24,7 @@ const BASE = "/api/connectors/outlook/calendar";
 async function authHeaders(json = false): Promise<HeadersInit> {
   const headers: Record<string, string> = {};
   if (json) headers["Content-Type"] = "application/json";
-  const token = await getAuthIdToken(false);
+  const token = await getAuthIdToken(true);
   if (!token) {
     throw new Error("Connectez-vous à l'app avant de synchroniser Outlook.");
   }
@@ -87,23 +88,39 @@ function clientTimeZone(): string {
 async function fetchOutlookCalendarEventsInRange(
   timeMin: string,
   timeMax: string,
-): Promise<OutlookCalendarEvent[]> {
+): Promise<{ events: OutlookCalendarEvent[]; authExpired: boolean }> {
   const params = new URLSearchParams({ timeMin, timeMax, timeZone: clientTimeZone() });
   const r = await fetch(apiUrl(`${BASE}/events?${params.toString()}`), {
     headers: await authHeaders(),
   });
   if (!r.ok) {
+    if (r.status === 401 || r.status === 403) {
+      return { events: [], authExpired: true };
+    }
     const text = await r.text();
     throw new Error(text || `HTTP ${r.status}`);
   }
   const data = (await r.json()) as { events?: OutlookCalendarEvent[]; reason?: string };
-  if (data.reason === "not_connected" || data.reason === "not_configured") return [];
-  return data.events ?? [];
+  if (
+    data.reason === "not_connected" ||
+    data.reason === "not_configured" ||
+    data.reason === "auth_expired"
+  ) {
+    return { events: [], authExpired: data.reason === "auth_expired" };
+  }
+  return { events: data.events ?? [], authExpired: false };
+}
+
+export async function fetchOutlookCalendarEventsForDate(
+  dateKey: string,
+): Promise<{ events: OutlookCalendarEvent[]; authExpired: boolean }> {
+  const { timeMin, timeMax } = dayRangeIso(dateKey);
+  return fetchOutlookCalendarEventsInRange(timeMin, timeMax);
 }
 
 export async function fetchOutlookCalendarEvents(dateKey: string): Promise<OutlookCalendarEvent[]> {
-  const { timeMin, timeMax } = dayRangeIso(dateKey);
-  return fetchOutlookCalendarEventsInRange(timeMin, timeMax);
+  const result = await fetchOutlookCalendarEventsForDate(dateKey);
+  return result.events;
 }
 
 export async function fetchOutlookCalendarEventsForRange(
@@ -111,7 +128,8 @@ export async function fetchOutlookCalendarEventsForRange(
   toDateKey: string,
 ): Promise<OutlookCalendarEvent[]> {
   const { timeMin, timeMax } = rangeIso(fromDateKey, toDateKey);
-  return fetchOutlookCalendarEventsInRange(timeMin, timeMax);
+  const result = await fetchOutlookCalendarEventsInRange(timeMin, timeMax);
+  return result.events;
 }
 
 export async function syncEventsToOutlookCalendar(

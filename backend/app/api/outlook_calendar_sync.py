@@ -19,7 +19,7 @@ from app.api.calendar_sync import (
 )
 from app.connectors.registry import connector_configured
 from app.connectors.tokens import connection_account_label, get_valid_access_token
-from app.connectors.user_store import is_connected_from_items, load_all_connections
+from app.connectors.user_store import is_connected_from_items, load_all_connections, remove_connection
 from app.core.auth_deps import require_firebase_user
 from app.core.firebase import FirebaseUser
 
@@ -43,6 +43,7 @@ class OutlookCalendarStatusOut(BaseModel):
     connected: bool
     configured: bool
     account_email: Optional[str] = Field(default=None, alias="accountEmail")
+    auth_expired: bool = Field(default=False, alias="authExpired")
 
     model_config = ConfigDict(populate_by_name=True, populate_by_alias=True)
 
@@ -101,7 +102,12 @@ def _parse_outlook_event(item: dict[str, Any], display_tz=None) -> OutlookCalend
     )
 
 
-async def _create_outlook_event(token: str, item: CalendarEventInput) -> str | None:
+async def _invalidate_outlook_auth(uid: str, status_code: int) -> None:
+    if status_code == 401:
+        await run_in_threadpool(remove_connection, uid, "outlook")
+
+
+async def _create_outlook_event(token: str, item: CalendarEventInput) -> tuple[str | None, int]:
     start, end, tz_name = _event_datetimes(item)
     if tz_name:
         start_body: dict[str, str] = {"dateTime": start, "timeZone": tz_name}
@@ -136,10 +142,10 @@ async def _create_outlook_event(token: str, item: CalendarEventInput) -> str | N
             item.title,
             (r.text or "")[:500],
         )
-        return None
+        return None, r.status_code
     data = r.json()
     event_id = str(data.get("id") or "").strip()
-    return event_id or None
+    return (event_id or None), r.status_code
 
 
 async def _fetch_outlook_account_email(token: str) -> str | None:
@@ -161,18 +167,24 @@ async def outlook_calendar_status(user: FirebaseUser = Depends(require_firebase_
     configured = connector_configured("outlook")
     connections = await run_in_threadpool(load_all_connections, user.uid)
     entry = connections.get("outlook")
-    connected = configured and is_connected_from_items(connections, "outlook")
+    had_connection = is_connected_from_items(connections, "outlook")
+    connected = configured and had_connection
+    auth_expired = False
     account_email = connection_account_label(
         dict(entry) if isinstance(entry, dict) else None
     )
-    if connected and not account_email:
+    if connected:
         token = await get_valid_access_token(user.uid, "outlook")
-        if token:
+        if not token:
+            connected = False
+            auth_expired = had_connection
+        elif not account_email:
             account_email = await _fetch_outlook_account_email(token)
     return OutlookCalendarStatusOut(
         connected=connected,
         configured=configured,
         accountEmail=account_email,
+        authExpired=auth_expired,
     )
 
 
@@ -211,6 +223,9 @@ async def list_outlook_calendar_events(
             params=params,
         )
     if r.status_code != 200:
+        if r.status_code in {401, 403}:
+            await _invalidate_outlook_auth(user.uid, r.status_code)
+            return {"events": [], "reason": "auth_expired"}
         raise HTTPException(r.status_code, r.text or "Microsoft Graph calendar error.")
 
     events: list[OutlookCalendarEventOut] = []
@@ -240,8 +255,12 @@ async def sync_outlook_calendar_events(
     created = 0
     for item in body.events:
         try:
-            if await _create_outlook_event(token, item):
+            event_id, status = await _create_outlook_event(token, item)
+            if event_id:
                 created += 1
+            elif status in {401, 403}:
+                await _invalidate_outlook_auth(user.uid, status)
+                break
         except Exception:  # noqa: BLE001
             continue
 

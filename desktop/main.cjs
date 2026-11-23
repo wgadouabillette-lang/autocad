@@ -1060,8 +1060,8 @@ function splashWindowChrome(bounds = getCenteredSplashBounds()) {
     icon: resolveAppIconPath(),
   };
   if (process.platform !== "win32") return chrome;
-  // Opaque base for the app window. The standalone splash overrides this:
-  // a layered window is required there so the 22px radius is the real shape.
+  // Opaque window. The splash clips its 22px curve with setShape; a layered
+  // window would keep the first frame and the loading bar would sit still.
   return {
     ...chrome,
     transparent: false,
@@ -1115,7 +1115,69 @@ function mainWindowChrome(bounds = getCenteredSplashBounds()) {
   };
 }
 
+function roundedWindowShape(width, height, radius) {
+  const w = Math.max(1, Math.round(width));
+  const h = Math.max(1, Math.round(height));
+  const r = Math.max(0, Math.min(Math.round(radius), Math.floor(w / 2), Math.floor(h / 2)));
+  const rects = [];
+  for (let y = 0; y < h; y++) {
+    let inset = 0;
+    if (r > 0 && (y < r || y >= h - r)) {
+      const dy = y < r ? r - y - 0.5 : y - (h - r) + 0.5;
+      inset = Math.ceil(r - Math.sqrt(Math.max(0, r * r - dy * dy)));
+    }
+    const span = w - inset * 2;
+    if (span <= 0) continue;
+    rects.push({ x: inset, y, width: span, height: 1 });
+  }
+  return rects;
+}
+
+let splashShapeKey = "";
+
+function applyWindowsSplashShape(win) {
+  if (process.platform !== "win32" || !win || win.isDestroyed()) return;
+  const [width, height] = win.getContentSize();
+  const key = `${width}x${height}`;
+  if (key === splashShapeKey) return;
+  splashShapeKey = key;
+  try {
+    win.setShape(roundedWindowShape(width, height, 22));
+  } catch (err) {
+    splashShapeKey = "";
+    console.warn("[hall] splash shape failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** @type {ReturnType<typeof setInterval> | null} */
+let splashPaintPump = null;
+
+function stopSplashPaintPump() {
+  if (!splashPaintPump) return;
+  clearInterval(splashPaintPump);
+  splashPaintPump = null;
+}
+
+function startSplashPaintPump() {
+  if (process.platform !== "win32" || splashPaintPump) return;
+  // Software rendering plus a layered window keeps the first bitmap. Asking
+  // Chromium to repaint is what pushes each new bar width onto the screen.
+  splashPaintPump = setInterval(() => {
+    if (!splashWindow || splashWindow.isDestroyed()) {
+      stopSplashPaintPump();
+      return;
+    }
+    if (!splashWindow.isVisible()) return;
+    try {
+      splashWindow.webContents.invalidate();
+    } catch {
+      stopSplashPaintPump();
+    }
+  }, 50);
+}
+
 function closeSplashWindow() {
+  stopSplashPaintPump();
   if (splashWindow && !splashWindow.isDestroyed()) {
     splashWindow.close();
   }
@@ -1171,14 +1233,13 @@ function createSplashWindow() {
   const bounds = getCenteredSplashBounds();
   splashWindow = new BrowserWindow({
     ...splashWindowChrome(bounds),
-    // The shared Windows chrome is an opaque app window. The splash has to be
-    // its own layered window: an opaque HWND stays square, and DWM's
-    // roundedCorners leaves the top-left corner square so it sticks out of the
-    // 22px curve. thickFrame adds that same unclipped corner.
+    // Opaque on Windows. A transparent layered window keeps the first frame
+    // when GPU compositing is off, so the bar never moves. setShape clips the
+    // same 22px curve, including the top-left corner DWM leaves square.
     ...(process.platform === "win32"
       ? {
-          transparent: true,
-          backgroundColor: "#00000000",
+          transparent: false,
+          backgroundColor: "#171717",
           hasShadow: false,
           thickFrame: false,
           roundedCorners: false,
@@ -1188,8 +1249,11 @@ function createSplashWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      // A hidden or occluded splash throttles timers, so the bar stops.
+      backgroundThrottling: false,
     },
   });
+  splashWindow.webContents.once("did-finish-load", startSplashPaintPump);
   splashWindow.loadFile(path.join(__dirname, "splash.html"), {
     query: {
       v: require("./package.json").version,
@@ -1207,10 +1271,14 @@ function createSplashWindow() {
       return;
     }
     splashWindow.setBounds(getCenteredSplashBounds());
+    applyWindowsSplashShape(splashWindow);
     splashWindow.show();
     if (updateSplashActive) splashWindow.focus();
   });
+  splashWindow.on("resize", () => applyWindowsSplashShape(splashWindow));
   splashWindow.on("closed", () => {
+    stopSplashPaintPump();
+    splashShapeKey = "";
     splashWindow = null;
   });
 }
@@ -1288,6 +1356,7 @@ function applySplashChromeToMainWindow() {
 function revealStandaloneSplash() {
   if (splashWindow && !splashWindow.isDestroyed()) {
     splashWindow.setBounds(getCenteredSplashBounds());
+    applyWindowsSplashShape(splashWindow);
     if (!splashWindow.isVisible()) splashWindow.show();
     splashWindow.focus();
     return;
@@ -1888,7 +1957,11 @@ function createWindow() {
     if (isOAuthPopupUrl(url)) {
       return {
         action: "allow",
-        overrideBrowserWindowOptions: oauthPopupBrowserOptions(),
+        overrideBrowserWindowOptions: {
+          ...oauthPopupBrowserOptions(),
+          parent: mainWindow,
+          modal: false,
+        },
       };
     }
     void openExternalSafe(url).catch(() => {});
@@ -1896,6 +1969,7 @@ function createWindow() {
   });
   mainWindow.webContents.on("did-create-window", (childWindow, details) => {
     if (isOAuthPopupUrl(details.url) || isOAuthPopupUrl(childWindow.webContents.getURL())) {
+      applyDesktopUserAgent(childWindow.webContents);
       attachOAuthPopupNavigation(childWindow);
     }
   });

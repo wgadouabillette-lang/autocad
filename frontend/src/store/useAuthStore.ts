@@ -68,7 +68,6 @@ import {
   isDesktopWebAuthCancelled,
   markDesktopAuthAccountChoiceRequired,
   reopenDesktopWebAuth as reopenDesktopWebAuthUrl,
-  signInViaDesktopWebAuth,
   submitDesktopWebAuthCode,
 } from "../lib/firebase/desktopAuth";
 
@@ -812,46 +811,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     );
     // #endregion
     set({ authError: null, desktopWebAuthConnected: false });
-    const desktopAuthGen = hasFormaDesktop() ? ++desktopWebAuthGeneration : desktopWebAuthGeneration;
+    const desktopAuthGen = desktopWebAuthGeneration;
     try {
-      if (hasFormaDesktop()) {
-        set({
-          desktopWebAuthPending: true,
-          desktopWebAuthConnected: false,
-          desktopWebAuthCodeError: null,
-          desktopWebAuthCodeBusy: false,
-        });
-        try {
-          await signInViaDesktopWebAuth(
-            () => {
-              if (desktopAuthGen === desktopWebAuthGeneration) {
-                set({ desktopWebAuthConnected: true, desktopWebAuthCodeBusy: false });
-              }
-            },
-            () => {
-              if (desktopAuthGen === desktopWebAuthGeneration) {
-                set({
-                  desktopWebAuthCodeBusy: false,
-                  desktopWebAuthCodeError: "That code doesn't match the browser.",
-                });
-              }
-            },
-          );
-        } finally {
-          if (desktopAuthGen === desktopWebAuthGeneration) {
-            set({ desktopWebAuthPending: false, desktopWebAuthCodeBusy: false });
-          }
-        }
-        // #region agent log
-        debugLog(
-          "useAuthStore.ts:signInWithProvider",
-          "Desktop web auth completed",
-          { provider },
-          "E",
-        );
-        // #endregion
-        return;
-      }
       set({ ready: false });
       const user = await signInWithOAuthProvider(provider);
       // #region agent log

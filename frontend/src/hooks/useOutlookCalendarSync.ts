@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { syncUserEventsToOutlook } from "../lib/calendarEventsApi";
 import {
-  fetchOutlookCalendarEvents,
+  fetchOutlookCalendarEventsForDate,
   fetchOutlookCalendarStatus,
   type OutlookCalendarStatus,
 } from "../lib/outlookCalendarSync";
@@ -12,9 +13,11 @@ export function useOutlookCalendarSync(selectedDate: string) {
   const authReady = useAuthStore((s) => s.ready);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const setOutlookEvents = useCalendarStore((s) => s.setOutlookEvents);
+  const setUserEvents = useCalendarStore((s) => s.setUserEvents);
   const [status, setStatus] = useState<OutlookCalendarStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
 
   const refresh = useCallback(async () => {
     if (isMarketingPreview()) return;
@@ -24,20 +27,34 @@ export function useOutlookCalendarSync(selectedDate: string) {
       const nextStatus = await fetchOutlookCalendarStatus();
       setStatus(nextStatus);
       setError(null);
+      setNeedsReconnect(Boolean(nextStatus.authExpired));
       if (!nextStatus.connected) {
         setOutlookEvents([], selectedDate);
         return;
       }
-      const events = await fetchOutlookCalendarEvents(selectedDate);
+      try {
+        const retro = await syncUserEventsToOutlook();
+        if (retro.events.length > 0) {
+          setUserEvents(retro.events);
+        }
+      } catch {
+        /* push local events when Outlook is connected */
+      }
+      const { events, authExpired } = await fetchOutlookCalendarEventsForDate(selectedDate);
       setOutlookEvents(events, selectedDate);
+      if (authExpired) {
+        setNeedsReconnect(true);
+        setError("Session Outlook expirée. Reconnectez le connecteur Outlook.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync Outlook indisponible.");
     } finally {
       setLoading(false);
     }
-  }, [authReady, isAuthenticated, selectedDate, setOutlookEvents]);
+  }, [authReady, isAuthenticated, selectedDate, setOutlookEvents, setUserEvents]);
 
   useEffect(() => {
+    if (isMarketingPreview()) return;
     if (!authReady || !isAuthenticated) return;
     void refresh();
   }, [authReady, isAuthenticated, refresh]);
@@ -56,6 +73,7 @@ export function useOutlookCalendarSync(selectedDate: string) {
     status,
     loading,
     error,
+    needsReconnect,
     refresh,
   };
 }

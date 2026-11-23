@@ -8,8 +8,10 @@ import {
   createUserCalendarEvents,
   fetchUserCalendarEvents,
   syncUserEventsToGoogle,
+  syncUserEventsToOutlook,
 } from "../../lib/calendarEventsApi";
 import { fetchGoogleCalendarStatus } from "../../lib/calendarSync";
+import { fetchOutlookCalendarStatus } from "../../lib/outlookCalendarSync";
 import { notifyCalendarEventsChanged } from "../../hooks/usePersistedCalendarEvents";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useStore } from "../../store/useStore";
@@ -176,13 +178,30 @@ export default function CalendarEventComposer({
         let googleSynced =
           created.googleSynced > 0 ||
           created.events.some((event) => Boolean(event.googleEventId));
-        const googleStatus = await fetchGoogleCalendarStatus();
+        let outlookSynced =
+          created.outlookSynced > 0 ||
+          created.events.some((event) => Boolean(event.outlookEventId));
+        const [googleStatus, outlookStatus] = await Promise.all([
+          fetchGoogleCalendarStatus(),
+          fetchOutlookCalendarStatus(),
+        ]);
 
         if (googleStatus.connected && !googleSynced) {
           try {
             const retro = await syncUserEventsToGoogle();
             events = retro.events;
-            googleSynced = retro.synced > 0;
+            googleSynced = retro.synced > 0 || events.some((event) => Boolean(event.googleEventId));
+          } catch {
+            /* retry sync unavailable */
+          }
+        }
+
+        if (outlookStatus.connected && !outlookSynced) {
+          try {
+            const retro = await syncUserEventsToOutlook();
+            events = retro.events;
+            outlookSynced =
+              retro.synced > 0 || events.some((event) => Boolean(event.outlookEventId));
           } catch {
             /* retry sync unavailable */
           }
@@ -194,10 +213,16 @@ export default function CalendarEventComposer({
         notifyCalendarEventsChanged();
         window.dispatchEvent(new CustomEvent("forma-connector-oauth-done"));
 
-        if (googleStatus.configured && googleStatus.connected && !googleSynced) {
-          setError(
-            t("calendarUi.savedGoogleFailed"),
-          );
+        const syncErrors = [
+          googleStatus.configured && googleStatus.connected && !googleSynced
+            ? t("calendarUi.savedGoogleFailed")
+            : "",
+          outlookStatus.configured && outlookStatus.connected && !outlookSynced
+            ? t("calendarUi.savedOutlookFailed")
+            : "",
+        ].filter(Boolean);
+        if (syncErrors.length > 0) {
+          setError(syncErrors.join(" "));
           return;
         }
 

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { dismissVoiceKnock } from "../lib/firebase/workspaceVoiceKnocks";
 import { useDirectCallStore } from "./useDirectCallStore";
 import {
   DEFAULT_LAST_SPOKE_AT,
@@ -275,6 +276,19 @@ function voiceProfile() {
 
 const speakingPresenceCache = new Map<string, { value: boolean; at: number }>();
 
+function dismissPrivateCallKnocks(
+  workspaceId: string,
+  remoteIds: Iterable<string>,
+): void {
+  const firebaseUid = useAuthStore.getState().firebaseUid;
+  if (!firebaseUid || !workspaceId) return;
+  for (const remoteId of remoteIds) {
+    if (!remoteId || remoteId === firebaseUid) continue;
+    void dismissVoiceKnock(workspaceId, `${firebaseUid}_${remoteId}`);
+    void dismissVoiceKnock(workspaceId, `${remoteId}_${firebaseUid}`);
+  }
+}
+
 function pushVoicePresence(get: () => CallsState, workspaceId: string) {
   const firebaseUid = useAuthStore.getState().firebaseUid;
   if (!firebaseUid || !workspaceId) return;
@@ -328,11 +342,13 @@ function releasePrivatePlaceForTheater(
   const localBlock = findLocalBlock(state.blocks);
   let blocks = state.blocks;
   if (localBlock && localBlock.participants.length > 1) {
-    for (const participant of localBlock.participants) {
-      if (!participant.isLocal) {
-        forgetConfirmedPrivateCallPeer(workspaceId, participant.id);
-      }
+    const remoteIds = localBlock.participants
+      .filter((participant) => !participant.isLocal)
+      .map((participant) => participant.id);
+    for (const remoteId of remoteIds) {
+      forgetConfirmedPrivateCallPeer(workspaceId, remoteId);
     }
+    dismissPrivateCallKnocks(workspaceId, remoteIds);
     blocks = splitLocalFromBlock(blocks, localBlock.id);
   }
   blocks = blocks.map((block) =>
@@ -908,6 +924,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     pushVoicePresence(get, workspaceId);
     playVoiceJoinSound();
     pushVoicePresence(get, workspaceId);
+    void dismissVoiceKnock(workspaceId, knockRequestId);
   },
 
   clearJoinRequest: (workspaceId, requestId) => {
@@ -1847,13 +1864,22 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
     const state = roomState(get, workspaceId);
     const localBlock = findLocalBlock(state.blocks);
-    if (!localBlock) return;
-
-    for (const participant of localBlock.participants) {
-      if (!participant.isLocal) {
-        forgetConfirmedPrivateCallPeer(workspaceId, participant.id);
-      }
+    if (!localBlock) {
+      set({
+        localInCallByRoom: { ...get().localInCallByRoom, [workspaceId]: false },
+        localOpenChannelByRoom: { ...get().localOpenChannelByRoom, [workspaceId]: null },
+      });
+      pushVoicePresence(get, workspaceId);
+      return;
     }
+
+    const remoteIds = localBlock.participants
+      .filter((participant) => !participant.isLocal)
+      .map((participant) => participant.id);
+    for (const remoteId of remoteIds) {
+      forgetConfirmedPrivateCallPeer(workspaceId, remoteId);
+    }
+    dismissPrivateCallKnocks(workspaceId, remoteIds);
 
     const blocks = (
       localBlock.participants.length > 1
@@ -1919,6 +1945,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     }
 
     forgetConfirmedPrivateCallPeer(roomId, remoteUserId);
+    dismissPrivateCallKnocks(roomId, [remoteUserId]);
     let blocks = splitRemoteParticipantFromBlock(state.blocks, localBlock.id, remoteUserId);
     blocks = blocks.map((block) => {
       if (block.participants.some((participant) => participant.isLocal) && block.participants.length === 1) {
@@ -1949,6 +1976,10 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const localBlock = findLocalBlock(state.blocks);
     if (!localBlock || localBlock.participants.length <= 1) return;
 
+    const remoteIds = localBlock.participants
+      .filter((participant) => !participant.isLocal)
+      .map((participant) => participant.id);
+    dismissPrivateCallKnocks(roomId, remoteIds);
     const blocks = splitLocalFromBlock(state.blocks, localBlock.id);
     set({
       callsByRoom: { ...get().callsByRoom, [roomId]: { ...state, blocks } },

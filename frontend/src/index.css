@@ -94,11 +94,12 @@
   --forma-calls-private-avatar-size: var(--forma-calls-open-avatar-size);
   --forma-calls-private-avatar-gap: 0.375rem;
   --forma-calls-private-pad-x: 0.875rem;
-  --forma-calls-private-pad-y: 0.75rem;
+  --forma-calls-private-pad-y: 0.9rem;
   --forma-calls-private-header-h: 1.25rem;
+  --forma-calls-private-extra-x: 1.5rem;
   --forma-calls-private-slot-width: calc(
     2 * var(--forma-calls-private-avatar-size) + var(--forma-calls-private-avatar-gap) +
-      2 * var(--forma-calls-private-pad-x)
+      2 * var(--forma-calls-private-pad-x) + var(--forma-calls-private-extra-x)
   );
   --forma-bottom-bar-height: 2.75rem;
   --forma-bottom-float-gap: 0.625rem;
@@ -526,7 +527,6 @@ html:not(.app-loading-splash) #root {
     width: 0;
     border-radius: inherit;
     background-color: rgb(200 200 200 / 0.85);
-    will-change: width;
   }
   .app-loading-screen__version {
     @apply absolute inset-x-0 bottom-4 m-0 select-none text-center text-[11px] font-medium tabular-nums tracking-wide;
@@ -534,7 +534,11 @@ html:not(.app-loading-splash) #root {
     line-height: 1;
   }
   .app-loading-screen__progress--indeterminate .app-loading-screen__progress-fill {
+    position: absolute;
+    top: 0;
+    left: -40%;
     width: 36%;
+    height: 100%;
     animation: app-loading-progress-slide 1.15s ease-in-out infinite;
   }
   .app-loading-screen__spinner {
@@ -549,6 +553,7 @@ html:not(.app-loading-splash) #root {
     }
     .app-loading-screen__progress--indeterminate .app-loading-screen__progress-fill {
       animation: none;
+      left: 0;
       width: 55%;
     }
   }
@@ -610,10 +615,10 @@ html:not(.app-loading-splash) #root {
   }
   @keyframes app-loading-progress-slide {
     0% {
-      transform: translateX(-120%);
+      left: -40%;
     }
     100% {
-      transform: translateX(280%);
+      left: 100%;
     }
   }
   .auth-page__main {
@@ -4618,9 +4623,10 @@ html:not(.app-loading-splash) #root {
     padding-right: 0;
   }
   .call-block--private .call-block__title {
-    @apply min-w-0 flex-1 truncate text-left text-[12px] leading-none;
+    @apply min-w-0 truncate text-left text-[12px] leading-none;
+    flex: 0 1 auto;
     width: auto;
-    max-width: 100%;
+    max-width: 13ch;
     padding-inline: 0;
   }
   .call-block--private .call-block__header-trailing {

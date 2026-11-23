@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isFormaDesktopWindows } from "../lib/formaDesktop";
 
 const BOOT_CAP = 90;
 const BOOT_TAU_MS = 2200;
@@ -49,7 +50,11 @@ export function useAnimatedBootProgress(options: {
 
   useEffect(() => {
     let raf = 0;
+    let timer = 0;
     let cancelled = false;
+    // Windows software rendering often never schedules another animation
+    // frame, so the bar stays at its first width. A timer still runs.
+    const windows = isFormaDesktopWindows();
 
     const tick = (now: number) => {
       if (cancelled) return;
@@ -67,7 +72,7 @@ export function useAnimatedBootProgress(options: {
           progressRef.current = clamped;
           setProgress(clamped);
         }
-        raf = window.requestAnimationFrame(tick);
+        if (!windows) raf = window.requestAnimationFrame(tick);
         return;
       }
 
@@ -88,15 +93,25 @@ export function useAnimatedBootProgress(options: {
         progressRef.current = next;
         setProgress(next);
       }
-      if (t < 1) {
+      if (!windows && t < 1) {
         raf = window.requestAnimationFrame(tick);
+      }
+      if (windows && t >= 1 && timer) {
+        window.clearInterval(timer);
+        timer = 0;
       }
     };
 
-    raf = window.requestAnimationFrame(tick);
+    if (windows) {
+      timer = window.setInterval(() => tick(performance.now()), 50);
+      tick(performance.now());
+    } else {
+      raf = window.requestAnimationFrame(tick);
+    }
     return () => {
       cancelled = true;
       window.cancelAnimationFrame(raf);
+      if (timer) window.clearInterval(timer);
     };
   }, [pending]);
 

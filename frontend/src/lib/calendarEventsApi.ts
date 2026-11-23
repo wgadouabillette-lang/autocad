@@ -62,6 +62,9 @@ export type CreateUserCalendarEventsResult = {
   googleConnected: boolean;
   googleSynced: number;
   googleError: string | null;
+  outlookConnected: boolean;
+  outlookSynced: number;
+  outlookError: string | null;
 };
 
 export async function createUserCalendarEvents(
@@ -69,7 +72,15 @@ export async function createUserCalendarEvents(
   source: CalendarEvent["source"] = "user",
 ): Promise<CreateUserCalendarEventsResult> {
   if (events.length === 0) {
-    return { events: [], googleConnected: false, googleSynced: 0, googleError: null };
+    return {
+      events: [],
+      googleConnected: false,
+      googleSynced: 0,
+      googleError: null,
+      outlookConnected: false,
+      outlookSynced: 0,
+      outlookError: null,
+    };
   }
   const { isMarketingPreview } = await import("./marketingPreview");
   if (isMarketingPreview()) {
@@ -88,7 +99,15 @@ export async function createUserCalendarEvents(
       };
     });
     useCalendarStore.getState().addEvents(created);
-    return { events: created, googleConnected: false, googleSynced: 0, googleError: null };
+    return {
+      events: created,
+      googleConnected: false,
+      googleSynced: 0,
+      googleError: null,
+      outlookConnected: false,
+      outlookSynced: 0,
+      outlookError: null,
+    };
   }
   const r = await fetch(apiUrl(BASE), {
     method: "POST",
@@ -104,12 +123,18 @@ export async function createUserCalendarEvents(
     googleConnected?: boolean;
     googleSynced?: number;
     googleError?: string | null;
+    outlookConnected?: boolean;
+    outlookSynced?: number;
+    outlookError?: string | null;
   };
   return {
     events: (data.events ?? []).map(toCalendarEvent),
     googleConnected: Boolean(data.googleConnected),
     googleSynced: data.googleSynced ?? 0,
     googleError: data.googleError ?? null,
+    outlookConnected: Boolean(data.outlookConnected),
+    outlookSynced: data.outlookSynced ?? 0,
+    outlookError: data.outlookError ?? null,
   };
 }
 
@@ -135,6 +160,31 @@ export async function syncUserEventsToGoogle(): Promise<{
   events: CalendarEvent[];
 }> {
   const r = await fetch(apiUrl(`${BASE}/sync-google`), {
+    method: "POST",
+    headers: await authHeaders(),
+  });
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(text || `HTTP ${r.status}`);
+  }
+  const data = (await r.json()) as {
+    synced?: number;
+    reason?: string | null;
+    events?: PersistedCalendarEventPayload[];
+  };
+  return {
+    synced: data.synced ?? 0,
+    reason: data.reason,
+    events: (data.events ?? []).map(toCalendarEvent),
+  };
+}
+
+export async function syncUserEventsToOutlook(): Promise<{
+  synced: number;
+  reason?: string | null;
+  events: CalendarEvent[];
+}> {
+  const r = await fetch(apiUrl(`${BASE}/sync-outlook`), {
     method: "POST",
     headers: await authHeaders(),
   });

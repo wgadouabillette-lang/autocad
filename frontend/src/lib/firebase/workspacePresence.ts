@@ -362,13 +362,19 @@ export async function markWorkspacePresenceAway(workspaceId: string, uid: string
   }
 }
 
+async function currentVoicePresence(workspaceId: string): Promise<WorkspaceVoicePresence> {
+  const { buildLocalVoicePresenceForWorkspace } = await import("../../store/useCallsStore");
+  return buildLocalVoicePresenceForWorkspace(workspaceId);
+}
+
 export async function pushWorkspacePresenceActivity(
   workspaceId: string,
   uid: string,
   profile: { displayName: string; photoURL?: string | null },
   presenceActivity: PresenceActivityId | null,
 ): Promise<void> {
-  await touchWorkspacePresence(workspaceId, uid, profile, undefined, presenceActivity);
+  const voice = await currentVoicePresence(workspaceId);
+  await touchWorkspacePresence(workspaceId, uid, profile, voice, presenceActivity);
 }
 
 export async function pushWorkspaceVoiceState(
@@ -386,6 +392,9 @@ export async function pushProfileToJoinedWorkspaces(
 ): Promise<void> {
   const workspaces = useWorkspacesStore.getState().joinedWorkspaces(uid);
   await Promise.all(
-    workspaces.map((workspace) => touchWorkspacePresence(workspace.id, uid, profile)),
+    workspaces.map(async (workspace) => {
+      const voice = await currentVoicePresence(workspace.id);
+      await touchWorkspacePresence(workspace.id, uid, profile, voice);
+    }),
   );
 }

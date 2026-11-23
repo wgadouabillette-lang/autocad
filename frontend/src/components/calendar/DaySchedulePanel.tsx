@@ -53,8 +53,9 @@ export default function DaySchedulePanel() {
   const outlookEvents = useCalendarStore((s) => s.outlookEvents);
   const { needsReconnect: googleNeedsReconnect, error: googleSyncError } =
     useGoogleCalendarSync(selectedDate);
-  const connectGoogleCalendar = useConnectorsStore((s) => s.connect);
-  useOutlookCalendarSync(selectedDate);
+  const { needsReconnect: outlookNeedsReconnect, error: outlookSyncError } =
+    useOutlookCalendarSync(selectedDate);
+  const connectCalendar = useConnectorsStore((s) => s.connect);
   usePersistedCalendarEvents();
   const joinCall = useDirectCallStore((s) => s.joinCall);
   const events = useMemo(
@@ -164,6 +165,22 @@ export default function DaySchedulePanel() {
         )}
       </div>
 
+      {!isMarketingPreview() && (outlookNeedsReconnect || outlookSyncError) && (
+        <div className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">
+          <span>
+            {outlookSyncError ??
+              "Outlook déconnecté — reconnectez pour synchroniser vos événements."}
+          </span>
+          <button
+            type="button"
+            className="calendar-panel__sync-connect"
+            onClick={() => void connectCalendar("outlook")}
+          >
+            Reconnecter Outlook
+          </button>
+        </div>
+      )}
+
       {!isMarketingPreview() && (googleNeedsReconnect || googleSyncError) && (
         <div className="calendar-panel__sync-banner calendar-panel__sync-banner--warn">
           <span>
@@ -173,7 +190,7 @@ export default function DaySchedulePanel() {
           <button
             type="button"
             className="calendar-panel__sync-connect"
-            onClick={() => void connectGoogleCalendar("calendar")}
+            onClick={() => void connectCalendar("calendar")}
           >
             Reconnecter Google Calendar
           </button>

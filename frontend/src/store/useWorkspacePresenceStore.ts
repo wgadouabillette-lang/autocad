@@ -62,7 +62,11 @@ function mergeRosterAndPresence(
       photoURL: member.photoURL ?? existing?.photoURL,
       lastSeenMs: member.lastSeenMs,
       online: member.online !== false,
-      voice: member.voice ?? existing?.voice ?? emptyVoice(),
+      // Un membre hors ligne ne reste pas dans le vocal qu'il a quitté.
+      voice:
+        member.online === false
+          ? emptyVoice()
+          : (member.voice ?? existing?.voice ?? emptyVoice()),
     };
   }
 
