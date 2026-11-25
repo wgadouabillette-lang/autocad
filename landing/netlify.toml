@@ -111,59 +111,8 @@
   [headers.values]
     Cross-Origin-Opener-Policy = "same-origin-allow-popups"
 
-[[redirects]]
-  from = "/downloads/meetra.exe"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media"
-  status = 302
-  force = true
-
-[[redirects]]
-  from = "/downloads/Meetra.exe"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media"
-  status = 302
-  force = true
-
-[[redirects]]
-  from = "/downloads/Hall.exe"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media"
-  status = 302
-  force = true
-
-[[redirects]]
-  from = "/downloads/Hall-windows.exe"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media"
-  status = 302
-  force = true
-
-[[redirects]]
-  from = "/downloads/meetra.dmg"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.dmg?alt=media"
-  status = 302
-  force = true
-
-[[redirects]]
-  from = "/downloads/Hall-mac.dmg"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.dmg?alt=media"
-  status = 302
-  force = true
-
-[[redirects]]
-  from = "/downloads/Meetra-linux.AppImage"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra-linux.AppImage?alt=media"
-  status = 302
-  force = true
-
-[[redirects]]
-  from = "/downloads/Hall-linux.AppImage"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra-linux.AppImage?alt=media"
-  status = 302
-  force = true
-
-[[redirects]]
-  from = "/desktop-updates/:file"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/desktop-updates%2F:file?alt=media"
-  status = 302
-  force = true
+# Installers are proxied by vercel.json rewrites so the browser stays on
+# meetra.cc. A redirect to firebasestorage makes Windows/Edge block the .exe.
 
 [[headers]]
   for = "/downloads/*"
