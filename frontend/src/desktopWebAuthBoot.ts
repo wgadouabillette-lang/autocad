@@ -2,7 +2,10 @@ import { initializeApp } from "firebase/app";
 import {
   GoogleAuthProvider,
   getAuth,
+  getRedirectResult,
   signInWithPopup,
+  signInWithRedirect,
+  signOut,
   type UserCredential,
 } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -16,7 +19,9 @@ const GOOGLE_AUTO_KEY = "meetraDesktopAuthGoogle";
 const LAST_EMAIL_KEY = "meetraDesktopAuthLastEmail";
 const LAST_ACCOUNT_KEY = "meetraDesktopAuthLastAccount";
 const REQUIRE_CHOICE_KEY = "meetraDesktopAuthRequireChoice";
+const REDIRECT_STARTED_KEY = "meetraDesktopAuthRedirect";
 const MAX_KNOWN_ACCOUNTS = 8;
+const SIGN_IN_TIMEOUT_MS = 90_000;
 
 type LastAccount = {
   email: string;
@@ -258,18 +263,10 @@ function renderAccountAvatar(el: HTMLElement, account: LastAccount): void {
 
 function googleProvider(loginHint?: string | null) {
   const provider = new GoogleAuthProvider();
-  const params: Record<string, string> = { prompt: "select_account" };
-  if (loginHint) params.login_hint = loginHint;
-  provider.setCustomParameters(params);
+  const custom: Record<string, string> = { prompt: "select_account" };
+  if (loginHint) custom.login_hint = loginHint;
+  provider.setCustomParameters(custom);
   return provider;
-}
-
-function appHint(): string {
-  const normalized = (platformParam ?? readValue(PLATFORM_STORAGE_KEY) ?? "").toLowerCase();
-  if (normalized.includes("win")) return "Windows";
-  if (normalized.includes("linux") || normalized.includes("x11")) return "Linux";
-  if (normalized.includes("mac") || normalized.includes("darwin")) return "macOS";
-  return "your computer";
 }
 
 function showBusy(): void {
@@ -352,12 +349,14 @@ function showDone(code: string): void {
   clearValue(PLATFORM_STORAGE_KEY);
   clearValue(GOOGLE_AUTO_KEY);
   clearValue(REQUIRE_CHOICE_KEY);
+  clearValue(REDIRECT_STARTED_KEY);
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
 function showError(message: string): void {
   const lead = document.getElementById("error-lead");
   if (lead) lead.textContent = message;
+  clearValue(REDIRECT_STARTED_KEY);
   document.documentElement.classList.remove("is-done", "is-busy", "is-choose", "has-account");
   document.documentElement.classList.add("is-error");
 }
@@ -381,6 +380,20 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+async function withBusyTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+  let timer: number | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error(message)), SIGN_IN_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) window.clearTimeout(timer);
+  }
+}
+
 function oauthPayloadFromResult(result: UserCredential) {
   const credential = GoogleAuthProvider.credentialFromResult(result);
   const idToken = credential?.idToken || "";
@@ -399,7 +412,10 @@ async function completeViaBackend(
   sessionId: string,
   result: UserCredential | null,
 ): Promise<string | "denied" | "failed"> {
-  const idToken = await auth.currentUser?.getIdToken(true);
+  const idToken =
+    (result ? await result.user.getIdToken(true).catch(() => null) : null) ??
+    (await auth.currentUser?.getIdToken(true).catch(() => null)) ??
+    null;
   if (!idToken) return "failed";
   let oauth: ReturnType<typeof oauthPayloadFromResult> | null = null;
   if (result) {
@@ -471,9 +487,26 @@ async function finishSignIn(result: UserCredential | null): Promise<void> {
   showDone(code);
 }
 
+/**
+ * Leave any leftover Firebase user, then start Google via redirect.
+ * Popup cannot be opened after `await signOut` (gesture already consumed),
+ * and popup-while-signed-in hangs when switching to a different/stale account.
+ */
+async function switchAccountViaRedirect(loginHint?: string | null): Promise<void> {
+  showBusy();
+  persistValue(REDIRECT_STARTED_KEY, "1");
+  if (auth.currentUser) {
+    await signOut(auth);
+  }
+  await signInWithRedirect(auth, googleProvider(loginHint));
+}
+
 async function startGooglePopup(loginHint?: string | null): Promise<void> {
   showBusy();
-  const result = await signInWithPopup(auth, googleProvider(loginHint));
+  const result = await withBusyTimeout(
+    signInWithPopup(auth, googleProvider(loginHint)),
+    "Sign-in timed out. Click Continue with Google to try again.",
+  );
   await finishSignIn(result);
 }
 
@@ -489,10 +522,16 @@ async function continueAsAccount(account: LastAccount): Promise<void> {
     try {
       await auth.currentUser.getIdToken(true);
     } catch {
-      await startGooglePopup(account.email);
+      await switchAccountViaRedirect(account.email);
       return;
     }
     await finishSignIn(null);
+    return;
+  }
+  // Another / stale account while a leftover Firebase user is still signed in:
+  // leave that session first (redirect survives the await; popup would hang).
+  if (auth.currentUser) {
+    await switchAccountViaRedirect(account.email);
     return;
   }
   await startGooglePopup(account.email);
@@ -500,10 +539,16 @@ async function continueAsAccount(account: LastAccount): Promise<void> {
 
 async function useAnotherAccount(): Promise<void> {
   showBusy();
-  // Open Google in this click. Signing out first consumes the gesture, the
-  // popup is blocked, and the page falls back to "Continue with Google".
+  await auth.authStateReady();
+  if (auth.currentUser) {
+    await switchAccountViaRedirect(null);
+    return;
+  }
   try {
-    const result = await signInWithPopup(auth, googleProvider());
+    const result = await withBusyTimeout(
+      signInWithPopup(auth, googleProvider()),
+      "Sign-in timed out. Click Continue with Google to try again.",
+    );
     await finishSignIn(result);
   } catch (err) {
     const code = errorCode(err);
@@ -519,6 +564,23 @@ async function useAnotherAccount(): Promise<void> {
   }
 }
 
+async function finishRedirectReturn(): Promise<boolean> {
+  if (readValue(REDIRECT_STARTED_KEY) !== "1") return false;
+  clearValue(REDIRECT_STARTED_KEY);
+  showBusy();
+  const redirectResult = await getRedirectResult(auth);
+  if (redirectResult) {
+    await finishSignIn(redirectResult);
+    return true;
+  }
+  // Some browsers restore auth.currentUser without a credential payload.
+  if (auth.currentUser) {
+    await finishSignIn(null);
+    return true;
+  }
+  return false;
+}
+
 async function boot(): Promise<void> {
   if (!shouldOfferDesktopGoogle()) {
     showError("Open this page from the Meetra app to sign in.");
@@ -526,6 +588,14 @@ async function boot(): Promise<void> {
   }
 
   await auth.authStateReady();
+
+  try {
+    if (await finishRedirectReturn()) return;
+  } catch (err) {
+    showError(errorMessage(err, "Sign-in failed."));
+    return;
+  }
+
   rememberCurrentUserAccount();
 
   // Never write a desktop session from a leftover browser Firebase user.

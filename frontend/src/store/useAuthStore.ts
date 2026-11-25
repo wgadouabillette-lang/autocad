@@ -119,6 +119,8 @@ function forgetMeetraIntroCompleted(uid: string): void {
 
 interface AuthState {
   ready: boolean;
+  /** True while hydrateRemoteData runs after sign-in. Keeps the shell unmounted without flipping ready→false (desktop splash). */
+  authHydrating: boolean;
   isAuthenticated: boolean;
   authEmail: string | null;
   authProvider: AuthProvider | null;
@@ -533,6 +535,7 @@ async function hydrateRemoteData(
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   ready: false,
+  authHydrating: false,
   isAuthenticated: false,
   authEmail: null,
   authProvider: null,
@@ -570,6 +573,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // #endregion
       set({
         ready: true,
+        authHydrating: false,
         isAuthenticated: false,
         authEmail: null,
         authProvider: null,
@@ -579,7 +583,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const readyFallback = window.setTimeout(() => {
       if (!disposed && !get().ready && pendingAuthResolved) {
-        set({ ready: true });
+        set({ ready: true, authHydrating: false });
       }
     }, 2500);
 
@@ -609,15 +613,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const introStillValid =
         get().meetraIntroCompleted || rememberedMeetraIntroCompleted(user.uid);
-      // Keep ready if the splash already closed. Setting it back to false
-      // leaves the desktop on splash.html, which cannot install updates.
-      set({ meetraIntroCompleted: introStillValid });
-      set({ ...applyFirebaseUser(user), desktopWebAuthPending: false });
+      // Keep ready true if the splash already closed — flipping it back to false
+      // leaves desktop on splash.html, which cannot install updates. Use
+      // authHydrating instead so the authenticated shell waits for hydrate.
+      set({
+        meetraIntroCompleted: introStillValid,
+        authHydrating: true,
+        ...applyFirebaseUser(user),
+        desktopWebAuthPending: false,
+      });
 
       const readySafety = window.setTimeout(() => {
-        if (!disposed && loadId === authLoadId && auth.currentUser?.uid === user.uid && !get().ready) {
-          set({ ready: true });
-          useStore.getState().openAgentPanel();
+        if (!disposed && loadId === authLoadId && auth.currentUser?.uid === user.uid) {
+          if (!get().ready || get().authHydrating) {
+            set({ ready: true, authHydrating: false });
+            useStore.getState().openAgentPanel();
+          }
         }
       }, AUTH_HYDRATE_TIMEOUT_MS);
 
@@ -676,7 +687,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (subscriptionPlan === "pro" && billingManaged) {
             void syncDevSubscriptionToFirestore("pro", onDemandUsageEnabled).catch(() => {});
           }
-          set({ ready: true });
+          set({ ready: true, authHydrating: false });
           useStore.getState().openAgentPanel();
         }
       })();
@@ -688,7 +699,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     absoluteReady = window.setTimeout(() => {
       if (disposed || get().ready) return;
       if (auth.currentUser) {
-        set({ ready: true });
+        set({ ready: true, authHydrating: false });
         return;
       }
       setSignedOut("absolute-ready-timeout");
@@ -699,7 +710,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await completeEmailLinkSignInIfPresent();
       } catch (error: unknown) {
         const message = formatAuthError(error);
-        if (message && !disposed) set({ authError: message, ready: true });
+        if (message && !disposed) set({ authError: message, ready: true, authHydrating: false });
       }
 
       let redirectUser: User | null = null;
@@ -707,7 +718,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         redirectUser = await completeOAuthRedirectIfPresent();
       } catch (error: unknown) {
         const message = formatAuthError(error);
-        if (message && !disposed) set({ authError: message, ready: true });
+        if (message && !disposed) set({ authError: message, ready: true, authHydrating: false });
       }
 
       if (disposed) return;
@@ -900,6 +911,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         authError: formatAuthError(error, provider),
         ready: true,
+        authHydrating: false,
         desktopWebAuthPending: false,
         desktopWebAuthConnected: false,
         desktopWebAuthCodeError: null,
@@ -967,6 +979,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
     set({
       ready: true,
+      authHydrating: false,
       isAuthenticated: false,
       authEmail: null,
       authProvider: null,
@@ -975,7 +988,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       desktopWebAuthPending: false,
       desktopWebAuthConnected: false,
       desktopWebAuthCodeError: null,
-  desktopWebAuthCodeBusy: false,
+      desktopWebAuthCodeBusy: false,
       meetraIntroCompleted: false,
     });
     if (hasFormaDesktop()) {

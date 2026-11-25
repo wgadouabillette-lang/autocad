@@ -112,26 +112,38 @@
     Cross-Origin-Opener-Policy = "same-origin-allow-popups"
 
 [[redirects]]
+  from = "/downloads/meetra.exe"
+  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media"
+  status = 302
+  force = true
+
+[[redirects]]
   from = "/downloads/Meetra.exe"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media"
+  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media"
   status = 302
   force = true
 
 [[redirects]]
   from = "/downloads/Hall.exe"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media"
+  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media"
   status = 302
   force = true
 
 [[redirects]]
   from = "/downloads/Hall-windows.exe"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FMeetra.exe?alt=media"
+  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.exe?alt=media"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/downloads/meetra.dmg"
+  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.dmg?alt=media"
   status = 302
   force = true
 
 [[redirects]]
   from = "/downloads/Hall-mac.dmg"
-  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2FHall-mac.dmg?alt=media"
+  to = "https://firebasestorage.googleapis.com/v0/b/forma-cad-dev.firebasestorage.app/o/downloads%2Fmeetra.dmg?alt=media"
   status = 302
   force = true
 

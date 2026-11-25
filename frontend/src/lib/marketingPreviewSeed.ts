@@ -663,7 +663,7 @@ function buildPreviewCalendarEvents(today: string): CalendarEvent[] {
       dateKey: nextWeek,
       startMinutes: 11 * 60,
       endMinutes: 11 * 60 + 45,
-      title: "Riley · 1:1",
+      title: "Riley · sync",
       source: "user",
     },
   ];

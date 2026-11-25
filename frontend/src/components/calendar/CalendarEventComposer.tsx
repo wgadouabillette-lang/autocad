@@ -15,8 +15,6 @@ import { fetchOutlookCalendarStatus } from "../../lib/outlookCalendarSync";
 import { notifyCalendarEventsChanged } from "../../hooks/usePersistedCalendarEvents";
 import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useStore } from "../../store/useStore";
-import { directCallDetailLine } from "../../lib/directCallCalendar";
-import { createDirectCallId } from "../../store/useDirectCallStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
 import { isMarketingPreview } from "../../lib/marketingPreview";
 import { usePeopleStore } from "../../store/usePeopleStore";
@@ -94,7 +92,6 @@ export default function CalendarEventComposer({
   const [startTime, setStartTime] = useState(() => defaultStartTime(composerInitialHour));
   const [endTime, setEndTime] = useState(() => defaultEndTime(composerInitialHour));
   const [invitedIds, setInvitedIds] = useState<Set<string>>(() => new Set());
-  const [generatedId, setGeneratedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -129,12 +126,7 @@ export default function CalendarEventComposer({
       return;
     }
 
-    const detailTrimmed = [
-      detail.trim(),
-      plain && generatedId ? directCallDetailLine(generatedId) : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    const detailTrimmed = detail.trim();
 
     if (isMarketingPreview()) {
       const invitedNames = sortedFriends
@@ -327,19 +319,6 @@ export default function CalendarEventComposer({
             />
           </label>
         </div>
-
-        {plain ? (
-          <div className="calendar-event-composer__date-field">
-            <span className="calendar-event-composer__time-label">{t("directCall.generateId")}</span>
-            <button
-              type="button"
-              className="calendar-event-composer__time-input direct-call__generate"
-              onClick={() => setGeneratedId(createDirectCallId())}
-            >
-              {generatedId ?? t("directCall.generateIdHint")}
-            </button>
-          </div>
-        ) : null}
 
         {plain ? null : (
         <div className="calendar-event-composer__participants">

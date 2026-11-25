@@ -103,28 +103,6 @@
           ".validate": "!newData.exists() || (newData.hasChildren(['id', 'workspaceId', 'fromUid', 'fromName', 'toUid', 'status']) && newData.child('toUid').isString() && newData.child('toUid').val().length > 0 && ((!data.exists() && newData.child('fromUid').val() == auth.uid && newData.child('status').val() == 'pending') || (!data.exists() && newData.child('status').val() == 'ejected' && newData.child('fromUid').val() == auth.uid && newData.child('id').val() == 'eject_' + auth.uid + '_' + newData.child('toUid').val() && root.child('voiceKnocks').child($workspaceId).child(newData.child('toUid').val() + '_' + auth.uid).child('status').val() == 'accepted' && root.child('voiceKnocks').child($workspaceId).child(newData.child('toUid').val() + '_' + auth.uid).child('toUid').val() == auth.uid) || (data.exists() && newData.child('fromUid').val() == data.child('fromUid').val() && newData.child('toUid').val() == data.child('toUid').val() && ((auth.uid == data.child('toUid').val() && newData.child('status').val().matches(/^(accepted|declined)$/)) || (auth.uid == data.child('fromUid').val() && auth.uid != data.child('toUid').val() && newData.child('status').val().matches(/^(pending|declined)$/))))))"
         }
       }
-    },
-
-    "directCalls": {
-      "$callId": {
-        ".read": "auth != null && data.child(auth.uid).exists()",
-        "$uid": {
-          ".write": "auth != null && auth.uid == $uid",
-          ".validate": "!newData.exists() || (newData.hasChildren(['uid', 'displayName', 'joinedAt']) && newData.child('uid').val() == auth.uid && newData.child('displayName').isString() && newData.child('displayName').val().length > 0 && newData.child('displayName').val().length <= 120 && newData.child('joinedAt').isNumber() && (!newData.child('lastSeen').exists() || newData.child('lastSeen').isNumber()))"
-        }
-      }
-    },
-
-    "directCallRtc": {
-      "$callId": {
-        "$toUid": {
-          ".read": "auth != null && auth.uid == $toUid && root.child('directCalls').child($callId).child(auth.uid).exists()",
-          "$pushId": {
-            ".write": "auth != null && root.child('directCalls').child($callId).child(auth.uid).exists() && ((!data.exists() && newData.child('fromUid').val() == auth.uid && newData.child('toUid').val() == $toUid) || (data.exists() && (data.child('fromUid').val() == auth.uid || data.child('toUid').val() == auth.uid) && !newData.exists()))",
-            ".validate": "!newData.exists() || (newData.hasChildren(['fromUid', 'toUid', 'type']) && newData.child('type').val().matches(/^(offer|answer|candidate)$/) && newData.child('createdAt').isNumber())"
-          }
-        }
-      }
     }
   }
 }

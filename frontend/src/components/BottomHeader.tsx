@@ -21,7 +21,6 @@ import {
 import NotificationsPanel from "./notifications/NotificationsPanel";
 import { useCalendarOverlayStore } from "../store/useCalendarOverlayStore";
 import { useCallsStore } from "../store/useCallsStore";
-import { useDirectCallStore } from "../store/useDirectCallStore";
 import { useNotificationsStore } from "../store/useNotificationsStore";
 import { countBlockCallParticipants, isLocalPrivateCallHost } from "../lib/calls";
 import {
@@ -89,8 +88,6 @@ export default function BottomHeader() {
   const toggleScreenShare = useCallsStore((s) => s.toggleScreenShare);
   const toggleRecording = useCallsStore((s) => s.toggleRecording);
   const leaveCall = useCallsStore((s) => s.leaveCall);
-  const directCallId = useDirectCallStore((s) => s.callId);
-  const leaveDirectCall = useDirectCallStore((s) => s.leaveCall);
   const toggleNotifications = useNotificationsStore((s) => s.togglePanel);
   const notificationsOpen = useNotificationsStore((s) => s.panelOpen);
   const notificationItems = useNotificationsStore((s) => s.items);
@@ -489,17 +486,14 @@ export default function BottomHeader() {
           </label>
         )}
 
-      {(showLeaveCall || directCallId) && (
+      {showLeaveCall && (
         <BottomBarButton
           label={
-            !directCallId && viewMode === "theater" && inTheaterCall
+            viewMode === "theater" && inTheaterCall
               ? t("bar.leaveTheater")
               : t("bar.leave")
           }
-          onClick={() => {
-            if (directCallId) leaveDirectCall();
-            else leaveCall(activeRoomId);
-          }}
+          onClick={() => leaveCall(activeRoomId)}
           danger
         >
           <PhoneOff size={ICON_SIZE} />

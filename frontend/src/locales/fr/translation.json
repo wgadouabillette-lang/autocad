@@ -692,28 +692,5 @@
     },
     "sayHello": "Dites bonjour à {{name}}.",
     "liveChatEveryone": "Tout le monde a accès à ce chat en direct"
-  },
-  "directCall": {
-    "title": "Appelez n'importe qui en dehors de ce workspace",
-    "subtitle": "Choisissez l'option qui correspond à ce que vous voulez faire ensuite. Vous pouvez rejoindre un appel, en lancer un nouveau tout de suite ou le planifier pour plus tard, puis continuer à partir de là.",
-    "join": "Rejoindre un appel",
-    "joinNote": "Avec un code ou un lien.",
-    "start": "Nouvel appel",
-    "startNote": "Lancez-en un tout de suite.",
-    "schedule": "Planifier",
-    "scheduleNote": "Choisissez une heure plus tard.",
-    "joinPlaceholder": "Collez le lien de l'appel",
-    "pasteTitle": "Collez votre identifiant",
-    "pasteSubtitle": "Collez l'identifiant affiché en bas de l'appel que vous voulez rejoindre.",
-    "scheduleTitle": "Planifier un appel",
-    "scheduleSubtitle": "Ajoutez l'heure et les détails, puis générez un identifiant que les autres pourront utiliser pour rejoindre.",
-    "scheduleIdLater": "Vous pourrez copier l'identifiant plus tard, donc pas besoin de vous inquiéter de le perdre d'ici là.",
-    "generateId": "Générer un identifiant",
-    "generateIdHint": "Générer un identifiant pour cet appel",
-    "joinNow": "Rejoindre",
-    "copyId": "Copier l'identifiant {{id}}",
-    "copied": "Copié",
-    "meetingSoon": "Vous avez une réunion dans 5 minutes",
-    "leave": "Quitter"
   }
 }

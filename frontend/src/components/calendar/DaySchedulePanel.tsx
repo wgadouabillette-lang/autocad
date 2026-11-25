@@ -15,9 +15,7 @@ import { useCalendarOverlayStore } from "../../store/useCalendarOverlayStore";
 import { useCalendarStore } from "../../store/useCalendarStore";
 import { useStore } from "../../store/useStore";
 import { deleteCalendarEventById } from "../../lib/calendarEventDelete";
-import { isDirectCallJoinWindow } from "../../lib/directCallCalendar";
 import { isMarketingPreview } from "../../lib/marketingPreview";
-import { useDirectCallStore } from "../../store/useDirectCallStore";
 import CalendarEventComposer from "./CalendarEventComposer";
 
 const HOUR_HEIGHT = 48;
@@ -57,7 +55,6 @@ export default function DaySchedulePanel() {
     useOutlookCalendarSync(selectedDate);
   const connectCalendar = useConnectorsStore((s) => s.connect);
   usePersistedCalendarEvents();
-  const joinCall = useDirectCallStore((s) => s.joinCall);
   const events = useMemo(
     () => useCalendarStore.getState().calendarEventsForDate(selectedDate),
     [selectedDate, userEvents, googleEvents, outlookEvents],
@@ -68,14 +65,11 @@ export default function DaySchedulePanel() {
     const d = new Date();
     return d.getHours() * 60 + d.getMinutes();
   });
-  const [nowMs, setNowMs] = useState(() => Date.now());
-
   useEffect(() => {
     if (!viewingToday) return;
     const tick = () => {
       const d = new Date();
       setNowMinutes(d.getHours() * 60 + d.getMinutes());
-      setNowMs(d.getTime());
     };
     const id = window.setInterval(tick, 15_000);
     return () => window.clearInterval(id);
@@ -233,34 +227,11 @@ export default function DaySchedulePanel() {
               22,
               ((event.endMinutes - event.startMinutes) / 60) * HOUR_HEIGHT - 2,
             );
-            const joinable =
-              !!event.callId &&
-              isDirectCallJoinWindow(
-                event.dateKey,
-                event.startMinutes,
-                event.endMinutes,
-                nowMs,
-              );
-            const body = (
-              <>
-                <div className="calendar-panel__event-title">{event.title}</div>
-                {event.detail && (
-                  <div className="calendar-panel__event-detail">{event.detail}</div>
-                )}
-                {joinable ? (
-                  <span className="calendar-panel__event-join-label">{t("directCall.joinNow")}</span>
-                ) : status === "now" ? (
-                  <span className="calendar-panel__event-live">{t("calendarUi.inProgress")}</span>
-                ) : null}
-              </>
-            );
             return (
               <div
                 key={event.id}
                 className={clsx(
                   "calendar-panel__event group",
-                  event.callId && "calendar-panel__event--call",
-                  joinable && "calendar-panel__event--join",
                   status === "now" && "calendar-panel__event--now",
                   status === "past" && "calendar-panel__event--past",
                   revealedEventId === event.id && "calendar-panel__event--revealed",
@@ -280,17 +251,13 @@ export default function DaySchedulePanel() {
                 >
                   <X size={11} strokeWidth={2.25} aria-hidden />
                 </button>
-                {joinable && event.callId ? (
-                  <button
-                    type="button"
-                    className="calendar-panel__event-join"
-                    onClick={() => joinCall(event.callId!)}
-                  >
-                    {body}
-                  </button>
-                ) : (
-                  body
+                <div className="calendar-panel__event-title">{event.title}</div>
+                {event.detail && (
+                  <div className="calendar-panel__event-detail">{event.detail}</div>
                 )}
+                {status === "now" ? (
+                  <span className="calendar-panel__event-live">{t("calendarUi.inProgress")}</span>
+                ) : null}
               </div>
             );
           })}

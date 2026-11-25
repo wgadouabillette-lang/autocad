@@ -18,7 +18,6 @@ import { useWorkspacePresence } from "./hooks/useWorkspacePresence";
 import { useWorkspaceJoinRequests } from "./hooks/useWorkspaceJoinRequests";
 import { useWorkspaceVoiceKnocks } from "./hooks/useWorkspaceVoiceKnocks";
 import { useWorkspaceVoiceRtc } from "./hooks/useWorkspaceVoiceRtc";
-import { useDirectCallRtc } from "./hooks/useDirectCallRtc";
 import { useWorkspacePolls } from "./hooks/useWorkspacePolls";
 import { useWorkspaceTextChannels } from "./hooks/useWorkspaceTextChannels";
 import { useWorkspaceOpenVoiceChannels } from "./hooks/useWorkspaceOpenVoiceChannels";
@@ -142,6 +141,7 @@ export default function App() {
   const handleRecordingCaptureLost = useCallsStore((s) => s.handleRecordingCaptureLost);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authReady = useAuthStore((s) => s.ready);
+  const authHydrating = useAuthStore((s) => s.authHydrating);
   const authEmail = useAuthStore((s) => s.authEmail);
   const firebaseUid = useAuthStore((s) => s.firebaseUid);
   const desktopWebAuthConnected = useAuthStore((s) => s.desktopWebAuthConnected);
@@ -160,7 +160,9 @@ export default function App() {
 
   const { progress: updateProgress, blockingUpdate } = useDesktopUpdater();
   const [forceLeaveSplash, setForceLeaveSplash] = useState(false);
-  const showDesktopAuthSuccess = Boolean(desktopWebAuthConnected && !authReady);
+  // Keep AuthPage on the desktop web-auth success state until hydrate finishes
+  // (acknowledge clears the flag only after authHydrating is false).
+  const showDesktopAuthSuccess = Boolean(desktopWebAuthConnected && hasFormaDesktop());
   const launchPending =
     !forceLeaveSplash &&
     (!authReady ||
@@ -215,7 +217,6 @@ export default function App() {
   useWorkspaceJoinRequests();
   useWorkspaceVoiceKnocks();
   useWorkspaceVoiceRtc();
-  useDirectCallRtc();
   useWorkspacePolls();
   useWorkspaceOpenVoiceChannels();
   useWorkspaceTextChannels();
@@ -299,9 +300,11 @@ export default function App() {
   }, [isAuthenticated, authEmail]);
 
   useEffect(() => {
-    if (bootStatus !== "ready" || !authReady || !isAuthenticated || !authEmail) return;
+    if (bootStatus !== "ready" || !authReady || !isAuthenticated || !authEmail || authHydrating) {
+      return;
+    }
     useAuthStore.getState().acknowledgeDesktopAuthConnected();
-  }, [bootStatus, authReady, isAuthenticated, authEmail, desktopWebAuthConnected]);
+  }, [bootStatus, authReady, isAuthenticated, authEmail, desktopWebAuthConnected, authHydrating]);
 
   useEffect(() => {
     if (!isAuthenticated || !firebaseUid || !authEmail) return;
@@ -428,7 +431,7 @@ export default function App() {
       ? "loading-auth"
       : !isAuthenticated
         ? "auth-page"
-        : bootStatus !== "ready"
+        : authHydrating || bootStatus !== "ready"
           ? "loading-boot"
           : "app";
   // #region agent log
@@ -439,6 +442,7 @@ export default function App() {
       {
         renderBranch,
         authReady,
+        authHydrating,
         isAuthenticated,
         bootStatus,
         authEmail,
@@ -451,7 +455,11 @@ export default function App() {
   // #endregion
 
   const showEntryGate =
-    showDesktopAuthSuccess || !authReady || !isAuthenticated || bootStatus !== "ready";
+    showDesktopAuthSuccess ||
+    !authReady ||
+    !isAuthenticated ||
+    authHydrating ||
+    bootStatus !== "ready";
   const entryPhase =
     (authReady && !isAuthenticated && !blockingUpdate) || showDesktopAuthSuccess
       ? "signin"

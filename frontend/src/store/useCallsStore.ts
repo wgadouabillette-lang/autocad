@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { dismissVoiceKnock } from "../lib/firebase/workspaceVoiceKnocks";
-import { useDirectCallStore } from "./useDirectCallStore";
 import {
   DEFAULT_LAST_SPOKE_AT,
   DEFAULT_PARTICIPANT_MEDIA,
@@ -522,72 +521,91 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     }
     // #endregion
     const localFirebaseUid = useAuthStore.getState().firebaseUid;
-    const hadRoom = Boolean(get().callsByRoom[workspaceId]);
-    set((s) => {
-      let room = syncRoomCallsWithMembers(
+    const prev = get();
+    const hadRoom = Boolean(prev.callsByRoom[workspaceId]);
+    const previousRoom = prev.callsByRoom[workspaceId];
+    const previousTheater = prev.theaterByWorkspace[workspaceId];
+
+    let room = syncRoomCallsWithMembers(workspaceId, previousRoom, localFirebaseUid);
+
+    const presenceMembers = useWorkspacePresenceStore.getState().membersByWorkspace[workspaceId];
+    if (presenceMembers) {
+      const voiceMembers = Object.entries(presenceMembers).map(([id, entry]) => ({
+        id,
+        name: entry.displayName,
+        photoURL: entry.photoURL,
+        inPrivateCall: entry.voice.inPrivateCall,
+        openChannelId: entry.voice.openChannelId,
+        inTheaterCall: entry.voice.inTheaterCall,
+      }));
+      const applied = applyRemoteVoiceFromPresence(
         workspaceId,
-        s.callsByRoom[workspaceId],
+        room.blocks,
+        room.openChannels,
+        voiceMembers,
         localFirebaseUid,
+        prev.localOpenChannelByRoom[workspaceId] ?? null,
       );
+      const previousBlocks = previousRoom?.blocks ?? room.blocks;
+      let blocks = reconcileBlocksAfterPresenceSync(
+        previousBlocks,
+        applied.blocks,
+        voiceMembers,
+        workspaceId,
+      );
+      blocks = splitDepartedRemotesFromMergedBlocks(blocks, voiceMembers, workspaceId);
+      room = { ...room, blocks, openChannels: applied.openChannels };
+    }
 
-      const presenceMembers = useWorkspacePresenceStore.getState().membersByWorkspace[workspaceId];
-      if (presenceMembers) {
-        const voiceMembers = Object.entries(presenceMembers).map(([id, entry]) => ({
-          id,
-          name: entry.displayName,
-          photoURL: entry.photoURL,
-          inPrivateCall: entry.voice.inPrivateCall,
-          openChannelId: entry.voice.openChannelId,
-          inTheaterCall: entry.voice.inTheaterCall,
-        }));
-        const applied = applyRemoteVoiceFromPresence(
-          workspaceId,
-          room.blocks,
-          room.openChannels,
-          voiceMembers,
-          localFirebaseUid,
-          s.localOpenChannelByRoom[workspaceId] ?? null,
-        );
-        const previousBlocks = s.callsByRoom[workspaceId]?.blocks ?? room.blocks;
-        let blocks = reconcileBlocksAfterPresenceSync(
-          previousBlocks,
-          applied.blocks,
-          voiceMembers,
-          workspaceId,
-        );
-        blocks = splitDepartedRemotesFromMergedBlocks(blocks, voiceMembers, workspaceId);
-        room = { ...room, blocks, openChannels: applied.openChannels };
+    const nextTheater = (() => {
+      if (
+        isMarketingPreview() &&
+        previousTheater &&
+        (previousTheater.speakers.length > 0 || previousTheater.audience.length > 0)
+      ) {
+        return previousTheater;
       }
+      return syncTheaterWithMembers(workspaceId, previousTheater);
+    })();
 
-      return {
-        callsByRoom: {
-          ...s.callsByRoom,
-          [workspaceId]: room,
-        },
-        theaterByWorkspace: {
-          ...s.theaterByWorkspace,
-          [workspaceId]: (() => {
-            const existing = s.theaterByWorkspace[workspaceId];
-            if (
-              isMarketingPreview() &&
-              existing &&
-              (existing.speakers.length > 0 || existing.audience.length > 0)
-            ) {
-              return existing;
+    const roomChanged =
+      !previousRoom ||
+      memberBlocksSignature(previousRoom.blocks) !== memberBlocksSignature(room.blocks) ||
+      openChannelsSignature(previousRoom.openChannels) !== openChannelsSignature(room.openChannels);
+    const theaterChanged =
+      !previousTheater ||
+      theaterRosterSignature(previousTheater) !== theaterRosterSignature(nextTheater);
+
+    if (roomChanged || theaterChanged) {
+      set((s) => ({
+        ...(roomChanged
+          ? {
+              callsByRoom: {
+                ...s.callsByRoom,
+                [workspaceId]: room,
+              },
             }
-            return syncTheaterWithMembers(workspaceId, existing);
-          })(),
-        },
-      };
-    });
+          : {}),
+        ...(theaterChanged
+          ? {
+              theaterByWorkspace: {
+                ...s.theaterByWorkspace,
+                [workspaceId]: nextTheater,
+              },
+            }
+          : {}),
+      }));
+    }
+
     if (!hadRoom) {
-      const room = get().callsByRoom[workspaceId];
-      for (const channel of room?.openChannels ?? []) {
+      for (const channel of room.openChannels) {
         if (channel.isDraft) continue;
         void upsertOpenVoiceChannel(workspaceId, channel.id, channel.name);
       }
     }
-    get().purgeIdleOpenChannels();
+    if (roomChanged || !hadRoom) {
+      get().purgeIdleOpenChannels();
+    }
   },
 
   syncPresenceMembers: (workspaceId, members, localFirebaseUid) => {
@@ -747,9 +765,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     });
 
     if (partnerLeftMergedCall) {
-      if (!useDirectCallStore.getState().callId) {
-        get().stopLocalMediaTracks();
-      }
+      get().stopLocalMediaTracks();
       stopScreenShare();
       playVoiceLeaveSound();
       pushVoicePresence(get, workspaceId);
@@ -1406,9 +1422,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const remainingAudience = withoutLocal(theater.audience);
     const remainingQuestion = theater.question?.isLocal ? null : theater.question;
 
-    if (!useDirectCallStore.getState().callId) {
-      get().stopLocalMediaTracks();
-    }
+    get().stopLocalMediaTracks();
     stopScreenShare();
 
     patchTheater(set, workspaceId, {
@@ -1891,9 +1905,7 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
     const wasInCall = get().isLocalInCall(workspaceId);
 
-    if (!useDirectCallStore.getState().callId) {
-      get().stopLocalMediaTracks();
-    }
+    get().stopLocalMediaTracks();
     stopScreenShare();
 
     const openChannels = mapOpenChannelsVacancy(

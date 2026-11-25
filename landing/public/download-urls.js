@@ -32,9 +32,14 @@
     return "mac";
   }
 
+  // Prefer same-origin /downloads/* so the Mark of the Web / SmartScreen
+  // attribution is meetra.cc (hosting redirects to Firebase Storage).
   var urls = {
-    windows: storageDownloadUrl("meetra.exe"),
-    mac: storageDownloadUrl("meetra.dmg"),
+    windows: "/downloads/meetra.exe",
+    mac: "/downloads/meetra.dmg",
+    // Direct storage fallbacks (scripts / offline previews).
+    windowsStorage: storageDownloadUrl("meetra.exe"),
+    macStorage: storageDownloadUrl("meetra.dmg"),
   };
 
   global.HallDownloadUrls = urls;

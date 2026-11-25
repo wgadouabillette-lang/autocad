@@ -44,8 +44,6 @@ export interface AppNotification {
   updateVersion?: string;
   updateReleaseNotes?: string;
   recordingSessionId?: string;
-  /** Appel 1:1 à rejoindre depuis « Join Now ». */
-  callId?: string;
   /** Demande d'adhésion à accepter ou refuser depuis l'inbox. */
   joinRequestWorkspaceId?: string;
   joinRequesterUid?: string;
