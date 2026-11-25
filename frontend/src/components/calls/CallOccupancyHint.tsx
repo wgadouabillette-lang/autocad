@@ -1,37 +1,30 @@
 import { Cast, Users, Video, type LucideIcon } from "lucide-react";
-import type { RemoteParticipantStreams } from "../../lib/webrtc/workspaceVoiceRtc";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useCallsStore } from "../../store/useCallsStore";
+import { useStore } from "../../store/useStore";
+import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
 
 export type CallOccupancyIconKind = "people" | "camera" | "broadcast";
-
-function liveVideo(stream: MediaStream | null | undefined): boolean {
-  return (
-    stream?.getVideoTracks().some((track) => track.readyState === "live" && track.enabled) ??
-    false
-  );
-}
 
 export function callOccupancyIconKind(input: {
   participants: ReadonlyArray<{ id: string; isLocal?: boolean }>;
   cameraOn: boolean;
   screenSharing: boolean;
-  remoteMediaByUid: Record<string, RemoteParticipantStreams>;
+  localUid: string | null;
+  mediaByUid: Record<string, { camera?: boolean; screenSharing?: boolean } | undefined>;
 }): CallOccupancyIconKind {
   let broadcast = false;
-  const localHere = input.participants.some((participant) => participant.isLocal);
-  if (localHere) {
-    if (input.cameraOn) return "camera";
-    if (input.screenSharing) broadcast = true;
-  }
-
   for (const participant of input.participants) {
-    if (participant.isLocal || participant.id === "local") continue;
-    const media = input.remoteMediaByUid[participant.id];
-    if (!media) continue;
-    if (liveVideo(media.cameraStream)) return "camera";
-    if (liveVideo(media.screenStream)) broadcast = true;
+    const isLocal =
+      participant.isLocal === true ||
+      participant.id === "local" ||
+      (input.localUid != null && participant.id === input.localUid);
+    const media = isLocal
+      ? { camera: input.cameraOn, screenSharing: input.screenSharing }
+      : input.mediaByUid[participant.id];
+    if (media?.camera) return "camera";
+    if (media?.screenSharing) broadcast = true;
   }
-
   return broadcast ? "broadcast" : "people";
 }
 
@@ -53,14 +46,23 @@ export default function CallOccupancyHint({
   participants,
   mediaOnly = false,
 }: CallOccupancyHintProps) {
+  const workspaceId = useStore((s) => s.activeRoomId);
+  const localUid = useAuthStore((s) => s.firebaseUid);
   const cameraOn = useCallsStore((s) => s.cameraOn);
   const screenSharing = useCallsStore((s) => s.screenSharing);
-  const remoteMediaByUid = useCallsStore((s) => s.remoteMediaByUid);
+  const members = useWorkspacePresenceStore((s) => s.membersByWorkspace[workspaceId]);
+  const mediaByUid: Record<string, { camera?: boolean; screenSharing?: boolean } | undefined> = {};
+  if (members) {
+    for (const [uid, entry] of Object.entries(members)) {
+      mediaByUid[uid] = entry.voice;
+    }
+  }
   const kind = callOccupancyIconKind({
     participants,
     cameraOn,
     screenSharing,
-    remoteMediaByUid,
+    localUid,
+    mediaByUid,
   });
   if (mediaOnly && kind === "people") return null;
   const Icon = ICONS[kind];

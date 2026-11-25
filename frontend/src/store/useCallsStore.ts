@@ -246,6 +246,10 @@ function localVoicePresence(get: () => CallsState, workspaceId: string): Workspa
     : get().speakingByParticipant.local === true;
   const inVoice = inCall || inTheater;
   const theater = get().theaterByWorkspace[workspaceId];
+  const presentsMedia =
+    (inCall && !inTheater) ||
+    theater?.localRole === "speaker" ||
+    theater?.localRole === "question";
   return {
     inPrivateCall,
     openChannelId: inCall && openChannelId ? openChannelId : null,
@@ -258,6 +262,8 @@ function localVoicePresence(get: () => CallsState, workspaceId: string): Workspa
     speaking,
     muted: inVoice ? get().muted : false,
     handRaised: inVoice ? get().raiseHand : false,
+    camera: presentsMedia && get().cameraOn,
+    screenSharing: presentsMedia && get().screenSharing,
   };
 }
 

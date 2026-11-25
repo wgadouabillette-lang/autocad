@@ -25,6 +25,9 @@ export interface WorkspaceVoicePresence {
   speaking?: boolean;
   muted?: boolean;
   handRaised?: boolean;
+  /** Visible par tout le workspace, pas seulement par les gens dans l'appel. */
+  camera?: boolean;
+  screenSharing?: boolean;
 }
 
 export interface WorkspacePresenceDoc {
@@ -42,6 +45,8 @@ export interface WorkspacePresenceDoc {
   voiceSpeaking?: boolean;
   voiceMuted?: boolean;
   voiceHandRaised?: boolean;
+  voiceCamera?: boolean;
+  voiceScreenSharing?: boolean;
   presenceActivity?: string | null;
   spotifyNowPlaying?: string | null;
   spotifyNowPlayingImageUrl?: string | null;
@@ -71,6 +76,8 @@ const OFFLINE_CLEAR = {
   voiceSpeaking: false,
   voiceMuted: false,
   voiceHandRaised: false,
+  voiceCamera: false,
+  voiceScreenSharing: false,
   presenceActivity: null,
   spotifyNowPlaying: null,
   spotifyNowPlayingImageUrl: null,
@@ -118,6 +125,8 @@ function voiceFromDoc(data: WorkspacePresenceDoc): WorkspaceVoicePresence {
     speaking: data.voiceSpeaking === true,
     muted: data.voiceMuted === true,
     handRaised: data.voiceHandRaised === true,
+    camera: data.voiceCamera === true,
+    screenSharing: data.voiceScreenSharing === true,
   };
 }
 
@@ -178,6 +187,29 @@ async function ensurePresenceDisconnect(workspaceId: string, uid: string): Promi
 
 /** Last profile signature written per presence node — skip unchanged displayName/photoURL. */
 const lastPresenceProfileByKey = new Map<string, string>();
+
+/**
+ * Presence writes for one member overlap: a snapshot taken before joining a
+ * voice channel can reach the server after the join and briefly move that
+ * person back onto their private block. Writes for the same node stay in
+ * call order, and a superseded snapshot is never sent.
+ */
+const presenceWriteTail = new Map<string, Promise<void>>();
+let presenceWriteGeneration = 0;
+const latestPresenceWrite = new Map<string, number>();
+
+function enqueuePresenceWrite(key: string, job: () => Promise<void>): Promise<void> {
+  const previous = presenceWriteTail.get(key) ?? Promise.resolve();
+  const run = previous.then(job, job);
+  presenceWriteTail.set(
+    key,
+    run.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return run;
+}
 
 function clearPresenceProfileCache(workspaceId: string, uid: string): void {
   lastPresenceProfileByKey.delete(presenceKey(workspaceId, uid));
@@ -267,58 +299,69 @@ export async function touchWorkspacePresence(
 ): Promise<void> {
   if (!workspaceId || !uid) return;
 
-  await ensureWorkspaceRtdbAcl(workspaceId);
+  const writeKey = presenceKey(workspaceId, uid);
+  const generation = ++presenceWriteGeneration;
+  latestPresenceWrite.set(writeKey, generation);
 
-  const displayName = profile.displayName.trim() || "Membre";
-  const photoURL = profile.photoURL ? profile.photoURL : null;
-  const profileKey = presenceKey(workspaceId, uid);
-  const profileSig = `${displayName}\0${photoURL ?? ""}`;
-  const profileChanged = lastPresenceProfileByKey.get(profileKey) !== profileSig;
+  return enqueuePresenceWrite(writeKey, async () => {
+    if (latestPresenceWrite.get(writeKey) !== generation) return;
 
-  // lastSeen date cette écriture. Le profil part seulement au premier envoi ou s'il change.
-  const payload: Record<string, unknown> = {
-    lastSeen: Date.now(),
-    online: true,
-  };
-  if (profileChanged) {
-    payload.uid = uid;
-    payload.displayName = displayName;
-    payload.photoURL = photoURL;
-  }
-  if (voice) {
-    payload.voiceInPrivateCall = voice.inPrivateCall;
-    payload.voiceOpenChannelId = voice.openChannelId ?? null;
-    payload.voiceInTheaterCall = voice.inTheaterCall === true;
-    payload.voiceTheaterRole = voice.theaterRole ?? null;
-    payload.voiceTheaterSeat =
-      typeof voice.theaterSeat === "number" && Number.isInteger(voice.theaterSeat)
-        ? voice.theaterSeat
-        : null;
-    // Speaking is UI-only (WebRTC VAD) — clear any legacy RTDB value.
-    payload.voiceSpeaking = false;
-    payload.voiceMuted = voice.muted === true;
-    payload.voiceHandRaised = voice.handRaised === true;
-  }
-  if (presenceActivity !== undefined) {
-    payload.presenceActivity =
-      presenceActivity && presenceActivity !== "none" ? presenceActivity : null;
-  }
-  if (spotifyNowPlaying !== undefined) {
-    const label = spotifyNowPlaying?.label?.trim();
-    if (label && spotifyNowPlaying) {
-      payload.spotifyNowPlaying = label.slice(0, 200);
-      const imageUrl = spotifyNowPlaying.imageUrl?.trim();
-      payload.spotifyNowPlayingImageUrl = imageUrl ? imageUrl.slice(0, 512) : null;
-    } else {
-      payload.spotifyNowPlaying = null;
-      payload.spotifyNowPlayingImageUrl = null;
+    await ensureWorkspaceRtdbAcl(workspaceId);
+    if (latestPresenceWrite.get(writeKey) !== generation) return;
+
+    const displayName = profile.displayName.trim() || "Membre";
+    const photoURL = profile.photoURL ? profile.photoURL : null;
+    const profileKey = presenceKey(workspaceId, uid);
+    const profileSig = `${displayName}\0${photoURL ?? ""}`;
+    const profileChanged = lastPresenceProfileByKey.get(profileKey) !== profileSig;
+
+    // lastSeen date cette écriture. Le profil part seulement au premier envoi ou s'il change.
+    const payload: Record<string, unknown> = {
+      lastSeen: Date.now(),
+      online: true,
+    };
+    if (profileChanged) {
+      payload.uid = uid;
+      payload.displayName = displayName;
+      payload.photoURL = photoURL;
     }
-  }
+    if (voice) {
+      payload.voiceInPrivateCall = voice.inPrivateCall;
+      payload.voiceOpenChannelId = voice.openChannelId ?? null;
+      payload.voiceInTheaterCall = voice.inTheaterCall === true;
+      payload.voiceTheaterRole = voice.theaterRole ?? null;
+      payload.voiceTheaterSeat =
+        typeof voice.theaterSeat === "number" && Number.isInteger(voice.theaterSeat)
+          ? voice.theaterSeat
+          : null;
+      // Speaking is UI-only (WebRTC VAD) — clear any legacy RTDB value.
+      payload.voiceSpeaking = false;
+      payload.voiceMuted = voice.muted === true;
+      payload.voiceHandRaised = voice.handRaised === true;
+      payload.voiceCamera = voice.camera === true;
+      payload.voiceScreenSharing = voice.screenSharing === true;
+    }
+    if (presenceActivity !== undefined) {
+      payload.presenceActivity =
+        presenceActivity && presenceActivity !== "none" ? presenceActivity : null;
+    }
+    if (spotifyNowPlaying !== undefined) {
+      const label = spotifyNowPlaying?.label?.trim();
+      if (label && spotifyNowPlaying) {
+        payload.spotifyNowPlaying = label.slice(0, 200);
+        const imageUrl = spotifyNowPlaying.imageUrl?.trim();
+        payload.spotifyNowPlayingImageUrl = imageUrl ? imageUrl.slice(0, 512) : null;
+      } else {
+        payload.spotifyNowPlaying = null;
+        payload.spotifyNowPlayingImageUrl = null;
+      }
+    }
 
-  const node = ref(rtdb, presencePath(workspaceId, uid));
-  await update(node, payload);
-  if (profileChanged) lastPresenceProfileByKey.set(profileKey, profileSig);
-  await ensurePresenceDisconnect(workspaceId, uid);
+    const node = ref(rtdb, presencePath(workspaceId, uid));
+    await update(node, payload);
+    if (profileChanged) lastPresenceProfileByKey.set(profileKey, profileSig);
+    await ensurePresenceDisconnect(workspaceId, uid);
+  });
 }
 
 export async function clearWorkspacePresence(workspaceId: string, uid: string): Promise<void> {

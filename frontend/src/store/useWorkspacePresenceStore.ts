@@ -11,6 +11,8 @@ export interface WorkspacePresenceVoice {
   theaterRole?: "speaker" | "audience" | "question" | null;
   theaterSeat?: number | null;
   speaking?: boolean;
+  camera?: boolean;
+  screenSharing?: boolean;
 }
 
 export interface WorkspacePresenceEntry {
@@ -36,7 +38,13 @@ interface PresenceOverlayMember {
 }
 
 function emptyVoice(): WorkspacePresenceVoice {
-  return { inPrivateCall: false, openChannelId: null, speaking: false };
+  return {
+    inPrivateCall: false,
+    openChannelId: null,
+    speaking: false,
+    camera: false,
+    screenSharing: false,
+  };
 }
 
 function mergeRosterAndPresence(
@@ -94,7 +102,9 @@ function presenceEntriesEqual(
       before.voice.inTheaterCall === after.voice.inTheaterCall &&
       before.voice.theaterRole === after.voice.theaterRole &&
       before.voice.theaterSeat === after.voice.theaterSeat &&
-      before.voice.speaking === after.voice.speaking
+      before.voice.speaking === after.voice.speaking &&
+      before.voice.camera === after.voice.camera &&
+      before.voice.screenSharing === after.voice.screenSharing
     );
   });
 }

@@ -32,7 +32,12 @@ export default function TheaterBlock({
       participants={[]}
       showActivity={false}
       trailing={
-        <CallOccupancyHint count={connected} participants={theater.speakers} />
+        <CallOccupancyHint
+          count={connected}
+          participants={
+            theater.question ? [...theater.speakers, theater.question] : theater.speakers
+          }
+        />
       }
       body={<TheaterBlockPreview theater={theater} />}
       onMainClick={onOpen}

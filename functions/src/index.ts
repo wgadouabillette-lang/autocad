@@ -261,9 +261,9 @@ export const completeDesktopAuthSession = onCall(
       }
       return current;
     }
-    if (typeof current === "string" && typeof owner === "string" && owner !== uid) {
-      throw new HttpsError("permission-denied", "Desktop auth code was refused.");
-    }
+    // Another Google account on this still-open sign-in replaces the code.
+    // The desktop deletes the session when it claims, so this only runs
+    // before that claim.
     const code = newUserCode();
     tx.set(
       ref,

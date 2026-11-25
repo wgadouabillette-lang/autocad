@@ -96,7 +96,7 @@ export function useWorkspacePresence() {
         calls.isLocalInCall(workspaceId) || calls.isLocalInTheaterCall(workspaceId);
       const voice = inVoice
         ? buildLocalVoicePresenceForWorkspace(workspaceId)
-        : { inPrivateCall: false, openChannelId: null };
+        : { inPrivateCall: false, openChannelId: null, camera: false, screenSharing: false };
       const activity = getLocalPresenceActivityForSync(workspaceId);
       const spotifyNowPlaying = getLocalSpotifyNowPlayingForSync(workspaceId);
       return touchWorkspacePresence(
@@ -176,6 +176,8 @@ export function useWorkspacePresence() {
         viewMode: state.callsViewModeByWorkspace,
         muted: state.muted,
         raiseHand: state.raiseHand,
+        cameraOn: state.cameraOn,
+        screenSharing: state.screenSharing,
         theater: state.theaterByWorkspace,
       });
       if (snapshot === voiceSnapshotRef.current) return;

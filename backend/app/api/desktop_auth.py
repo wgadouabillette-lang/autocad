@@ -156,15 +156,13 @@ def _issued_code_for(session_id: str, uid: str) -> Optional[str]:
         owner = entry.get("uid")
         if isinstance(code, str) and owner == uid:
             return code
-        if isinstance(code, str) and isinstance(owner, str) and owner != uid:
-            raise HTTPException(403, "Desktop auth code was refused.")
+        # A different Google account on this still-open sign-in replaces the
+        # code. The desktop has not claimed it yet.
     remote_code = _firestore_field(session_id, "userCode")
     remote_uid = _firestore_field(session_id, "uid")
     if isinstance(remote_code, str) and remote_uid == uid:
         _remember_issued_code(session_id, uid, remote_code)
         return remote_code
-    if isinstance(remote_code, str) and isinstance(remote_uid, str) and remote_uid != uid:
-        raise HTTPException(403, "Desktop auth code was refused.")
     return None
 
 
@@ -196,8 +194,6 @@ def _issue_user_code(session_id: str, uid: str) -> str:
             owner = data.get("uid")
             if isinstance(current, str) and owner == uid:
                 return current
-            if isinstance(current, str) and isinstance(owner, str) and owner != uid:
-                raise HTTPException(403, "Desktop auth code was refused.")
             transaction.set(
                 ref,
                 {
@@ -353,8 +349,15 @@ def _publish_session_to_firestore(
             return
         from firebase_admin import firestore
 
+        # Drop the previous account's token when a different Google account
+        # finishes this same sign-in. merge=True would otherwise leave it.
         firestore.client().document(f"desktopAuthSessions/{session_id}").set(
             {
+                "token": firestore.DELETE_FIELD,
+                "customToken": firestore.DELETE_FIELD,
+                "provider": firestore.DELETE_FIELD,
+                "idToken": firestore.DELETE_FIELD,
+                "accessToken": firestore.DELETE_FIELD,
                 **credentials,
                 "uid": uid,
                 "createdAt": firestore.SERVER_TIMESTAMP,

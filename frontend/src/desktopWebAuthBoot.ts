@@ -4,8 +4,6 @@ import {
   getAuth,
   getRedirectResult,
   signInWithPopup,
-  signInWithRedirect,
-  signOut,
   type UserCredential,
 } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -380,13 +378,17 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-async function withBusyTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+async function withBusyTimeout<T>(
+  promise: Promise<T>,
+  message: string,
+  timeoutMs = SIGN_IN_TIMEOUT_MS,
+): Promise<T> {
   let timer: number | undefined;
   try {
     return await Promise.race([
       promise,
       new Promise<T>((_, reject) => {
-        timer = window.setTimeout(() => reject(new Error(message)), SIGN_IN_TIMEOUT_MS);
+        timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
       }),
     ]);
   } finally {
@@ -425,23 +427,29 @@ async function completeViaBackend(
       oauth = null;
     }
   }
-  const response = await fetch("/api/auth/desktop/complete", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${idToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      sessionId,
-      ...(oauth?.idToken
-        ? {
-            provider: oauth.provider,
-            idToken: oauth.idToken,
-            accessToken: oauth.accessToken,
-          }
-        : {}),
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch("/api/auth/desktop/complete", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sessionId,
+        ...(oauth?.idToken
+          ? {
+              provider: oauth.provider,
+              idToken: oauth.idToken,
+              accessToken: oauth.accessToken,
+            }
+          : {}),
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    return "failed";
+  }
   if (response.status === 403) return "denied";
   if (!response.ok) return "failed";
   const contentType = response.headers.get("content-type") ?? "";
@@ -487,22 +495,10 @@ async function finishSignIn(result: UserCredential | null): Promise<void> {
   showDone(code);
 }
 
-/**
- * Leave any leftover Firebase user, then start Google via redirect.
- * Popup cannot be opened after `await signOut` (gesture already consumed),
- * and popup-while-signed-in hangs when switching to a different/stale account.
- */
-async function switchAccountViaRedirect(loginHint?: string | null): Promise<void> {
-  showBusy();
-  persistValue(REDIRECT_STARTED_KEY, "1");
-  if (auth.currentUser) {
-    await signOut(auth);
-  }
-  await signInWithRedirect(auth, googleProvider(loginHint));
-}
-
 async function startGooglePopup(loginHint?: string | null): Promise<void> {
   showBusy();
+  // Open Google in this click. Signing out first drops the click, and the
+  // auth helper iframe is what actually completes a different account.
   const result = await withBusyTimeout(
     signInWithPopup(auth, googleProvider(loginHint)),
     "Sign-in timed out. Click Continue with Google to try again.",
@@ -516,40 +512,18 @@ function browserSessionMatches(account: LastAccount | null): boolean {
 }
 
 async function continueAsAccount(account: LastAccount): Promise<void> {
-  showBusy();
-  await auth.authStateReady();
   if (auth.currentUser && browserSessionMatches(account)) {
+    showBusy();
     try {
       await auth.currentUser.getIdToken(true);
-    } catch {
-      await switchAccountViaRedirect(account.email);
+      await finishSignIn(null);
       return;
+    } catch {
+      // The stored session cannot mint a token. Ask Google again.
     }
-    await finishSignIn(null);
-    return;
-  }
-  // Another / stale account while a leftover Firebase user is still signed in:
-  // leave that session first (redirect survives the await; popup would hang).
-  if (auth.currentUser) {
-    await switchAccountViaRedirect(account.email);
-    return;
-  }
-  await startGooglePopup(account.email);
-}
-
-async function useAnotherAccount(): Promise<void> {
-  showBusy();
-  await auth.authStateReady();
-  if (auth.currentUser) {
-    await switchAccountViaRedirect(null);
-    return;
   }
   try {
-    const result = await withBusyTimeout(
-      signInWithPopup(auth, googleProvider()),
-      "Sign-in timed out. Click Continue with Google to try again.",
-    );
-    await finishSignIn(result);
+    await startGooglePopup(account.email);
   } catch (err) {
     const code = errorCode(err);
     if (
@@ -564,21 +538,21 @@ async function useAnotherAccount(): Promise<void> {
   }
 }
 
-async function finishRedirectReturn(): Promise<boolean> {
-  if (readValue(REDIRECT_STARTED_KEY) !== "1") return false;
-  clearValue(REDIRECT_STARTED_KEY);
-  showBusy();
-  const redirectResult = await getRedirectResult(auth);
-  if (redirectResult) {
-    await finishSignIn(redirectResult);
-    return true;
+async function useAnotherAccount(): Promise<void> {
+  try {
+    await startGooglePopup(null);
+  } catch (err) {
+    const code = errorCode(err);
+    if (
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/cancelled-popup-request" ||
+      code === "auth/popup-blocked"
+    ) {
+      showChoose(knownAccounts());
+      return;
+    }
+    throw err;
   }
-  // Some browsers restore auth.currentUser without a credential payload.
-  if (auth.currentUser) {
-    await finishSignIn(null);
-    return true;
-  }
-  return false;
 }
 
 async function boot(): Promise<void> {
@@ -587,14 +561,29 @@ async function boot(): Promise<void> {
     return;
   }
 
-  await auth.authStateReady();
-
+  // Consume a Google redirect before deciding which account to show.
+  // A missing result just means the person still has to choose.
   try {
-    if (await finishRedirectReturn()) return;
+    const redirectResult = await withBusyTimeout(
+      getRedirectResult(auth),
+      "redirect-pending",
+      8_000,
+    );
+    clearValue(REDIRECT_STARTED_KEY);
+    if (redirectResult?.user) {
+      await finishSignIn(redirectResult);
+      return;
+    }
   } catch (err) {
-    showError(errorMessage(err, "Sign-in failed."));
-    return;
+    clearValue(REDIRECT_STARTED_KEY);
+    const timedOut = err instanceof Error && err.message === "redirect-pending";
+    if (!timedOut) {
+      showError(errorMessage(err, "Sign-in failed."));
+      return;
+    }
   }
+
+  await auth.authStateReady();
 
   rememberCurrentUserAccount();
 

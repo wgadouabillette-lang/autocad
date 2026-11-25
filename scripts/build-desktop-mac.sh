@@ -100,14 +100,7 @@ else
 fi
 
 echo ""
-echo "[5/5] Copie vers landing/downloads…"
-chmod +x scripts/prepare-landing-downloads.sh
-./scripts/prepare-landing-downloads.sh
-
-echo ""
-echo "Terminé."
-echo "  DMG : desktop/release/meetra.dmg"
-echo "  Lien site : https://meetra.cc/downloads/meetra.dmg"
+echo "[5/5] Signature + notarisation du .dmg, puis copie…"
 if [[ "$USE_NOTARY" -eq 1 ]]; then
   # Prefer the stable download name (avoid stapling an older leftover).
   PKG_VER="$(node -p "require('./desktop/package.json').version" 2>/dev/null || true)"
@@ -120,7 +113,13 @@ if [[ "$USE_NOTARY" -eq 1 ]]; then
     DMG="$(ls -t desktop/release/Meetra-*-mac.dmg desktop/release/meetra.dmg 2>/dev/null | head -1 || true)"
   fi
   if [[ -n "$DMG" ]]; then
-    echo ""
+    # electron-builder notarises the .app. The DMG itself stays unsigned unless we
+    # sign it here, and notarytool rejects an unsigned disk image.
+    if ! codesign -dv "$DMG" 2>&1 | grep -q "Developer ID Application"; then
+      SIGN_ID="${CSC_NAME:-Developer ID Application: WILLIAM GADOUA-BILLETTE (N43MKD5535)}"
+      echo "→ Signature Developer ID du .dmg…"
+      codesign --force --sign "$SIGN_ID" --timestamp "$DMG"
+    fi
     echo "→ Notarize + staple du .dmg ($DMG)…"
     xcrun notarytool submit "$DMG" \
       --key "$APPLE_API_KEY" \
@@ -134,5 +133,13 @@ if [[ "$USE_NOTARY" -eq 1 ]]; then
     echo "  spctl -a -vv desktop/release/mac-universal/Meetra.app"
   fi
 fi
+
+chmod +x scripts/prepare-landing-downloads.sh
+./scripts/prepare-landing-downloads.sh
+
+echo ""
+echo "Terminé."
+echo "  DMG : desktop/release/meetra.dmg"
+echo "  Lien site : https://meetra.cc/downloads/meetra.dmg"
 echo ""
 echo "Publier : ./scripts/upload-desktop-downloads.sh"
