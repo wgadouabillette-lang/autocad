@@ -1,6 +1,6 @@
 {
   "name": "forma-desktop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Meetra",
   "main": "main.cjs",
@@ -97,6 +97,9 @@
       }
     },
     "win": {
+      "publisherName": [
+        "William Gadoua-Billette"
+      ],
       "target": [
         "nsis"
       ],

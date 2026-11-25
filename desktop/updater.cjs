@@ -99,6 +99,7 @@ function loadAutoUpdater() {
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.allowDowngrade = false;
   autoUpdater.disableDifferentialDownload = true;
+  autoUpdater.disableWebInstaller = true;
   autoUpdater.logger = console;
   if (process.platform === "win32" && "verifyUpdateCodeSignature" in autoUpdater) {
     autoUpdater.verifyUpdateCodeSignature = true;
@@ -195,9 +196,25 @@ async function runMockInstall(info) {
   return { ok: true, dev: true };
 }
 
+function updateFailureMessage(err) {
+  const raw = err instanceof Error ? err.message : String(err || "");
+  if (/checksum|sha512/i.test(raw)) {
+    return "Le fichier téléchargé ne correspond pas à la mise à jour. Réessayez.";
+  }
+  if (/signature|publisher/i.test(raw)) {
+    return "Windows a refusé la signature de la mise à jour.";
+  }
+  if (/block|EACCES|elevation|administrateur/i.test(raw)) {
+    return "Windows a bloqué l'installation. Autorisez Meetra dans le contrôle du compte, puis réessayez.";
+  }
+  return "La mise à jour n'a pas pu s'installer. Réessayez.";
+}
+
 async function runInstallNow(info) {
   if (installing) return { ok: false, reason: "busy" };
   installing = true;
+  // A 300 MB installer on a slow link takes longer than a few minutes.
+  // Restoring the window early left people on the version they already had.
   const stallTimer = setTimeout(() => {
     if (!installing) return;
     installing = false;
@@ -207,7 +224,7 @@ async function runInstallNow(info) {
     } catch (restoreErr) {
       console.error("[forma-updater] restore after stalled install:", restoreErr);
     }
-  }, 4 * 60 * 1000);
+  }, 20 * 60 * 1000);
 
   if (!isDevMode()) {
     try {
@@ -234,31 +251,40 @@ async function runInstallNow(info) {
 
   try {
     sendProgress({ percent: 0, version: info.version });
+    // Mac only feeds the update to Squirrel while this is true. Set it for
+    // this confirmed install, not at launch, so quitting the app does nothing.
+    updater.autoInstallOnAppQuit = true;
+    updater.disableDifferentialDownload = true;
+    updater.disableWebInstaller = true;
     if (!downloaded) {
       await updater.downloadUpdate();
     }
+    clearTimeout(stallTimer);
     clearPending();
     sendToRenderer("forma:update-installed", { version: info.version });
-    updater.quitAndInstall(false, true);
-    setTimeout(() => {
-      if (!installing) return;
-      installing = false;
-      console.error("[forma-updater] quitAndInstall did not exit; restoring the window");
-      try {
-        restoreAfterUpdateFailure();
-      } catch (restoreErr) {
-        console.error("[forma-updater] restore after stalled install:", restoreErr);
-      }
-    }, 12_000);
+    // Silent install, then relaunch. The app must quit and stay quit so the
+    // installer can replace it. Bringing the window back here cancelled that.
+    updater.quitAndInstall(true, true);
     return { ok: true };
   } catch (err) {
     installing = false;
     clearTimeout(stallTimer);
+    updater.autoInstallOnAppQuit = false;
     console.error("[forma-updater] install failed:", err);
     try {
       restoreAfterUpdateFailure();
     } catch {
       // The workspace stays hidden only if the restore itself throws.
+    }
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      await dialog.showMessageBox(win, {
+        type: "error",
+        title: "Meetra",
+        message: "Mise à jour interrompue",
+        detail: updateFailureMessage(err),
+        buttons: ["OK"],
+      });
     }
     return { ok: false, reason: "install_failed" };
   }
