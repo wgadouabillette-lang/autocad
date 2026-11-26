@@ -11,12 +11,16 @@ export interface AiTranscribePayload {
 
 export async function callAiTranscribe(
   payload: AiTranscribePayload,
-): Promise<{ text: string }> {
-  const callable = httpsCallable<AiTranscribePayload, { text?: string }>(
-    functions,
-    "aiTranscribe",
-  );
+): Promise<{ text: string; language?: string }> {
+  const callable = httpsCallable<
+    AiTranscribePayload,
+    { text?: string; language?: string }
+  >(functions, "aiTranscribe");
   const result = await callable(payload);
   const text = typeof result.data?.text === "string" ? result.data.text.trim() : "";
-  return { text };
+  const language =
+    typeof result.data?.language === "string" && /^[a-z]{2}$/i.test(result.data.language.trim())
+      ? result.data.language.trim().toLowerCase()
+      : undefined;
+  return { text, language };
 }

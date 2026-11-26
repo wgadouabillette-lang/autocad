@@ -1,15 +1,6 @@
 import { type RefObject, useEffect, useRef } from "react";
-import { animateStructuredHtmlInto, animateTranscriptTextInto } from "../lib/aiNotesTyping";
-import { useAiNotesStore } from "../store/useAiNotesStore";
-
-function liveTranscriptText(lines: { text: string }[], interimText: string): string {
-  return [
-    ...lines.map((line) => line.text.trim()).filter(Boolean),
-    interimText.trim(),
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
+import { animateStructuredHtmlInto, writeTranscriptTextInto } from "../lib/aiNotesTyping";
+import { formatAiNotesTranscript, useAiNotesStore } from "../store/useAiNotesStore";
 
 export function useAiNotesEditorSync(
   editorRef: RefObject<HTMLDivElement | null>,
@@ -48,19 +39,11 @@ export function useAiNotesEditorSync(
     const editor = editorRef.current;
     if (!editor) return;
 
-    const text = liveTranscriptText(lines, interimText);
-    if (!text || text === lastRenderedRef.current) return;
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    void animateTranscriptTextInto(editor, text, controller.signal).then(() => {
-      if (controller.signal.aborted) return;
-      lastRenderedRef.current = text;
-      onAnimated();
-    });
-
-    return () => controller.abort();
+    const text = formatAiNotesTranscript(lines, interimText);
+    if (text === lastRenderedRef.current) return;
+    writeTranscriptTextInto(editor, text);
+    lastRenderedRef.current = text;
+    onAnimated();
   }, [active, lines, interimText, structuredHtml, editorRef, onAnimated]);
 
   useEffect(() => {

@@ -18,13 +18,14 @@ async def transcribe_recording(data: bytes, filename: str, uid: Optional[str] = 
         name = f"{name}.webm"
 
     try:
-        return await transcribe_audio(
+        text, _language = await transcribe_audio(
             data,
             filename=name,
             mime="application/octet-stream",
             uid=uid,
             timeout=300.0,
         )
+        return text
     except SttError:
         return ""
 

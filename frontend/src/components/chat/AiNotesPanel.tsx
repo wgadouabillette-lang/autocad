@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { Loader2, Square } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { useAiNotesStore } from "../../store/useAiNotesStore";
+import { formatAiNotesTranscript, useAiNotesStore } from "../../store/useAiNotesStore";
 import { useStore } from "../../store/useStore";
 import { sanitizeNoteHtml } from "../../lib/sanitizeHtml";
 
@@ -32,10 +32,7 @@ export default function AiNotesPanel() {
     .map((m) => m.text)
     .filter(Boolean);
 
-  const liveTranscript = [
-    ...lines.map((line) => line.text),
-    ...(interimText.trim() ? [interimText.trim()] : []),
-  ].join("\n");
+  const liveTranscript = formatAiNotesTranscript(lines, interimText);
 
   useEffect(() => {
     const el = scrollRef.current;

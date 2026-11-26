@@ -45,6 +45,10 @@ import {
   isFormaDesktopWindows,
   revealDesktopAppWindow,
 } from "./lib/formaDesktop";
+import {
+  fictionalStructuredNoteHtml,
+  showFictionalStructuredNotesOnce,
+} from "./lib/fictionalStructuredNote";
 import { isMarketingPreview } from "./lib/marketingPreview";
 import { parseWorkspaceInviteInput } from "./lib/workspaceInvite";
 import { runAppBoot, type AppBootStatus } from "./lib/appBoot";
@@ -194,6 +198,12 @@ export default function App() {
     if (!setWindowMode) return;
     void setWindowMode(desktopSplashWindow ? "splash" : "app");
   }, [desktopSplashWindow, showSignInWindow]);
+
+  useEffect(() => {
+    if (!isAuthenticated || bootStatus !== "ready" || isMarketingPreview()) return;
+    const id = window.setTimeout(() => showFictionalStructuredNotesOnce(), 400);
+    return () => window.clearTimeout(id);
+  }, [isAuthenticated, bootStatus, fictionalStructuredNoteHtml]);
 
   useEffect(() => {
     if (!hasFormaDesktop()) return;

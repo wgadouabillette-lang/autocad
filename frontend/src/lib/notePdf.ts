@@ -19,9 +19,10 @@ function printableNoteHtml(title: string, bodyHtml: string): string {
     @page { size: A4; margin: 18mm; }
     * { box-sizing: border-box; }
     body { margin: 0; color: #171717; font: 11pt/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    h1 { margin: 0 0 18pt; font-size: 23pt; line-height: 1.2; }
-    h2 { margin: 18pt 0 5pt; font-size: 16pt; line-height: 1.25; }
-    h3 { margin: 12pt 0 4pt; font-size: 13pt; line-height: 1.3; }
+    h1 { margin: 16pt 0 5pt; font-size: 14pt; line-height: 1.25; }
+    body > h1 { margin: 0 0 18pt; font-size: 23pt; line-height: 1.2; }
+    h2 { margin: 14pt 0 4pt; font-size: 12.5pt; line-height: 1.25; }
+    h3 { margin: 12pt 0 4pt; font-size: 11.5pt; line-height: 1.3; }
     p { margin: 0 0 7pt; }
     ul, ol { margin: 5pt 0 9pt; padding-left: 20pt; }
     li { margin: 2pt 0; }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import clsx from "clsx";
-import { ArrowUpRight, Check, Hash, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowUpRight, Check, Hash, Plus, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../../store/useAuthStore";
 import { usePeopleStore } from "../../store/usePeopleStore";
@@ -25,22 +25,16 @@ export default function WorkspaceTextChannelsSection({
   const channels = useWorkspaceTextChannelsStore(
     (s) => s.channelsByWorkspace[workspaceId] ?? EMPTY_WORKSPACE_TEXT_CHANNELS,
   );
-  const renamingChannel = useWorkspaceTextChannelsStore((s) => s.renamingChannel);
   const startDraft = useWorkspaceTextChannelsStore((s) => s.startDraft);
   const cancelDraft = useWorkspaceTextChannelsStore((s) => s.cancelDraft);
   const confirmDraft = useWorkspaceTextChannelsStore((s) => s.confirmDraft);
-  const beginRename = useWorkspaceTextChannelsStore((s) => s.beginRename);
-  const cancelRename = useWorkspaceTextChannelsStore((s) => s.cancelRename);
-  const confirmRename = useWorkspaceTextChannelsStore((s) => s.confirmRename);
   const deleteChannel = useWorkspaceTextChannelsStore((s) => s.deleteChannel);
   const isWorkspaceOwner = useWorkspacesStore((s) => s.isWorkspaceOwner(workspaceId));
 
   const draftChannel = channels.find((channel) => channel.isDraft);
   const visibleChannels = channels.filter((channel) => !channel.isDraft);
   const [draftName, setDraftName] = useState("");
-  const [renameName, setRenameName] = useState("");
   const draftInputRef = useRef<HTMLInputElement>(null);
-  const renameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!draftChannel) {
@@ -50,19 +44,6 @@ export default function WorkspaceTextChannelsSection({
     setDraftName("");
     draftInputRef.current?.focus();
   }, [draftChannel?.id]);
-
-  useEffect(() => {
-    if (!renamingChannel || renamingChannel.workspaceId !== workspaceId) {
-      setRenameName("");
-      return;
-    }
-    const channel = useWorkspaceTextChannelsStore
-      .getState()
-      .channelsByWorkspace[workspaceId]?.find((entry) => entry.id === renamingChannel.channelId);
-    setRenameName(channel?.name ?? "");
-    renameInputRef.current?.focus();
-    renameInputRef.current?.select();
-  }, [renamingChannel, workspaceId]);
 
   const isEmpty = visibleChannels.length === 0;
   const createChatLabel = t("chat.createChat");
@@ -78,12 +59,6 @@ export default function WorkspaceTextChannelsSection({
     const trimmed = draftName.trim();
     if (!trimmed) return;
     confirmDraft(workspaceId, draftChannel.id, trimmed, firebaseUid ?? undefined);
-  };
-
-  const submitRename = (event?: FormEvent) => {
-    event?.preventDefault();
-    if (!renamingChannel || renamingChannel.workspaceId !== workspaceId) return;
-    confirmRename(workspaceId, renamingChannel.channelId, renameName);
   };
 
   return (
@@ -109,90 +84,46 @@ export default function WorkspaceTextChannelsSection({
         <ul className="messages-panel-category__list">
           {visibleChannels.map((channel) => {
           const thread = workspaceThreads.find((entry) => entry.personId === channel.id);
-          const isRenaming =
-            renamingChannel?.workspaceId === workspaceId &&
-            renamingChannel.channelId === channel.id;
-
           const selected = !!thread && thread.id === selectedThreadId;
 
           return (
             <li
               key={channel.id}
-              className="messages-panel-category__item workspace-text-channel-row"
+              className="messages-panel-category__item messages-overlay__thread-item"
             >
-              {isRenaming ? (
-                <form className="workspace-text-channel-row__rename-form" onSubmit={submitRename}>
-                  <Hash size={14} className="workspace-text-channel-row__hash" aria-hidden />
-                  <input
-                    ref={renameInputRef}
-                    value={renameName}
-                    onChange={(event) => setRenameName(event.target.value)}
-                    className="workspace-text-channel-row__input"
-                    placeholder="Channel name"
-                    maxLength={120}
-                    aria-label="Rename channel"
-                  />
-                  <button
-                    type="submit"
-                    className="workspace-text-channel-row__icon-btn"
-                    disabled={!renameName.trim()}
-                    aria-label="Save channel name"
-                  >
-                    <Check size={14} aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className="workspace-text-channel-row__icon-btn"
-                    onClick={cancelRename}
-                    aria-label="Cancel rename"
-                  >
-                    <X size={14} aria-hidden />
-                  </button>
-                </form>
-              ) : (
-                <div
+              <div className="messages-overlay__thread-row-wrap">
+                <button
+                  type="button"
                   className={clsx(
-                    "workspace-text-channel-row__content",
-                    selected && "workspace-text-channel-row__content--active",
+                    "messages-overlay__thread-row messages-thread-card",
+                    thread && thread.unread > 0 && "messages-thread-card--unread",
+                    selected && "messages-thread-card--active",
                   )}
+                  aria-current={selected ? "true" : undefined}
+                  onClick={() => openChannel(channel.id, channel.name)}
                 >
+                  <span className="workspace-text-channel-row__mark" aria-hidden>
+                    <Hash size={14} strokeWidth={2} />
+                  </span>
+                  <span className="messages-thread-card__body">
+                    <span className="messages-overlay__thread-name">{channel.name}</span>
+                    <span className="messages-overlay__thread-preview">
+                      {thread?.preview || "Salon"}
+                    </span>
+                  </span>
+                </button>
+                {isWorkspaceOwner ? (
                   <button
                     type="button"
-                    className={clsx(
-                      "workspace-text-channel-row__open",
-                      thread && thread.unread > 0 && "workspace-text-channel-row__open--unread",
-                    )}
-                    aria-current={selected ? "true" : undefined}
-                    onClick={() => openChannel(channel.id, channel.name)}
+                    className="messages-overlay__thread-delete"
+                    onClick={() => deleteChannel(workspaceId, channel.id)}
+                    aria-label={`Delete ${channel.name}`}
+                    title="Delete channel"
                   >
-                    <Hash size={14} className="workspace-text-channel-row__hash" aria-hidden />
-                    <span className="workspace-text-channel-row__name">{channel.name}</span>
-                    {thread?.preview ? (
-                      <span className="workspace-text-channel-row__preview">{thread.preview}</span>
-                    ) : null}
+                    <Trash2 size={14} strokeWidth={2} aria-hidden />
                   </button>
-                  <button
-                    type="button"
-                    className="workspace-text-channel-row__rename-btn"
-                    onClick={() => beginRename(workspaceId, channel.id)}
-                    aria-label={`Rename ${channel.name}`}
-                    title="Rename channel"
-                  >
-                    <Pencil size={12} aria-hidden />
-                  </button>
-                  {isWorkspaceOwner ? (
-                    <button
-                      type="button"
-                      className="workspace-text-channel-row__delete-btn"
-                      onClick={() => deleteChannel(workspaceId, channel.id)}
-                      aria-label={`Delete ${channel.name}`}
-                      title="Delete channel"
-                    >
-                      <Trash2 size={12} aria-hidden />
-                    </button>
-                  ) : null}
-                </div>
-              )}
+                ) : null}
+              </div>
             </li>
           );
           })}

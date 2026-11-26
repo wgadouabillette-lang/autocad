@@ -122,8 +122,6 @@ export function animateStructuredHtmlInto(
   });
 }
 
-const TRANSCRIPT_CHAR_MS = 16;
-
 function transcriptParagraph(text: string): string {
   const escaped = text
     .replace(/&/g, "&amp;")
@@ -133,70 +131,12 @@ function transcriptParagraph(text: string): string {
   return `<p>${escaped}</p>`;
 }
 
-function sharedPrefixLength(current: string, target: string): number {
-  const limit = Math.min(current.length, target.length);
-  let index = 0;
-  while (index < limit && current[index] === target[index]) index += 1;
-  return index;
-}
-
-/** Type raw transcript into the editor, keeping any already-visible prefix. */
-export function animateTranscriptTextInto(
-  editor: HTMLElement,
-  text: string,
-  signal?: AbortSignal,
-): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal?.aborted) {
-      resolve();
-      return;
-    }
-
-    const target = text.trim();
-    if (!target) {
-      editor.innerHTML = "";
-      resolve();
-      return;
-    }
-
-    const visible = (editor.innerText ?? "").replace(/\s+/g, " ").trim();
-    const prefixLen = sharedPrefixLength(visible, target);
-    let cursor = prefixLen;
-
-    editor.innerHTML = transcriptParagraph(target.slice(0, cursor));
-    scrollEditorToFollow(editor);
-
-    if (cursor >= target.length) {
-      resolve();
-      return;
-    }
-
-    let timeoutId = 0;
-    const onAbort = () => {
-      window.clearTimeout(timeoutId);
-      editor.innerHTML = transcriptParagraph(target);
-      scrollEditorToFollow(editor);
-      resolve();
-    };
-
-    signal?.addEventListener("abort", onAbort, { once: true });
-
-    const typeNext = () => {
-      if (signal?.aborted) {
-        onAbort();
-        return;
-      }
-      cursor += 1;
-      editor.innerHTML = transcriptParagraph(target.slice(0, cursor));
-      scrollEditorToFollow(editor);
-      if (cursor >= target.length) {
-        signal?.removeEventListener("abort", onAbort);
-        resolve();
-        return;
-      }
-      timeoutId = window.setTimeout(typeNext, TRANSCRIPT_CHAR_MS);
-    };
-
-    timeoutId = window.setTimeout(typeNext, TRANSCRIPT_CHAR_MS);
-  });
+/** Place the live transcript in the note as plain text, with no typing effect. */
+export function writeTranscriptTextInto(editor: HTMLElement, text: string): void {
+  const lines = text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  editor.innerHTML = lines.length > 0 ? lines.map(transcriptParagraph).join("") : "";
+  scrollEditorToFollow(editor);
 }

@@ -3,6 +3,8 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -28,6 +30,39 @@ export interface WorkspaceTextChannelDoc {
 }
 
 export const WORKSPACE_TEXT_CHANNEL_MESSAGE_PAGE_SIZE = 80;
+
+/** Deux salons présents dès qu’un workspace n’en a aucun. */
+export const DEFAULT_WORKSPACE_TEXT_CHANNELS: { id: string; name: string }[] = [
+  { id: "general", name: "General" },
+  { id: "discussion", name: "Discussion" },
+];
+
+const RETIRED_DEFAULT_TEXT_CHANNEL_ID = "annonces";
+
+const ensuringDefaultTextChannels = new Set<string>();
+
+function textDefaultsSeedKey(workspaceId: string): string {
+  return `meetra:text-defaults:${workspaceId}`;
+}
+
+export function workspaceTextDefaultsSeeded(workspaceId: string): boolean {
+  try {
+    return localStorage.getItem(textDefaultsSeedKey(workspaceId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markWorkspaceTextDefaultsSeeded(workspaceId: string): void {
+  const id = workspaceId.trim();
+  if (!id) return;
+  ensuringDefaultTextChannels.add(id);
+  try {
+    localStorage.setItem(textDefaultsSeedKey(id), "1");
+  } catch {
+    // Navigation privée : le garde-fou en mémoire suffit pour cette session.
+  }
+}
 
 function channelsCol(workspaceId: string) {
   return collection(db, "workspacesShared", workspaceId, "textChannels");
@@ -59,6 +94,52 @@ export async function upsertWorkspaceTextChannel(
     },
     { merge: true },
   );
+}
+
+/** Crée General et Discussion si ces salons n’existent pas encore. */
+export async function ensureDefaultWorkspaceTextChannels(
+  workspaceId: string,
+  createdByUid?: string,
+): Promise<void> {
+  const id = workspaceId.trim();
+  if (!id || workspaceTextDefaultsSeeded(id) || ensuringDefaultTextChannels.has(id)) return;
+  ensuringDefaultTextChannels.add(id);
+  try {
+    await Promise.all(
+      DEFAULT_WORKSPACE_TEXT_CHANNELS.map(async (channel) => {
+        const ref = channelRef(id, channel.id);
+        const existing = await getDoc(ref);
+        if (existing.exists()) return;
+        await upsertWorkspaceTextChannel(id, channel.id, channel.name, createdByUid);
+      }),
+    );
+    markWorkspaceTextDefaultsSeeded(id);
+  } catch (error) {
+    ensuringDefaultTextChannels.delete(id);
+    throw error;
+  }
+}
+
+const retiringExtraDefaultTextChannels = new Set<string>();
+
+/** Retire Annonces, l’ancien troisième salon, tant qu’il n’a aucun message. */
+export async function retireUnusedDefaultTextChannel(workspaceId: string): Promise<void> {
+  const id = workspaceId.trim();
+  if (!id || retiringExtraDefaultTextChannels.has(id)) return;
+  retiringExtraDefaultTextChannels.add(id);
+  try {
+    const ref = channelRef(id, RETIRED_DEFAULT_TEXT_CHANNEL_ID);
+    const existing = await getDoc(ref);
+    if (!existing.exists()) return;
+    const messages = await getDocs(
+      query(messagesCol(id, RETIRED_DEFAULT_TEXT_CHANNEL_ID), limit(1)),
+    );
+    if (!messages.empty) return;
+    await deleteDoc(ref);
+  } catch (error) {
+    retiringExtraDefaultTextChannels.delete(id);
+    throw error;
+  }
 }
 
 export async function removeWorkspaceTextChannel(

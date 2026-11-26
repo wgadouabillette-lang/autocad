@@ -66,11 +66,12 @@ export default function CallOccupancyHint({
   });
   if (mediaOnly && kind === "people") return null;
   const Icon = ICONS[kind];
+  const showCount = kind === "people" && !mediaOnly;
 
   return (
     <span className="call-block__hint call-block__hint--theater" aria-hidden>
       <Icon size={14} />
-      {mediaOnly ? null : <span className="call-block__hint-count">{count}</span>}
+      {showCount ? <span className="call-block__hint-count">{count}</span> : null}
     </span>
   );
 }

@@ -168,9 +168,7 @@ export default function ChatPanelHeader() {
                 <UsersRound size={12} aria-hidden />
               </span>
             ) : inWorkspaceChannelThread ? (
-              <span className="chat-panel-header__thread-avatar chat-panel-header__thread-avatar--group">
-                <Hash size={12} aria-hidden />
-              </span>
+              <Hash size={14} className="chat-panel-header__thread-mark" aria-hidden />
             ) : (
               <UserAvatar
                 userId={activeFriendThread.personId}

@@ -259,7 +259,7 @@ export const api = {
     filename = "chunk.webm",
     timeoutMs = 8000,
     hint?: { language?: string; prompt?: string },
-  ): Promise<string> {
+  ): Promise<{ text: string; language?: string }> {
     const fd = new FormData();
     fd.append("file", file, filename);
     const language = hint?.language?.trim();
@@ -283,8 +283,14 @@ export const api = {
       window.clearTimeout(timer);
     }
     if (!r.ok) throw new Error(await parseApiError(r));
-    const payload = (await r.json()) as { text?: unknown };
-    return typeof payload.text === "string" ? payload.text.trim() : "";
+    const payload = (await r.json()) as { text?: unknown; language?: unknown };
+    return {
+      text: typeof payload.text === "string" ? payload.text.trim() : "",
+      language:
+        typeof payload.language === "string" && /^[a-z]{2}$/i.test(payload.language.trim())
+          ? payload.language.trim().toLowerCase()
+          : undefined,
+    };
   },
 
   async createHandoff(body: {

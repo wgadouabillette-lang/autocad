@@ -244,7 +244,7 @@ function enqueueTranscribe(wav: Blob, epoch: number) {
           language: captureLanguage,
           prompt: emittedTail.slice(-180),
         })
-      ).trim();
+      ).text.trim();
       if (epoch !== session) return;
       readyTexts.set(id, text);
     } catch (error) {

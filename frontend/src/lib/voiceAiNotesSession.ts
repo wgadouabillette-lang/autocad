@@ -6,7 +6,28 @@ export interface VoiceNotesTranscriptChunk {
   text: string;
   isFinal: boolean;
   at: number;
+  /** Présent dès qu'une autre personne est dans le même appel. */
+  speakerId?: string;
+  speakerName?: string;
 }
+
+export interface CallSpeakerSource {
+  id: string;
+  name: string;
+  stream: MediaStream;
+}
+
+export interface CallSpeakersUpdate {
+  localId: string;
+  localName: string;
+  /** Vrai dès qu'une autre personne partage l'appel. */
+  multi: boolean;
+  remotes: CallSpeakerSource[];
+  /** Noms du workspace, pour écrire les personnes telles qu'elles s'appellent. */
+  nameHint?: string;
+}
+
+export type WatchCallSpeakers = (listener: (update: CallSpeakersUpdate) => void) => () => void;
 
 type TranscriptListener = (chunk: VoiceNotesTranscriptChunk) => void;
 type ErrorListener = (message: string) => void;
@@ -14,17 +35,53 @@ type ErrorListener = (message: string) => void;
 const STT_SLICE_MS = 3_500;
 const MIN_SLICE_BYTES = 600;
 
+const LOCAL_TAP_ID = "local";
+
+interface SpeakerTap {
+  id: string;
+  name: string;
+  /** Piste d'origine. On ne l'arrête jamais : c'est le micro de l'appel. */
+  source: MediaStream;
+  stream: MediaStream;
+  sourceKey: string;
+  recorder: MediaRecorder | null;
+  timer: number | null;
+  reportedStartError: boolean;
+}
+
 let recognition: SpeechRecognition | null = null;
 let recorder: MediaRecorder | null = null;
-let sliceRecorder: MediaRecorder | null = null;
-let sliceStream: MediaStream | null = null;
-let sliceTimer: number | null = null;
 let audioChunks: Blob[] = [];
 let startedAt = 0;
 let transcriptListener: TranscriptListener | null = null;
 let errorListener: ErrorListener | null = null;
 let running = false;
-let sliceEpoch = 0;
+let lockedLanguage: string | null = null;
+let pendingLanguage: string | null = null;
+let attributeSpeakers = false;
+let localSpeakerId = LOCAL_TAP_ID;
+let localSpeakerName = "Vous";
+let nameHint = "";
+const taps = new Map<string, SpeakerTap>();
+let stopWatchingCall: (() => void) | null = null;
+
+function resetSpokenLanguage() {
+  lockedLanguage = null;
+  pendingLanguage = null;
+}
+
+/** Lock the notes to one spoken language once the same one is heard clearly. */
+function noteSpokenLanguage(code: string | undefined, text: string): boolean {
+  if (!code || lockedLanguage) return false;
+  const solid = text.trim().length >= 12;
+  if (pendingLanguage === code || solid) {
+    lockedLanguage = code;
+    pendingLanguage = null;
+    return true;
+  }
+  pendingLanguage = code;
+  return false;
+}
 
 function getRecognitionCtor(): (new () => SpeechRecognition) | null {
   const w = window as Window & {
@@ -103,21 +160,6 @@ function prefersServerStt(): boolean {
   return hasFormaDesktop() || !getRecognitionCtor();
 }
 
-function cloneAudioStream(stream: MediaStream): MediaStream {
-  return audioOnlyLiveStream(stream);
-}
-
-function stopClonedSliceStream() {
-  sliceStream?.getTracks().forEach((track) => {
-    try {
-      track.stop();
-    } catch {
-      /* ignore */
-    }
-  });
-  sliceStream = null;
-}
-
 function serverSttErrorMessage(error: unknown): string {
   const raw =
     error && typeof error === "object" && "message" in error
@@ -146,17 +188,55 @@ function speechErrorMessage(error: string): string {
   }
 }
 
-function clearSliceTimer() {
-  if (sliceTimer !== null) {
-    window.clearTimeout(sliceTimer);
-    sliceTimer = null;
-  }
+function audioSourceKey(stream: MediaStream): string {
+  const ids = stream
+    .getAudioTracks()
+    .filter((track) => track.readyState === "live")
+    .map((track) => track.id)
+    .join(",");
+  return `${stream.id}:${ids}`;
 }
 
-function stopSliceRecorder() {
-  clearSliceTimer();
-  const active = sliceRecorder;
-  sliceRecorder = null;
+function sourceLive(stream: MediaStream | null): boolean {
+  return stream?.getAudioTracks().some((track) => track.readyState === "live") ?? false;
+}
+
+/** Le micro coupé ou silencieux n'est pas une prise de parole dans l'appel. */
+function sourceAudible(stream: MediaStream | null): boolean {
+  return (
+    stream?.getAudioTracks().some(
+      (track) => track.readyState === "live" && track.enabled && !track.muted,
+    ) ?? false
+  );
+}
+
+function emitTranscript(tap: SpeakerTap, text: string, at: number) {
+  const named = attributeSpeakers;
+  const speaker =
+    tap.id === LOCAL_TAP_ID
+      ? { id: localSpeakerId, name: localSpeakerName }
+      : { id: tap.id, name: tap.name };
+  transcriptListener?.({
+    text,
+    isFinal: true,
+    at,
+    ...(named
+      ? {
+          speakerId: speaker.id,
+          speakerName: speaker.name.trim() || "Participant",
+        }
+      : {}),
+  });
+}
+
+function stopTap(id: string) {
+  const tap = taps.get(id);
+  if (!tap) return;
+  taps.delete(id);
+  if (tap.timer !== null) window.clearTimeout(tap.timer);
+  tap.timer = null;
+  const active = tap.recorder;
+  tap.recorder = null;
   if (active && active.state !== "inactive") {
     try {
       active.stop();
@@ -164,54 +244,155 @@ function stopSliceRecorder() {
       /* ignore */
     }
   }
+  tap.stream.getTracks().forEach((track) => {
+    try {
+      track.stop();
+    } catch {
+      /* ignore */
+    }
+  });
 }
 
-function startServerStt(stream: MediaStream) {
-  const beginSlice = () => {
-    if (!running) return;
-    let rec: MediaRecorder;
-    try {
-      rec = startRecorder(stream, 250);
-    } catch (error) {
+function beginSlice(tap: SpeakerTap) {
+  if (!running || taps.get(tap.id) !== tap) return;
+  if (!sourceAudible(tap.source)) {
+    tap.timer = window.setTimeout(() => beginSlice(tap), 700);
+    return;
+  }
+
+  let rec: MediaRecorder;
+  try {
+    rec = startRecorder(tap.stream, 250);
+  } catch (error) {
+    if (!tap.reportedStartError) {
+      tap.reportedStartError = true;
       errorListener?.(
         error instanceof Error ? error.message : "Impossible de démarrer l'enregistrement audio.",
       );
-      return;
     }
-    sliceRecorder = rec;
-    const chunks: Blob[] = [];
-    rec.ondataavailable = (event) => {
-      if (event.data.size > 0) chunks.push(event.data);
-    };
-    rec.onstop = () => {
-      if (sliceRecorder === rec) sliceRecorder = null;
-      const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
-      if (running && blob.size >= MIN_SLICE_BYTES) {
-        const epoch = ++sliceEpoch;
-        void transcribeLiveAudioChunk(blob)
-          .then((text) => {
-            if (!running || !text) return;
-            transcriptListener?.({ text, isFinal: true, at: Date.now() });
-          })
-          .catch((error) => {
-            if (!running || epoch !== sliceEpoch) return;
-            errorListener?.(serverSttErrorMessage(error));
-          });
-      }
-      if (running) beginSlice();
-    };
-    sliceTimer = window.setTimeout(() => {
-      sliceTimer = null;
-      if (rec.state === "recording") {
-        try {
-          rec.stop();
-        } catch {
-          /* ignore */
-        }
-      }
-    }, STT_SLICE_MS);
+    tap.timer = window.setTimeout(() => beginSlice(tap), 3_000);
+    return;
+  }
+
+  tap.recorder = rec;
+  const started = Date.now();
+  const chunks: Blob[] = [];
+  rec.ondataavailable = (event) => {
+    if (event.data.size > 0) chunks.push(event.data);
   };
-  beginSlice();
+  rec.onstop = () => {
+    if (tap.recorder === rec) tap.recorder = null;
+    const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+    if (running && blob.size >= MIN_SLICE_BYTES) {
+      void transcribeLiveAudioChunk(blob, 12_000, {
+        language: lockedLanguage ?? undefined,
+        prompt: nameHint || undefined,
+      })
+        .then(async (result) => {
+          if (!running) return "";
+          let text = result.text.trim();
+          const hinted = Boolean(lockedLanguage);
+          const lockedNow = noteSpokenLanguage(result.language, text);
+          if (lockedNow && !hinted && lockedLanguage) {
+            const fixed = await transcribeLiveAudioChunk(blob, 12_000, {
+              language: lockedLanguage,
+              prompt: nameHint || undefined,
+            });
+            if (fixed.text.trim()) text = fixed.text.trim();
+          }
+          return text;
+        })
+        .then((text) => {
+          if (!running || !text) return;
+          emitTranscript(tap, text, started);
+        })
+        .catch((error) => {
+          if (!running) return;
+          errorListener?.(serverSttErrorMessage(error));
+        });
+    }
+    if (running && taps.get(tap.id) === tap) beginSlice(tap);
+  };
+  tap.timer = window.setTimeout(() => {
+    tap.timer = null;
+    if (rec.state === "recording") {
+      try {
+        rec.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+  }, STT_SLICE_MS);
+}
+
+function startTap(id: string, name: string, source: MediaStream, sourceKey: string) {
+  let stream: MediaStream;
+  try {
+    stream = audioOnlyLiveStream(source);
+  } catch {
+    return;
+  }
+  const tap: SpeakerTap = {
+    id,
+    name,
+    source,
+    stream,
+    sourceKey,
+    recorder: null,
+    timer: null,
+    reportedStartError: false,
+  };
+  taps.set(id, tap);
+  beginSlice(tap);
+}
+
+function ensureLocalServerTap() {
+  const source = getLocalMediaStream();
+  if (!source) return;
+  const sourceKey = audioSourceKey(source);
+  const existing = taps.get(LOCAL_TAP_ID);
+  if (existing && existing.sourceKey === sourceKey) {
+    existing.name = localSpeakerName;
+    existing.source = source;
+    return;
+  }
+  if (existing) stopTap(LOCAL_TAP_ID);
+  stopWebSpeech();
+  startTap(LOCAL_TAP_ID, localSpeakerName, source, sourceKey);
+}
+
+function applyCallSpeakers(update: CallSpeakersUpdate) {
+  if (!running) return;
+  localSpeakerId = update.localId || LOCAL_TAP_ID;
+  localSpeakerName = update.localName.trim() || "Vous";
+  nameHint = update.nameHint?.trim() ?? "";
+  const seen = new Set<string>();
+
+  for (const remote of update.remotes) {
+    if (!sourceLive(remote.stream) || remote.id === localSpeakerId) continue;
+    seen.add(remote.id);
+    const sourceKey = audioSourceKey(remote.stream);
+    const existing = taps.get(remote.id);
+    if (existing && existing.sourceKey === sourceKey) {
+      existing.name = remote.name;
+      existing.source = remote.stream;
+      continue;
+    }
+    if (existing) stopTap(remote.id);
+    startTap(remote.id, remote.name, remote.stream, sourceKey);
+  }
+
+  for (const id of [...taps.keys()]) {
+    if (id === LOCAL_TAP_ID) continue;
+    if (!seen.has(id)) stopTap(id);
+  }
+
+  if (update.multi || seen.size > 0) attributeSpeakers = true;
+  if (attributeSpeakers || prefersServerStt()) ensureLocalServerTap();
+}
+
+function stopAllTaps() {
+  for (const id of [...taps.keys()]) stopTap(id);
 }
 
 function stopWebSpeech() {
@@ -227,17 +408,17 @@ function stopWebSpeech() {
   recognition = null;
 }
 
-function startWebSpeech(stream: MediaStream) {
+function startWebSpeech() {
   const Ctor = getRecognitionCtor();
   if (!Ctor) {
-    startServerStt(stream);
+    ensureLocalServerTap();
     return;
   }
 
   recognition = new Ctor();
   recognition.continuous = true;
   recognition.interimResults = true;
-  recognition.lang = "fr-FR";
+  if (lockedLanguage) recognition.lang = lockedLanguage;
   recognition.onresult = (event) => {
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const result = event.results[i];
@@ -254,7 +435,7 @@ function startWebSpeech(stream: MediaStream) {
     if (event.error === "aborted" || event.error === "no-speech") return;
     if (event.error === "network" || event.error === "service-not-allowed") {
       stopWebSpeech();
-      startServerStt(stream);
+      ensureLocalServerTap();
       return;
     }
     errorListener?.(speechErrorMessage(event.error));
@@ -273,6 +454,7 @@ function startWebSpeech(stream: MediaStream) {
 export async function startVoiceNotesSession(
   onTranscript: TranscriptListener,
   onError: ErrorListener,
+  watchSpeakers?: WatchCallSpeakers,
 ): Promise<void> {
   if (typeof MediaRecorder === "undefined") {
     throw new Error("La transcription live n'est pas disponible dans ce navigateur.");
@@ -291,7 +473,11 @@ export async function startVoiceNotesSession(
   startedAt = Date.now();
   audioChunks = [];
   running = true;
-  sliceEpoch = 0;
+  attributeSpeakers = false;
+  localSpeakerId = LOCAL_TAP_ID;
+  localSpeakerName = "Vous";
+  nameHint = "";
+  resetSpokenLanguage();
 
   recorder = startRecorder(recordStream, 1000);
   recorder.ondataavailable = (event) => {
@@ -307,22 +493,26 @@ export async function startVoiceNotesSession(
     });
   });
 
-  if (prefersServerStt()) {
-    stopClonedSliceStream();
-    sliceStream = cloneAudioStream(stream);
-    startServerStt(sliceStream);
-  } else {
-    startWebSpeech(stream);
+  if (watchSpeakers) {
+    stopWatchingCall = watchSpeakers(applyCallSpeakers);
   }
+  if (!taps.has(LOCAL_TAP_ID) && prefersServerStt()) ensureLocalServerTap();
+  if (!taps.has(LOCAL_TAP_ID)) startWebSpeech();
 }
 
 function cleanupRecognition() {
   running = false;
+  stopWatchingCall?.();
+  stopWatchingCall = null;
   stopWebSpeech();
-  stopSliceRecorder();
-  stopClonedSliceStream();
+  stopAllTaps();
   transcriptListener = null;
   errorListener = null;
+  attributeSpeakers = false;
+  localSpeakerId = LOCAL_TAP_ID;
+  localSpeakerName = "Vous";
+  nameHint = "";
+  resetSpokenLanguage();
 }
 
 export function stopVoiceNotesSession(): Promise<{ blob: Blob | null; durationMs: number }> {

@@ -48,7 +48,7 @@ async def api_transcribe(
     mime = file.content_type or "application/octet-stream"
 
     try:
-        text = await transcribe_audio(
+        text, detected = await transcribe_audio(
             data,
             filename=filename,
             mime=mime,
@@ -59,4 +59,4 @@ async def api_transcribe(
     except SttError as exc:
         raise HTTPException(503, str(exc)) from exc
 
-    return {"text": text}
+    return {"text": text, "language": detected or ""}

@@ -6636,6 +6636,9 @@ html:not(.app-loading-splash) #root {
     @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-300;
     background-color: var(--forma-tint-08);
   }
+  .chat-panel-header__thread-mark {
+    @apply shrink-0 text-muted-300;
+  }
   .chat-panel-header__thread-name {
     @apply truncate text-[12.5px] font-semibold text-muted-100;
   }
@@ -7876,6 +7879,9 @@ html:not(.app-loading-splash) #root {
     margin-left: auto;
     margin-right: 0;
   }
+  .people-chat-bubble-wrap--with-avatar {
+    align-items: flex-start;
+  }
   .people-chat-bubble-wrap__avatar,
   .people-chat-bubble-wrap__avatar.user-avatar,
   .people-chat-bubble-wrap__avatar img.user-avatar,
@@ -7885,6 +7891,22 @@ html:not(.app-loading-splash) #root {
   }
   .people-chat-bubble-wrap__avatar-spacer {
     visibility: hidden;
+  }
+  .people-chat-bubble-wrap__avatar-btn {
+    @apply relative inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full
+      border-0 bg-transparent p-0;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .people-chat-bubble-wrap__avatar-name {
+    @apply pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-[calc(100%+6px)]
+      whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-medium text-muted-100 opacity-0;
+    background-color: var(--forma-elevated);
+    box-shadow: 0 0 0 1px var(--forma-border);
+  }
+  .people-chat-bubble-wrap__avatar-btn:hover .people-chat-bubble-wrap__avatar-name,
+  .people-chat-bubble-wrap__avatar-btn:focus-visible .people-chat-bubble-wrap__avatar-name {
+    @apply opacity-100;
   }
   .people-chat-bubble-stack {
     @apply relative min-w-0 max-w-full;
@@ -9670,6 +9692,9 @@ html:not(.app-loading-splash) #root {
     @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-300;
     background-color: var(--forma-tint-08);
   }
+  .friends-chat-panel__thread-bar-mark {
+    @apply inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted-300;
+  }
   .friends-chat-panel__thread-bar-name {
     @apply min-w-0 truncate text-[13px] font-semibold text-muted-100;
   }
@@ -9929,6 +9954,10 @@ html:not(.app-loading-splash) #root {
   .messages-panel-category__body {
     @apply pb-1 pl-1 pr-0 pt-0;
   }
+  .messages-panel-category .messages-overlay__thread-item {
+    padding-left: 0.5rem;
+    padding-right: 0.75rem;
+  }
   .messages-panel-category__empty {
     @apply px-2 py-2 text-[11px] leading-relaxed text-muted-500;
   }
@@ -9937,6 +9966,9 @@ html:not(.app-loading-splash) #root {
   }
   .messages-panel-category .messages-thread-card {
     @apply rounded-lg px-2 py-1.5;
+  }
+  .messages-panel-category .workspace-text-channels .messages-thread-card {
+    @apply items-center gap-2 py-1;
   }
   .messages-panel-category .messages-thread-card .messages-overlay__avatar,
   .messages-panel-category .messages-thread-card .messages-overlay__avatar.user-avatar,
@@ -9980,6 +10012,9 @@ html:not(.app-loading-splash) #root {
   .workspace-text-channel-create__hash,
   .workspace-text-channel-row__hash {
     @apply shrink-0 text-muted-500;
+  }
+  .workspace-text-channel-row__mark {
+    @apply inline-flex h-4 w-4 shrink-0 items-center justify-center text-muted-400;
   }
   .workspace-text-channel-create__input,
   .workspace-text-channel-row__input {
@@ -10046,7 +10081,7 @@ html:not(.app-loading-splash) #root {
     background: transparent;
   }
   .workspace-text-channel-row__rename-form {
-    @apply flex items-center gap-1 rounded-lg px-2 py-1;
+    @apply mx-3 flex items-center gap-2.5 rounded-lg px-2 py-1.5;
     box-shadow: inset 0 0 0 1px var(--forma-border);
   }
   .messages-panel-category__body--cascade .messages-panel-category__item {
@@ -10240,15 +10275,15 @@ html:not(.app-loading-splash) #root {
     grid-template-rows: auto auto minmax(0, 1fr) auto;
   }
   .manual-notes-panel__title-input {
-    @apply mx-4 mt-2 border-0 bg-transparent p-0 text-[20px] font-semibold text-muted-100
+    @apply mx-4 mt-3 border-0 bg-transparent p-0 text-[24px] font-semibold text-muted-100
       outline-none placeholder:text-muted-500 focus:outline-none focus:ring-0;
   }
   .manual-notes-panel__editor {
     @apply mx-4 mb-2 mt-2 min-h-0 flex-1 overflow-y-auto break-words border-0 bg-transparent p-0
-      text-[14px] leading-snug text-muted-200 outline-none focus:outline-none focus:ring-0;
+      text-[14px] leading-relaxed text-muted-200 outline-none focus:outline-none focus:ring-0;
   }
   .manual-notes-panel__editor-wrap {
-    @apply relative mx-4 mb-0 mt-2 flex min-h-0 flex-1 flex-col overflow-hidden;
+    @apply relative mx-4 mb-0 mt-4 flex min-h-0 flex-1 flex-col overflow-hidden;
     isolation: isolate;
   }
   .manual-notes-panel__editor-scroll {
@@ -10277,79 +10312,53 @@ html:not(.app-loading-splash) #root {
   .manual-notes-panel__editor--locked {
     @apply cursor-default select-none;
   }
-  .manual-notes-panel__transcript-veil {
-    position: absolute;
-    inset: 0;
-    z-index: 10;
-    pointer-events: none;
-    backdrop-filter: blur(0.25px);
-    -webkit-backdrop-filter: blur(0.25px);
-  }
-  .manual-notes-panel__editor-wrap--transcript .manual-notes-panel__editor,
-  .manual-notes-panel__editor-wrap--transcript .manual-notes-panel__editor p {
-    color: #2d2d2d;
-  }
-  .manual-notes-panel__transcript-veil::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background:
-      linear-gradient(
-        to right,
-        color-mix(in srgb, var(--forma-content-bg) 82%, transparent) 0%,
-        color-mix(in srgb, var(--forma-content-bg) 42%, transparent) 14%,
-        transparent 28%,
-        transparent 50%,
-        transparent 72%,
-        color-mix(in srgb, var(--forma-content-bg) 42%, transparent) 86%,
-        color-mix(in srgb, var(--forma-content-bg) 82%, transparent) 100%
-      ),
-      linear-gradient(
-        to bottom,
-        color-mix(in srgb, var(--forma-content-bg) 82%, transparent) 0%,
-        color-mix(in srgb, var(--forma-content-bg) 42%, transparent) 13%,
-        transparent 26%,
-        transparent 50%,
-        transparent 74%,
-        color-mix(in srgb, var(--forma-content-bg) 42%, transparent) 87%,
-        color-mix(in srgb, var(--forma-content-bg) 82%, transparent) 100%
-      );
-  }
-  .manual-notes-panel__transcript-status {
-    position: absolute;
-    inset: 0;
-    z-index: 12;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    padding: 1.5rem 1.25rem;
-    pointer-events: none;
-    text-align: center;
-  }
-  .manual-notes-panel__transcript-status-title {
-    @apply text-[15px] font-semibold text-muted-100;
-  }
-  .manual-notes-panel__transcript-status-hint {
-    @apply max-w-[16.5rem] text-[12px] leading-snug text-muted-400;
-  }
-  .manual-notes-panel__transcript-generate {
-    pointer-events: auto;
-    margin-top: 0.45rem;
-    @apply inline-flex items-center justify-center rounded-full px-3.5 py-1.5 text-[12px] font-medium
-      text-muted-100 transition-colors disabled:opacity-40;
-    border: 1px solid var(--forma-chat-composer-stroke);
-    background-color: var(--forma-content-bg);
-  }
-  .manual-notes-panel__transcript-generate:hover:not(:disabled) {
-    background-color: var(--forma-control-hover-bg);
-  }
   .manual-notes-panel__structuring {
     @apply flex items-center gap-2 pb-2 pt-3 text-[12px] font-medium text-muted-400;
   }
+  .manual-notes-panel__bottom {
+    @apply shrink-0 px-4 pb-3 pt-1;
+  }
+  .manual-notes-panel__structure-btn {
+    @apply relative isolate flex h-11 w-full items-center justify-center rounded-full border-0 px-4
+      text-[13px] font-medium text-muted-100 transition-colors
+      disabled:cursor-not-allowed disabled:opacity-40;
+    background-color: var(--forma-chat-composer-bg);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.16),
+      inset 0 1px 0 var(--forma-tint-07);
+  }
+  .manual-notes-panel__structure-btn::before {
+    content: "";
+    position: absolute;
+    inset: -0.2px;
+    border-radius: inherit;
+    padding: 0.2px;
+    background: linear-gradient(
+      180deg,
+      var(--forma-tint-34) 0%,
+      var(--forma-tint-12) 38%,
+      var(--forma-tint-02) 62%,
+      transparent 100%
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .manual-notes-panel__structure-btn-label {
+    @apply relative z-[1] inline-flex items-center gap-1.5;
+  }
+  .manual-notes-panel__structure-btn:hover:not(:disabled) {
+    background-color: var(--forma-control-hover-bg);
+  }
   .manual-notes-panel__footer {
-    @apply mx-4 mb-2 space-y-1;
+    @apply mb-1 space-y-1;
   }
   .manual-notes-panel__ai-error {
     @apply text-[11px] text-red-200;
@@ -10376,30 +10385,45 @@ html:not(.app-loading-splash) #root {
     @apply pointer-events-none text-muted-500;
   }
   .manual-notes-panel__editor h1 {
-    @apply mb-0.5 mt-3 text-[22px] font-semibold leading-tight text-muted-100 first:mt-0;
+    @apply mb-2 mt-7 text-[16px] font-semibold leading-tight text-muted-100 first:mt-0;
   }
   .manual-notes-panel__editor h2 {
-    @apply mb-0.5 mt-4 text-[16px] font-semibold leading-snug text-muted-100 first:mt-0;
+    @apply mb-1.5 mt-6 text-[15px] font-semibold leading-snug text-muted-100 first:mt-0;
   }
   .manual-notes-panel__editor h3 {
-    @apply mb-0.5 mt-2.5 text-[14px] font-semibold leading-snug text-muted-100;
+    @apply mb-1.5 mt-5 text-[14px] font-semibold leading-snug text-muted-100;
   }
   .manual-notes-panel__editor p {
-    @apply my-0 text-[14px] leading-snug text-muted-200;
+    @apply my-0 text-[14px] leading-relaxed text-muted-200;
   }
   .manual-notes-panel__editor p + p {
-    @apply mt-1.5;
+    @apply mt-3;
   }
   .manual-notes-panel__editor mark {
     background-color: rgba(250, 204, 21, 0.35);
     @apply rounded-sm px-0.5 text-muted-100;
+  }
+  .manual-notes-panel__editor .note-person {
+    color: var(--muted-100);
+    background-color: var(--forma-tint-08);
+    border-radius: 0.2rem;
+    padding: 0 0.3rem;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  .manual-notes-panel__editor .note-person--link {
+    cursor: pointer;
+  }
+  .manual-notes-panel__editor .note-person--link:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
   .manual-notes-panel__editor u {
     @apply underline decoration-muted-400 underline-offset-2;
   }
   .manual-notes-panel__editor ul,
   .manual-notes-panel__editor ol {
-    @apply my-1 space-y-0.5 pl-4;
+    @apply my-3 space-y-2 pl-5;
   }
   .manual-notes-panel__editor ul {
     @apply list-disc;
@@ -10408,14 +10432,14 @@ html:not(.app-loading-splash) #root {
     @apply list-decimal;
   }
   .manual-notes-panel__editor li {
-    @apply leading-snug text-muted-200;
+    @apply leading-relaxed text-muted-200;
   }
   .manual-notes-panel__editor table {
-    @apply my-2 w-full border-collapse text-[13px] leading-snug;
+    @apply my-4 w-full border-collapse text-[13px] leading-relaxed;
   }
   .manual-notes-panel__editor th,
   .manual-notes-panel__editor td {
-    @apply border border-ink-700 px-2 py-1 text-left align-top text-muted-200;
+    @apply border border-ink-700 px-3 py-2.5 text-left align-top text-muted-200;
   }
   .manual-notes-panel__editor th {
     @apply bg-ink-850 font-semibold text-muted-100;
@@ -10431,14 +10455,44 @@ html:not(.app-loading-splash) #root {
   .manual-notes-panel__tool-label {
     @apply text-[10px] font-semibold leading-none tracking-wide;
   }
-  .manual-notes-panel__tool--ai {
-    animation: manual-notes-ai-hue 14s linear infinite;
+  .manual-notes-panel__ai-capsule {
+    @apply relative isolate ml-1 inline-flex h-7 shrink-0 items-center justify-center rounded-full
+      border-0 px-3 text-muted-100 transition-colors
+      disabled:cursor-not-allowed disabled:opacity-40;
+    background-color: var(--forma-chat-composer-bg);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.16),
+      inset 0 1px 0 var(--forma-tint-07);
   }
-  .manual-notes-panel__tool--ai:hover {
-    background-color: color-mix(in srgb, currentColor 15%, transparent);
+  .manual-notes-panel__ai-capsule::before {
+    content: "";
+    position: absolute;
+    inset: -0.2px;
+    border-radius: inherit;
+    padding: 0.2px;
+    background: linear-gradient(
+      180deg,
+      var(--forma-tint-34) 0%,
+      var(--forma-tint-12) 38%,
+      var(--forma-tint-02) 62%,
+      transparent 100%
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 0;
   }
-  .manual-notes-panel__tool--ai.is-active {
-    background-color: color-mix(in srgb, currentColor 25%, transparent);
+  .manual-notes-panel__ai-capsule-label {
+    @apply relative z-[1] text-[12px] font-medium leading-none;
+  }
+  .manual-notes-panel__ai-capsule:hover:not(:disabled) {
+    background-color: var(--forma-control-hover-bg);
   }
   .manual-notes-panel--recap {
     grid-template-rows: auto 1fr;
@@ -10869,26 +10923,6 @@ html:not(.app-loading-splash) #root {
   }
   .handoff-note-overlay__send {
     @apply mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-ink-750 px-3 py-2 text-[12px] font-medium text-muted-100 transition-colors hover:bg-ink-700 disabled:opacity-40;
-  }
-  @keyframes manual-notes-ai-hue {
-    0% {
-      color: #a855f7;
-    }
-    20% {
-      color: #ec4899;
-    }
-    40% {
-      color: #f59e0b;
-    }
-    60% {
-      color: #14b8a6;
-    }
-    80% {
-      color: #6366f1;
-    }
-    100% {
-      color: #a855f7;
-    }
   }
   .friends-chat-panel__empty {
     @apply px-4 py-8 text-center text-[12px] leading-relaxed text-muted-500;

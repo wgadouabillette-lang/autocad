@@ -38,10 +38,70 @@ function safeFilename(raw: unknown, mimeType: string): string {
   return "chunk.webm";
 }
 
-function transcriptText(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "";
-  const text = (payload as { text?: unknown }).text;
-  return typeof text === "string" ? text.trim() : "";
+const WHISPER_LANGUAGE_CODES: Record<string, string> = {
+  afrikaans: "af",
+  arabic: "ar",
+  armenian: "hy",
+  azerbaijani: "az",
+  belarusian: "be",
+  bengali: "bn",
+  bosnian: "bs",
+  bulgarian: "bg",
+  catalan: "ca",
+  chinese: "zh",
+  croatian: "hr",
+  czech: "cs",
+  danish: "da",
+  dutch: "nl",
+  english: "en",
+  estonian: "et",
+  finnish: "fi",
+  french: "fr",
+  german: "de",
+  greek: "el",
+  hebrew: "he",
+  hindi: "hi",
+  hungarian: "hu",
+  indonesian: "id",
+  italian: "it",
+  japanese: "ja",
+  korean: "ko",
+  latvian: "lv",
+  lithuanian: "lt",
+  malay: "ms",
+  norwegian: "no",
+  persian: "fa",
+  polish: "pl",
+  portuguese: "pt",
+  romanian: "ro",
+  russian: "ru",
+  serbian: "sr",
+  slovak: "sk",
+  slovenian: "sl",
+  spanish: "es",
+  swedish: "sv",
+  thai: "th",
+  turkish: "tr",
+  ukrainian: "uk",
+  vietnamese: "vi",
+};
+
+function detectedLanguage(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const raw = value.trim().toLowerCase().replace(/_/g, "-");
+  if (!raw) return undefined;
+  if (WHISPER_LANGUAGE_CODES[raw]) return WHISPER_LANGUAGE_CODES[raw];
+  const head = raw.split("-")[0] ?? "";
+  if (WHISPER_LANGUAGE_CODES[head]) return WHISPER_LANGUAGE_CODES[head];
+  if (/^[a-z]{2}$/.test(head)) return head;
+  return undefined;
+}
+
+function transcriptPayload(payload: unknown): { text: string; language?: string } {
+  if (!payload || typeof payload !== "object") return { text: "" };
+  const record = payload as { text?: unknown; language?: unknown };
+  const text = typeof record.text === "string" ? record.text.trim() : "";
+  return { text, language: detectedLanguage(record.language) };
 }
 
 async function transcribeOpenAi(
@@ -54,6 +114,7 @@ async function transcribeOpenAi(
   const form = new FormData();
   form.append("model", "whisper-1");
   appendLanguage(form, language);
+  if (!language) form.append("response_format", "verbose_json");
   form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
   return fetch(OPENAI_STT_URL, {
     method: "POST",
@@ -73,7 +134,7 @@ async function transcribeXai(
   const form = new FormData();
   if (includeModel) form.append("model", "grok-stt");
   appendLanguage(form, language);
-  form.append("format", "true");
+  if (language) form.append("format", "true");
   form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
   return fetch(XAI_STT_URL, {
     method: "POST",
@@ -85,7 +146,7 @@ async function transcribeXai(
 export async function runAiTranscribe(
   uid: string,
   data: TranscribeRequest,
-): Promise<{ text: string }> {
+): Promise<{ text: string; language?: string }> {
   const keys = await loadLlmKeys(uid);
   if (!keys.openai && !keys.xai) {
     throw new HttpsError(
@@ -151,14 +212,40 @@ export async function runAiTranscribe(
       continue;
     }
     if (response.ok) {
-      let text = "";
+      let parsed = { text: "", language: undefined as string | undefined };
       try {
-        text = transcriptText(await response.json());
+        parsed = transcriptPayload(await response.json());
       } catch {
         lastKind = "network";
         continue;
       }
-      if (text || isLast) return { text };
+      if (parsed.text || isLast) {
+        if (
+          parsed.text &&
+          !language &&
+          !parsed.language &&
+          keys.openai &&
+          attempt.name !== "openai"
+        ) {
+          try {
+            const detect = await transcribeOpenAi(
+              buffer,
+              mimeType,
+              filename,
+              keys.openai,
+            );
+            if (detect.ok) {
+              const alt = transcriptPayload(await detect.json());
+              if (alt.language) {
+                return { text: alt.text || parsed.text, language: alt.language };
+              }
+            }
+          } catch {
+            // Keep the transcript we already have.
+          }
+        }
+        return { text: parsed.text, language: parsed.language ?? language };
+      }
       continue;
     }
     lastKind = response.status === 401 || response.status === 403 ? "service" : "network";

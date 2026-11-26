@@ -1,18 +1,27 @@
 import { create } from "zustand";
-import { structureAiNotesTranscript } from "../lib/aiNotesStructure";
+import { structureAiNotesTranscript, workspacePeopleNames } from "../lib/aiNotesStructure";
+import { inCallParticipants } from "../lib/calls";
 import {
   isVoiceNotesSupported,
   startVoiceNotesSession,
   stopVoiceNotesSession,
+  type CallSpeakersUpdate,
   type VoiceNotesTranscriptChunk,
+  type WatchCallSpeakers,
 } from "../lib/voiceAiNotesSession";
 import { saveRecordingBlob } from "../lib/recordingsStorage";
+import { useAuthStore } from "./useAuthStore";
 import { useCallsStore } from "./useCallsStore";
+import { useStore } from "./useStore";
+import { useWorkspacePresenceStore } from "./useWorkspacePresenceStore";
 
 export interface AiNotesLine {
   id: string;
   text: string;
   isFinal: boolean;
+  at?: number;
+  speakerId?: string;
+  speakerName?: string;
 }
 
 interface AiNotesState {
@@ -31,6 +40,7 @@ interface AiNotesState {
 
   toggle: (workspaceId: string, manualNoteId?: string | null) => Promise<void>;
   stop: () => Promise<void>;
+  structureText: (transcript: string) => Promise<void>;
 }
 
 let structureAbortController: AbortController | null = null;
@@ -45,10 +55,139 @@ function isInVoiceSession(workspaceId: string): boolean {
   );
 }
 
+function personName(workspaceId: string, uid: string): string {
+  const presence = useWorkspacePresenceStore.getState().membersByWorkspace[workspaceId]?.[uid];
+  const fromPresence = presence?.displayName?.trim();
+  if (fromPresence) return fromPresence;
+
+  const calls = useCallsStore.getState();
+  const room = calls.callsByRoom[workspaceId];
+  if (room) {
+    const people = [
+      ...room.blocks.flatMap((block) => block.participants),
+      ...room.openChannels.flatMap((channel) => channel.participants),
+    ];
+    const person = people.find((entry) => entry.id === uid && !entry.isLocal);
+    if (person?.name.trim()) return person.name.trim();
+  }
+  const theater = calls.theaterByWorkspace[workspaceId];
+  if (theater) {
+    const people = [...theater.speakers, ...theater.audience];
+    if (theater.question) people.push(theater.question);
+    const person = people.find((entry) => entry.id === uid && !entry.isLocal);
+    if (person?.name.trim()) return person.name.trim();
+  }
+  return "Participant";
+}
+
+function callHasOtherPeople(workspaceId: string): boolean {
+  const calls = useCallsStore.getState();
+  if (calls.isLocalInCall(workspaceId)) {
+    const room = calls.callsByRoom[workspaceId];
+    if (room) {
+      const people = inCallParticipants(
+        room.blocks,
+        room.openChannels,
+        true,
+        calls.localOpenChannelByRoom[workspaceId] ?? null,
+      );
+      if (people.length > 1) return true;
+    }
+  }
+  if (calls.isLocalInTheaterCall(workspaceId)) {
+    const theater = calls.theaterByWorkspace[workspaceId];
+    if (!theater) return false;
+    const voices = theater.speakers.length + (theater.question ? 1 : 0);
+    if (voices > 1) return true;
+    if (theater.localRole === "audience" && voices > 0) return true;
+  }
+  return false;
+}
+
+function readCallSpeakers(workspaceId: string): CallSpeakersUpdate {
+  const calls = useCallsStore.getState();
+  const remotes = Object.entries(calls.remoteMediaByUid).flatMap(([uid, media]) =>
+    media.audioStream
+      ? [{ id: uid, name: personName(workspaceId, uid), stream: media.audioStream }]
+      : [],
+  );
+  return {
+    localId: useAuthStore.getState().firebaseUid || "local",
+    localName: useStore.getState().userDisplayName.trim() || "Vous",
+    multi: remotes.length > 0 || callHasOtherPeople(workspaceId),
+    remotes,
+    nameHint: workspacePeopleNames(workspaceId).join(", ").slice(0, 200),
+  };
+}
+
+function watchCallSpeakers(workspaceId: string): WatchCallSpeakers {
+  return (listener) => {
+    const emit = () => listener(readCallSpeakers(workspaceId));
+    emit();
+    const unsubCalls = useCallsStore.subscribe((state, previous) => {
+      if (
+        state.remoteMediaByUid === previous.remoteMediaByUid &&
+        state.callsByRoom[workspaceId] === previous.callsByRoom[workspaceId] &&
+        state.theaterByWorkspace[workspaceId] === previous.theaterByWorkspace[workspaceId] &&
+        state.localInCallByRoom[workspaceId] === previous.localInCallByRoom[workspaceId] &&
+        state.localOpenChannelByRoom[workspaceId] === previous.localOpenChannelByRoom[workspaceId]
+      ) {
+        return;
+      }
+      emit();
+    });
+    const unsubPresence = useWorkspacePresenceStore.subscribe((state, previous) => {
+      if (state.membersByWorkspace[workspaceId] === previous.membersByWorkspace[workspaceId]) return;
+      emit();
+    });
+    const timer = window.setInterval(emit, 1_500);
+    return () => {
+      unsubCalls();
+      unsubPresence();
+      window.clearInterval(timer);
+    };
+  };
+}
+
+export function formatAiNotesTranscript(lines: AiNotesLine[], interimText: string): string {
+  const ordered = lines
+    .map((line, index) => ({ line, index }))
+    .sort((a, b) => {
+      if (a.line.at == null && b.line.at == null) return a.index - b.index;
+      if (a.line.at == null) return 1;
+      if (b.line.at == null) return -1;
+      return a.line.at - b.line.at || a.index - b.index;
+    })
+    .map((entry) => entry.line);
+
+  const turns: string[] = [];
+  let currentKey: string | null = null;
+  let current = "";
+  const push = (speakerId: string | undefined, speakerName: string | undefined, text: string) => {
+    const piece = text.trim();
+    if (!piece) return;
+    const key = speakerId ?? "";
+    if (current && key === currentKey) {
+      current = `${current} ${piece}`;
+      return;
+    }
+    if (current) turns.push(current);
+    currentKey = key;
+    const name = speakerName?.trim();
+    current = name ? `${name}: ${piece}` : piece;
+  };
+
+  for (const line of ordered) {
+    if (!line.isFinal) continue;
+    push(line.speakerId, line.speakerName, line.text);
+  }
+  if (interimText.trim()) push(undefined, undefined, interimText);
+  if (current) turns.push(current);
+  return turns.join("\n").trim();
+}
+
 function buildTranscript(lines: AiNotesLine[], interimText: string): string {
-  const finals = lines.filter((l) => l.isFinal).map((l) => l.text);
-  if (interimText.trim()) finals.push(interimText.trim());
-  return finals.join("\n").trim();
+  return formatAiNotesTranscript(lines, interimText);
 }
 
 function handleTranscriptChunk(
@@ -56,13 +195,15 @@ function handleTranscriptChunk(
   lines: AiNotesLine[],
 ): Pick<AiNotesState, "lines" | "interimText"> {
   if (chunk.isFinal) {
-    return {
-      lines: [
-        ...lines,
-        { id: `ln-${chunk.at}`, text: chunk.text, isFinal: true },
-      ],
-      interimText: "",
+    const line: AiNotesLine = {
+      id: `ln-${chunk.speakerId ?? "me"}-${chunk.at}-${lines.length}`,
+      text: chunk.text,
+      isFinal: true,
+      at: chunk.at,
+      speakerId: chunk.speakerId,
+      speakerName: chunk.speakerName,
     };
+    return { lines: [...lines, line], interimText: "" };
   }
   return { lines, interimText: chunk.text };
 }
@@ -76,8 +217,9 @@ function abortStructure() {
 async function runFinalStructure(
   get: () => AiNotesState,
   set: (partial: Partial<AiNotesState> | ((state: AiNotesState) => Partial<AiNotesState>)) => void,
+  transcriptOverride?: string,
 ) {
-  const transcript = buildTranscript(get().lines, get().interimText);
+  const transcript = (transcriptOverride ?? buildTranscript(get().lines, get().interimText)).trim();
   if (!transcript || structureInFlight) return;
 
   structureInFlight = true;
@@ -145,10 +287,6 @@ export const useAiNotesStore = create<AiNotesState>((set, get) => ({
       if (sessionId && blob && blob.size > 0) {
         await saveRecordingBlob(sessionId, blob);
       }
-
-      if (buildTranscript(get().lines, get().interimText)) {
-        await runFinalStructure(get, set);
-      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible d'arrêter AI Notes.";
       set({ error: message });
@@ -210,6 +348,7 @@ export const useAiNotesStore = create<AiNotesState>((set, get) => ({
           }));
         },
         (message) => set({ error: message }),
+        watchCallSpeakers(workspaceId),
       );
 
       set({
@@ -240,5 +379,11 @@ export const useAiNotesStore = create<AiNotesState>((set, get) => ({
         sessionId: null,
       });
     }
+  },
+
+  structureText: async (transcript) => {
+    const trimmed = transcript.trim();
+    if (!trimmed || get().structuring) return;
+    await runFinalStructure(get, set, trimmed);
   },
 }));

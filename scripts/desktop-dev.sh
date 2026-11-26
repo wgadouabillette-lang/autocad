@@ -70,4 +70,8 @@ pkill -f "Electron.*forma-desktop" 2>/dev/null || true
 pkill -f "electron.*desktop" 2>/dev/null || true
 sleep 0.5
 # Cursor/some shells set ELECTRON_RUN_AS_NODE=1 which breaks require("electron").
-(cd desktop && env -u ELECTRON_RUN_AS_NODE FORMA_DEV_URL="http://localhost:${VITE_PORT}/app/" npm start)
+NOTES_PREVIEW_QUERY=""
+if [[ -n "${MEETRA_NOTES_PREVIEW:-}" ]]; then
+  NOTES_PREVIEW_QUERY="?notesPreview=1"
+fi
+(cd desktop && env -u ELECTRON_RUN_AS_NODE FORMA_DEV_URL="http://localhost:${VITE_PORT}/app/${NOTES_PREVIEW_QUERY}" npm start)

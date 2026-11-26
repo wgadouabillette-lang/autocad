@@ -118,20 +118,22 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 const PROD_DESKTOP_WEB_AUTH_URL = "https://meetra.cc/app/auth.html";
+const PROD_API_ORIGIN = "https://meetra.cc";
+
+function desktopAuthApiUrl(path: string): string {
+  // The meetra.cc page finishes the session on that server. Electron has to
+  // start and claim there too, including the dev window on localhost.
+  if (hasFormaDesktop()) {
+    const normalized = path.startsWith("/") ? path : `/${path}`;
+    return `${PROD_API_ORIGIN}${normalized}`;
+  }
+  return apiUrl(path);
+}
 
 function isDedicatedGoogleBootUrl(raw: string): boolean {
   try {
     const path = new URL(raw, window.location.origin).pathname.replace(/\/+$/, "");
     return path.endsWith("/app/auth.html");
-  } catch {
-    return false;
-  }
-}
-
-function isLocalDevOrigin(origin: string): boolean {
-  try {
-    const { hostname } = new URL(origin);
-    return hostname === "localhost" || hostname === "127.0.0.1";
   } catch {
     return false;
   }
@@ -145,18 +147,13 @@ export function desktopWebAuthBaseUrl(): string {
     return configured.replace(/\/$/, "");
   }
 
-  // Packaged Electron serves the UI from 127.0.0.1 — never open that for Google.
-  if (import.meta.env.PROD && hasFormaDesktop()) {
-    return PROD_DESKTOP_WEB_AUTH_URL;
-  }
-
-  const origin = window.location.origin;
-  if (import.meta.env.PROD && isLocalDevOrigin(origin)) {
+  // Google only accepts meetra.cc. The dev window is served from localhost.
+  if (hasFormaDesktop()) {
     return PROD_DESKTOP_WEB_AUTH_URL;
   }
 
   const base = import.meta.env.BASE_URL || "/app/";
-  return new URL("auth.html", `${origin}${base}`).href.replace(/\/$/, "");
+  return new URL("auth.html", `${window.location.origin}${base}`).href.replace(/\/$/, "");
 }
 
 export function buildDesktopWebAuthUrl(sessionId: string): string {
@@ -205,7 +202,7 @@ async function openExternalAuthUrl(url: string): Promise<void> {
 async function completeDesktopAuthSessionViaBackend(sessionId: string): Promise<string | null> {
   const idToken = await getAuthIdToken(true);
   if (!idToken) return null;
-  const response = await fetch(apiUrl("/api/auth/desktop/complete"), {
+  const response = await fetch(desktopAuthApiUrl("/api/auth/desktop/complete"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${idToken}`,
@@ -276,7 +273,7 @@ function createClaimSecret(): string {
 }
 
 async function startDesktopAuthSession(sessionId: string, claimSecret: string): Promise<void> {
-  const response = await fetch(apiUrl("/api/auth/desktop/start"), {
+  const response = await fetch(desktopAuthApiUrl("/api/auth/desktop/start"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId, claimSecret }),
@@ -300,7 +297,7 @@ async function claimDesktopAuthSessionViaBackend(
   userCode: string,
   signal?: AbortSignal,
 ): Promise<DesktopAuthCompletion | null> {
-  const response = await fetch(apiUrl("/api/auth/desktop/claim"), {
+  const response = await fetch(desktopAuthApiUrl("/api/auth/desktop/claim"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     signal,

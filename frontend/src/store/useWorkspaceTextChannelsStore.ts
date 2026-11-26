@@ -25,8 +25,18 @@ interface WorkspaceTextChannelsState {
   clearWorkspace: (workspaceId: string) => void;
 }
 
+const DEFAULT_TEXT_CHANNEL_RANK: Record<string, number> = {
+  general: 0,
+  discussion: 1,
+};
+
 function sortChannels(channels: WorkspaceTextChannelEntry[]): WorkspaceTextChannelEntry[] {
-  return [...channels].sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  return [...channels].sort((a, b) => {
+    const rankA = a.isDraft ? 1000 : (DEFAULT_TEXT_CHANNEL_RANK[a.id] ?? 100);
+    const rankB = b.isDraft ? 1000 : (DEFAULT_TEXT_CHANNEL_RANK[b.id] ?? 100);
+    if (rankA !== rankB) return rankA - rankB;
+    return a.name.localeCompare(b.name, "fr");
+  });
 }
 
 function createDraftChannel(workspaceId: string): WorkspaceTextChannelEntry {

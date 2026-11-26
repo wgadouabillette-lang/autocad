@@ -43,11 +43,78 @@ def resolve_stt_keys(uid: Optional[str] = None) -> tuple[str, str]:
     return openai, xai
 
 
-def _text_from_payload(payload: object) -> str:
+# Whisper verbose_json names the language in English ("english"), not as an ISO code.
+_WHISPER_LANGUAGE_CODES = {
+    "afrikaans": "af",
+    "arabic": "ar",
+    "armenian": "hy",
+    "azerbaijani": "az",
+    "belarusian": "be",
+    "bengali": "bn",
+    "bosnian": "bs",
+    "bulgarian": "bg",
+    "catalan": "ca",
+    "chinese": "zh",
+    "croatian": "hr",
+    "czech": "cs",
+    "danish": "da",
+    "dutch": "nl",
+    "english": "en",
+    "estonian": "et",
+    "finnish": "fi",
+    "french": "fr",
+    "german": "de",
+    "greek": "el",
+    "hebrew": "he",
+    "hindi": "hi",
+    "hungarian": "hu",
+    "indonesian": "id",
+    "italian": "it",
+    "japanese": "ja",
+    "korean": "ko",
+    "latvian": "lv",
+    "lithuanian": "lt",
+    "malay": "ms",
+    "norwegian": "no",
+    "persian": "fa",
+    "polish": "pl",
+    "portuguese": "pt",
+    "romanian": "ro",
+    "russian": "ru",
+    "serbian": "sr",
+    "slovak": "sk",
+    "slovenian": "sl",
+    "spanish": "es",
+    "swedish": "sv",
+    "thai": "th",
+    "turkish": "tr",
+    "ukrainian": "uk",
+    "vietnamese": "vi",
+}
+
+
+def _detected_language(value: object) -> Optional[str]:
+    raw = _trim(value).lower().replace("_", "-")
+    if not raw:
+        return None
+    if raw in _WHISPER_LANGUAGE_CODES:
+        return _WHISPER_LANGUAGE_CODES[raw]
+    head = raw.split("-", 1)[0]
+    if head in _WHISPER_LANGUAGE_CODES:
+        return _WHISPER_LANGUAGE_CODES[head]
+    if len(head) == 2 and head.isalpha():
+        return head
+    return None
+
+
+def _text_and_language(payload: object) -> tuple[str, Optional[str]]:
+    if isinstance(payload, str):
+        return payload.strip(), None
     if not isinstance(payload, dict):
-        return ""
+        return "", None
     text = payload.get("text")
-    return text.strip() if isinstance(text, str) else ""
+    spoken = _detected_language(payload.get("language"))
+    return (text.strip() if isinstance(text, str) else ""), spoken
 
 
 def _language_code(value: Optional[str]) -> Optional[str]:
@@ -76,6 +143,9 @@ async def _post_openai(
     form: dict[str, str] = {"model": "whisper-1", "temperature": "0"}
     if language:
         form["language"] = language
+    else:
+        # Language name comes back with the transcript so the session can stay monolingual.
+        form["response_format"] = "verbose_json"
     if prompt:
         form["prompt"] = prompt
     return await client.post(
@@ -96,8 +166,10 @@ async def _post_xai(
     language: Optional[str],
     include_model: bool = True,
 ) -> httpx.Response:
-    form: dict[str, str] = {"format": "true"}
+    form: dict[str, str] = {}
+    # xAI rejects format=true until a language code is sent. Detect first, then format.
     if language:
+        form["format"] = "true"
         form["language"] = language
     if include_model:
         form["model"] = "grok-stt"
@@ -118,7 +190,7 @@ async def transcribe_audio(
     timeout: float = 45.0,
     language: Optional[str] = None,
     prompt: Optional[str] = None,
-) -> str:
+) -> tuple[str, Optional[str]]:
     openai_key, xai_key = resolve_stt_keys(uid)
     if not openai_key and not xai_key:
         raise SttError("service", "Transcription indisponible (service).")
@@ -191,13 +263,40 @@ async def transcribe_audio(
                     )
                     continue
                 try:
-                    text = _text_from_payload(response.json())
+                    try:
+                        body: object = response.json()
+                    except Exception:
+                        body = response.text
+                    text, detected = _text_and_language(body)
                 except Exception:
                     last_kind = "network"
                     logger.warning("STT %s returned invalid JSON", provider, exc_info=True)
                     continue
                 if text or is_last:
-                    return text
+                    if (
+                        text
+                        and not lang
+                        and not detected
+                        and openai_key
+                        and provider != "openai"
+                    ):
+                        try:
+                            detect = await _post_openai(
+                                client,
+                                api_key=openai_key,
+                                data=data,
+                                filename=filename,
+                                mime=mime,
+                                language=None,
+                                prompt=hint,
+                            )
+                            if detect.status_code < 400:
+                                alt_text, alt_lang = _text_and_language(detect.json())
+                                if alt_lang:
+                                    return alt_text or text, alt_lang
+                        except Exception:
+                            logger.warning("STT language detection failed", exc_info=True)
+                    return text, detected or lang
                 logger.warning("STT %s returned empty text, trying next provider", provider)
     except SttError:
         raise

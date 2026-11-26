@@ -1169,8 +1169,12 @@ export default function FriendsChatPanel() {
     thread && !isMultiPartyChat
       ? resolvePersonPhotoURL(thread.personId, membersByWorkspace, photoLookup)
       : undefined;
-  const resolveAuthorPhotoURL = (authorUid: string, authorName: string) =>
-    resolvePersonPhotoURL(authorUid, membersByWorkspace, photoLookup);
+  const resolveAuthorPhotoURL = (authorUid: string, _authorName: string) => {
+    if (firebaseUid && authorUid === firebaseUid) {
+      return useStore.getState().photoURL ?? undefined;
+    }
+    return resolvePersonPhotoURL(authorUid, membersByWorkspace, photoLookup);
+  };
   const canSubmit =
     activeComposerSkill === "group"
         ? memberPromptReady
@@ -1214,6 +1218,17 @@ export default function FriendsChatPanel() {
             showAuthors={isMultiPartyChat}
             showAvatars={isMultiPartyChat}
             getAuthorPhotoURL={resolveAuthorPhotoURL}
+            onOpenAuthor={
+              thread.section === "workspace-channels"
+                ? (authorUid, authorName) => {
+                    usePeopleStore.getState().openWorkspaceMemberConversation(
+                      thread.workspaceId ?? activeRoomId,
+                      authorUid,
+                      authorName,
+                    );
+                  }
+                : undefined
+            }
             mentionHighlightHandles={
               thread.section === "workspace-channels" ? mentionHighlightHandles : undefined
             }
@@ -1644,8 +1659,8 @@ export default function FriendsChatPanel() {
                   <UsersRound size={14} aria-hidden />
                 </span>
               ) : inWorkspaceChannelThread ? (
-                <span className="friends-chat-panel__thread-bar-avatar friends-chat-panel__thread-bar-avatar--group">
-                  <Hash size={14} aria-hidden />
+                <span className="friends-chat-panel__thread-bar-mark" aria-hidden>
+                  <Hash size={16} strokeWidth={2} />
                 </span>
               ) : (
                 <UserAvatar

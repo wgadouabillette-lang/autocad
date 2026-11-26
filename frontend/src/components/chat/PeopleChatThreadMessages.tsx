@@ -23,6 +23,7 @@ interface PeopleChatThreadMessagesProps {
   showAuthors?: boolean;
   showAvatars?: boolean;
   getAuthorPhotoURL?: (authorUid: string, authorName: string) => string | undefined;
+  onOpenAuthor?: (authorUid: string, authorName: string) => void;
   tailContent?: ReactNode;
   mentionHighlightHandles?: string[];
 }
@@ -34,6 +35,7 @@ function PeopleChatBubbleAvatar({
   authorUid,
   authorName,
   getAuthorPhotoURL,
+  onOpenAuthor,
 }: {
   showAvatars?: boolean;
   mine: boolean;
@@ -41,18 +43,34 @@ function PeopleChatBubbleAvatar({
   authorUid?: string;
   authorName: string;
   getAuthorPhotoURL?: (authorUid: string, authorName: string) => string | undefined;
+  onOpenAuthor?: (authorUid: string, authorName: string) => void;
 }) {
-  if (!showAvatars || mine) return null;
+  if (!showAvatars) return null;
 
   if (isFirstInGroup) {
     const userId = authorUid?.trim() || authorName;
-    return (
+    const avatar = (
       <UserAvatar
         userId={userId}
         name={authorName}
         photoURL={getAuthorPhotoURL?.(userId, authorName)}
+        isLocal={mine}
         className="people-chat-bubble-wrap__avatar"
       />
+    );
+    if (mine || !onOpenAuthor || !authorUid?.trim() || !authorName.trim()) return avatar;
+    return (
+      <button
+        type="button"
+        className="people-chat-bubble-wrap__avatar-btn"
+        data-name={authorName}
+        title={authorName}
+        aria-label={authorName}
+        onClick={() => onOpenAuthor(authorUid.trim(), authorName.trim())}
+      >
+        {avatar}
+        <span className="people-chat-bubble-wrap__avatar-name">{authorName}</span>
+      </button>
     );
   }
 
@@ -132,6 +150,7 @@ function PeopleChatBubble({
   showAuthors,
   showAvatars,
   getAuthorPhotoURL,
+  onOpenAuthor,
   mentionHighlightHandles,
 }: {
   item: PeopleChatRenderItem;
@@ -140,6 +159,7 @@ function PeopleChatBubble({
   showAuthors?: boolean;
   showAvatars?: boolean;
   getAuthorPhotoURL?: (authorUid: string, authorName: string) => string | undefined;
+  onOpenAuthor?: (authorUid: string, authorName: string) => void;
   mentionHighlightHandles?: string[];
 }) {
   const { message, isFirstInGroup, isLastInGroup } = item;
@@ -159,6 +179,7 @@ function PeopleChatBubble({
         className={clsx(
           "people-chat-bubble-wrap",
           mine && "people-chat-bubble-wrap--mine",
+          showAvatars && "people-chat-bubble-wrap--with-avatar",
           isFirstInGroup && "people-chat-bubble-wrap--first",
           isLastInGroup && "people-chat-bubble-wrap--last",
         )}
@@ -170,6 +191,7 @@ function PeopleChatBubble({
           authorUid={message.authorUid}
           authorName={message.author}
           getAuthorPhotoURL={getAuthorPhotoURL}
+          onOpenAuthor={onOpenAuthor}
         />
         <WorkspaceInviteInboxCard
           workspaceId={message.workspaceInviteId}
@@ -189,6 +211,7 @@ function PeopleChatBubble({
         className={clsx(
           "people-chat-bubble-wrap",
           mine && "people-chat-bubble-wrap--mine",
+          showAvatars && "people-chat-bubble-wrap--with-avatar",
           isFirstInGroup && "people-chat-bubble-wrap--first",
           isLastInGroup && "people-chat-bubble-wrap--last",
         )}
@@ -200,6 +223,7 @@ function PeopleChatBubble({
           authorUid={message.authorUid}
           authorName={message.author}
           getAuthorPhotoURL={getAuthorPhotoURL}
+          onOpenAuthor={onOpenAuthor}
         />
         <div className="people-chat-bubble-stack">
           {!mine && isFirstInGroup && showAuthors && (
@@ -230,6 +254,7 @@ function PeopleChatBubble({
       className={clsx(
         "people-chat-bubble-wrap",
         mine && "people-chat-bubble-wrap--mine",
+        showAvatars && "people-chat-bubble-wrap--with-avatar",
         isFirstInGroup && "people-chat-bubble-wrap--first",
         isLastInGroup && "people-chat-bubble-wrap--last",
       )}
@@ -241,6 +266,7 @@ function PeopleChatBubble({
         authorUid={message.authorUid}
         authorName={message.author}
         getAuthorPhotoURL={getAuthorPhotoURL}
+        onOpenAuthor={onOpenAuthor}
       />
       <div className="people-chat-bubble-stack">
         {!mine && isFirstInGroup && showAuthors && (
@@ -280,6 +306,7 @@ export default function PeopleChatThreadMessages({
   showAuthors = false,
   showAvatars = false,
   getAuthorPhotoURL,
+  onOpenAuthor,
   tailContent,
   mentionHighlightHandles,
 }: PeopleChatThreadMessagesProps) {
@@ -312,6 +339,7 @@ export default function PeopleChatThreadMessages({
                 showAuthors={showAuthors}
                 showAvatars={showAvatars}
                 getAuthorPhotoURL={getAuthorPhotoURL}
+                onOpenAuthor={onOpenAuthor}
                 mentionHighlightHandles={mentionHighlightHandles}
               />
             ))}

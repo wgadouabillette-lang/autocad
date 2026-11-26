@@ -5,24 +5,32 @@ import {
   Highlighter,
   Italic,
   Loader2,
-  Sparkles,
   Square,
   Text as TextIcon,
   Underline as UnderlineIcon,
   Download,
+  ArrowUpRight,
 } from "lucide-react";
 import clsx from "clsx";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { useAiNotesEditorSync } from "../../hooks/useAiNotesEditorSync";
+import {
+  dismissFictionalNotesPreview,
+  fictionalNotesPreviewTitle,
+  isFictionalNotesPreview,
+} from "../../lib/fictionalStructuredNote";
 import {
   clearNotesEditorDraft,
   plainTextFromNoteHtml,
   publishNotesEditorDraft,
 } from "../../lib/notesFullscreenPromo";
 import { downloadNotePdf } from "../../lib/notePdf";
+import { annotateNotePeople, workspaceMemberByNoteName } from "../../lib/aiNotesStructure";
 import { sanitizeNoteHtml } from "../../lib/sanitizeHtml";
 import { hasAiNotesAccess } from "../../lib/subscriptionPlans";
 import { useAiNotesStore } from "../../store/useAiNotesStore";
+import { usePeopleStore } from "../../store/usePeopleStore";
+import { useWorkspacePresenceStore } from "../../store/useWorkspacePresenceStore";
 import { useRecapStore } from "../../store/useRecapStore";
 import { useStore } from "../../store/useStore";
 
@@ -86,15 +94,16 @@ export default function ManualNotesPanel() {
   const workspaceEnterpriseActive = useStore((s) => s.workspaceEnterpriseActive);
   const openSettingsTab = useStore((s) => s.openSettingsTab);
   const activeRoomId = useStore((s) => s.activeRoomId);
+  const workspaceMembers = useWorkspacePresenceStore((s) => s.membersByWorkspace[activeRoomId]);
   const activeManualNoteId = useStore((s) => s.activeManualNoteId);
   const chatSessions = useStore((s) => s.chatSessions);
   const aiNotesActive = useAiNotesStore((s) => s.active);
   const aiNotesBusy = useAiNotesStore((s) => s.busy);
-  const aiNotesStructuredHtml = useAiNotesStore((s) => s.structuredHtml);
   const aiNotesError = useAiNotesStore((s) => s.error);
   const aiNotesStructureError = useAiNotesStore((s) => s.structureError);
   const toggleAiNotes = useAiNotesStore((s) => s.toggle);
   const stopAiNotes = useAiNotesStore((s) => s.stop);
+  const structureText = useAiNotesStore((s) => s.structureText);
   const recapGenerating = useRecapStore((s) => s.generating);
   const recapLabel = useRecapStore((s) => s.generatingLabel);
   const recapError = useRecapStore((s) => s.error);
@@ -104,7 +113,16 @@ export default function ManualNotesPanel() {
   const initialTitle = initialNote?.manualNoteTitle ?? "";
   const initialBody =
     initialNote?.manualNoteBody ?? initialNote?.messages?.[0]?.text ?? "";
-  const [title, setTitle] = useState(initialTitle);
+  const [title, setTitle] = useState(() => fictionalNotesPreviewTitle() || initialTitle);
+
+  useEffect(() => {
+    const onPreview = () => {
+      const previewTitle = fictionalNotesPreviewTitle();
+      if (previewTitle) setTitle(previewTitle);
+    };
+    window.addEventListener("meetra-notes-preview", onPreview);
+    return () => window.removeEventListener("meetra-notes-preview", onPreview);
+  }, []);
   const editorRef = useRef<HTMLDivElement>(null);
   const editorScrollRef = useRef<HTMLDivElement>(null);
   const sessionIdRef = useRef<string | null>(activeManualNoteId);
@@ -139,8 +157,24 @@ export default function ManualNotesPanel() {
       editorRef.current.innerHTML = sanitizeNoteHtml(initialBody);
       initializedRef.current = true;
     }
+    if (editorRef.current) annotateNotePeople(editorRef.current, activeRoomId);
     publishLiveNoteDraft(title, editorRef.current, initialBody);
-  }, [title, editorVersion, initialBody]);
+  }, [title, editorVersion, initialBody, activeRoomId, workspaceMembers]);
+
+  const openNotedPerson = (event: MouseEvent<HTMLElement>) => {
+    const chip = (event.target as HTMLElement).closest?.(".note-person");
+    if (!(chip instanceof HTMLElement)) return;
+    const person = workspaceMemberByNoteName(activeRoomId, chip.textContent ?? "");
+    if (!person) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.type !== "mousedown" || event.button !== 0) return;
+    usePeopleStore.getState().openWorkspaceMemberConversation(
+      activeRoomId,
+      person.id,
+      person.name,
+    );
+  };
 
   useEffect(() => {
     return () => clearNotesEditorDraft();
@@ -155,6 +189,7 @@ export default function ManualNotesPanel() {
       openSettingsTab("usage");
       return;
     }
+    dismissFictionalNotesPreview();
     void toggleAiNotes(activeRoomId, sessionIdRef.current);
   };
 
@@ -162,7 +197,24 @@ export default function ManualNotesPanel() {
     void stopAiNotes();
   };
 
+  const handleStructure = () => {
+    if (!canUseAiNotes) {
+      openSettingsTab("usage");
+      return;
+    }
+    dismissFictionalNotesPreview();
+    const text = editorRef.current?.innerText.trim() ?? "";
+    if (!text || structuring) return;
+    void (async () => {
+      if (useAiNotesStore.getState().active) {
+        await stopAiNotes();
+      }
+      await structureText(text);
+    })();
+  };
+
   useEffect(() => {
+    if (isFictionalNotesPreview()) return;
     const trimmedTitle = title.trim();
     const html = editorRef.current?.innerHTML ?? "";
     const plain = editorRef.current?.innerText.trim() ?? "";
@@ -182,6 +234,7 @@ export default function ManualNotesPanel() {
     const wasActive = prevAiNotesActiveRef.current;
     prevAiNotesActiveRef.current = aiNotesActive;
 
+    if (isFictionalNotesPreview()) return;
     if (wasActive && !aiNotesActive && !aiNotesBusy) {
       const html = editorRef.current?.innerHTML ?? "";
       const plain = editorRef.current?.innerText.trim() ?? "";
@@ -217,8 +270,6 @@ export default function ManualNotesPanel() {
   };
 
   const editorLocked = aiNotesActive || structuring || recapGenerating;
-  const showTranscriptVeil =
-    (aiNotesActive || structuring || aiNotesBusy) && !aiNotesStructuredHtml.trim();
 
   return (
     <div className={clsx("manual-notes-panel", recapGenerating && "manual-notes-panel--recap")}>
@@ -263,7 +314,7 @@ export default function ManualNotesPanel() {
         ) : (
           <button
             type="button"
-            className={`manual-notes-panel__tool manual-notes-panel__tool--ai${aiNotesActive ? " is-active" : ""}`}
+            className="manual-notes-panel__ai-capsule"
             onMouseDown={(event) => event.preventDefault()}
             onClick={handleAiToggle}
             aria-pressed={aiNotesActive}
@@ -275,7 +326,7 @@ export default function ManualNotesPanel() {
             }
             disabled={aiNotesBusy || recapGenerating}
           >
-            <Sparkles size={14} strokeWidth={2} aria-hidden />
+            <span className="manual-notes-panel__ai-capsule-label">AI Notes</span>
           </button>
         )}
       </div>
@@ -310,12 +361,7 @@ export default function ManualNotesPanel() {
             aria-label="Note title"
           />
 
-          <div
-            className={clsx(
-              "manual-notes-panel__editor-wrap",
-              showTranscriptVeil && "manual-notes-panel__editor-wrap--transcript",
-            )}
-          >
+          <div className="manual-notes-panel__editor-wrap">
             <div ref={editorScrollRef} className="manual-notes-panel__editor-scroll">
               <div
                 ref={editorRef}
@@ -329,12 +375,15 @@ export default function ManualNotesPanel() {
                 aria-multiline="true"
                 aria-label="Note content"
                 aria-busy={structuring}
+                onMouseDown={openNotedPerson}
+                onClick={openNotedPerson}
                 data-placeholder={
                   aiNotesActive
                     ? "Écoute en cours — la transcription apparaît ici…"
                     : "Write your note here…"
                 }
                 onInput={() => {
+                  dismissFictionalNotesPreview();
                   publishLiveNoteDraft(title, editorRef.current, initialBody);
                   setEditorVersion((v) => v + 1);
                 }}
@@ -350,29 +399,9 @@ export default function ManualNotesPanel() {
                 </div>
               )}
             </div>
-            {showTranscriptVeil && (
-              <div className="manual-notes-panel__transcript-veil" aria-hidden />
-            )}
-            {aiNotesActive && !aiNotesStructuredHtml.trim() && (
-              <div className="manual-notes-panel__transcript-status">
-                <p className="manual-notes-panel__transcript-status-title">
-                  Transcription running
-                </p>
-                <p className="manual-notes-panel__transcript-status-hint">
-                  Stop the transcription to generate your notes
-                </p>
-                <button
-                  type="button"
-                  className="manual-notes-panel__transcript-generate"
-                  onClick={handleStopRecording}
-                  disabled={aiNotesBusy}
-                >
-                  Generate
-                </button>
-              </div>
-            )}
           </div>
 
+          <div className="manual-notes-panel__bottom">
           {(aiNotesError || aiNotesStructureError || pdfError) && (
             <div className="manual-notes-panel__footer">
               {aiNotesError && (
@@ -380,7 +409,7 @@ export default function ManualNotesPanel() {
                   {aiNotesError}
                 </p>
               )}
-              {aiNotesStructureError && (aiNotesActive || structuring || aiNotesBusy) && (
+              {aiNotesStructureError && (
                 <p
                   className="manual-notes-panel__ai-error manual-notes-panel__ai-error--soft"
                   role="status"
@@ -395,6 +424,18 @@ export default function ManualNotesPanel() {
               )}
             </div>
           )}
+          <button
+            type="button"
+            className="manual-notes-panel__structure-btn"
+            onClick={handleStructure}
+            disabled={structuring || aiNotesBusy || !(editorRef.current?.innerText.trim())}
+          >
+            <span className="manual-notes-panel__structure-btn-label">
+              {structuring ? "Structuration…" : "Structurer"}
+              <ArrowUpRight size={14} strokeWidth={2} aria-hidden />
+            </span>
+          </button>
+          </div>
         </>
       )}
 
